@@ -1,6 +1,34 @@
 {% set usable = groups|rejectattr('item.is_equipable')|list %}
 {% set gear = groups|selectattr('item.is_equipable')|list %}
-<section class="shelf">
+{% macro bonuses(it) -%}
+  {%- set bonus = [] -%}
+  {%- if it.bonus_hp %}{% set _ = bonus.append('+' ~ it.bonus_hp ~ ' HP') %}{% endif -%}
+  {%- if it.bonus_damage %}{% set _ = bonus.append('+' ~ it.bonus_damage ~ ' ATK') %}{% endif -%}
+  {%- if it.bonus_armor %}{% set _ = bonus.append('+' ~ it.bonus_armor ~ ' ARM') %}{% endif -%}
+  {%- if it.bonus_speed %}{% set _ = bonus.append('+' ~ it.bonus_speed ~ ' SPD') %}{% endif -%}
+  {%- if it.bonus_critical %}{% set _ = bonus.append('+' ~ it.bonus_critical ~ '% CRT') %}{% endif -%}
+  {{ bonus|join(' · ') }}{% if it.is_active %}{{ ' · ' if bonus }}special in fights{% endif %}
+{%- endmacro %}
+{% macro sell_buttons(it, count) -%}
+  {% set price = sell_price(it) %}
+  {% if price %}
+    <button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result"
+            hx-confirm="Sell one {{ it.name }} for {{ price }} fragments?">Sell · {{ price|num }}</button>
+    {% if count > 1 %}<button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}, "all": 1}' hx-target="#use-result"
+            hx-confirm="Sell all {{ count }} {{ it.name }} for {{ (price * count)|num }} fragments?">Sell all</button>{% endif %}
+  {% endif %}
+{%- endmacro %}
+
+<div class="item-tools" data-explorer-items>
+  <div class="filter-row" role="group" aria-label="Show">
+    <button type="button" class="filter-chip" data-item-filter="" aria-pressed="true">All <small>{{ u['items']|length }}</small></button>
+    <button type="button" class="filter-chip" data-item-filter="use" aria-pressed="false">To use <small>{{ usable|sum(attribute='count') }}</small></button>
+    <button type="button" class="filter-chip" data-item-filter="gear" aria-pressed="false">Gear <small>{{ gear|sum(attribute='count') }}</small></button>
+  </div>
+  <input type="search" placeholder="Search items" aria-label="Search items" data-item-search>
+</div>
+
+<section class="shelf" data-item-section="use">
   <header class="shelf-head">
     <h2 class="h2">To use</h2>
     <p class="muted">Stand Arrows also work on <a href="{{ url_for('play.banners') }}">banners</a>, where they draw 5 stands at SR or better.</p>
@@ -8,26 +36,27 @@
   {% if usable %}
   <ul class="inventory">
     {% for g in usable %}{% set it = g.item %}
-    <li class="item {% if it.id in (2, 3, 12) %}arrow{% endif %}">
+    <li class="item-tile {% if it.id in (2, 3, 12) %}arrow{% endif %}" data-item-name="{{ it.name|lower }}">
+      <span class="item-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
       <div class="item-info">
-        <h3>{{ it.name }}</h3>
-        <p class="muted">You have {{ g.count }}.{% if it.id == 2 %} Used here, it draws one stand of any rarity.{% endif %}</p>
+        <h3>{{ it.name }} <span class="count">×{{ g.count }}</span></h3>
+        <p class="muted">{% if it.id == 2 %}Draws one stand of any rarity here, or 5 at SR+ on a banner.{% elif it.id == 3 %}Awakens a team stand (Requiem for a few).{% elif it.id == 12 %}Draws a random Part 3 stand.{% elif it.id == 13 %}A bag of fragments.{% elif 8 <= it.id <= 32 %}Unlocks {{ it.name|replace(' Stand Chip', '')|replace('  ', ' ') }} as a stand.{% elif 34 <= it.id <= 36 %}Raid drop. Collect all three corpse parts to craft the Holy Corpse.{% else %}Collectible.{% endif %}</p>
       </div>
-      {% if it.id == 3 %}
-        {% if u.main_characters %}
-        <form class="inline" hx-post="{{ url_for('play.use') }}" hx-target="#use-result">
-          <input type="hidden" name="item" value="3">
-          <label><span class="sr">Stand to awaken</span>
-            <select name="uuid">{% for c in u.main_characters %}<option value="{{ c.uuid }}">{{ c.name }}</option>{% endfor %}</select>
-          </label>
-          <button class="btn small gold">Pierce</button>
-        </form>
-        {% else %}<p class="muted">Needs a stand in your team.</p>{% endif %}
-      {% elif it.id in (2, 12, 13) or (8 <= it.id <= 32 and it.id not in (15, 16)) %}
-        <button class="btn small {% if it.id in (2, 12) %}gold{% endif %}" hx-post="{{ url_for('play.use') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result" hx-disabled-elt="this">
-          {% if it.id == 13 %}Open{% else %}Use{% endif %}
-        </button>
-      {% endif %}
+      <div class="item-actions">
+        {% if it.id == 3 %}
+          {% if u.main_characters %}
+          <form class="inline" hx-post="{{ url_for('play.use') }}" hx-target="#use-result">
+            <input type="hidden" name="item" value="3">
+            <select name="uuid" aria-label="Stand to awaken">{% for c in u.main_characters %}<option value="{{ c.uuid }}">{{ c.name }}</option>{% endfor %}</select>
+            <button class="btn small gold">Pierce</button>
+          </form>
+          {% else %}<span class="muted">Needs a team stand.</span>{% endif %}
+        {% elif it.id in (2, 12, 13) or (8 <= it.id <= 32 and it.id not in (15, 16)) %}
+          <button class="btn small {% if it.id in (2, 12) %}gold{% endif %}" hx-post="{{ url_for('play.use') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result" hx-disabled-elt="this">
+            {% if it.id == 13 %}Open{% else %}Use{% endif %}</button>
+        {% endif %}
+        {{ sell_buttons(it, g.count) }}
+      </div>
     </li>
     {% endfor %}
   </ul>
@@ -36,32 +65,49 @@
   {% endif %}
 </section>
 
-<section class="shelf">
+<section class="shelf" data-item-section="gear">
   <header class="shelf-head">
     <h2 class="h2">Gear</h2>
-    <p class="muted">A stand in your team holds up to three. Equip them from <a href="{{ url_for('play.team') }}">your team</a>.</p>
+    <p class="muted">Each team stand holds up to three.</p>
   </header>
   {% if gear %}
   <ul class="inventory">
     {% for g in gear %}{% set it = g.item %}
-    <li class="item">
+    <li class="item-tile" data-item-name="{{ it.name|lower }}">
+      <span class="item-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
       <div class="item-info">
-        <h3>{{ it.name }}</h3>
-        <p class="muted">
-          {%- set bonus = [] -%}
-          {%- if it.bonus_hp %}{% set _ = bonus.append('+' ~ it.bonus_hp ~ ' HP') %}{% endif -%}
-          {%- if it.bonus_damage %}{% set _ = bonus.append('+' ~ it.bonus_damage ~ ' damage') %}{% endif -%}
-          {%- if it.bonus_armor %}{% set _ = bonus.append('+' ~ it.bonus_armor ~ ' armor') %}{% endif -%}
-          {%- if it.bonus_speed %}{% set _ = bonus.append('+' ~ it.bonus_speed ~ ' speed') %}{% endif -%}
-          {%- if it.bonus_critical %}{% set _ = bonus.append('+' ~ it.bonus_critical ~ ' % crit') %}{% endif -%}
-          {{ bonus|join(', ') if bonus else 'Triggers an effect in fights' }}{% if it.is_active and bonus %}, plus an effect in fights{% endif %}. You have {{ g.count }}.
-        </p>
+        <h3>{{ it.name }} <span class="count">×{{ g.count }}</span></h3>
+        <p class="item-bonus">{{ bonuses(it) }}</p>
+      </div>
+      <div class="item-actions">
+        {% if u.main_characters %}
+          <form class="inline" hx-post="{{ url_for('play.item_equip') }}" hx-target="#use-result">
+            <input type="hidden" name="item" value="{{ it.id }}">
+            <select name="uuid" aria-label="Equip on">{% for c in u.main_characters %}<option value="{{ c.uuid }}" {% if c['items']|length >= 3 %}disabled{% endif %}>{{ c.name }} ({{ c['items']|length }}/3)</option>{% endfor %}</select>
+            <button class="btn small">Equip</button>
+          </form>
+        {% endif %}
+        {{ sell_buttons(it, g.count) }}
       </div>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-    <p class="notice">No gear yet.</p>
+    <p class="notice">No spare gear.</p>
+  {% endif %}
+
+  {% if u.main_characters %}
+    <h3 class="h3 equipped-title">Equipped on your team</h3>
+    <ul class="equipped">
+      {% for c in u.main_characters %}
+        <li><img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.hidden=true"><strong>{{ c.name }}</strong>
+          {% for it in c['items'] %}
+            <span class="equipped-item">{{ (it.emoji or '◈')|emoji }} {{ it.name }}
+              <button class="link" hx-post="{{ url_for('play.item_unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' hx-target="#use-result" aria-label="Unequip {{ it.name }}">✕</button></span>
+          {% else %}<span class="muted">nothing</span>{% endfor %}
+        </li>
+      {% endfor %}
+    </ul>
   {% endif %}
 </section>
 
@@ -69,12 +115,14 @@
   <header class="shelf-head"><h2 class="h2">Crafting</h2></header>
   <ul class="inventory">
     {% for r in recipes %}
-    <li class="item">
+    <li class="item-tile {% if r.ready %}ready{% endif %}">
       <div class="item-info">
         <h3>{{ r.name }}</h3>
-        <p class="muted">{% for name, need, have in r.parts %}{{ name }} {{ have }}/{{ need }}{{ ', ' if not loop.last }}{% endfor %}</p>
+        <p class="muted">{% for name, need, have in r.parts %}<span class="{{ 'have' if have >= need else 'need' }}">{{ name }} {{ have }}/{{ need }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>
       </div>
-      <button class="btn small" hx-post="{{ url_for('play.craft') }}" hx-vals='{"recipe": "{{ r.name }}"}' hx-target="#use-result" {% if not r.ready %}disabled{% endif %}>Craft</button>
+      <div class="item-actions">
+        <button class="btn small {% if r.ready %}gold{% endif %}" hx-post="{{ url_for('play.craft') }}" hx-vals='{"recipe": "{{ r.name }}"}' hx-target="#use-result" {% if not r.ready %}disabled{% endif %}>Craft</button>
+      </div>
     </li>
     {% endfor %}
   </ul>
@@ -87,10 +135,12 @@
   </header>
   <ul class="inventory">
     {% for key, e in shop.items() %}
-    <li class="item">
+    <li class="item-tile">
       <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{{ e.price|num }} fragments</p></div>
-      <button class="btn small {% if key == 'super_fragment' %}gold{% endif %}" hx-post="{{ url_for('play.shop_buy') }}" hx-vals='{"key": "{{ key }}"}' hx-target="#use-result"
-              {% if u.fragments < e.price %}disabled{% endif %}>Buy</button>
+      <div class="item-actions">
+        <button class="btn small {% if key == 'super_fragment' %}gold{% endif %}" hx-post="{{ url_for('play.shop_buy') }}" hx-vals='{"key": "{{ key }}"}' hx-target="#use-result"
+                {% if u.fragments < e.price %}disabled{% endif %}>Buy</button>
+      </div>
     </li>
     {% endfor %}
   </ul>

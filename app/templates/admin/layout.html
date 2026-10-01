@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{% block admin_title %}Admin{% endblock %} | Admin | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page admin">
+  <header class="admin-head">
+    <p class="kicker">Restricted tools · every change is audited</p>
+    <form class="admin-search" method="get" action="{{ url_for('admin.index') }}">
+      <label class="sr" for="admin-q">Find a player</label>
+      <input id="admin-q" type="search" name="q" value="{{ q|default('') }}" placeholder="Username, Discord ID or display name" autocapitalize="none" spellcheck="false">
+      <button class="btn small">Find</button>
+    </form>
+  </header>
+  <nav class="tabs admin-tabs" aria-label="Admin sections">
+    {% for key, label, endpoint in [('dashboard', 'Dashboard', 'admin.index'), ('gangs', 'Gangs', 'admin.gangs'), ('shops', 'Shops', 'admin.shops'), ('banners', 'Banners', 'admin.banners'), ('audit', 'Audit log', 'admin.audit_log')] %}
+      <a href="{{ url_for(endpoint) }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  {% block admin %}{% endblock %}
+</section>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Terrain explorer{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Combat</p>
+  <h1 class="display sm">Terrain explorer</h1>
+  <p>The <strong>fastest living stand that sets a terrain</strong> decides the field, for both teams. It is checked again every turn, so killing or slowing that stand can flip the terrain. Bonuses apply to every matching stand on the field, enemies included.</p>
+</header>
+
+<div class="explorer-tools" data-explorer>
+  <div class="filter-row" role="group" aria-label="Show terrain">
+    <button type="button" class="filter-chip" data-filter="" aria-pressed="true">All</button>
+    {% for t in terrains if t.key != 'default' %}
+      <button type="button" class="filter-chip" data-filter="{{ t.key }}" aria-pressed="false">{{ t.emoji }} {{ t.name }}</button>
+    {% endfor %}
+  </div>
+  <label class="explorer-search"><span class="sr">Find a stand</span>
+    <input type="search" placeholder="Find a stand, e.g. Clash" autocomplete="off" data-search>
+  </label>
+</div>
+
+<div class="explorer-list">
+  {% for t in terrains %}
+    {% set names = (t.setters|map(attribute='name')|list) + (t.boosted|map(attribute='stand.name')|list) + (t.specials|map(attribute='name')|list) %}
+    <section class="explorer-card terrain-{{ t.key }}" id="{{ t.key }}" data-key="{{ t.key }}" data-search="{{ (t.name ~ ' ' ~ names|join(' '))|lower }}">
+      <header class="explorer-card-head">
+        <span class="explorer-icon" aria-hidden="true">{{ t.emoji }}</span>
+        <div>
+          <h2>{{ t.name }}</h2>
+          <p>{{ t.blurb }}</p>
+        </div>
+      </header>
+      {% if t.setters %}
+        <h3 class="explorer-label">Sets the field</h3>
+        <ul class="stand-chips">
+          {% for s in t.setters %}<li><a href="{{ url_for('main.stand', stand_id=s.id) }}" data-name="{{ s.name|lower }}">{{ s.name }}</a></li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% if t.boosted %}
+        <h3 class="explorer-label">Gets stronger</h3>
+        <ul class="bonus-rows">
+          {% for b in t.boosted %}
+            <li data-name="{{ b.stand.name|lower }}"><a href="{{ url_for('main.stand', stand_id=b.stand.id) }}">{{ b.stand.name }}</a><span>{{ b.bonuses|join(', ') }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if t.specials %}
+        <h3 class="explorer-label">Special changes here</h3>
+        <ul class="stand-chips">
+          {% for s in t.specials %}<li><a href="{{ url_for('main.stand', stand_id=s.id) }}" data-name="{{ s.name|lower }}">{{ s.name }}</a></li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% if t.key == 'default' %}<p class="muted">Bring no terrain setter, or outspeed and remove theirs, to fight here.</p>{% endif %}
+    </section>
+  {% endfor %}
+  <p class="explorer-empty muted" hidden>No terrain matches that stand.</p>
+</div>
+<p class="muted wiki-note">Damage, speed and armor bonuses are percentages of the stand's current stat, recalculated whenever the terrain changes. Regen heals that share of starting health each turn.</p>
+{% endblock %}

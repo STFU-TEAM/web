@@ -17,7 +17,7 @@ HPSCALING = 3
 DAMAGESCALING = 1
 SPEEDSCALING = 1
 CRITICALSCALING = 1
-CRITMULTIPLIER = 1
+CRITMULTIPLIER = 1.5  # bot's globals/variables.py value; character.py shadowed it with 1
 DODGENERF = 1
 DODGE_CHANCE_CAP = 25
 STXPTOLEVEL = 100
@@ -223,22 +223,26 @@ class Character:
             if not effect.used:
                 effect.used = True
 
-        # Cleanup effects that have ended and restore original state
+        # Cleanup effects that have ended: undo exactly what each one applied.
+        # (The bot's version restored armor for Weaken and subtracted "stat - value"
+        # for the buffs, so stats drifted further every time an effect expired.)
         remaining_effects = []
         for effect in self.effects:
             if effect.duration > 0:
                 remaining_effects.append(effect)
-            else:
-                if effect.type == EffectType.HEALTHBOOST:
-                    self.current_hp = max(self.current_hp - effect.value, 1)
-                elif effect.type == EffectType.DAMAGEUP:
-                    self.current_damage -= max(self.current_damage - effect.value, 1)
-                elif effect.type == EffectType.SPEEDUP:
-                    self.current_speed -= max(self.current_speed - effect.value, 1)
-                elif effect.type == EffectType.WEAKEN:
-                    self.current_armor += max(self.current_armor - effect.value, 1)
-                elif effect.type == EffectType.SLOW:
-                    self.current_speed += max(self.current_speed - effect.value, 1)
+                continue
+            if not effect.used:
+                continue
+            if effect.type == EffectType.HEALTHBOOST:
+                self.current_hp = max(self.current_hp - effect.value, 1)
+            elif effect.type == EffectType.DAMAGEUP:
+                self.current_damage = max(self.current_damage - effect.value, 1)
+            elif effect.type == EffectType.SPEEDUP:
+                self.current_speed = max(self.current_speed - effect.value, 1)
+            elif effect.type == EffectType.WEAKEN:
+                self.current_damage += effect.value
+            elif effect.type == EffectType.SLOW:
+                self.current_speed += effect.value
 
         self.effects = remaining_effects
 

@@ -1,0 +1,29 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Combat system{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Combat</p>
+  <h1 class="display sm">Combat system</h1>
+</header>
+
+<h2 class="wiki-h2">Turn order</h2>
+<p>Each round, every stand acts in <strong>speed order</strong>, fastest first. A stand either attacks or, when its special meter is full, fires its special instead. Status effects resolve at the end of each stand's turn, and <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a> is re-checked every round.</p>
+
+<h2 class="wiki-h2">Stats</h2>
+<ul class="wiki-defs">
+  <li><span class="def-icon" aria-hidden="true">❤️</span><strong>Health</strong><span>At 0 the stand is out.</span></li>
+  <li><span class="def-icon" aria-hidden="true">⚔️</span><strong>Damage</strong><span>Base power of attacks and most specials.</span></li>
+  <li><span class="def-icon" aria-hidden="true">💨</span><strong>Speed</strong><span>Turn order and dodging. A faster defender dodges with a chance equal to the speed gap, capped at {{ facts.dodge_cap }}%.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🛡️</span><strong>Armor</strong><span>Damage taken is multiplied by (armor + 100) ÷ (2 × armor), at most ×10. At 100 armor hits land normally; more armor takes less, down toward half.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🎯</span><strong>Critical</strong><span>Percent chance to crit. Several specials scale with it.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🪧</span><strong>Taunt</strong><span>Tank stands draw basic attacks and get +100 health and armor.</span></li>
+</ul>
+
+<h2 class="wiki-h2">Specials</h2>
+<p>Every stand has a unique special. Its meter fills by 1 each turn and fires automatically when it reaches the stand's charge time, shown on its <a href="{{ url_for('main.stands') }}">stand page</a>. Some specials change with <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a> or <a href="{{ url_for('main.wiki', topic='synergies') }}">synergies</a>.</p>
+
+<h2 class="wiki-h2">Status effects</h2>
+<ul class="wiki-defs effects">
+  {% for e in effects %}<li class="{{ 'neg' if e.negative else 'pos' }}"><span class="def-icon" aria-hidden="true">{{ e.emoji }}</span><strong>{{ e.name }}</strong><span>{{ e.text }}</span></li>{% endfor %}
+</ul>
+{% endblock %}

@@ -161,33 +161,73 @@ def roll_types_qualities():
     return [t.name for t in pulled_types], [q.name for q in pulled_qualities]
 
 
+def banner_enabled(banner: dict) -> bool:
+    """banners_data.json's flag, unless an admin overrode it on the web (web:banner_state)."""
+    try:
+        from app.db import r
+        state = r().hget("web:banner_state", str(banner["id"]))
+    except Exception:
+        state = None
+    return banner["enabled"] if state is None else state in (b"1", "1")
+
+
 def _banner(banner_id: int) -> dict:
     for b in BANNERS:
-        if b["id"] == banner_id and b["enabled"]:
+        if b["id"] == banner_id and banner_enabled(b):
             return b
     raise GameError("This banner isn't available.")
 
 
-def _banner_draw(banner: dict, user: User) -> Character:
-    """generate_character_data: pity at 100 = 50/50 UR or SSR."""
+# Web drop rates (kinder than the bot's 80 / 19 / 0.9 / 0.1 with pity at 100).
+BANNER_ODDS = {"R": 0.70, "SR": 0.255, "SSR": 0.04, "UR": 0.005}
+ARROW_ODDS = {"SR": 0.65, "SSR": 0.27, "UR": 0.08}
+PITY_LIMIT = 80          # pulls without an SSR+ before one is guaranteed
+HIGH_RARITIES = ("SSR", "UR", "LR")
+
+
+def _template_of(banner: dict, rarity: str) -> dict:
+    """A banner stand of that rarity, stepping down if the banner has none."""
+    order = ["R", "SR", "SSR", "UR", "LR"]
+    for r in order[order.index(rarity)::-1]:
+        pool = [CHARACTER_FILE[c - 1] for c in banner["cards"] if CHARACTER_FILE[c - 1]["rarity"] == r]
+        if pool:
+            return random.choice(pool)
+    return CHARACTER_FILE[random.choice(banner["cards"]) - 1]
+
+
+def _banner_draw(banner: dict, user: User, floor: Optional[str] = None) -> Character:
+    """One banner stand. Pity: PITY_LIMIT pulls without SSR+ guarantee a 50/50 SSR or UR."""
     types, qualities = roll_types_qualities()
-    if user.pity >= 100:
-        user.pity = 0
+    if user.pity >= PITY_LIMIT - 1:
         rarity = random.choice(["UR", "SSR"])
     else:
-        rarity = random.choices(["R", "SR", "SSR", "UR"], weights=[0.8, 0.19, 0.009, 0.001], k=1)[0]
-    template = random.choice([CHARACTER_FILE[c - 1] for c in banner["cards"] if CHARACTER_FILE[c - 1]["rarity"] == rarity])
+        rarity = random.choices(list(BANNER_ODDS), weights=list(BANNER_ODDS.values()), k=1)[0]
+    if floor == "SR" and rarity == "R":
+        rarity = "SR"
+    template = _template_of(banner, rarity)
+    user.pity = 0 if template["rarity"] in HIGH_RARITIES else user.pity + 1
     return get_character_from_template(template, types, qualities)
 
 
 def _arrow_draw(banner: dict) -> Character:
-    """generate_arrow_character_data: no pity, SR floor."""
+    """Arrow: no pity, SR floor."""
     types, qualities = roll_types_qualities()
-    rarity = random.choices(["SR", "SSR", "UR"], weights=[0.70, 0.22, 0.08], k=1)[0]
-    matching = [CHARACTER_FILE[c - 1] for c in banner["cards"] if CHARACTER_FILE[c - 1]["rarity"] == rarity]
-    if not matching:
-        matching = [CHARACTER_FILE[c - 1] for c in banner["cards"]]
-    return get_character_from_template(random.choice(matching), types, qualities)
+    rarity = random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
+    return get_character_from_template(_template_of(banner, rarity), types, qualities)
+
+
+def _record_pull(user: User, banner: dict, drawn: list, mode: str):
+    """Mark first-time stands and keep a short web-only pull history in the save."""
+    owned_before = {c.id for c in user.main_characters + user.storage_characters} - {c.id for c, _ in drawn}
+    seen, out = set(), []
+    for c, where in drawn:
+        out.append({"stand": c, "where": where, "new": c.id not in owned_before and c.id not in seen})
+        seen.add(c.id)
+    history = user.data.setdefault("web_pull_history", [])
+    history.insert(0, {"at": now().isoformat(timespec="minutes"), "banner": banner["name"], "mode": mode,
+                       "rarities": [c.rarity for c, _ in drawn], "ids": [c.id for c, _ in drawn]})
+    del history[30:]
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -195,6 +235,7 @@ def _arrow_draw(banner: dict) -> Character:
 # --------------------------------------------------------------------------- #
 def begin(user: User):
     user.super_fragements += 1
+    check_achievements(user, "register")
 
 
 def daily(user: User) -> dict:
@@ -232,14 +273,14 @@ def banner_pull(user: User, banner_id: int) -> dict:
         raise GameError("You need 10 free storage slots. Release a few stands first.")
     user.super_fragements -= banner["cost"]
     drawn = []
-    for _ in range(10):
-        c = _banner_draw(banner, user)
-        where = add_to_available_storage(user, c, skip_main=True)
-        drawn.append((c, where))
-        user.pity += 1
+    for i in range(10):
+        # 10-pull floor: the last stand is at least SR if the first nine were all R
+        floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
+        c = _banner_draw(banner, user, floor)
+        drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
-    return {"banner": banner, "drawn": drawn}
+    return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "pull")}
 
 
 def arrow_pull(user: User, banner_id: int) -> dict:
@@ -256,7 +297,7 @@ def arrow_pull(user: User, banner_id: int) -> dict:
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
-    return {"banner": banner, "drawn": drawn}
+    return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "arrow")}
 
 
 # --------------------------------------------------------------------------- #
@@ -294,12 +335,30 @@ def store(user: User, uuid: str):
     return char, where
 
 
+def locked(user: User) -> set:
+    """Web-only protection list, stored in the save as data["web_locked"] (the bot ignores it)."""
+    return set(user.data.get("web_locked", []))
+
+
+def toggle_lock(user: User, uuid: str) -> bool:
+    char, _, _ = locate(user, uuid)
+    current = locked(user)
+    now_locked = uuid not in current
+    current.symmetric_difference_update({uuid})
+    owned = {c.uuid for c in user.main_characters + user.storage_characters}
+    user.data["web_locked"] = sorted(current & owned)
+    return now_locked
+
+
 def release(user: User, uuids: List[str]) -> List[Character]:
     gone = []
+    protected = locked(user)
     for u in uuids:
         char, lst, idx = locate(user, u)
         if lst is user.main_characters:
             raise GameError("Move a stand to storage before releasing it.")
+        if u in protected:
+            raise GameError(f"{char.name} is locked. Unlock it first.")
         lst.pop(idx)
         gone.append(char)
     for team in user.teams.values():  # keep presets tidy
@@ -329,6 +388,8 @@ def fuse(user: User, uuid: str, fodder_uuid: str) -> Character:
         raise GameError("Both copies must be in storage.")
     if char.id != other.id:
         raise GameError("You can only fuse two copies of the same stand.")
+    if fodder_uuid in locked(user):
+        raise GameError(f"The copy you'd consume is locked. Unlock it first.")
     lst2.pop(idx2)
     user.items.extend(other.items)
     char.xp += other.xp
@@ -604,6 +665,25 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
         user.items.append(item)
     return {"won": True, "fragments": FRAGMENTSGAIN * multi, "xp": PLAYER_XPGAINS,
             "stand_xp": CHARACTER_XPGAINS * multi, "item": item.name if item else None}
+
+
+def sell_price(item) -> int:
+    """/shop sell: a tenth of the shop price; free items can't be sold."""
+    return (item.price or 0) // 10
+
+
+def sell_item(user: User, item_id: int, count: int = 1) -> dict:
+    owned = [i for i in user.items if i.id == item_id]
+    if not owned:
+        raise GameError("You don't have that item.")
+    price = sell_price(owned[0])
+    if price <= 0:
+        raise GameError(f"{owned[0].name} can't be sold.")
+    count = max(1, min(count, len(owned)))
+    for it in owned[:count]:
+        user.items.remove(it)
+    user.fragments += price * count
+    return {"name": owned[0].name, "count": count, "fragments": price * count}
 
 
 # --------------------------------------------------------------------------- #

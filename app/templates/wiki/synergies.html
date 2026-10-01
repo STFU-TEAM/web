@@ -1,0 +1,44 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Synergy explorer{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Combat</p>
+  <h1 class="display sm">Synergy explorer</h1>
+  <p>Put <strong>at least two members</strong> of a group in your team of three and their specials upgrade. Fallen teammates still count. Only the stands marked <span class="syn-on">active</span> change; the others just help unlock it.</p>
+</header>
+
+<div class="explorer-tools" data-explorer>
+  <div class="filter-row" role="group" aria-label="Show synergy">
+    <button type="button" class="filter-chip" data-filter="" aria-pressed="true">All</button>
+    {% for g in synergies %}
+      <button type="button" class="filter-chip" data-filter="{{ g.key }}" aria-pressed="false">{{ g.icon }} {{ g.name }}</button>
+    {% endfor %}
+  </div>
+  <label class="explorer-search"><span class="sr">Find a stand</span>
+    <input type="search" placeholder="Find a stand, e.g. Killer Queen" autocomplete="off" data-search>
+  </label>
+</div>
+
+<div class="explorer-list">
+  {% for g in synergies %}
+    <section class="explorer-card" id="{{ g.key }}" data-key="{{ g.key }}" data-search="{{ (g.name ~ ' ' ~ g.members|map(attribute='stand.name')|join(' '))|lower }}">
+      <header class="explorer-card-head">
+        <span class="explorer-icon" aria-hidden="true">{{ g.icon }}</span>
+        <div>
+          <h2>{{ g.name }}</h2>
+          <p>{{ g.rule }} {% if g.active %}{{ g.active }} of {{ g.members|length }} stands upgrade.{% else %}<strong>No special uses this synergy yet.</strong>{% endif %}</p>
+        </div>
+      </header>
+      <ul class="synergy-members">
+        {% for m in g.members %}
+          <li class="{{ 'is-active' if m.effect }}" data-name="{{ m.stand.name|lower }}">
+            <a href="{{ url_for('main.stand', stand_id=m.stand.id) }}">{{ m.stand.name }}</a>
+            {% if m.effect %}<span class="syn-on">active</span><p>{{ m.effect }}</p>{% else %}<span class="syn-off">enabler</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endfor %}
+  <p class="explorer-empty muted" hidden>That stand isn't in any synergy.</p>
+</div>
+{% endblock %}

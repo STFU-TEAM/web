@@ -5,6 +5,7 @@ import uuid
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app.accounts import resolve_player
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
 from app.game import logic
@@ -100,8 +101,9 @@ def dummy_start():
 def invite_friend():
     uid = session["uid"]
     target_id = request.form.get("user_id", "").strip()
-    if not target_id.isdigit() or target_id == uid or not get_db().user_exists(target_id):
-        flash("Enter another registered player's numeric Discord ID.", "error")
+    target_id = resolve_player(target_id) or ""
+    if not target_id or target_id == uid:
+        flash("Enter another registered player's username or Discord ID.", "error")
         return redirect(url_for("battles.index", mode="friends"))
     if not get_db().get_user(uid).main_characters:
         flash("Add a stand to your team before inviting a friend.", "error")
@@ -205,6 +207,37 @@ def ranked_cancel():
     return redirect(url_for("battles.index", mode="ranked"))
 
 
+def _settle(fight):
+    """Quest/achievement counters (and ranked elo) once a battle ends, like the bot's /fight."""
+    players = fight.meta.get("players", [])
+    if fight.kind == "dummy":
+        if fight.winner == 0 and players:
+            user = get_db().get_user(players[0])
+            logic.track_quest_progress(user, "fight_win")
+            logic.check_achievements(user, "fight_win")
+            user.update()
+        return
+    if len(players) != 2:
+        return
+    users = [get_db().get_user(p) for p in players]
+    played = "fight_ranked" if fight.kind == "ranked" else "fight_local"
+    for user in users:
+        logic.track_quest_progress(user, played)
+        logic.check_achievements(user, played)
+    if fight.winner is not None:
+        winner, loser = users[fight.winner], users[1 - fight.winner]
+        actions = ["fight_win"]
+        if fight.kind == "ranked":
+            winner.global_elo += 25
+            loser.global_elo = max(0, loser.global_elo - 20)
+            actions.insert(0, "fight_ranked_win")
+        for action_name in actions:
+            logic.track_quest_progress(winner, action_name)
+            logic.check_achievements(winner, action_name)
+    for user in users:
+        user.update()
+
+
 @bp.post("/attack")
 @player_required
 def attack():
@@ -225,18 +258,9 @@ def attack():
                     fight.forfeit(my_side)
                 else:
                     fight.advance(_int("target"))
-            if fight.finished and fight.kind == "ranked" and not fight.meta.get("elo_applied"):
-                fight.meta["elo_applied"] = True
-                if fight.winner is not None:
-                    winner_id = fight.meta["players"][fight.winner]
-                    loser_id = fight.meta["players"][1 - fight.winner]
-                    winner, loser = get_db().get_user(winner_id), get_db().get_user(loser_id)
-                    winner.global_elo += 25
-                    loser.global_elo = max(0, loser.global_elo - 20)
-                    logic.track_quest_progress(winner, "fight_ranked_win")
-                    logic.check_achievements(winner, "fight_ranked_win")
-                    winner.update()
-                    loser.update()
+            if fight.finished and not fight.meta.get("settled"):
+                fight.meta["settled"] = True
+                _settle(fight)
             for player_id in lock_ids:
                 save_fight(player_id, fight)
     except Busy:

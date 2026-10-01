@@ -1,0 +1,14 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Ranked & ELO{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Modes</p>
+  <h1 class="display sm">Ranked & ELO</h1>
+</header>
+<p>Queue from <a href="{{ url_for('battles.index', mode='ranked') }}">Battle → Ranked</a> to be matched against a player close to your ELO. Wins add ELO and losses take it away. The bot and the site share one ladder.</p>
+<h2 class="wiki-h2">Rank tiers</h2>
+<ol class="rank-ladder">
+  {% for r in ranks %}<li><strong>{{ r.name }}</strong><span>{{ r.elo }}+ ELO</span></li>{% endfor %}
+</ol>
+<p>The top players are on the <a href="{{ url_for('main.leaderboard') }}">ranked ladder</a>. For practice without risk, fight the dummy or a friend from the same Battle page.</p>
+{% endblock %}

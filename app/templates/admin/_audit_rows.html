@@ -1,0 +1,11 @@
+<ol class="admin-audit">
+  {% for e in audit %}
+    {% set details = e.items()|rejectattr(0, 'in', ['at', 'actor', 'target', 'kind'])|list %}
+    <li>
+      <time datetime="{{ e.at }}">{{ e.at[:16]|replace('T', ' ') }}</time>
+      <strong>{{ e.kind|replace('_', ' ')|title }}</strong>
+      <span>{{ (names|default({})).get(e.actor, e.actor) }} → {% if e.target and not (e.kind.startswith('gang_') or e.kind == 'banner') %}<a href="{{ url_for('admin.player', uid=e.target) }}">{{ e.target }}</a>{% else %}{{ e.target or '—' }}{% endif %}</span>
+      <span class="muted">{% for k, v in details if v is not none %}{{ k }}={{ v }}{{ ', ' if not loop.last }}{% endfor %}</span>
+    </li>
+  {% else %}<li class="muted">Nothing recorded yet.</li>{% endfor %}
+</ol>

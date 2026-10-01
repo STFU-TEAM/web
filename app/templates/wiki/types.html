@@ -1,0 +1,29 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Types & qualities{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Basics</p>
+  <h1 class="display sm">Types & qualities</h1>
+  <p>Every copy of a stand rolls its own <strong>types</strong> (which stat is boosted) and a <strong>quality</strong> for each one (how much). Two copies of the same stand can play very differently.</p>
+</header>
+
+<h2 class="wiki-h2">Types</h2>
+<ul class="wiki-defs">
+  {% for t in types %}<li><span class="def-icon" aria-hidden="true">{{ t.emoji }}</span><strong>{{ t.name }}</strong><span>{{ t.text }}</span></li>{% endfor %}
+</ul>
+
+<h2 class="wiki-h2">Qualities</h2>
+<div class="wiki-table-wrap"><table class="wiki-table">
+  <thead><tr><th scope="col">Rank</th><th scope="col">Quality</th><th scope="col">Multiplier</th></tr></thead>
+  <tbody>
+    {% for q in qualities %}<tr><td>{{ q.rank }}</td><th scope="row">{{ q.emoji }} {{ q.name }}</th><td>×{{ q.coef }}</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+
+<h2 class="wiki-h2">Tips</h2>
+<ul class="wiki-list">
+  <li>A bad first roll guarantees a second type roll.</li>
+  <li>Types stack: Attack Great plus Luck Supreme boosts both damage and critical.</li>
+  <li>Unhappy with a roll? Reforge a team stand on the <a href="{{ url_for('play.team') }}">team page</a> for {{ facts.reforge_cost|num }} fragments to reroll every type and quality.</li>
+</ul>
+{% endblock %}

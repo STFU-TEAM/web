@@ -1,59 +1,43 @@
 {% from "macros.html" import owned_card %}
+{% set rank = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}
+{% macro slot(c, i, team=False, small=True) -%}
+  <div class="slot stand-slot" role="button" tabindex="0" aria-haspopup="dialog" aria-label="Open {{ c.name }}"
+       hx-get="{{ url_for('play.stand_panel', uuid=c.uuid) }}" hx-target="#stand-panel-body"
+       hx-trigger="click[!this.closest('.selecting')], keyup[key=='Enter' && !this.closest('.selecting')]" data-open-panel
+       data-name="{{ c.name|lower }}" data-rarity="{{ rank.get(c.rarity, 0) }}" data-level="{{ c.level * 10 + c.awaken }}"
+       data-power="{{ power.get(c.uuid, 0) }}" data-idx="{{ i }}" data-dupe="{{ 1 if copies.get(c.id, 0) > 1 else 0 }}"
+       data-search="{{ c.name|lower }} {{ c.rarity|lower }} {{ c.id }}">
+    {% if not team %}<input class="pick-box" type="checkbox" name="uuid" value="{{ c.uuid }}" aria-label="Select {{ c.name }}" tabindex="-1" {% if c.uuid in locked %}disabled{% endif %}>{% endif %}
+    {{ owned_card(c, size='small' if small else '', link=False,
+                  badges={'team': team, 'locked': c.uuid in locked, 'copies': (copies.get(c.id, 0) - (0 if team else 1)) if copies.get(c.id, 0) > (0 if team else 1) else 0}) }}
+  </div>
+{%- endmacro %}
 <div class="collection">
 {% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
 {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
-{% set equipable = u.items|unique_equipable %}
 
 <section class="shelf">
   <header class="shelf-head">
     <h2 class="h2">Team</h2>
-    <p class="muted">{{ u.main_characters|length }} of 3. These three fight for you.</p>
+    <p class="muted">{{ u.main_characters|length }} of 3 fight for you. Tap a stand to manage it.</p>
   </header>
   <div class="grid team-grid">
-    {% for c in u.main_characters %}
-      <div class="slot">
-        {{ owned_card(c) }}
-        <details class="menu">
-          <summary>Manage {{ c.name }}</summary>
-          <div class="menu-body">
-            <button class="btn small ghost" hx-post="{{ url_for('play.store') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection">Move to storage</button>
-            {% if c.level >= 100 and c.awaken < 3 %}
-              <button class="btn small gold" hx-post="{{ url_for('play.ascend') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
-                      hx-confirm="Ascend {{ c.name }}? Its level resets to 0.">Ascend</button>
-            {% endif %}
-            <button class="btn small ghost" hx-post="{{ url_for('play.reforge') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
-                    hx-confirm="Reroll {{ c.name }}'s types and qualities for 10,000 fragments? The new roll can be worse.">Reforge (10,000 fragments)</button>
-            {% if c.items|length < 3 and equipable %}
-              <form class="inline" hx-post="{{ url_for('play.equip') }}" hx-target="#collection">
-                <input type="hidden" name="uuid" value="{{ c.uuid }}">
-                <label><span class="sr">Item to equip</span>
-                  <select name="item">{% for it in equipable %}<option value="{{ it.id }}">{{ it.name }}</option>{% endfor %}</select>
-                </label>
-                <button class="btn small">Equip</button>
-              </form>
-            {% endif %}
-            {% for it in c.items %}
-              <button class="btn small ghost" hx-post="{{ url_for('play.unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' hx-target="#collection">Unequip {{ it.name }}</button>
-            {% endfor %}
-          </div>
-        </details>
-      </div>
-    {% endfor %}
+    {% for c in u.main_characters %}{{ slot(c, loop.index0, team=True, small=False) }}{% endfor %}
     {% for _ in range(3 - u.main_characters|length) %}
-      <div class="slot empty-slot"><p>Empty slot</p><p class="muted">Add a stand from storage below.</p></div>
+      <div class="slot empty-slot"><p>Empty slot</p><p class="muted">Pick a stand from storage below.</p></div>
     {% endfor %}
   </div>
 
   <div class="presets">
-    <h3 class="h3">Team presets</h3>
+    <h3 class="h3">Team presets <small class="muted">{{ u.teams|length }}/5</small></h3>
     {% if u.teams %}
-      <ul>
+      <ul class="preset-list">
         {% for name, uuids in u.teams.items() %}
           <li>
             <span class="preset-name">{{ name }}</span>
-            <span class="muted">{% for uid in uuids %}{% set found = u.find_character_by_uuid(uid)[0] %}{{ found.name if found else 'missing' }}{{ ', ' if not loop.last }}{% endfor %}</span>
+            <span class="preset-members">{% for uid in uuids %}{% set found = u.find_character_by_uuid(uid)[0] %}<img src="{{ found.id|stand_img if found else url_for('static', filename='img/stand-fallback.svg') }}" alt="{{ found.name if found else 'missing' }}" title="{{ found.name if found else 'missing stand' }}" loading="lazy">{% endfor %}</span>
             <button class="btn small" hx-post="{{ url_for('play.preset_load') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection">Load</button>
-            <button class="btn small ghost" hx-post="{{ url_for('play.preset_delete') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection" hx-confirm="Delete the preset “{{ name }}”?">Delete</button>
+            <button class="btn small ghost" hx-post="{{ url_for('play.preset_delete') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection" hx-confirm="Delete the preset “{{ name }}”?" aria-label="Delete preset {{ name }}">✕</button>
           </li>
         {% endfor %}
       </ul>
@@ -67,54 +51,40 @@
   </div>
 </section>
 
-<section class="shelf">
+<section class="shelf storage" id="storage">
   <header class="shelf-head">
     <h2 class="h2">Storage</h2>
-    <p class="muted">{{ u.storage_characters|length }} / 200 stands.</p>
+    <p class="muted">{{ u.storage_characters|length }} / 200 stands{% if locked %} · {{ locked|length }} locked{% endif %}</p>
   </header>
-  <label class="collection-filter">Filter collection
-    <input id="collection-filter" type="search" placeholder="Name or rarity" autocomplete="off">
-  </label>
-    {% if u.storage_characters %}
-    <div class="grid collection-grid">
-      {% for c in u.storage_characters %}
-        <div class="slot collection-card" data-search="{{ c.name|lower }} {{ c.rarity|lower }} {{ c.id }}">
-          {{ owned_card(c, size='small') }}
-          <details class="menu">
-            <summary>Manage {{ c.name }}</summary>
-            <div class="menu-body">
-              {% if u.main_characters|length < 3 %}
-                <button class="btn small" hx-post="{{ url_for('play.to_main') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection">Add to team</button>
-              {% else %}
-                <form class="inline" hx-post="{{ url_for('play.to_main') }}" hx-target="#collection">
-                  <input type="hidden" name="uuid" value="{{ c.uuid }}">
-                  <label><span class="sr">Swap with</span>
-                    <select name="swap">{% for m in u.main_characters %}<option value="{{ m.uuid }}">Swap with {{ m.name }}</option>{% endfor %}</select>
-                  </label>
-                  <button class="btn small">Swap in</button>
-                </form>
-              {% endif %}
-              {% set dupes = c|copies(u) %}
-              {% if dupes %}
-                <form class="inline" hx-post="{{ url_for('play.fuse') }}" hx-target="#collection" hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
-                  <input type="hidden" name="uuid" value="{{ c.uuid }}">
-                  <label><span class="sr">Copy to consume</span>
-                    <select name="fodder">{% for d in dupes %}<option value="{{ d.uuid }}">Consume copy Lv {{ d.level }}{% for emo, t, q, rank, qemo in d|traits %} {{ emo }}{{ rank }}{% endfor %}</option>{% endfor %}</select>
-                  </label>
-                  <button class="btn small gold">Fuse</button>
-                </form>
-              {% endif %}
-              <button class="btn small danger" hx-post="{{ url_for('play.release') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
-                      hx-confirm="Release {{ c.name }} for good? This can't be undone.">Release</button>
-            </div>
-          </details>
-        </div>
-      {% endfor %}
+  {% if u.storage_characters %}
+  <div class="storage-tools" data-storage-tools>
+    <input type="search" placeholder="Search name, rarity or #id" aria-label="Search storage" data-storage-search>
+    <div class="filter-row" role="group" aria-label="Rarity">
+      <button type="button" class="filter-chip" data-rarity-filter="" aria-pressed="true">All</button>
+      {% for r in ['R', 'SR', 'SSR', 'UR', 'LR'] %}{% set n = u.storage_characters|selectattr('rarity', 'equalto', r)|list|length %}{% if n %}<button type="button" class="filter-chip" data-rarity-filter="{{ rank[r] }}" aria-pressed="false">{{ r }} <small>{{ n }}</small></button>{% endif %}{% endfor %}
+      <button type="button" class="filter-chip" data-dupe-filter aria-pressed="false" title="Stands you own more than once, ready to fuse">Fusable</button>
     </div>
-    {% else %}
-      <p class="notice">Collection empty. Pulls and rewards are added here automatically.</p>
-    {% endif %}
-  <p class="muted collection-empty" hidden>No stands match this filter.</p>
+    <label class="sort-pick">Sort
+      <select data-storage-sort>
+        <option value="idx">Newest</option><option value="rarity">Rarity</option><option value="level">Level</option>
+        <option value="power">Power</option><option value="name">Name</option>
+      </select>
+    </label>
+    <button type="button" class="btn small ghost" data-select-toggle aria-pressed="false">Select</button>
+  </div>
+  <form class="bulk-bar" hx-post="{{ url_for('play.release') }}" hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked"
+        hx-confirm="Release every selected stand for good? This can't be undone." hidden>
+    <span data-selected-count>0 selected</span>
+    <button type="button" class="btn small ghost" data-select-visible>Select all shown</button>
+    <button class="btn small danger">Release selected</button>
+  </form>
+  <div class="grid collection-grid" id="storage-grid">
+    {% for c in u.storage_characters|reverse %}{{ slot(c, loop.index0) }}{% endfor %}
+  </div>
+  <p class="muted collection-empty" hidden>No stands match.</p>
+  {% else %}
+    <p class="notice">Storage is empty. Pulls and rewards land here.</p>
+  {% endif %}
 </section>
 </div>
 {% if request.headers.get('HX-Request') %}{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}{% endif %}

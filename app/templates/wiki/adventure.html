@@ -1,0 +1,16 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Wormhole, tower & dungeon{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Modes</p>
+  <h1 class="display sm">Wormhole, tower & dungeon</h1>
+</header>
+<h2 class="wiki-h2">Story</h2>
+<p><a href="{{ url_for('progress.story_page') }}">Story mode</a> walks you through the game chapter by chapter. Some steps ask you to do something first (build a team, win a fight, claim the daily), and some pay rewards. Progress is shared with the bot's <code>/story</code>.</p>
+<h2 class="wiki-h2">Wormhole</h2>
+<p>The <a href="{{ url_for('play.wormhole') }}">wormhole</a> throws you at a random team scaled to your level. Win for fragments, XP and sometimes an item. It cools down for {{ facts.wormhole_hours }} h ({{ facts.wormhole_hours_donor|int }} h for supporters).</p>
+<h2 class="wiki-h2">Tower</h2>
+<p>The <a href="{{ url_for('play.tower') }}">tower</a> is a climb through fixed floors that get tougher every time you clear it. A climb costs {{ facts.tower_cost }} fragments, and your floor is saved between climbs.</p>
+<h2 class="wiki-h2">Dungeon</h2>
+<p>The <a href="{{ url_for('play.dungeon') }}">dungeon</a> is a grid you explore by wagering energy. Tiles hide fights, chests and bombs. Reach the ladder to clear it.</p>
+{% endblock %}

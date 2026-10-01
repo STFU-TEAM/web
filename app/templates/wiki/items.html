@@ -1,0 +1,21 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Items & equipment{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Modes</p>
+  <h1 class="display sm">Items & equipment</h1>
+</header>
+<h2 class="wiki-h2">Equipping</h2>
+<p>Items add health, damage, speed, critical or armor. Each <strong>team</strong> stand holds up to 3. Equip and unequip them from the <a href="{{ url_for('play.items') }}">items page</a> or from a stand's panel on the <a href="{{ url_for('play.team') }}">team page</a>. Some items have their own special that charges during fights.</p>
+<h2 class="wiki-h2">Where items come from</h2>
+<ul class="wiki-list">
+  <li>The daily reward (60% chance)</li>
+  <li>Wormhole wins and dungeon chests</li>
+  <li>The shop and <a href="{{ url_for('social.shops') }}">player shops</a></li>
+  <li>Crafting from recipes on the <a href="{{ url_for('play.items') }}">items page</a></li>
+</ul>
+<h2 class="wiki-h2">Selling</h2>
+<p>Sell spare items from the <a href="{{ url_for('play.items') }}">items page</a> for a tenth of their shop price. Free drops like chips and raid parts can't be sold, but you can trade them.</p>
+<h2 class="wiki-h2">Consumables</h2>
+<p>Items that can't be equipped, like arrows and fragment packs, are used straight from the <a href="{{ url_for('play.items') }}">items page</a>.</p>
+{% endblock %}

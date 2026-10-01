@@ -1,0 +1,28 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Banners{% endblock %}
+{% block admin %}
+<h1 class="display sm">Banners</h1>
+<p class="muted">Turn banners on or off for the website. The Discord bot keeps using its own banners file.</p>
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Banner</th><th>Stands</th><th>Cost</th><th>On the web</th><th></th></tr></thead>
+  <tbody>
+    {% for row in rows %}{% set b = row.b %}
+      <tr>
+        <td><strong>{{ b.name }}</strong> <small class="muted">#{{ b.id }}</small></td>
+        <td>{{ b.cards|length }}</td>
+        <td>{{ b.cost }} super</td>
+        <td>{{ '✅ On' if row.on else '⛔ Off' }} <small class="muted">{{ '(admin override)' if row.override is not none else '(file default)' }}</small></td>
+        <td>
+          <form class="inline" method="post">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ b.id }}">
+            {% if row.on %}<button class="btn small ghost" name="state" value="0">Turn off</button>{% else %}<button class="btn small" name="state" value="1">Turn on</button>{% endif %}
+            {% if row.override is not none %}<button class="btn small ghost" name="state" value="">Use file default</button>{% endif %}
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,11 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Banners | STFU Requiem{% endblock %}
+{% macro pct(v) %}{{ ('%.1f'|format(v * 100)).rstrip('0').rstrip('.') }}%{% endmacro %}
 {% block main %}
 <section class="page">
   <header class="player-bar">
     <div>
       <h1 class="display sm">Banners</h1>
-      <p class="muted">Pity {{ u.pity }}/100: at 100 your next banner pull is a guaranteed UR or SSR. {{ st.free_slots }} free storage slot{{ 's' if st.free_slots != 1 }}.</p>
+      <div class="pity" title="Pulls since your last SSR or better">
+        <span>Pity {{ u.pity }}/{{ PITY_LIMIT }}</span>
+        <div class="meter" role="meter" aria-label="Pity" aria-valuemin="0" aria-valuemax="{{ PITY_LIMIT }}" aria-valuenow="{{ u.pity }}"><i style="width: {{ ([100 * u.pity / PITY_LIMIT, 100]|min)|round }}%"></i></div>
+        <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed SSR or UR · {{ st.free_slots }} free slots</small>
+      </div>
     </div>
     {% include "partials/wallet.html" %}
   </header>
@@ -19,23 +24,42 @@
       <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
       <div class="banner-body">
         <h2 class="h2">{{ b.name }}</h2>
-        {% set featured = b|banner_stands %}
-        <p class="muted">{{ b.cards|length }} stands, led by {% for c in featured[:3] %}<a href="{{ url_for('main.stand', stand_id=c.id) }}">{{ c.name }}</a> ({{ c.rarity }}){{ ', ' if not loop.last }}{% endfor %}.</p>
-        <table class="odds">
-          <caption class="sr">Draw odds</caption>
-          <tr><th scope="col"></th><th scope="col">R</th><th scope="col">SR</th><th scope="col">SSR</th><th scope="col">UR</th></tr>
-          <tr><th scope="row">10-pull</th><td>80 %</td><td>19 %</td><td>0.9 %</td><td>0.1 %</td></tr>
-          <tr><th scope="row">Arrow</th><td>0 %</td><td>70 %</td><td>22 %</td><td>8 %</td></tr>
-        </table>
+        {% set pool = b|banner_stands %}
+        <ul class="banner-pool" aria-label="Top stands">
+          {% for c in pool[:6] %}<li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}" title="{{ c.name }} ({{ c.rarity }})"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"><span>{{ c.rarity }}</span></a></li>{% endfor %}
+          {% if pool|length > 6 %}<li class="more">+{{ pool|length - 6 }}</li>{% endif %}
+        </ul>
+        <details class="odds-box">
+          <summary>Drop rates</summary>
+          <table class="odds">
+            <tr><th scope="col"></th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<th scope="col">{{ r }}</th>{% endfor %}</tr>
+            <tr><th scope="row">10-pull</th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<td>{{ pct(BANNER_ODDS[r]) }}</td>{% endfor %}</tr>
+            <tr><th scope="row">Arrow</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
+          </table>
+          <p class="muted">Every 10-pull holds at least one SR. Pity guarantees an SSR or UR after {{ PITY_LIMIT }} pulls without one, and any SSR+ resets it.</p>
+        </details>
         <div class="banner-actions">
           <button class="btn gold" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
-                  {% if u.super_fragements < b.cost %}disabled title="You need {{ b.cost }} super fragment"{% endif %}>Pull 10 for {{ b.cost }} super fragment</button>
+                  {% if u.super_fragements < b.cost %}disabled title="You need {{ b.cost }} super fragment"{% endif %}>Pull 10 · {{ b.cost }} super fragment</button>
           <button class="btn" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
-                  {% if not arrows %}disabled title="You have no Stand Arrow"{% endif %}>Pull 5 with an arrow <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
+                  {% if not arrows %}disabled title="You have no Stand Arrow"{% endif %}>Pull 5 · Stand Arrow <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
         </div>
       </div>
     </article>
     {% endfor %}
   </div>
+
+  {% if history %}
+    <section class="shelf pull-history">
+      <header class="shelf-head"><h2 class="h2">Recent pulls</h2></header>
+      <ol>
+        {% for h in history %}
+          <li><time>{{ h.at|replace('T', ' ') }}</time><strong>{{ h.banner }}</strong><small class="muted">{{ '10-pull' if h.mode == 'pull' else 'arrow' }}</small>
+            <span class="rar-dots">{% for r in h.rarities %}<i class="rar-{{ r|rarity }}" title="{{ r }}"></i>{% endfor %}</span>
+            {% set best = h.rarities|select('in', ['SSR', 'UR', 'LR'])|list %}{% if best %}<b>{{ best|join(', ') }}</b>{% endif %}</li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
 </section>
 {% endblock %}

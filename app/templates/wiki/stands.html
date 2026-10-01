@@ -1,0 +1,37 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Getting & upgrading stands{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Basics</p>
+  <h1 class="display sm">Getting & upgrading stands</h1>
+</header>
+
+<h2 class="wiki-h2">Summoning</h2>
+<p>Stands come from <a href="{{ url_for('play.banners') }}">banners</a>. A super fragment buys a 10-pull from one banner's pool. Every pull without an SSR or better adds 1 pity, and any SSR or better resets it. At <strong>{{ PITY_LIMIT }} pity</strong> the next stand is a guaranteed SSR or UR (50/50). Every 10-pull also holds at least one SR.</p>
+<div class="wiki-table-wrap"><table class="wiki-table">
+  <thead><tr><th scope="col">Rarity</th><th scope="col">10-pull</th><th scope="col">Stand Arrow (5 stands)</th></tr></thead>
+  <tbody>
+    {% for r in ['R', 'SR', 'SSR', 'UR'] %}<tr><th scope="row">{{ r }}</th><td>{{ '%g'|format(BANNER_ODDS[r] * 100) }}%</td><td>{{ ('%g'|format(ARROW_ODDS[r] * 100) ~ '%') if r in ARROW_ODDS else '—' }}</td></tr>{% endfor %}
+    <tr><th scope="row">LR</th><td colspan="2">Banner exclusives and special rewards</td></tr>
+  </tbody>
+</table></div>
+<p class="muted">Stand Arrows never give an R, but they don't count toward pity. Rates on the web are kinder than the Discord bot's.</p>
+
+<h2 class="wiki-h2">Earning super fragments</h2>
+<ul class="wiki-list">
+  <li>The daily reward on your <a href="{{ url_for('play.team') }}">team page</a>, every {{ facts.daily_hours|int }} h ({{ facts.daily_hours_donor|int }} h for supporters).</li>
+  <li><a href="{{ url_for('play.quests') }}">Quests</a> and achievements.</li>
+  <li>Buying one for 5,000 fragments in the <a href="{{ url_for('play.items') }}">shop</a>.</li>
+</ul>
+
+<h2 class="wiki-h2">Levels</h2>
+<p>Stands earn XP from every fight mode. {{ facts.xp_per_level }} XP is one level, up to level <strong>{{ facts.max_level }}</strong>. Levels raise health, damage, speed and critical.</p>
+
+<h2 class="wiki-h2">Fusing (awakening)</h2>
+<p>Fuse two copies of the same stand from <strong>storage</strong>. The kept copy gains the other's XP plus 50 levels' worth, and one awakening (max 3). The consumed copy's items return to your inventory. Each awakening raises bonus stats by another third.</p>
+
+<h2 class="wiki-h2">Ascension</h2>
+<p>A team stand at level {{ facts.max_level }} with fewer than 3 awakenings can ascend: it gains an awakening and its XP resets to 0 so it can level again.</p>
+
+<p class="wiki-next"><a class="btn small" href="{{ url_for('main.wiki', topic='types') }}">Next: types & qualities →</a></p>
+{% endblock %}

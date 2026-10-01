@@ -12,13 +12,18 @@
       {% elif me.id %}
         <a class="btn gold" href="{{ url_for('auth.welcome') }}">Begin my adventure</a>
       {% else %}
-        <a class="btn gold" href="{{ url_for('auth.login') }}">Log in with Discord</a>
+        <a class="btn gold" href="{{ url_for('auth.register') }}">Start playing</a>
+        <a class="btn ghost" href="{{ url_for('auth.login') }}">Log in</a>
       {% endif %}
       {% if config.DISCORD_CLIENT_ID %}<a class="btn ghost" href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}
       <a class="btn ghost" href="{{ url_for('main.stands') }}">Browse all {{ STAND_COUNT }} stands</a>
     </p>
   </div>
   <div class="hand" aria-label="A few stands">
+    <picture class="hero-art">
+      <source media="(max-width: 600px)" srcset="{{ url_for('static', filename='img/hero-jolyne-640.webp') }}">
+      <img src="{{ url_for('static', filename='img/hero-jolyne-1000.webp') }}" alt="Jolyne Cujoh saluting under a blue sky" width="1000" height="1000" fetchpriority="high">
+    </picture>
     {% for t in hand %}
       <div class="hand-slot" style="--n: {{ loop.index0 - 2 }}">{{ template_card(t) }}</div>
     {% endfor %}
@@ -28,8 +33,8 @@
 <section class="steps page">
   <h2 class="h2">How it works</h2>
   <ol>
-    <li><h3>Log in with Discord</h3><p>No password to create. Your Discord ID is your save, so bot players keep everything.</p></li>
-    <li><h3>Pull a banner</h3><p>A super fragment buys ten stands from one JoJo part. Each comes with its own types and qualities, and pity guarantees a rare one at 100.</p></li>
+    <li><h3>Log in your way</h3><p>Discord players keep their bot save. No Discord? Create an account with a username and password, and link Discord whenever you like.</p></li>
+    <li><h3>Pull a banner</h3><p>A super fragment buys ten stands from one JoJo part. Each comes with its own types and qualities, every 10-pull holds an SR or better, and pity guarantees an SSR within {{ PITY_LIMIT }} pulls.</p></li>
     <li><h3>Fall into a wormhole</h3><p>Pick targets turn by turn against a team scaled to your level. Winning pays fragments, experience and sometimes an item.</p></li>
   </ol>
 </section>

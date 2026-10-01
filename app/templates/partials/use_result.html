@@ -19,6 +19,12 @@
   <p class="toast ok" role="status">You crafted {{ res.item.name }}.</p>
 {% elif res.kind == 'bought' %}
   <p class="toast ok" role="status">You bought {{ res.name }}.</p>
+{% elif res.kind == 'sold' %}
+  <p class="toast ok" role="status">Sold {{ res.count }} × {{ res.name }} for {{ res.fragments|num }} fragments.</p>
+{% elif res.kind == 'equipped' %}
+  <p class="toast ok" role="status">{{ res.item.name }} equipped on {{ res.stand.name }}.</p>
+{% elif res.kind == 'unequipped' %}
+  <p class="toast ok" role="status">{{ res.item.name }} removed from {{ res.stand.name }}.</p>
 {% endif %}
 <div id="inventory" hx-swap-oob="true">{% include "partials/inventory.html" %}</div>
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

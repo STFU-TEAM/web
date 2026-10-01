@@ -29,11 +29,25 @@
     </div>
     <div class="action-tile">
       <h2 class="h3">Banners</h2>
-      <p>{% if u.super_fragements %}You can afford {{ u.super_fragements }} 10-pull{{ 's' if u.super_fragements > 1 }}.{% else %}5,000 fragments buy a super fragment in the shop.{% endif %} Pity {{ u.pity }}/100.</p>
+      <p>{% if u.super_fragements %}You can afford {{ u.super_fragements }} 10-pull{{ 's' if u.super_fragements > 1 }}.{% else %}5,000 fragments buy a super fragment in the shop.{% endif %} Pity {{ u.pity }}/{{ PITY_LIMIT }}.</p>
       <a class="btn" href="{{ url_for('play.banners') }}">Open the banners</a>
     </div>
   </div>
 
+  <ul class="timers" aria-label="Cooldowns">
+    <li><span>🎁 Daily</span><strong>{{ st.daily|delta if st.daily else 'Ready' }}</strong></li>
+    <li><span>🌀 Wormhole</span><strong>{{ st.wormhole|delta if st.wormhole else 'Ready' }}</strong></li>
+    <li><span>⚡ Energy {{ u.energy }}/{{ u.total_energy }}</span><strong>{{ ('full in ' ~ st.energy_in|delta) if st.energy_in else 'Full' }}</strong></li>
+    <li><a href="{{ url_for('progress.story_page') }}">📖 Story</a></li>
+    <li><a href="{{ url_for('progress.achievements') }}">🏆 Achievements</a></li>
+    <li><a href="{{ url_for('trades.index') }}">⇄ Trades</a></li>
+  </ul>
+
   <div id="collection">{% include "partials/collection.html" %}</div>
 </section>
+
+<dialog id="stand-panel" class="stand-panel" aria-label="Stand details">
+  <button type="button" class="sheet-close panel-close" data-panel-close aria-label="Close">✕</button>
+  <div id="stand-panel-body"><p class="muted">Loading…</p></div>
+</dialog>
 {% endblock %}

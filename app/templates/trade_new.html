@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}New trade | STFU Requiem{% endblock %}
+{% macro stand_picker(chars, name) -%}
+  <div class="pick-grid">
+    {% for c in chars %}
+      <label class="pick">
+        <input type="checkbox" name="{{ name }}" value="{{ c.uuid }}">
+        <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+        <span><strong>{{ c.name }}</strong><small><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% for emo, t, q, rank, qemo in c|traits %} {{ emo }}{{ rank }}{% endfor %}</small></span>
+      </label>
+    {% else %}<p class="muted">No stands.</p>{% endfor %}
+  </div>
+{%- endmacro %}
+{% macro item_picker(groups, name) -%}
+  {% if groups %}
+  <div class="item-pick">
+    {% for it, n in groups %}
+      <label><span>{{ it.emoji|emoji }} {{ it.name }} <small class="muted">({{ n }})</small></span>
+        <select name="{{ name }}"><option value="">0</option>{% for k in range(1, [n, 20]|min + 1) %}<option value="{{ it.id }}:{{ k }}">{{ k }}</option>{% endfor %}</select></label>
+    {% endfor %}
+  </div>
+  {% else %}<p class="muted">No items.</p>{% endif %}
+{%- endmacro %}
+{% block main %}
+<section class="page">
+  <p class="kicker"><a href="{{ url_for('trades.index') }}">← Trades</a></p>
+  <h1 class="display sm">New trade offer</h1>
+  <form class="inline" method="get" action="{{ url_for('trades.new') }}">
+    <label for="trade-with">Trade with</label>
+    <input id="trade-with" type="text" name="with" value="{{ query }}" placeholder="Username or Discord ID" autocapitalize="none" spellcheck="false" required>
+    <button class="btn small">Open their collection</button>
+  </form>
+
+  {% if other %}
+  <form method="post" action="{{ url_for('trades.create') }}" class="trade-builder">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="with" value="{{ other.id }}">
+    <div class="trade-columns">
+      <fieldset>
+        <legend>You give</legend>
+        <h3 class="h3">Stands <small class="muted">(up to 5)</small></h3>
+        {{ stand_picker(my_stands, 'give_stand') }}
+        <h3 class="h3">Items</h3>{{ item_picker(my_items, 'give_item') }}
+        <label class="frag">Fragments <input type="number" name="give_fragments" min="0" max="{{ u.fragments }}" value="0"></label>
+      </fieldset>
+      <fieldset>
+        <legend>You ask from {{ other_name }}</legend>
+        <h3 class="h3">Stands</h3>
+        {{ stand_picker(their_stands, 'want_stand') }}
+        <h3 class="h3">Items</h3>{{ item_picker(their_items, 'want_item') }}
+        <label class="frag">Fragments <input type="number" name="want_fragments" min="0" value="0"></label>
+      </fieldset>
+    </div>
+    <p class="trade-submit"><button class="btn gold big">Send offer</button>
+      <span class="muted">Items equipped on a stand go with it. Nothing moves until {{ other_name }} accepts.</span></p>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

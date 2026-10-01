@@ -1,0 +1,110 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}{{ ident.name }}{% endblock %}
+{% macro act(op, label, cls='btn small', confirm=None, anchor='') -%}
+  <form class="inline" method="post" action="{{ url_for('admin.player_action', uid=uid, op=op) }}" {% if confirm %}onsubmit="return confirm({{ confirm|tojson|forceescape }})"{% endif %}>
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="anchor" value="{{ anchor }}">
+    {{ caller() if caller }}<button class="{{ cls }}">{{ label }}</button>
+  </form>
+{%- endmacro %}
+{% block admin %}
+<header class="admin-player">
+  {% if ident.avatar %}<img class="avatar" src="{{ ident.avatar }}" alt="" width="72" height="72">{% else %}<span class="avatar-initial big" aria-hidden="true">{{ ident.name[:1]|upper }}</span>{% endif %}
+  <div>
+    <h1 class="display sm">{{ ident.name }} {% if banned %}<span class="syn-off ban">web banned</span>{% endif %}</h1>
+    <p class="muted"><code>{{ uid }}</code> · {{ 'web-only account' if uid.startswith('acc') else 'Discord account' }}{% if username %} · login <strong>{{ username }}</strong>{% endif %}
+      · joined {{ t.join_date.strftime('%Y-%m-%d') if t.join_date.year > 1 else 'unknown' }}
+      {% if gang %} · gang <strong>{{ gang.name }}</strong>{% endif %}
+      {% if t.is_donator() %} · supporter{% if t.donor_status > now %} until {{ t.donor_status.strftime('%Y-%m-%d') }}{% endif %}{% endif %}</p>
+    <p class="admin-links"><a href="{{ url_for('main.profile', uid=uid) }}">Public profile</a> · <a href="{{ url_for('admin.player_raw', uid=uid) }}">Raw save</a> · <a href="{{ url_for('admin.audit_log', target=uid) }}">Audit for this player</a></p>
+  </div>
+</header>
+
+<div class="stat-tiles">
+  <div><span>Level</span><strong>{{ t.level }}</strong><small>{{ t.xp|num }} XP</small></div>
+  <div><span>Fragments</span><strong>{{ t.fragments|num }}</strong></div>
+  <div><span>Super fragments</span><strong>{{ t.super_fragements|num }}</strong></div>
+  <div><span>Energy</span><strong>{{ t.energy }}/{{ t.total_energy }}</strong></div>
+  <div><span>Pity</span><strong>{{ t.pity }}</strong></div>
+  <div><span>Elo</span><strong>{{ t.global_elo|num }}</strong><small>{{ t.global_elo|rank }}</small></div>
+  <div><span>Stands</span><strong>{{ stands|length }}</strong></div>
+  <div><span>Items</span><strong>{{ t['items']|length }}</strong></div>
+</div>
+
+<div class="admin-columns">
+  <section class="social-panel" id="edit">
+    <h2 class="h2">Edit a value</h2>
+    {% call act('set', 'Set value', 'btn small gold', anchor='#edit') %}
+      <select name="field" aria-label="Field">{% for key, meta in EDITABLE.items() %}<option value="{{ key }}">{{ meta[0] }} (now {{ t[key]|num }})</option>{% endfor %}</select>
+      <input type="number" name="value" min="0" required aria-label="New value" placeholder="New value">
+    {% endcall %}
+    <h3 class="h3">Grant</h3>
+    {% call act('grant', 'Grant', 'btn small', anchor='#edit') %}
+      <select name="kind" aria-label="What"><option value="fragments">Fragments</option><option value="super_fragments">Super fragments</option><option value="item">Item</option></select>
+      <select name="item_id" aria-label="Item"><option value="">(item)</option>{% for it in catalog %}<option value="{{ it.id }}">{{ it.id }} · {{ it.name }}</option>{% endfor %}</select>
+      <input type="number" name="amount" min="1" max="1000000" placeholder="Amount" required aria-label="Amount">
+    {% endcall %}
+    <p class="muted">Currency grants cap at 1,000,000 and items at 25 per action.</p>
+  </section>
+
+  <section class="social-panel" id="account">
+    <h2 class="h2">Account</h2>
+    <div class="admin-actions">
+      {{ act('cooldowns', 'Reset cooldowns + refill energy', anchor='#account') }}
+      {{ act('story_reset', 'Reset story', 'btn small ghost', confirm='Reset this player\'s story progress?', anchor='#account') }}
+      {% if fight %}{{ act('clear_fight', 'Clear stuck ' ~ fight.kind ~ ' fight', 'btn small ghost', anchor='#account') }}{% endif %}
+      {% call act('supporter', 'Add supporter days', anchor='#account') %}<input type="number" name="days" min="1" max="3650" value="30" aria-label="Days">{% endcall %}
+      {% if t.donor_status > now %}{{ act('supporter', 'Remove supporter', 'btn small ghost', anchor='#account') }}{% endif %}
+      {% if banned %}{{ act('ban', 'Lift web ban', 'btn small', anchor='#account') }}
+      {% else %}{% call act('ban', 'Ban from website', 'btn small danger', confirm='Ban this player from the website?', anchor='#account') %}<input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
+    </div>
+    <p class="muted">Story: chapter {{ t.story_progress.current_chapter if t.story_progress.current_chapter != -1 else 'complete' }}, {{ t.story_progress.completed_steps|length }} steps done. Achievements: {{ t.achievement_data.get('unlocked', [])|length }}.</p>
+  </section>
+</div>
+
+<section class="social-panel" id="items">
+  <h2 class="h2">Items</h2>
+  {% if items %}
+    <table class="admin-table">
+      <thead><tr><th>Item</th><th>Count</th><th></th></tr></thead>
+      <tbody>
+        {% for it, n in items %}
+          <tr><td>{{ it.emoji|emoji }} {{ it.name }} <small class="muted">#{{ it.id }}</small></td><td>{{ n }}</td>
+            <td>{% call act('take_item', 'Remove', 'btn small ghost', anchor='#items') %}<input type="hidden" name="item_id" value="{{ it.id }}"><input type="number" name="amount" min="1" max="{{ n }}" value="1" aria-label="How many">{% endcall %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}<p class="muted">No items.</p>{% endif %}
+</section>
+
+<section class="social-panel" id="stands">
+  <div class="social-heading"><h2 class="h2">Stands</h2></div>
+  {% call act('grant_stand', 'Grant stand', 'btn small gold', anchor='#stands') %}
+    <select name="stand_id" aria-label="Stand">{% for s in STANDS %}<option value="{{ s.id }}">{{ s.id }} · {{ s.name }} ({{ s.rarity }})</option>{% endfor %}</select>
+    <input type="number" name="level" min="0" max="100" value="0" aria-label="Level">
+    <select name="awaken" aria-label="Awakening">{% for a in range(4) %}<option value="{{ a }}">★{{ a }}</option>{% endfor %}</select>
+    <label class="check"><input type="checkbox" name="roll" value="1" checked> roll types</label>
+  {% endcall %}
+  <div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Stand</th><th>Where</th><th>Level / ★</th><th>Types</th><th>Items</th><th></th></tr></thead>
+    <tbody>
+      {% for c, team in stands %}
+        <tr>
+          <td><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> {{ c.name }} <small class="muted">#{{ c.id }}</small></td>
+          <td>{{ 'Team' if team else 'Storage' }}</td>
+          <td>{% call act('stand_edit', 'Save', 'btn small ghost', anchor='#stands') %}<input type="hidden" name="uuid" value="{{ c.uuid }}"><input type="number" name="level" min="0" max="100" value="{{ c.level }}" aria-label="Level"><input type="number" name="awaken" min="0" max="7" value="{{ c.awaken }}" aria-label="Awakening">{% endcall %}</td>
+          <td>{% for emo, ty, q, rank, qemo in c|traits %}{{ emo }}{{ rank }} {% endfor %}</td>
+          <td>{% for it in c['items'] %}{{ it.emoji|emoji }}{% endfor %}</td>
+          <td>{% call act('stand_remove', 'Remove', 'btn small danger', confirm='Remove ' ~ c.name ~ ' from this save?', anchor='#stands') %}<input type="hidden" name="uuid" value="{{ c.uuid }}">{% endcall %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="social-panel">
+  <h2 class="h2">Admin history for this player</h2>
+  {% with audit=history %}{% include "admin/_audit_rows.html" %}{% endwith %}
+</section>
+{% endblock %}

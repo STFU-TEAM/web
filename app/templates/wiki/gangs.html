@@ -1,0 +1,19 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Gangs & player shops{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Community</p>
+  <h1 class="display sm">Gangs & player shops</h1>
+</header>
+<h2 class="wiki-h2">Gangs</h2>
+<p><a href="{{ url_for('gangs.index') }}">Gangs</a> are the clan system, shared with the bot. Founding one costs {{ facts.gang_cost|num }} fragments. Bosses and capos invite players by username or Discord ID.</p>
+<h2 class="wiki-h2">Ranks</h2>
+<ul class="wiki-list"><li><strong>Boss</strong>: promotes, demotes, pays from the vault, hands out stash items and edits the gang profile. Promoting a capo hands them the boss seat.</li><li><strong>Capo</strong>: invites and kicks soldiers, starts wars and raids, recalls guardians.</li><li><strong>Soldier</strong>: deposits, adds guardians and attacks.</li></ul>
+<h2 class="wiki-h2">Guardians and wars</h2>
+<p>Members lend up to 3 stands from storage as <strong>guardians</strong>. A capo queues a war; once matched, it lasts 2 days. Each member attacks the enemy guardians once; your score is the share of guardians you knock out. The gang with more damage per member wins elo and 10,000 fragments for the vault.</p>
+<h2 class="wiki-h2">Raids</h2>
+<p>A capo spends the raid cost from the vault to start a 24-hour raid on a boss team. Each member attacks once; damage adds up. Reach the target and every attacker earns fragments and stand XP, and the gang stash gets a rare item part.</p>
+<p class="muted">Wars are matched and raids are closed by the bot's background workers, so they need the bot running.</p>
+<h2 class="wiki-h2">Player shops</h2>
+<p>Open a <a href="{{ url_for('social.shops') }}">player shop</a> for {{ facts.shop_cost|num }} fragments, list items at your own price, and buy from other players.</p>
+{% endblock %}

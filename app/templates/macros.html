@@ -1,41 +1,57 @@
-{# A stand drawn as a tarot card. s: Character object or template dict. #}
-{% macro card(s, hp, dmg, arm, spd, level=None, awaken=0, owned=None, size='', link=True, reveal=False) %}
+{# A stand drawn as a tarot card. s: Character object or template dict.
+   badges: optional extras for owned cards, e.g. {'team': True, 'locked': True, 'copies': 2}. #}
+{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None) %}
 {% set rar = s.rarity|rarity %}
-<article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}">
-  {% if link %}<a class="card-link" href="{{ url_for('main.stand', stand_id=s.id) }}" aria-label="{{ s.name }}"></a>{% endif %}
+{% set b = badges or {} %}
+<article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}{% if b.locked %} locked{% endif %}">
+  {% if link %}<a class="card-link" href="{{ href or url_for('main.stand', stand_id=s.id) }}" aria-label="{{ s.name }}"></a>{% endif %}
   <div class="card-face">
     <header class="card-top">
       <span class="rar-badge">{{ s.rarity }}</span>
+      {% for icon, tip in s.id|stand_tags %}<span class="tag" title="{{ tip }}">{{ icon }}</span>{% endfor %}
+      {% if s.taunt %}<span class="tag" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
       {% if awaken %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>{% endif %}
-      {% if s.taunt %}<span class="taunt" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
     </header>
     <div class="card-window">
-       <img src="{{ s.id|stand_img }}" alt="{{ s.name }}" loading="lazy"
-         onload="if(this.naturalWidth / this.naturalHeight > 0.84) this.classList.add('cover')"
+      <img src="{{ s.id|stand_img }}" alt="{{ s.name }}" loading="lazy"
+           onload="if(this.naturalWidth / this.naturalHeight > 0.84) this.classList.add('cover')"
            onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
       {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}
+      <span class="charge-chip" title="Special charges in {{ s.turn_for_ability }} turns">⟳{{ s.turn_for_ability }}</span>
+      {% if b.team or b.locked or b.copies %}
+        <span class="card-flags">
+          {% if b.team %}<i title="In your team">⚑</i>{% endif %}
+          {% if b.locked %}<i title="Locked: can't be released or traded by accident">🔒</i>{% endif %}
+          {% if b.copies %}<i class="dupe" title="{{ b.copies }} more {{ 'copy' if b.copies == 1 else 'copies' }} in storage: fuse them">×{{ b.copies + 1 }}</i>{% endif %}
+        </span>
+      {% endif %}
     </div>
+    {% if owned and level is not none %}
+      {% set pct = owned|xp_pct %}
+      <div class="xp" title="{{ pct }}% to level {{ level + 1 }}"><i style="width: {{ pct }}%"></i></div>
+    {% endif %}
     <h3 class="card-name">{{ s.name }}</h3>
-    <p class="card-flavor">{{ s.special_description|replace('`', '') }}</p>
-    <dl class="card-stats four">
-      <div><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
-      <div><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>
-      <div><dt>ARM</dt><dd>{{ arm|stat }}</dd></div>
-      <div><dt>SPD</dt><dd>{{ spd|stat }}</dd></div>
+    {% if not owned or size == 'big' %}<p class="card-flavor">{{ s.special_description|replace('`', '') }}</p>{% endif %}
+    <dl class="card-stats five">
+      <div title="Health"><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
+      <div title="Damage"><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>
+      <div title="Armor"><dt>ARM</dt><dd>{{ arm|stat }}</dd></div>
+      <div title="Speed"><dt>SPD</dt><dd>{{ spd|stat }}</dd></div>
+      <div title="Critical chance"><dt>CRT</dt><dd>{{ (crit if crit is not none else s.base_critical)|round|int }}</dd></div>
     </dl>
     {% if owned %}
       {% set tr = owned|traits %}
-      {% if tr %}<ul class="traits">{% for emo, t, q, rank, qemo in tr %}<li title="{{ t }}, {{ q }}">{{ emo }} {{ rank }}</li>{% endfor %}</ul>{% endif %}
-      {% if owned.items %}<ul class="card-items">{% for it in owned.items %}<li title="{{ it.name }}">{{ it.name }}</li>{% endfor %}</ul>{% endif %}
+      {% if tr %}<ul class="traits">{% for emo, t, q, rank, qemo in tr %}<li class="q{{ rank }}" title="{{ t }}: {{ q }} (grade {{ rank }})">{{ emo }} {{ rank }}</li>{% endfor %}</ul>{% endif %}
+      {% if owned.items %}<ul class="card-items">{% for it in owned.items %}<li title="{{ it.name }}">{{ (it.emoji or '◈')|emoji }}</li>{% endfor %}</ul>{% endif %}
     {% endif %}
   </div>
 </article>
 {% endmacro %}
 
 {% macro template_card(t, size='', link=True) -%}
-  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, size=size, link=link) }}
+  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link) }}
 {%- endmacro %}
 
-{% macro owned_card(c, size='', link=True, reveal=False) -%}
-  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal) }}
+{% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None) -%}
+  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, crit=c.start_critical, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal, badges=badges, href=href) }}
 {%- endmacro %}

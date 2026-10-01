@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Create an account | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page auth-page">
+  <div class="auth-card">
+    <p class="kicker">No Discord needed</p>
+    <h1 class="display sm">Create an account</h1>
+    <p class="muted">Play in the browser with a username and password. You can link Discord later so the bot sees the same save.</p>
+    <form class="auth-form" method="post" action="{{ url_for('auth.register') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next }}">
+      <label>Username<input type="text" name="username" value="{{ username }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.\-]{3,24}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <small class="muted">3-24 letters, numbers, dots, dashes or underscores. Other players invite you with it.</small></label>
+      <label>Password<input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+      <label>Repeat password<input type="password" name="confirm" minlength="8" autocomplete="new-password" required></label>
+      <button class="btn gold big block">Create account</button>
+    </form>
+    <p class="auth-switch">Already playing? <a href="{{ url_for('auth.login', next=next) }}">Log in</a>{% if config.DISCORD_CLIENT_ID %} or <a href="{{ url_for('auth.discord_login', next=next) }}">continue with Discord</a>{% endif %}</p>
+  </div>
+</section>
+{% endblock %}

@@ -1,19 +1,35 @@
-"""Restricted account tools matching the bot's give_character permission."""
+"""Admin panel: dashboard, player management, gangs, shops, banners and the audit log.
+Restricted to DISCORD_ADMIN_IDS (the bot's give_character permission). Every change is audited."""
+import datetime
 import json
-from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app import accounts
+from app.accounts import resolve_player
 from app.auth import admin_required
-from app.db import Busy, get_db, identity, r, user_lock
+from app.db import Busy, clear_fight, get_db, identity, load_fight, r, user_lock
+from app.filters import PLAYABLE, RARITY_RANK
 from app.game import logic
 from app.game.character import CHARACTER_FILE, get_character_from_template
 from app.game.items import item_file, item_from_dict
-from app.filters import PLAYABLE
+from app.game.logic import BANNERS
+from app.game.story import CHAPTERS
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MAX_CURRENCY_GRANT = 1_000_000
 MAX_ITEM_GRANT = 25
+AUDIT_KEY = "web:admin:audit"
+STATS_KEY = "web:admin:stats"
+EDITABLE = {  # field -> (label, min, max)
+    "fragments": ("Fragments", 0, 1_000_000_000),
+    "super_fragements": ("Super fragments", 0, 100_000),
+    "energy": ("Energy", 0, 1000),
+    "pity": ("Pity", 0, 1000),
+    "global_elo": ("Ranked elo", 0, 100_000),
+    "xp": ("Player XP", 0, 10_000_000),
+    "tower_level": ("Tower level", 0, 10_000),
+}
 
 
 def _int(value):
@@ -23,139 +39,410 @@ def _int(value):
         return None
 
 
+def audit(kind: str, target: str = "", **details):
+    r().lpush(AUDIT_KEY, json.dumps({"at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                                     "actor": session["uid"], "target": target, "kind": kind, **details}))
+    r().ltrim(AUDIT_KEY, 0, 999)
+    r().expire(AUDIT_KEY, 365 * 24 * 3600)
+
+
+def _audit_rows(limit=10, kind=None, target=None):
+    rows = []
+    for raw in r().lrange(AUDIT_KEY, 0, 999 if (kind or target) else limit - 1):
+        try:
+            row = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if (kind and row.get("kind") != kind) or (target and row.get("target") != target):
+            continue
+        rows.append(row)
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def _economy():
+    """Scan every save once per 5 minutes: totals, rarity spread, richest, newest."""
+    cached = r().get(STATS_KEY)
+    if cached:
+        return json.loads(cached)
+    totals = {"fragments": 0, "super": 0, "stands": 0, "items": 0, "web_only": 0, "supporters": 0}
+    rarity = {k: 0 for k in RARITY_RANK}
+    rich, newest = [], []
+    now = logic.now()
+    for uid, doc in get_db().all_user_docs():
+        totals["fragments"] += int(doc.get("fragments", 0) or 0)
+        totals["super"] += int(doc.get("super_fragements", 0) or 0)
+        totals["items"] += len(doc.get("items", []))
+        totals["web_only"] += uid.startswith("acc")
+        if doc.get("early_supporter") or (doc.get("donor_status") or datetime.datetime.min) > now:
+            totals["supporters"] += 1
+        stands = doc.get("main_characters", []) + doc.get("storage_characters", [])
+        totals["stands"] += len(stands)
+        for s in stands:
+            try:
+                rarity[CHARACTER_FILE[s["id"] - 1]["rarity"]] += 1
+            except (KeyError, IndexError, TypeError):
+                pass
+        rich.append((int(doc.get("fragments", 0) or 0), uid))
+        joined = doc.get("join_date")
+        if isinstance(joined, datetime.datetime):
+            newest.append((joined.isoformat(), uid))
+    rich.sort(reverse=True)
+    newest.sort(reverse=True)
+    data = {"totals": totals, "rarity": rarity, "rich": rich[:8], "newest": newest[:8],
+            "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="minutes")}
+    r().set(STATS_KEY, json.dumps(data), ex=300)
+    return data
+
+
+def _find_by_name(query: str, limit=12):
+    """Display-name search over remembered identities (players who logged in on the web)."""
+    q = query.lower()
+    found = []
+    for key in r().scan_iter("web:identity:*", count=500):
+        uid = key.decode().split(":", 2)[2]
+        try:
+            name = json.loads(r().get(key) or "{}").get("name", "")
+        except ValueError:
+            continue
+        if q in name.lower() and get_db().user_exists(uid):
+            found.append({"id": uid, "name": name})
+            if len(found) >= limit:
+                break
+    return found
+
+
+# --------------------------------------------------------------------------- #
+# Dashboard and search
+# --------------------------------------------------------------------------- #
 @bp.get("")
 @admin_required
 def index():
-    target_id = request.args.get("user_id", "").strip()
-    target = None
-    target_identity = None
-    if target_id:
-        if not target_id.isdigit():
-            flash("Enter a numeric Discord user ID.", "error")
-        else:
-            target = get_db().get_user(target_id)
-            if target:
-                target_identity = identity(target_id)
-            else:
-                flash("No game account was found for that ID.", "error")
-    audit = []
-    for raw in r().lrange("web:admin:audit", 0, 9):
-        try:
-            audit.append(json.loads(raw))
-        except (TypeError, ValueError):
-            continue
-    counts = {"players": r().hlen("users"), "gangs": r().hlen("gangs"), "shops": r().hlen("shops")}
-    return render_template("admin.html", target_id=target_id, target=target,
-                           target_identity=target_identity, items=item_file, STANDS=PLAYABLE,
-                           audit=audit, counts=counts)
+    query = request.args.get("q", "").strip()
+    if query:
+        uid = resolve_player(query)
+        if uid:
+            return redirect(url_for("admin.player", uid=uid))
+        matches = _find_by_name(query)
+        if len(matches) == 1:
+            return redirect(url_for("admin.player", uid=matches[0]["id"]))
+        if not matches:
+            flash("No player found by username, ID or display name.", "error")
+    else:
+        matches = []
+    if request.args.get("refresh"):
+        r().delete(STATS_KEY)
+    counts = {"players": r().hlen("users"), "gangs": r().hlen("gangs"), "shops": r().hlen("shops"),
+              "banned": r().scard("web:banned"), "wars": r().hlen("active_wars") // 2}
+    stats = _economy()
+    for key in ("rich", "newest"):
+        stats[key] = [(value, uid, identity(uid)["name"]) for value, uid in stats[key]]
+    return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats,
+                           audit=_audit_rows(8), section="dashboard")
 
 
-@bp.post("/grant")
+# --------------------------------------------------------------------------- #
+# One player
+# --------------------------------------------------------------------------- #
+@bp.get("/player/<uid>")
 @admin_required
-def grant():
-    target_id = request.form.get("user_id", "").strip()
-    kind = request.form.get("kind", "")
-    amount = _int(request.form.get("amount"))
-    item_id = _int(request.form.get("item_id"))
-    if not target_id.isdigit():
-        flash("Enter a numeric Discord user ID.", "error")
+def player(uid):
+    db = get_db()
+    target = db.get_user(uid)
+    if not target:
+        flash("No save for that ID.", "error")
         return redirect(url_for("admin.index"))
-    max_amount = MAX_ITEM_GRANT if kind == "item" else MAX_CURRENCY_GRANT
-    if kind not in {"fragments", "super_fragments", "item"} or amount is None or not 1 <= amount <= max_amount:
-        flash(f"Choose a valid grant amount from 1 to {max_amount:,}.".replace(",", " "), "error")
-        return redirect(url_for("admin.index", user_id=target_id))
-    if kind == "item" and (item_id is None or not 1 <= item_id <= len(item_file)):
-        flash("Choose an item from the catalog.", "error")
-        return redirect(url_for("admin.index", user_id=target_id))
+    gang = db.get_gang(target.gang_id)
+    counts = {}
+    for it in target.items:
+        counts.setdefault(it.id, [it, 0])[1] += 1
+    stands = sorted([(c, True) for c in target.main_characters] + [(c, False) for c in target.storage_characters],
+                    key=lambda x: (not x[1], -RARITY_RANK.get(x[0].rarity, 0), -x[0].level))
+    return render_template("admin/player.html", t=target, uid=uid, ident=identity(uid), gang=gang,
+                           username=accounts.username_of(uid), banned=r().sismember("web:banned", uid),
+                           items=sorted(counts.values(), key=lambda x: x[0].id), stands=stands,
+                           catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, fight=load_fight(uid),
+                           history=_audit_rows(15, target=uid), now=logic.now(), chapters=CHAPTERS,
+                           section="players")
 
+
+@bp.get("/player/<uid>/raw")
+@admin_required
+def player_raw(uid):
+    doc = get_db().get_user_doc(uid)
+    if doc is None:
+        return "No save", 404
+    audit("view_raw", uid)
+    return render_template("admin/raw.html", uid=uid, ident=identity(uid),
+                           raw=json.dumps(doc, indent=2, default=str, ensure_ascii=False), section="players")
+
+
+def _edit(uid, fn, kind, ok, **details):
     try:
-        with user_lock(target_id):
-            db = get_db()
-            target = db.get_user(target_id)
+        with user_lock(uid):
+            target = get_db().get_user(uid)
             if target is None:
-                flash("No game account was found for that ID.", "error")
-            else:
-                if kind == "fragments":
-                    target.fragments += amount
-                elif kind == "super_fragments":
-                    target.super_fragements += amount
-                else:
-                    target.items.extend(item_from_dict({"id": item_id}) for _ in range(amount))
-                target.update()
-                r().lpush("web:admin:audit", json.dumps({
-                    "at": datetime.now(timezone.utc).isoformat(),
-                    "actor": session["uid"], "target": target_id,
-                    "kind": kind, "amount": amount, "item_id": item_id if kind == "item" else None,
-                }))
-                r().ltrim("web:admin:audit", 0, 99)
-                r().expire("web:admin:audit", 365 * 24 * 60 * 60)
-                flash(f"Granted {amount} {kind.replace('_', ' ')} to {identity(target_id)['name']}.", "ok")
+                flash("No save for that ID.", "error")
+                return
+            msg = fn(target)
+            target.update()
+            audit(kind, uid, **details)
+            flash(msg or ok, "ok")
+    except logic.GameError as e:
+        flash(str(e), "error")
     except Busy:
-        flash("That account is processing another action. Try again.", "error")
-    return redirect(url_for("admin.index", user_id=target_id))
+        flash("That account is busy with another action. Try again.", "error")
 
 
-@bp.post("/grant-stand")
+@bp.post("/player/<uid>/<op>")
 @admin_required
-def grant_stand():
-    target_id = request.form.get("user_id", "").strip()
-    stand_id = _int(request.form.get("stand_id"))
-    level = _int(request.form.get("level"))
-    awaken = _int(request.form.get("awaken"))
-    allowed_stand_ids = {stand["id"] for stand in PLAYABLE}
-    if (not target_id.isdigit() or stand_id not in allowed_stand_ids
-            or level is None or not 0 <= level <= 100 or awaken is None or not 0 <= awaken <= 3):
-        flash("Choose a valid player, stand, level (0-100) and awakening (0-3).", "error")
-        return redirect(url_for("admin.index", user_id=target_id))
-    try:
-        with user_lock(target_id):
-            target = get_db().get_user(target_id)
-            if not target:
-                flash("No game account was found for that ID.", "error")
+def player_action(uid, op):
+    f = request.form
+    back = redirect(url_for("admin.player", uid=uid) + f.get("anchor", ""))
+    name = identity(uid)["name"]
+
+    if op == "set":
+        field, value = f.get("field"), _int(f.get("value"))
+        if field not in EDITABLE or value is None or not EDITABLE[field][1] <= value <= EDITABLE[field][2]:
+            flash("Pick a field and a value in range.", "error")
+            return back
+
+        def run(t):
+            before = getattr(t, field)
+            setattr(t, field, value)
+            return f"{EDITABLE[field][0]}: {before:,} → {value:,}."
+        _edit(uid, run, "set", "", field=field, value=value)
+
+    elif op == "grant":
+        kind, amount, item_id = f.get("kind"), _int(f.get("amount")), _int(f.get("item_id"))
+        cap = MAX_ITEM_GRANT if kind == "item" else MAX_CURRENCY_GRANT
+        if kind not in {"fragments", "super_fragments", "item"} or amount is None or not 1 <= amount <= cap:
+            flash(f"Choose an amount from 1 to {cap:,}.", "error")
+            return back
+        if kind == "item" and not (item_id and 1 <= item_id <= len(item_file)):
+            flash("Choose an item.", "error")
+            return back
+
+        def run(t):
+            if kind == "fragments":
+                t.fragments += amount
+            elif kind == "super_fragments":
+                t.super_fragements += amount
             else:
-                stand = get_character_from_template(CHARACTER_FILE[stand_id - 1], [], [])
-                stand.xp = level * 100
-                stand.awaken = awaken
-                location = logic.add_to_available_storage(target, stand, skip_main=True)
-                if not location:
-                    flash("The player's collection is full.", "error")
-                else:
-                    target.update()
-                    r().lpush("web:admin:audit", json.dumps({
-                        "at": datetime.now(timezone.utc).isoformat(), "actor": session["uid"],
-                        "target": target_id, "kind": "stand", "stand_id": stand_id,
-                        "level": level, "awaken": awaken,
-                    }))
-                    r().ltrim("web:admin:audit", 0, 99)
-                    r().expire("web:admin:audit", 365 * 24 * 60 * 60)
-                    flash(f"Granted {stand.name} to {identity(target_id)['name']}.", "ok")
-    except Busy:
-        flash("That account is processing another action. Try again.", "error")
-    return redirect(url_for("admin.index", user_id=target_id))
+                t.items.extend(item_from_dict({"id": item_id}) for _ in range(amount))
+        _edit(uid, run, kind, f"Granted {amount:,} {item_file[item_id - 1]['name'] if kind == 'item' else kind.replace('_', ' ')} to {name}.",
+              amount=amount, item_id=item_id if kind == "item" else None)
+
+    elif op == "take_item":
+        item_id, amount = _int(f.get("item_id")), _int(f.get("amount")) or 1
+
+        def run(t):
+            owned = [i for i in t.items if i.id == item_id]
+            if not owned:
+                raise logic.GameError("They don't have that item.")
+            for it in owned[:amount]:
+                t.items.remove(it)
+            return f"Removed {min(amount, len(owned))} × {owned[0].name}."
+        _edit(uid, run, "take_item", "", item_id=item_id, amount=amount)
+
+    elif op == "grant_stand":
+        stand_id, level, awaken = _int(f.get("stand_id")), _int(f.get("level")), _int(f.get("awaken"))
+        if stand_id not in {s["id"] for s in PLAYABLE} or level is None or not 0 <= level <= 100 or awaken not in range(4):
+            flash("Choose a stand, a level (0-100) and an awakening (0-3).", "error")
+            return back
+
+        def run(t):
+            types, qualities = logic.roll_types_qualities() if f.get("roll") else ([], [])
+            stand = get_character_from_template(CHARACTER_FILE[stand_id - 1], types, qualities)
+            stand.xp, stand.awaken = level * 100, awaken
+            if not logic.add_to_available_storage(t, stand, skip_main=True):
+                raise logic.GameError("Their storage is full.")
+            return f"Granted {stand.name} (Lv {level}, ★{awaken}) to {name}."
+        _edit(uid, run, "stand", "", stand_id=stand_id, level=level, awaken=awaken)
+
+    elif op == "stand_edit":
+        stand_uuid, level, awaken = f.get("uuid"), _int(f.get("level")), _int(f.get("awaken"))
+
+        def run(t):
+            c = t.find_character_by_uuid(stand_uuid)[0]
+            if c is None:
+                raise logic.GameError("That stand is gone.")
+            if level is not None and 0 <= level <= 100:
+                c.xp = level * 100
+            if awaken is not None and 0 <= awaken <= 7:
+                c.awaken = awaken
+            return f"{c.name} set to Lv {c.xp // 100}, ★{c.awaken}."
+        _edit(uid, run, "stand_edit", "", uuid=stand_uuid, level=level, awaken=awaken)
+
+    elif op == "stand_remove":
+        stand_uuid = f.get("uuid")
+
+        def run(t):
+            c, lst, idx = t.find_character_by_uuid(stand_uuid)
+            if c is None:
+                raise logic.GameError("That stand is gone.")
+            lst.pop(idx)
+            for team in t.teams.values():
+                if stand_uuid in team:
+                    team.remove(stand_uuid)
+            t.items.extend(c.items)  # equipped items go back to the inventory
+            return f"Removed {c.name}; its items went back to the inventory."
+        _edit(uid, run, "stand_remove", "", uuid=stand_uuid)
+
+    elif op == "cooldowns":
+        def run(t):
+            t.last_adventure = t.last_wormhole = datetime.datetime.min
+            t.last_full_energy = datetime.datetime.min
+            t.energy = t.total_energy
+        _edit(uid, run, "cooldowns", f"Cooldowns reset and energy refilled for {name}.")
+
+    elif op == "story_reset":
+        def run(t):
+            t.story_progress = {"current_chapter": 1, "current_step": 1, "completed_steps": [], "rewards_claimed": []}
+        _edit(uid, run, "story_reset", f"Story reset for {name}.")
+
+    elif op == "supporter":
+        days = _int(f.get("days"))
+
+        def run(t):
+            if days and days > 0:
+                base = max(t.donor_status, logic.now())
+                t.donor_status = base + datetime.timedelta(days=days)
+                return f"Supporter until {t.donor_status:%Y-%m-%d}."
+            t.donor_status = datetime.datetime.min
+            return "Supporter status removed."
+        _edit(uid, run, "supporter", "", days=days or 0)
+
+    elif op == "clear_fight":
+        clear_fight(uid)
+        audit("clear_fight", uid)
+        flash("Active web fight cleared.", "ok")
+
+    elif op == "ban":
+        if uid == session["uid"]:
+            flash("You can't ban yourself.", "error")
+        elif r().sismember("web:banned", uid):
+            r().srem("web:banned", uid)
+            audit("unban", uid)
+            flash(f"{name} can use the website again.", "ok")
+        else:
+            r().sadd("web:banned", uid)
+            r().hset("web:ban_reason", uid, f.get("reason", "")[:200])
+            audit("ban", uid, reason=f.get("reason", "")[:200])
+            flash(f"{name} is banned from the website (the bot is unaffected).", "ok")
+    else:
+        flash("Unknown action.", "error")
+    return back
 
 
-@bp.post("/grant-supporter")
+# --------------------------------------------------------------------------- #
+# Gangs, shops, banners, audit
+# --------------------------------------------------------------------------- #
+@bp.get("/gangs")
 @admin_required
-def grant_supporter():
-    target_id = request.form.get("user_id", "").strip()
-    if not target_id.isdigit():
-        flash("Enter a numeric Discord user ID.", "error")
-        return redirect(url_for("admin.index"))
+def gangs():
+    rows = sorted(get_db().all_gangs(), key=lambda g: (-int(g.get("war_elo", 0)), g.get("name", "").lower()))
+    return render_template("admin/gangs.html", gangs=rows, section="gangs",
+                           boss_of={g["_id"]: identity(next((u for u, rk in g.get("ranks", {}).items() if int(rk) == 0),
+                                                            (g.get("users") or ["?"])[0]))["name"] for g in rows})
+
+
+@bp.post("/gangs/<gang_id>/<op>")
+@admin_required
+def gang_action(gang_id, op):
+    db = get_db()
     try:
-        with user_lock(target_id):
-            target = get_db().get_user(target_id)
-            if not target:
-                flash("No game account was found for that ID.", "error")
-            else:
-                target.donor_status = datetime.now() + timedelta(days=30, hours=2)
-                target.update()
-                r().lpush("web:admin:audit", json.dumps({
-                    "at": datetime.now(timezone.utc).isoformat(), "actor": session["uid"],
-                    "target": target_id, "kind": "supporter", "days": 30,
-                }))
-                r().ltrim("web:admin:audit", 0, 99)
-                r().expire("web:admin:audit", 365 * 24 * 60 * 60)
-                flash(f"Granted 30 days of supporter status to {identity(target_id)['name']}.", "ok")
+        with user_lock(f"gang:{gang_id}"):
+            gang = db.get_gang(gang_id)
+            if not gang:
+                flash("That gang is gone.", "error")
+            elif op == "vault":
+                value = _int(request.form.get("value"))
+                if value is None or not 0 <= value <= 1_000_000_000:
+                    flash("Enter a vault amount.", "error")
+                else:
+                    audit("gang_vault", gang_id, before=gang.get("vault", 0), value=value)
+                    gang["vault"] = value
+                    db.update_gang(gang)
+                    flash(f"{gang['name']}'s vault set to {value:,}.", "ok")
+            elif op == "disband":
+                for member in [str(u) for u in gang.get("users", [])]:
+                    with user_lock(member):
+                        u = db.get_user(member)
+                        if u and u.gang_id == gang_id:
+                            u.gang_id = None
+                            u.update()
+                db.delete_gang(gang_id)
+                r().hdel("active_wars", gang_id)
+                audit("gang_disband", gang_id, name=gang.get("name"))
+                flash(f"{gang['name']} was disbanded. Guardians and stash were deleted with it.", "ok")
     except Busy:
-        flash("That account is processing another action. Try again.", "error")
-    return redirect(url_for("admin.index", user_id=target_id))
+        flash("Someone in that gang is busy. Try again.", "error")
+    return redirect(url_for("admin.gangs"))
+
+
+@bp.get("/shops")
+@admin_required
+def shops():
+    rows = []
+    for shop in get_db().all_shops():
+        rows.append({"shop": shop, "owner": identity(shop.get("owner", "?")),
+                     "listings": [(i, item_file[it["id"] - 1]["name"], price)
+                                  for i, (it, price) in enumerate(zip(shop.get("items", []), shop.get("prices", [])))]})
+    return render_template("admin/shops.html", rows=rows, section="shops")
+
+
+@bp.post("/shops/<shop_id>/unlist/<int:index>")
+@admin_required
+def shop_unlist(shop_id, index):
+    db = get_db()
+    shop = db.get_shop(shop_id)
+    if not shop or not 0 <= index < len(shop.get("items", [])):
+        flash("That listing is gone.", "error")
+        return redirect(url_for("admin.shops"))
+    owner = str(shop.get("owner"))
+    try:
+        with user_lock(owner):
+            item = shop["items"].pop(index)
+            shop["prices"].pop(index)
+            u = db.get_user(owner)
+            if u:
+                u.items.append(item_from_dict(item))  # back to the seller
+                u.update()
+            db.update_shop(shop)
+            audit("shop_unlist", owner, shop=shop_id, item_id=item["id"])
+            flash("Listing removed and the item returned to the seller.", "ok")
+    except Busy:
+        flash("The seller is busy. Try again.", "error")
+    return redirect(url_for("admin.shops"))
+
+
+@bp.route("/banners", methods=["GET", "POST"])
+@admin_required
+def banners():
+    if request.method == "POST":
+        banner_id = request.form.get("id", "")
+        state = request.form.get("state")
+        if state in ("0", "1"):
+            r().hset("web:banner_state", banner_id, state)
+        else:
+            r().hdel("web:banner_state", banner_id)
+        audit("banner", banner_id, state=state or "default")
+        flash("Banner updated.", "ok")
+        return redirect(url_for("admin.banners"))
+    rows = [{"b": b, "on": logic.banner_enabled(b), "override": r().hget("web:banner_state", str(b["id"]))}
+            for b in BANNERS]
+    return render_template("admin/banners.html", rows=rows, section="banners")
+
+
+@bp.get("/audit")
+@admin_required
+def audit_log():
+    kind = request.args.get("kind") or None
+    target = request.args.get("target") or None
+    rows = _audit_rows(200, kind=kind, target=target)
+    kinds = sorted({row.get("kind", "") for row in _audit_rows(1000)})
+    names = {uid: identity(uid)["name"] for uid in {row.get("actor") for row in rows} if uid}
+    return render_template("admin/audit.html", rows=rows, kinds=kinds, kind=kind, target=target,
+                           names=names, section="audit")

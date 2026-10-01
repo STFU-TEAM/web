@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}{% block wiki_title %}Wiki{% endblock %} | STFU Requiem Wiki{% endblock %}
+{% block main %}
+<div class="page wiki">
+  <nav class="wiki-nav" aria-label="Wiki topics">
+    <a class="wiki-nav-home" href="{{ url_for('main.wiki') }}" {% if not topic %}aria-current="page"{% endif %}>📖 Wiki home</a>
+    {% for group, entries in topics %}
+      <p class="wiki-nav-group">{{ group }}</p>
+      {% for slug, title, blurb in entries %}
+        <a href="{{ url_for('main.wiki', topic=slug) }}" {% if topic == slug %}aria-current="page"{% endif %}>{{ title }}</a>
+      {% endfor %}
+    {% endfor %}
+  </nav>
+  <article class="wiki-body">
+    {% block wiki %}{% endblock %}
+  </article>
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Gangs{% endblock %}
+{% block admin %}
+<h1 class="display sm">Gangs <small class="muted">{{ gangs|length }}</small></h1>
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Gang</th><th>Boss</th><th>Members</th><th>Elo</th><th>Guardians</th><th>Vault</th><th></th></tr></thead>
+  <tbody>
+    {% for g in gangs %}
+      <tr>
+        <td><strong>{{ g.name }}</strong><br><small class="muted">{{ g.motto }}</small></td>
+        <td>{{ boss_of[g._id] }}</td>
+        <td>{{ g.users|length }}</td>
+        <td>{{ g.war_elo|default(0)|num }}</td>
+        <td>{{ g.characters|default([])|length }}</td>
+        <td>
+          <form class="inline" method="post" action="{{ url_for('admin.gang_action', gang_id=g._id, op='vault') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <input type="number" name="value" min="0" value="{{ g.vault|default(0) }}" aria-label="Vault">
+            <button class="btn small ghost">Set</button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{{ url_for('admin.gang_action', gang_id=g._id, op='disband') }}" onsubmit="return confirm('Disband {{ g.name|e }}? Its guardians and stash are deleted.')">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Disband</button>
+          </form>
+        </td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="muted">No gangs.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

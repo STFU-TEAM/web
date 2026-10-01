@@ -22,6 +22,9 @@ def create_app() -> Flask:
     from app.routes.social import bp as social_bp
     from app.routes.admin import bp as admin_bp
     from app.routes.battles import bp as battles_bp
+    from app.routes.gangs import bp as gangs_bp
+    from app.routes.progress import bp as progress_bp
+    from app.routes.trades import bp as trades_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -29,6 +32,9 @@ def create_app() -> Flask:
     app.register_blueprint(social_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(battles_bp)
+    app.register_blueprint(gangs_bp)
+    app.register_blueprint(progress_bp)
+    app.register_blueprint(trades_bp)
 
     @app.get("/healthz")
     def healthz():
@@ -40,8 +46,9 @@ def create_app() -> Flask:
         return render_template("error.html", code=404, message="This page doesn't exist."), 404
 
     @app.errorhandler(403)
-    def forbidden(_):
-        return render_template("error.html", code=403, message="This Discord account can't access this page."), 403
+    def forbidden(e):
+        message = e.description if e.description and "banned" in e.description else "This account can't access this page."
+        return render_template("error.html", code=403, message=message), 403
 
     @app.errorhandler(500)
     def server_error(_):

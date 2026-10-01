@@ -2,10 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}STFU Requiem{% endblock %}</title>
   <meta name="description" content="Pull JoJo stands from banners, build a team of three and fight. Your Discord progress comes with you.">
-  <link rel="icon" href="{{ 'randomAsset/avatar.png'|asset }}">
+  <meta name="theme-color" content="#2B1747">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="STFU Requiem">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="{{ url_for('main.manifest') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/icon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/icon-180.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -13,66 +21,136 @@
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
+{%- set ep = request.endpoint or '' -%}
+{%- set is_admin = me.id and me.id in config.DISCORD_ADMIN_IDS -%}
+{#- Every destination once: (label, url, active, icon). Desktop bar, mobile dock and the menu sheet all read from here. -#}
+{%- set L = {
+  'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟'),
+  'banners': ('Banners', url_for('play.banners'), ep == 'play.banners', '✦'),
+  'items': ('Items', url_for('play.items'), ep == 'play.items', '◈'),
+  'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑'),
+  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.'), '⚔'),
+  'wormhole': ('Wormhole', url_for('play.wormhole'), ep.startswith('play.wormhole'), '◎'),
+  'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲'),
+  'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦'),
+  'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖'),
+  'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆'),
+  'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛'),
+  'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑'),
+  'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖'),
+  'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄'),
+  'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜'),
+  'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆'),
+  'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙'),
+} -%}
+{%- set battle_keys = ['battles', 'wormhole', 'tower', 'dungeon'] -%}
+{%- set more_keys = ['story', 'achievements', 'gangs', 'trades', 'shops', 'stands', 'ladder'] + (['admin'] if is_admin else []) -%}
+{%- if me.id -%}
+  {%- set sheet = [('Play', ['team', 'banners', 'items', 'quests']), ('Battle', battle_keys),
+                   ('Progress', ['story', 'achievements']), ('Community', ['gangs', 'trades', 'shops']),
+                   ('Explore', ['wiki', 'stands', 'ladder'] + (['admin'] if is_admin else []))] -%}
+{%- else -%}
+  {%- set sheet = [('Explore', ['wiki', 'stands', 'ladder'])] -%}
+{%- endif -%}
+{%- macro nav_link(key, cls='') -%}
+  {%- set label, href, active, icon = L[key] -%}
+  <a class="{{ cls }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro -%}
+{%- macro any_active(keys) -%}{% for k in keys if L[k][2] %}1{% endfor %}{%- endmacro -%}
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+  <a class="skip" href="#main">Skip to content</a>
   <header class="topbar">
-    <a class="wordmark" href="{{ url_for('main.home') }}">
+    <a class="wordmark" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">
       <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="40" height="40">
       <span class="brand-name">STFU</span><span class="brand-suffix">Requiem</span>
     </a>
+
     <nav class="nav" aria-label="Main">
-      {% set ep = request.endpoint or '' %}
       {% if me.id %}
-        <details class="nav-group" {% if ep in ('play.team', 'play.banners', 'play.items', 'play.quests') %}open{% endif %}>
-          <summary {% if ep in ('play.team', 'play.banners', 'play.items', 'play.quests') %}aria-current="page"{% endif %}>Game</summary>
-          <div class="nav-menu">
-            <a href="{{ url_for('play.team') }}" {% if ep == 'play.team' %}aria-current="page"{% endif %}>Team</a>
-            <a href="{{ url_for('play.banners') }}" {% if ep == 'play.banners' %}aria-current="page"{% endif %}>Banners</a>
-            <a href="{{ url_for('play.items') }}" {% if ep == 'play.items' %}aria-current="page"{% endif %}>Items</a>
-            <a href="{{ url_for('play.quests') }}" {% if ep == 'play.quests' %}aria-current="page"{% endif %}>Quests</a>
-            <a href="{{ url_for('play.dungeon') }}" {% if ep.startswith('play.dungeon') %}aria-current="page"{% endif %}>Dungeon</a>
-          </div>
+        {{ nav_link('team') }}{{ nav_link('banners') }}{{ nav_link('items') }}{{ nav_link('quests') }}
+        <details class="nav-drop">
+          <summary {% if any_active(battle_keys) %}aria-current="page"{% endif %}>Battle</summary>
+          <div class="nav-menu">{% for k in battle_keys %}{{ nav_link(k) }}{% endfor %}</div>
         </details>
-        <details class="nav-group" {% if ep.startswith('battles.') or ep in ('play.wormhole', 'play.tower') %}open{% endif %}>
-          <summary {% if ep.startswith('battles.') or ep in ('play.wormhole', 'play.tower') %}aria-current="page"{% endif %}>Battle</summary>
-          <div class="nav-menu">
-            <a href="{{ url_for('battles.index', mode='dummy') }}" {% if ep.startswith('battles.') %}aria-current="page"{% endif %}>Dummy / Ranked / Friends</a>
-            <a href="{{ url_for('play.wormhole') }}" {% if ep == 'play.wormhole' %}aria-current="page"{% endif %}>Wormhole</a>
-            <a href="{{ url_for('play.tower') }}" {% if ep == 'play.tower' %}aria-current="page"{% endif %}>Tower</a>
-          </div>
+        {{ nav_link('wiki') }}
+        <details class="nav-drop">
+          <summary {% if any_active(more_keys) %}aria-current="page"{% endif %}>More</summary>
+          <div class="nav-menu">{% for k in more_keys %}{{ nav_link(k) }}{% endfor %}</div>
         </details>
-        <details class="nav-group" {% if ep.startswith('social.') %}open{% endif %}>
-          <summary {% if ep.startswith('social.') %}aria-current="page"{% endif %}>Community</summary>
-          <div class="nav-menu">
-            <a href="{{ url_for('social.gangs') }}" {% if ep.startswith('social.gang') %}aria-current="page"{% endif %}>Gangs</a>
-            <a href="{{ url_for('social.shops') }}" {% if ep.startswith('social.shop') %}aria-current="page"{% endif %}>Player shops</a>
-            <a href="{{ url_for('battles.index', mode='friends') }}">Friends</a>
-          </div>
-        </details>
-        {% if me.id in config.DISCORD_ADMIN_IDS %}<a href="{{ url_for('admin.index') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}>Admin</a>{% endif %}
+      {% else %}
+        {{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}
       {% endif %}
-      <details class="nav-group" {% if ep in ('main.stands','main.stand','main.leaderboard') %}open{% endif %}>
-        <summary {% if ep in ('main.stands','main.stand','main.leaderboard') %}aria-current="page"{% endif %}>Explore</summary>
-        <div class="nav-menu">
-          <a href="{{ url_for('main.stands') }}" {% if ep in ('main.stands','main.stand') %}aria-current="page"{% endif %}>Stands</a>
-          <a href="{{ url_for('main.leaderboard') }}" {% if ep == 'main.leaderboard' %}aria-current="page"{% endif %}>Ranked ladder</a>
-        </div>
-      </details>
     </nav>
+
     <div class="account">
       {% if me.id %}
-        <a class="me" href="{{ url_for('main.profile', uid=me.id) }}">
-          {% if me.avatar %}<img src="{{ me.avatar }}" alt="" width="32" height="32">{% endif %}
-          <span>{{ me.name }}</span>
-        </a>
-        <form method="post" action="{{ url_for('auth.logout') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <button class="link">Log out</button>
-        </form>
+        <details class="nav-drop account-drop">
+          <summary aria-label="Account menu">
+            {% if me.avatar %}<img src="{{ me.avatar }}" alt="" width="32" height="32">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}</span>{% endif %}
+            <span class="me-name">{{ me.name }}</span>
+          </summary>
+          <div class="nav-menu right">
+            <a href="{{ url_for('main.profile', uid=me.id) }}" {% if ep == 'main.profile' %}aria-current="page"{% endif %}>My profile</a>
+            <a href="{{ url_for('auth.account') }}" {% if ep == 'auth.account' %}aria-current="page"{% endif %}>Account & login</a>
+            <form method="post" action="{{ url_for('auth.logout') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="link">Log out</button>
+            </form>
+          </div>
+        </details>
       {% else %}
-        <a class="btn discord" href="{{ url_for('auth.login', next=request.path) }}">Log in with Discord</a>
+        <a class="btn gold" href="{{ url_for('auth.login', next=request.path) }}">Log in</a>
       {% endif %}
     </div>
   </header>
+
+  <nav class="dock" aria-label="Quick navigation">
+    {% if me.id %}
+      {% for k in ['team', 'banners', 'battles', 'wiki'] %}
+        {%- set label, href, active, icon = L[k] -%}
+        <a href="{{ href }}" {% if active or (k == 'battles' and any_active(battle_keys)) %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ icon }}</span>{{ 'Battle' if k == 'battles' else label }}</a>
+      {% endfor %}
+    {% else %}
+      <a href="{{ url_for('main.home') }}" {% if ep == 'main.home' %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">⌂</span>Home</a>
+      {% for k in ['stands', 'wiki', 'ladder'] %}
+        {%- set label, href, active, icon = L[k] -%}
+        <a href="{{ href }}" {% if active %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ icon }}</span>{{ 'Ladder' if k == 'ladder' else label }}</a>
+      {% endfor %}
+    {% endif %}
+    <button type="button" data-sheet-open aria-controls="nav-sheet" aria-haspopup="dialog"><span class="dock-icon" aria-hidden="true">☰</span>Menu</button>
+  </nav>
+
+  <dialog id="nav-sheet" class="sheet" aria-label="All pages">
+    <div class="sheet-head">
+      {% if me.id %}
+        <a class="sheet-me" href="{{ url_for('main.profile', uid=me.id) }}">
+          {% if me.avatar %}<img src="{{ me.avatar }}" alt="" width="40" height="40">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}</span>{% endif %}
+          <span><strong>{{ me.name }}</strong><small>View profile</small></span>
+        </a>
+      {% else %}
+        <a class="btn gold" href="{{ url_for('auth.login', next=request.path) }}">Log in</a>
+        <a class="btn ghost" href="{{ url_for('auth.register') }}">Sign up</a>
+      {% endif %}
+      <button type="button" class="sheet-close" data-sheet-close aria-label="Close menu">✕</button>
+    </div>
+    {% for title, keys in sheet %}
+      <p class="sheet-group">{{ title }}</p>
+      <div class="sheet-grid">
+        {% for k in keys %}
+          {%- set label, href, active, icon = L[k] -%}
+          <a href="{{ href }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span>{{ label }}</a>
+        {% endfor %}
+      </div>
+    {% endfor %}
+    {% if me.id %}
+      <p class="sheet-group">Account</p>
+      <div class="sheet-grid"><a href="{{ url_for('auth.account') }}" {% if ep == 'auth.account' %}aria-current="page"{% endif %}><span aria-hidden="true">🔑</span>Account & login</a></div>
+      <form class="sheet-logout" method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button class="btn ghost small">Log out</button>
+      </form>
+    {% endif %}
+  </dialog>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<p class="flash {{ cat }}" role="status">{{ m }}</p>{% endfor %}

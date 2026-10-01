@@ -1,0 +1,19 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Team management{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Basics</p>
+  <h1 class="display sm">Team management</h1>
+</header>
+<h2 class="wiki-h2">Main team</h2>
+<p>Your <a href="{{ url_for('play.team') }}">team</a> holds up to <strong>3 stands</strong>. They fight in every mode, hold items, and are the only ones you can ascend or reforge. Build around <a href="{{ url_for('main.wiki', topic='synergies') }}">synergies</a> and <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a>.</p>
+<h2 class="wiki-h2">Storage</h2>
+<p>Everything else waits in storage, up to {{ facts.storage_capacity }} stands. Fuse duplicates there, or release stands you don't need (move them out of the team first).</p>
+<h2 class="wiki-h2">Managing stands</h2>
+<p>Tap any stand to open its panel: full stats, types, terrain and synergy, items, and every action (team, fuse, ascend, reforge, release). In storage you can search, filter by rarity, show only <strong>fusable</strong> duplicates, sort by rarity, level or power, and select several stands to release at once.</p>
+<p><strong>Lock</strong> your favourites: a locked stand can't be released, consumed by a fusion or offered in a trade until you unlock it.</p>
+<h2 class="wiki-h2">Trades</h2>
+<p>Offer stands, items and fragments to another player from <a href="{{ url_for('trades.index') }}">Trades</a>. Nothing moves until they accept, and both sides are checked again at that moment. Items equipped on a stand travel with it.</p>
+<h2 class="wiki-h2">Presets</h2>
+<p>Save up to <strong>{{ facts.max_presets }} presets</strong> and swap your whole lineup at once. Loading a preset moves stands between team and storage for you. Released stands drop out of presets automatically.</p>
+{% endblock %}

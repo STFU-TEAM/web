@@ -54,6 +54,30 @@ def test_public_pages(client):
     assert client.get("/leaderboard").status_code == 200
 
 
+def test_wiki_pages(client):
+    from app.wiki import TOPICS
+    assert client.get("/wiki").status_code == 200
+    for slug, *_ in TOPICS:
+        assert client.get(f"/wiki/{slug}").status_code == 200, slug
+    assert client.get("/wiki/nope").status_code == 404
+    terrains = client.get("/wiki/terrains").data.decode()
+    assert "Ocean" in terrains and "Dark blue moon" in terrains and "+20% speed" in terrains
+    synergies = client.get("/wiki/synergies").data.decode()
+    assert "Kira duo" in synergies and "Bombs two enemies" in synergies
+    assert "No special uses this synergy yet." in synergies  # Morioh has no consumer
+    stand = client.get("/stands/76").data.decode()  # Clash: sets Ocean, Squadra + duo
+    assert "/wiki/terrains#ocean" in stand and "Clash + Talking Head" in stand
+    manifest = client.get("/manifest.webmanifest")
+    assert manifest.mimetype == "application/manifest+json" and manifest.json["display"] == "standalone"
+
+
+def test_every_wired_synergy_has_wiki_text():
+    from app.wiki import SYNERGY_EFFECTS, SYNERGY_USERS
+    for name, ids in SYNERGY_USERS.items():
+        missing = ids - set(SYNERGY_EFFECTS.get(name, {}))
+        assert not missing, f"{name}: describe stands {sorted(missing)} in app/wiki.py"
+
+
 def test_dodge_chance_is_capped_for_extreme_speed_gaps(monkeypatch):
     attacker = get_character_from_template(CHARACTER_FILE[0], ["ATTACK"], ["GOOD"])
     defender = get_character_from_template(CHARACTER_FILE[1], ["SPEED"], ["GOOD"])
@@ -88,28 +112,44 @@ def test_admin_panel_mirrors_bot_permissions_and_audits_grants(client):
     put(client, create_user("222"))
     headers = login(client, "111")
 
-    response = client.get("/admin?user_id=222")
-    assert response.status_code == 200 and b"Admin panel" in response.data
-    assert b"Grant resources" in response.data
-    response = client.post("/admin/grant", data={"user_id": "222", "kind": "fragments", "amount": "500"}, headers=headers)
-    assert response.status_code == 302
+    response = client.get("/admin?q=222", follow_redirects=True)
+    assert response.status_code == 200 and b"Grant stand" in response.data and b"Edit a value" in response.data
+    assert client.get("/admin").status_code == 200  # dashboard scan
+    act = lambda op, **data: client.post(f"/admin/player/222/{op}", data=data, headers=headers)
+    assert act("grant", kind="fragments", amount="500").status_code == 302
     assert doc(client, "222")["fragments"] == 500
     audit = client.fake.lrange("web:admin:audit", 0, -1)
     assert len(audit) == 1 and b'"actor": "111"' in audit[0]
 
-    response = client.post("/admin/grant", data={"user_id": "222", "kind": "item", "item_id": "1", "amount": "2"}, headers=headers)
-    assert response.status_code == 302
+    act("grant", kind="item", item_id="1", amount="2")
     assert doc(client, "222")["items"] == [{"id": 1}, {"id": 1}]
-    response = client.post("/admin/grant-stand", data={"user_id": "222", "stand_id": "1", "level": "40", "awaken": "2"}, headers=headers)
-    assert response.status_code == 302
+    act("grant_stand", stand_id="1", level="40", awaken="2")
     granted = doc(client, "222")["storage_characters"][-1]
     assert granted["id"] == 1 and granted["xp"] == 4000 and granted["awaken"] == 2
-    response = client.post("/admin/grant-supporter", data={"user_id": "222"}, headers=headers)
-    assert response.status_code == 302
+    act("supporter", days="30")
     assert doc(client, "222")["donor_status"] > datetime.datetime.now()
-    response = client.post("/admin/grant", data={"user_id": "222", "kind": "fragments", "amount": "1000001"}, headers=headers)
-    assert response.status_code == 302 and doc(client, "222")["fragments"] == 500
+    act("grant", kind="fragments", amount="1000001")  # over the cap: refused
+    assert doc(client, "222")["fragments"] == 500
     assert client.fake.llen("web:admin:audit") == 4
+
+    act("set", field="pity", value="42")
+    assert doc(client, "222")["pity"] == 42
+    act("take_item", item_id="1", amount="1")
+    assert doc(client, "222")["items"] == [{"id": 1}]
+    act("stand_remove", uuid=granted["uuid"])
+    assert all(s["uuid"] != granted["uuid"] for s in doc(client, "222")["storage_characters"])
+    for page in ("/admin/gangs", "/admin/shops", "/admin/banners", "/admin/audit", "/admin/player/222/raw"):
+        assert client.get(page).status_code == 200, page
+    client.post("/admin/banners", data={"id": "0", "state": "0"}, headers=headers)
+    assert client.post("/banners/0/pull", headers=headers).status_code in (200, 302)
+
+    act("ban", reason="testing")
+    with client.session_transaction() as session:
+        session["uid"] = "222"
+    assert client.get("/team").status_code == 403
+    login(client, "111")
+    act("ban")  # lift
+    assert not client.fake.sismember("web:banned", "222")
 
     with client.session_transaction() as session:
         session["uid"] = "222"
@@ -389,7 +429,11 @@ def test_begin_pull_and_team(client):
     assert b"media.tenor.com" not in r.data
     assert b"/opening/" in r.data
     d = doc(client, "111")
-    assert d["super_fragements"] == 0 and d["pity"] == 10 and len(d["storage_characters"]) == 10
+    assert d["super_fragements"] == 0 and len(d["storage_characters"]) == 10
+    # pity counts pulls since the last SSR or better (a natural SSR+ resets it)
+    rarities = [CHARACTER_FILE[c["id"] - 1]["rarity"] for c in d["storage_characters"]]
+    since = next((i for i, r in enumerate(reversed(rarities)) if r in ("SSR", "UR", "LR")), len(rarities))
+    assert d["pity"] == since
     # second pull refused
     assert b"costs 1 super fragment" in client.post("/banners/0/pull", headers=h).data
 

@@ -6,7 +6,9 @@ from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, save_fight, user_lock
 from app.game import logic
 from app.game import dungeon as dungeon_logic
-from app.game.character import character_from_dict
+from app import wiki as wiki_data
+from app.filters import power_score
+from app.game.character import CHARACTER_FILE, character_from_dict
 from app.game.fight import Fight, Side, fighting_copy
 from app.game.items import item_file, item_from_dict
 from app.game.logic import BANNERS, DEFAULT_SHOP, RECIPES, GameError
@@ -70,7 +72,7 @@ def team():
     _refill(user)
     shelf = "all"
     return render_template("team.html", u=user, st=status(user), shelves=storage_shelves(user), shelf=shelf,
-                           fight=load_fight(session["uid"]))
+                           fight=load_fight(session["uid"]), **collection_ctx(user))
 
 
 @bp.get("/team/collection")
@@ -79,9 +81,43 @@ def collection():
     return _collection(_user())
 
 
+def collection_ctx(user):
+    """Per-stand facts the collection grid shows: copies for fusing, locks, power."""
+    counts = {}
+    for c in user.storage_characters:
+        counts[c.id] = counts.get(c.id, 0) + 1
+    return {"locked": logic.locked(user), "copies": counts,
+            "power": {c.uuid: power_score(c) for c in user.main_characters + user.storage_characters}}
+
+
 def _collection(user, message=None, error=None):
     return render_template("partials/collection.html", u=user, message=message, error=error,
-                           shelves=storage_shelves(user), shelf=request.values.get("shelf", "s0"))
+                           shelves=storage_shelves(user), shelf=request.values.get("shelf", "s0"),
+                           **collection_ctx(user))
+
+
+@bp.get("/team/stand/<uuid>")
+@player_required
+def stand_panel(uuid):
+    user = _user()
+    char, lst, _ = user.find_character_by_uuid(uuid)
+    if char is None:
+        return '<p class="notice">That stand is no longer in your collection.</p>', 404
+    in_team = lst is user.main_characters
+    return render_template("partials/stand_panel.html", u=user, c=char, in_team=in_team,
+                           dupes=[d for d in user.storage_characters if d.id == char.id and d.uuid != char.uuid],
+                           is_locked=uuid in logic.locked(user), wiki=wiki_data.stand_links(char.id),
+                           equipable=[g for g in _grouped(user.items) if g["item"].is_equipable],
+                           power=power_score(char), template=CHARACTER_FILE[char.id - 1])
+
+
+@bp.post("/team/lock")
+@player_required
+def lock():
+    uuid = request.form.get("uuid")
+    user, res, err = action(lambda u: logic.toggle_lock(u, uuid))
+    c = user.find_character_by_uuid(uuid)[0] if not err else None
+    return _collection(user, (f"{c.name} locked." if res else f"{c.name} unlocked.") if c else None, err)
 
 
 @bp.post("/team/store")
@@ -192,10 +228,13 @@ def daily():
 @player_required
 def banners():
     user = _user()
-    active = [b for b in BANNERS if b["enabled"]]
+    active = [b for b in BANNERS if logic.banner_enabled(b)]
     arrows = sum(1 for i in user.items if i.id == 2)
+    rank = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+    history = [{**h, "rarities": sorted(h["rarities"], key=lambda x: -rank.get(x, 0))}
+               for h in user.data.get("web_pull_history", [])[:10]]
     return render_template("banners.html", u=user, banners=active, arrows=arrows, st=status(user),
-                           welcome=request.args.get("welcome"))
+                           welcome=request.args.get("welcome"), history=history)
 
 
 @bp.post("/banners/<int:banner_id>/<mode>")
@@ -206,6 +245,8 @@ def pull(banner_id: int, mode: str):
     arrows = sum(1 for i in user.items if i.id == 2)
     rarity_score = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     top_rarity = max((char.rarity for char, _ in res["drawn"]), key=rarity_score.get) if res else "R"
+    if res:  # rarest last: reveal builds up to the best card
+        res["cards"].sort(key=lambda e: rarity_score.get(e["stand"].rarity, 0))
     opening_id = 6 if top_rarity in ("UR", "LR") else 5 if top_rarity == "SSR" else 4
     return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows,
                            mode=mode, top_rarity=top_rarity, opening_id=opening_id)
@@ -233,7 +274,8 @@ def _recipes(user):
 
 
 def _items_ctx(user):
-    return {"u": user, "groups": _grouped(user.items), "recipes": _recipes(user), "shop": DEFAULT_SHOP}
+    return {"u": user, "groups": _grouped(user.items), "recipes": _recipes(user), "shop": DEFAULT_SHOP,
+            "sell_price": logic.sell_price}
 
 
 @bp.get("/items")
@@ -256,6 +298,34 @@ def craft():
     name = request.form.get("recipe", "")
     user, res, err = action(lambda u: logic.craft(u, name))
     return render_template("partials/use_result.html", res={"kind": "crafted", "item": res} if res else None,
+                           error=err, **_items_ctx(user))
+
+
+@bp.post("/items/equip")
+@player_required
+def item_equip():
+    uuid, item_id = request.form.get("uuid"), _int("item")
+    user, res, err = action(lambda u: logic.equip(u, uuid, item_id))
+    return render_template("partials/use_result.html", res={"kind": "equipped", "stand": res[0], "item": res[1]} if res else None,
+                           error=err, **_items_ctx(user))
+
+
+@bp.post("/items/unequip")
+@player_required
+def item_unequip():
+    uuid, slot = request.form.get("uuid"), _int("slot")
+    user, res, err = action(lambda u: logic.unequip(u, uuid, slot))
+    return render_template("partials/use_result.html", res={"kind": "unequipped", "stand": res[0], "item": res[1]} if res else None,
+                           error=err, **_items_ctx(user))
+
+
+@bp.post("/items/sell")
+@player_required
+def sell():
+    item_id = _int("item")
+    count = len([i for i in _user().items if i.id == item_id]) if request.form.get("all") else 1
+    user, res, err = action(lambda u: logic.sell_item(u, item_id, count))
+    return render_template("partials/use_result.html", res={"kind": "sold", **res} if res else None,
                            error=err, **_items_ctx(user))
 
 

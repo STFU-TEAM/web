@@ -223,8 +223,8 @@ def clear_fight(user_id: str):
 # --------------------------------------------------------------------------- #
 # Discord identities for leaderboards / profiles
 # --------------------------------------------------------------------------- #
-def remember_identity(user_id: str, name: str, avatar: Optional[str]):
-    _redis.set(f"web:identity:{user_id}", json.dumps({"name": name, "avatar": avatar}), ex=30 * 24 * 3600)
+def remember_identity(user_id: str, name: str, avatar: Optional[str], ttl: Optional[int] = 30 * 24 * 3600):
+    _redis.set(f"web:identity:{user_id}", json.dumps({"name": name, "avatar": avatar}), ex=ttl)
 
 
 def identity(user_id: str) -> dict:
@@ -234,6 +234,11 @@ def identity(user_id: str) -> dict:
         return json.loads(raw)
     token = current_app.config.get("DISCORD_BOT_TOKEN")
     data = {"name": f"Player {user_id[-4:]}", "avatar": None}
+    if not user_id.isdigit():  # web-only account: its username is the identity
+        from app.accounts import username_of
+        data["name"] = username_of(user_id) or data["name"]
+        _redis.set(f"web:identity:{user_id}", json.dumps(data))
+        return data
     if token:
         try:
             resp = requests.get(f"https://discord.com/api/v10/users/{user_id}",

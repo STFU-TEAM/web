@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Achievements | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Trophies</p><h1 class="display sm">Achievements</h1>
+      <p class="muted">{{ unlocked }} of {{ rows|length }} unlocked. Rewards are paid the moment you unlock one.</p></div>
+    <div class="meter wide" role="meter" aria-label="Achievements unlocked" aria-valuemin="0" aria-valuemax="{{ rows|length }}" aria-valuenow="{{ unlocked }}"><i style="width: {{ (100 * unlocked / ([rows|length, 1]|max))|round }}%"></i></div>
+  </header>
+  <ul class="achievements">
+    {% for a in rows %}
+      <li class="{{ 'unlocked' if a.unlocked }}">
+        <span class="ach-emoji" aria-hidden="true">{{ a.emoji }}</span>
+        <div>
+          <h2>{{ a.name }}{% if a.unlocked %} <span class="syn-on">done</span>{% endif %}</h2>
+          <p class="muted">{{ a.description }}</p>
+          {% if not a.unlocked %}
+            <div class="meter"><i style="width: {{ (100 * a.progress / ([a.target, 1]|max))|round }}%"></i></div>
+            <small class="muted">{{ a.progress|num }} / {{ a.target|num }}</small>
+          {% endif %}
+          {% set rw = a.reward %}
+          <p class="ach-reward">🎁 {% if rw.fragments %}{{ rw.fragments|num }} fragments{% endif %}{% if rw.super_fragments %}{{ ', ' if rw.fragments }}{{ rw.super_fragments }} super fragment{{ 's' if rw.super_fragments > 1 }}{% endif %}{% if rw['items'] %}{{ ', ' if rw.fragments or rw.super_fragments }}{{ rw['items']|length }} item{{ 's' if rw['items']|length > 1 }}{% endif %}</p>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Audit log{% endblock %}
+{% block admin %}
+<h1 class="display sm">Audit log</h1>
+<form class="inline" method="get">
+  <select name="kind" aria-label="Action"><option value="">All actions</option>{% for k in kinds %}<option value="{{ k }}" {% if k == kind %}selected{% endif %}>{{ k|replace('_', ' ') }}</option>{% endfor %}</select>
+  <input type="text" name="target" value="{{ target or '' }}" placeholder="Target ID" aria-label="Target">
+  <button class="btn small">Filter</button>
+  {% if kind or target %}<a href="{{ url_for('admin.audit_log') }}">Clear</a>{% endif %}
+</form>
+{% with audit=rows %}{% include "admin/_audit_rows.html" %}{% endwith %}
+{% endblock %}

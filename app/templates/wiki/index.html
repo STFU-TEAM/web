@@ -1,0 +1,31 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Home{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Field guide</p>
+  <h1 class="display sm">STFU Requiem Wiki</h1>
+  <p class="lede">Everything the bot's <code>/wiki</code> covers, plus explorers for terrains and synergies. Numbers come straight from the battle engine.</p>
+</header>
+
+<div class="wiki-feature">
+  <a class="wiki-feature-card" href="{{ url_for('main.wiki', topic='terrains') }}">
+    <span class="wiki-feature-icon" aria-hidden="true">🌊🏜️❄️</span>
+    <strong>Terrain explorer</strong>
+    <span>Who sets each field, who gets stronger, which specials change.</span>
+  </a>
+  <a class="wiki-feature-card" href="{{ url_for('main.wiki', topic='synergies') }}">
+    <span class="wiki-feature-icon" aria-hidden="true">⭐🗡️🐞</span>
+    <strong>Synergy explorer</strong>
+    <span>Team combos and exactly what each member gains.</span>
+  </a>
+</div>
+
+{% for group, entries in topics %}
+  <h2 class="wiki-group-title">{{ group }}</h2>
+  <ul class="wiki-topics">
+    {% for slug, title, blurb in entries %}
+      <li><a href="{{ url_for('main.wiki', topic=slug) }}"><strong>{{ title }}</strong><span>{{ blurb }}</span></a></li>
+    {% endfor %}
+  </ul>
+{% endfor %}
+{% endblock %}

@@ -28,14 +28,26 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Ranked Elo ladder, with global player profiles
 - Battle modes: dummy practice, live ranked queue and accepted friend challenges
 - Fight special animations loaded from `IMAGE_BASE_URL/special/<stand_id>.gif` when available
-- Gangs: creation, invitations, join/leave and war Elo standings
+- Gangs: ranks (kick/promote/demote/hand over boss), guardians, vault + payments, stash, wars and
+  raids. Wars are matched and raids are closed by the bot's warmatchmaking/raid_end workers
+- Logins: Discord OAuth or username + password (app/accounts.py). Password saves get an `acc…` id;
+  linking Discord later moves the save to the Discord id so the bot sees it
+- Story mode, achievements page, trades (async offers of stands/items/fragments), item selling
+- Collection tools: stand panel, search/rarity/fusable filters, sorting, bulk release, locks
+- Banners: kinder web odds (logic.BANNER_ODDS / PITY_LIMIT), SR floor per 10-pull, flip reveal, history
+- Admin: dashboard, player editor (values, items, stands, cooldowns, story, supporter, web ban, raw
+  save), gangs, shops, banner on/off, filterable audit log
 - Player shops: list, buy and return items with locked buyer/seller transfers
 - Tower: six sequential PvE floors, persisted progress and shared fight UI
 - Adventure dungeon: map exploration with battles, weighted chests, bombs and energy wager
 - Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
 - Public stand encyclopedia, leaderboards, player profiles
+- Wiki (`/wiki`): the bot's `/wiki` topics plus terrain and synergy explorers, built from
+  `effects.py` / `characterabilities.py` by `app/wiki.py`. When a special starts checking a
+  synergy, add its effect text to `SYNERGY_EFFECTS` (a test fails until you do)
+- Installable web app: `/manifest.webmanifest`, bottom tab bar and menu sheet below 1024px
 
-Not ported yet: story, player-to-player trades, multi-map dungeon progression.
+Not ported yet: multi-map dungeon progression, top.gg voting.
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:

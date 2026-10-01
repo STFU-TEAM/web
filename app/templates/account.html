@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Account | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <p class="kicker">Settings</p>
+  <h1 class="display sm">Your account</h1>
+
+  <section class="social-panel">
+    <h2 class="h2">Logins</h2>
+    <dl class="account-facts">
+      <div><dt>Player ID</dt><dd><code>{{ me.id }}</code></dd></div>
+      <div><dt>Discord</dt><dd>{% if local %}Not linked{% else %}Linked ✔{% endif %}</dd></div>
+      <div><dt>Username</dt><dd>{{ username or 'None yet' }}</dd></div>
+    </dl>
+    <p class="muted">Other players can invite or challenge you with your username{% if not local %} or your Discord ID{% endif %}.</p>
+  </section>
+
+  {% if local %}
+    <section class="social-panel">
+      <h2 class="h2">Link Discord</h2>
+      <p>Linking moves this save to your Discord account, so the Discord bot sees the same stands and items. You'll still be able to log in with your username.</p>
+      {% if discord_ready %}
+        <a class="btn discord" href="{{ url_for('auth.discord_login', link=1) }}">Link my Discord account</a>
+      {% else %}<p class="muted">Discord login isn't configured on this server.</p>{% endif %}
+      <p class="muted">The Discord account must not already have a save.</p>
+    </section>
+  {% endif %}
+
+  {% if not username %}
+    <section class="social-panel">
+      <h2 class="h2">Add a username and password</h2>
+      <p>Log in without Discord, for example from a browser where you aren't signed in to Discord.</p>
+      <form class="auth-form" method="post">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="add">
+        <label>Username<input type="text" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.\-]{3,24}" autocomplete="username" required></label>
+        <label>Password<input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+        <label>Repeat password<input type="password" name="confirm" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn gold">Save login</button>
+      </form>
+    </section>
+  {% else %}
+    <section class="social-panel">
+      <h2 class="h2">Change password</h2>
+      <form class="auth-form" method="post">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="change">
+        <input type="text" name="username" value="{{ username }}" autocomplete="username" hidden>
+        <label>Current password<input type="password" name="current" autocomplete="current-password" required></label>
+        <label>New password<input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+        <label>Repeat new password<input type="password" name="confirm" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn">Change password</button>
+      </form>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

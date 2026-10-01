@@ -1,0 +1,47 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Dashboard{% endblock %}
+{% block admin %}
+{% if matches %}
+  <section class="social-panel">
+    <h2 class="h2">Players named “{{ q }}”</h2>
+    <ul class="admin-list">{% for m in matches %}<li><a href="{{ url_for('admin.player', uid=m.id) }}">{{ m.name }}</a> <code>{{ m.id }}</code></li>{% endfor %}</ul>
+  </section>
+{% endif %}
+
+<div class="stat-tiles">
+  <div><span>Saves</span><strong>{{ counts.players|num }}</strong><small>{{ stats.totals.web_only|num }} web-only</small></div>
+  <div><span>Supporters</span><strong>{{ stats.totals.supporters|num }}</strong></div>
+  <div><span>Gangs</span><strong>{{ counts.gangs|num }}</strong><small>{{ counts.wars }} wars running</small></div>
+  <div><span>Player shops</span><strong>{{ counts.shops|num }}</strong></div>
+  <div><span>Fragments in circulation</span><strong>{{ stats.totals.fragments|stat }}</strong></div>
+  <div><span>Super fragments</span><strong>{{ stats.totals.super|num }}</strong></div>
+  <div><span>Stands owned</span><strong>{{ stats.totals.stands|stat }}</strong></div>
+  <div><span>Web bans</span><strong>{{ counts.banned }}</strong></div>
+</div>
+<p class="muted admin-note">Totals scanned {{ stats.at|replace('T', ' ') }} UTC, cached 5 minutes. <a href="{{ url_for('admin.index', refresh=1) }}">Rescan now</a></p>
+
+<div class="admin-columns">
+  <section class="social-panel">
+    <h2 class="h2">Stands by rarity</h2>
+    {% set total = [stats.totals.stands, 1]|max %}
+    <ul class="bars">
+      {% for r, n in stats.rarity.items() %}
+        <li><span class="rar-tag {{ r|rarity }}">{{ r }}</span><div class="meter"><i style="width: {{ (100 * n / total)|round(1) }}%"></i></div><b>{{ n|num }}</b></li>
+      {% endfor %}
+    </ul>
+  </section>
+  <section class="social-panel">
+    <h2 class="h2">Richest</h2>
+    <ol class="admin-list">{% for value, uid, name in stats.rich %}<li><a href="{{ url_for('admin.player', uid=uid) }}">{{ name }}</a><b>{{ value|num }}</b></li>{% endfor %}</ol>
+  </section>
+  <section class="social-panel">
+    <h2 class="h2">Newest saves</h2>
+    <ol class="admin-list">{% for when, uid, name in stats.newest %}<li><a href="{{ url_for('admin.player', uid=uid) }}">{{ name }}</a><small class="muted">{{ when[:10] }}</small></li>{% endfor %}</ol>
+  </section>
+</div>
+
+<section class="social-panel">
+  <div class="social-heading"><h2 class="h2">Recent admin actions</h2><a href="{{ url_for('admin.audit_log') }}">Full log →</a></div>
+  {% include "admin/_audit_rows.html" %}
+</section>
+{% endblock %}

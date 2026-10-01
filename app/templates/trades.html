@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Trades | STFU Requiem{% endblock %}
+{% macro side(view) -%}
+  <ul class="trade-goods">
+    {% for c in view.stands %}<li>{% if c %}<strong>{{ c.name }}</strong> <span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> <small class="muted">Lv {{ c.level }}{% if c.awaken %} · ★{{ c.awaken }}{% endif %}{% for emo, t, q, rank, qemo in c|traits %} · {{ emo }}{{ rank }}{% endfor %}</small>{% else %}<em class="muted">a stand that's no longer there</em>{% endif %}</li>{% endfor %}
+    {% for it, n in view['items'] %}<li>{{ it.emoji|emoji }} {{ it.name }}{% if n > 1 %} × {{ n }}{% endif %}</li>{% endfor %}
+    {% if view.fragments %}<li>💠 {{ view.fragments|num }} fragments</li>{% endif %}
+    {% if not view.stands and not view['items'] and not view.fragments %}<li class="muted">Nothing</li>{% endif %}
+  </ul>
+{%- endmacro %}
+{% macro respond(o, verb, label, cls) -%}
+  <form method="post" action="{{ url_for('trades.respond', offer_id=o.id, verb=verb) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="{{ cls }}">{{ label }}</button></form>
+{%- endmacro %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Market</p><h1 class="display sm">Trades</h1>
+      <p class="muted">Swap stands, items and fragments with other players. Offers expire after 3 days.</p></div>
+    <a class="btn gold" href="{{ url_for('trades.new') }}">New offer</a>
+  </header>
+
+  <h2 class="h2">Offers for you</h2>
+  {% for o in incoming %}
+    <article class="trade">
+      <header><strong>{{ o.from_name }}</strong> <span class="muted">offers</span></header>
+      <div class="trade-sides">
+        <div><h3>You receive</h3>{{ side(o.give_view) }}</div>
+        <div class="trade-arrow" aria-hidden="true">⇄</div>
+        <div><h3>You give</h3>{{ side(o.want_view) }}</div>
+      </div>
+      <div class="trade-actions">{{ respond(o, 'accept', 'Accept trade', 'btn gold small') }}{{ respond(o, 'decline', 'Decline', 'btn ghost small') }}</div>
+    </article>
+  {% else %}<p class="notice">No offers waiting.</p>{% endfor %}
+
+  <h2 class="h2">Your offers</h2>
+  {% for o in outgoing %}
+    <article class="trade">
+      <header><span class="muted">To</span> <strong>{{ o.to_name }}</strong></header>
+      <div class="trade-sides">
+        <div><h3>You give</h3>{{ side(o.give_view) }}</div>
+        <div class="trade-arrow" aria-hidden="true">⇄</div>
+        <div><h3>You get</h3>{{ side(o.want_view) }}</div>
+      </div>
+      <div class="trade-actions">{{ respond(o, 'cancel', 'Cancel offer', 'btn ghost small') }}</div>
+    </article>
+  {% else %}<p class="muted">You have no open offers.</p>{% endfor %}
+</section>
+{% endblock %}

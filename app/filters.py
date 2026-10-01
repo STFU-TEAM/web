@@ -1,11 +1,21 @@
+import re
 import secrets
 
 from flask import abort, current_app, request, session
+from markupsafe import Markup, escape
 
-from app.game.character import CHARACTER_FILE, Qualities, Types
-from app.game.logic import fmt_delta, rank_name
+from app.game.character import CHARACTER_FILE, MAX_LEVEL, STXPTOLEVEL, Qualities, Types
+from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, fmt_delta, rank_name
 
 RARITY = {"R": "common", "SR": "rare", "SSR": "epic", "UR": "legend", "LR": "mythic"}
+RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+CUSTOM_EMOJI = re.compile(r"&lt;(a?):(\w+):(\d+)&gt;")  # matched after escaping
+
+
+def power_score(char) -> int:
+    """HP counts less (it's scaled x3 in the engine); speed and crit matter a lot per point."""
+    return int(char.start_hp / 3 + char.start_damage * 2 + char.start_armor / 2
+               + char.start_speed * 6 + char.start_critical * 3)
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
 TAROT = [
     "0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
@@ -88,6 +98,30 @@ def register(app):
             return f"{n // 1000}k"
         return str(n)
 
+    @app.template_filter("stand_tags")
+    def stand_tags(stand_id):
+        from app.wiki import STAND_TAGS
+        return STAND_TAGS.get(int(stand_id), [])
+
+    @app.template_filter("xp_pct")
+    def xp_pct(char):
+        if getattr(char, "level", 0) >= MAX_LEVEL:
+            return 100
+        return int(getattr(char, "xp", 0)) % STXPTOLEVEL * 100 // STXPTOLEVEL
+
+    @app.template_filter("emoji")
+    def emoji(text):
+        """Discord custom emoji codes (<:name:id>) as CDN images; plain emoji pass through."""
+        text = str(text or "")
+        return Markup(CUSTOM_EMOJI.sub(
+            lambda m: f'<img class="emoji" src="https://cdn.discordapp.com/emojis/{m.group(3)}.{"gif" if m.group(1) else "webp"}?size=48" '
+                      f'alt="" loading="lazy">', escape(text)))
+
+    @app.template_filter("power")
+    def power(char):
+        """Rough single number for sorting a collection."""
+        return power_score(char)
+
     @app.template_filter("delta")
     def delta(td):
         return fmt_delta(td)
@@ -109,6 +143,7 @@ def register(app):
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),
+            "PITY_LIMIT": PITY_LIMIT, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS,
         }
 
     @app.before_request
