@@ -22,8 +22,9 @@
 </li>
 {% endmacro %}
 
-{% set you, foe = fight.sides[0], fight.sides[1] %}
-{% set my_turn = fight.awaiting_input %}
+{% set my_side = my_side|default(0) %}
+{% set you, foe = fight.sides[my_side], fight.sides[1 - my_side] %}
+{% set my_turn = fight.awaiting_input and fight.acting_side == my_side %}
 {% set targets = fight.targets() %}
 {% set base = fresh_from if (fresh_from is defined and fresh_from is not none) else fight.log|length %}
 <div id="fight" class="fight">
@@ -37,9 +38,11 @@
 
       <p class="turn-banner{% if fight.finished %} done{% endif %}" role="status">
         {% if fight.finished %}
-          {{ 'Victory' if fight.winner == 0 else 'Defeat' }}
+          {{ 'Draw' if fight.winner is none else ('Victory' if fight.winner == my_side else 'Defeat') }}
         {% elif my_turn %}
           Turn {{ fight.turn + 1 }}: choose who {{ fight.acting_char.name }} attacks
+        {% else %}
+          Waiting for {{ foe.name }} to choose a target
         {% endif %}
       </p>
       {% if fight.terrain.name != 'DEFAULT' %}<p class="terrain">{{ fight.terrain.emoji }} {{ fight.terrain.display_name }}</p>{% endif %}
@@ -56,11 +59,11 @@
   </form>
 
   {% if fight.finished %}
-    <div class="result {{ 'win' if fight.winner == 0 else 'loss' }}">
-      {% if fight.rewards and fight.rewards.won %}
+    <div class="result {{ 'win' if fight.winner == my_side else 'loss' }}">
+      {% if fight.rewards and (fight.rewards.won if my_side == 0 else fight.winner == my_side) %}
         <p class="loot">+{{ fight.rewards.fragments }} fragments, +{{ fight.rewards.xp }} player XP, +{{ fight.rewards.stand_xp }} XP for each stand{% if fight.rewards.item %}, and <strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
       {% else %}
-        <p>The wormhole spits you out without any reward.</p>
+        <p>{{ 'The practice fight ended.' if fight.kind == 'dummy' else 'No reward was earned.' }}</p>
       {% endif %}
       <form method="post" action="{{ fight_leave_action }}">
         <input type="hidden" name="csrf" value="{{ csrf_token }}">
@@ -74,8 +77,9 @@
     <ol reversed>
       {% for e in fight.log|reverse %}
         {% set fresh = (fight.log|length - loop.index0) > base %}
-        <li class="{{ e.kind }} {{ 'mine' if e.side == 0 else 'theirs' }}{% if fresh %} fresh{% endif %}" {% if fresh %}style="--d: {{ loop.index0 }}"{% endif %}>
+        <li class="{{ e.kind }} {{ 'mine' if e.side == my_side else 'theirs' }}{% if fresh %} fresh{% endif %}" {% if fresh %}style="--d: {{ loop.index0 }}"{% endif %}>
           <span class="t">T{{ e.turn }}</span> {{ e.text|replace('`', '') }}
+          {% if e.kind == 'special' and e.char_id %}<img class="special-gif" src="{{ ('special/' ~ e.char_id ~ '.gif')|asset }}" alt="{{ e.text }}" loading="lazy" onerror="this.remove()">{% endif %}
         </li>
       {% else %}
         <li class="muted">The fight begins.</li>

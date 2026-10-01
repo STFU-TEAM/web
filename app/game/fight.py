@@ -36,11 +36,13 @@ def ai_choice(enemies: List[Character]) -> int:
 
 
 class Fight:
-    def __init__(self, human: Side, opponent: Side, kind: str = "wormhole", meta: Optional[dict] = None):
+    def __init__(self, human: Side, opponent: Side, kind: str = "wormhole", meta: Optional[dict] = None,
+                 human_side: int = 0):
         self.id = uuid.uuid4().hex
         self.kind = kind
         self.meta = meta or {}
         self.sides = [human, opponent]
+        self.human_side = human_side
         self.log: List[dict] = []
         self.turn = 0
         self.si = 0
@@ -65,7 +67,7 @@ class Fight:
 
     @property
     def awaiting_input(self) -> bool:
-        return not self.finished and self.acting_side == 0
+        return not self.finished and self.sides[self.acting_side].is_human
 
     @property
     def acting_char(self) -> Optional[Character]:
@@ -73,7 +75,10 @@ class Fight:
         return side.chars[self.si] if self.si < len(side.chars) else None
 
     def targets(self) -> List[int]:
-        return valid_targets(self.sides[1].chars) if self.awaiting_input else []
+        if not self.awaiting_input:
+            return []
+        watcher = self.sides[1 - self.acting_side]
+        return valid_targets(watcher.chars)
 
     def _on(self) -> bool:
         return self.sides[0].alive() and self.sides[1].alive()
@@ -82,10 +87,10 @@ class Fight:
         self.log.append({"turn": self.turn + 1, "text": text, "kind": kind,
                          "char_id": char.id if char else None, "side": side})
 
-    def forfeit(self):
-        for c in self.sides[0].chars:
+    def forfeit(self, side: int = 0):
+        for c in self.sides[side].chars:
             c.current_hp = 0
-        self._log(f"{self.sides[0].name} surrendered.", "info")
+        self._log(f"{self.sides[side].name} surrendered.", "info", side=side)
         self._finish()
 
     def advance(self, target: Optional[int] = None) -> None:
@@ -150,7 +155,7 @@ class Fight:
         if self.finished:
             return
         self.finished = True
-        self.winner = 0 if (self.sides[0].alive() and not self.sides[1].alive()) else 1
+        self.winner = next((index for index, side in enumerate(self.sides) if side.alive()), None)
 
 
 def fighting_copy(chars: List[Character]) -> List[Character]:

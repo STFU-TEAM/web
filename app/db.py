@@ -23,6 +23,34 @@ from app.game.user import User, create_user
 
 _redis: Optional[redis.Redis] = None
 PICKLE_PROTOCOL = 4  # readable by the bot's Python 3.11
+LEGACY_STORAGE_FIELDS = (
+    "character_storage_1", "character_storage_2", "character_storage_3", "character_storage_4",
+    "pcharacter_storage_1", "pcharacter_storage_2", "pcharacter_storage_3", "pcharacter_storage_4",
+)
+
+
+def migrate_storage_document(document: dict) -> tuple[dict, bool]:
+    """Fold old storage boxes into one canonical list without dropping stands."""
+    legacy = [stand for field in LEGACY_STORAGE_FIELDS for stand in document.get(field, [])]
+    canonical = document.get("storage_characters", [])
+    if not legacy and "storage_characters" in document and all(not document.get(field) for field in LEGACY_STORAGE_FIELDS):
+        return document, False
+
+    combined = []
+    seen_uuids = set()
+    for stand in canonical + legacy:
+        stand_uuid = stand.get("uuid")
+        if stand_uuid and stand_uuid in seen_uuids:
+            continue
+        if stand_uuid:
+            seen_uuids.add(stand_uuid)
+        combined.append(stand)
+
+    migrated = dict(document)
+    migrated["storage_characters"] = combined
+    for field in LEGACY_STORAGE_FIELDS:
+        migrated[field] = []
+    return migrated, True
 
 
 def init_db(app):

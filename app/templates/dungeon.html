@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Adventure Dungeon | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page dungeon-page">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <header class="player-bar dungeon-head">
+      <div><p class="kicker">Adventure · Map 0</p><h1 class="display sm">Dungeon</h1>
+        <p class="muted">Explore, fight the monsters, search chests and find the exit.</p></div>
+      <div class="dungeon-energy">Energy <strong>{{ u.energy }}</strong> / {{ u.total_energy }}</div>
+    </header>
+    {% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+
+    {% if state %}
+      <div class="dungeon-layout">
+        <section class="dungeon-map" aria-label="Dungeon map">
+          {% for cell in cells %}
+            <div class="dungeon-cell{% if cell.wall %} wall{% endif %}{% if cell.current %} current{% endif %}{% if cell.exit %} exit{% endif %}{% if cell.event and not cell.seen %} event-{{ cell.event }}{% endif %}{% if cell.seen %} seen{% endif %}"
+                 style="--x: {{ cell.x }}; --y: {{ cell.y }}" title="{% if cell.current %}You are here{% elif cell.exit %}Exit{% elif cell.event and not cell.seen %}{{ cell.event|title }}{% elif cell.wall %}Wall{% else %}Passage{% endif %}">
+              {% if cell.current %}<span aria-hidden="true">◆</span>{% elif cell.exit %}<span aria-hidden="true">⇧</span>{% elif cell.event and not cell.seen %}<span aria-hidden="true">{{ {"fight": "!", "chest": "◇", "bomb": "×"}[cell.event] }}</span>{% endif %}
+            </div>
+          {% endfor %}
+        </section>
+        <aside class="dungeon-controls">
+          <p class="kicker">Wager remaining</p>
+          <p class="dungeon-count"><strong>{{ state.energy }}</strong> energy</p>
+          <div class="move-pad" aria-label="Move one tile">
+            {% for direction, symbol, label in [("up", "↑", "Move up"), ("left", "←", "Move left"), ("down", "↓", "Move down"), ("right", "→", "Move right")] %}
+              <form method="post" action="{{ url_for('play.dungeon_move') }}">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <input type="hidden" name="direction" value="{{ direction }}">
+                <button class="move-button" aria-label="{{ label }}" {% if direction not in moves %}disabled{% endif %}>{{ symbol }}</button>
+              </form>
+            {% endfor %}
+          </div>
+          <p class="muted">Every move spends one wagered energy. Bombs cost two more; remaining energy returns when you exit.</p>
+        </aside>
+      </div>
+    {% else %}
+      <section class="dungeon-start">
+        <div><h2 class="h2">Enter the dungeon</h2><p>Choose how much energy to wager. Unspent energy is returned when you reach the exit.</p></div>
+        {% if not u.main_characters %}
+          <p class="notice">Set a team before entering. <a href="{{ url_for('play.team') }}">Manage your team</a>.</p>
+        {% elif u.energy < 1 %}
+          <p class="notice">You need at least 1 energy.</p>
+        {% else %}
+          <form class="inline dungeon-entry" method="post" action="{{ url_for('play.dungeon_start') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <label>Energy wager <input type="number" name="energy" min="1" max="{{ u.energy }}" value="{{ [u.energy, 8]|min }}" required></label>
+            <button class="btn gold">Enter dungeon</button>
+          </form>
+        {% endif %}
+      </section>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

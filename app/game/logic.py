@@ -16,7 +16,7 @@ from app.game.character import (
 )
 from app.game.items import Item, item_file, item_from_dict
 from app.game.quests import claim_quest_reward, ensure_quests_assigned, get_claimable_quests, track_quest_progress
-from app.game.user import User
+from app.game.user import STORAGE_CAPACITY, User
 
 _DATA = os.path.join(os.path.dirname(__file__), "data")
 with open(os.path.join(_DATA, "banners_data.json"), encoding="utf-8") as f:
@@ -89,12 +89,12 @@ def cooldown_left(last: datetime.datetime, hours: float) -> Optional[datetime.ti
 # Storages
 # --------------------------------------------------------------------------- #
 def storages(user: User) -> List[List[Character]]:
-    """Storages a user may use, in the bot's fill order."""
-    return user.character_storage_list + (user.pcharacter_storage_list if user.is_donator() else [])
+    """Return the single web collection, independent of supporter status."""
+    return [user.storage_characters]
 
 
 def all_lists(user: User) -> List[List[Character]]:
-    return [user.main_characters] + user.character_storage_list + user.pcharacter_storage_list
+    return [user.main_characters, user.storage_characters]
 
 
 def locate(user: User, uuid: str):
@@ -105,7 +105,7 @@ def locate(user: User, uuid: str):
 
 
 def free_slots(user: User) -> int:
-    return sum(STORAGE_SIZE - len(s) for s in storages(user))
+    return max(0, STORAGE_CAPACITY - len(user.storage_characters))
 
 
 def add_to_available_storage(user: User, character: Character, skip_main: bool = False):
@@ -113,11 +113,10 @@ def add_to_available_storage(user: User, character: Character, skip_main: bool =
     if len(user.main_characters) < 3 and not skip_main:
         user.main_characters.append(character)
         return "Team"
-    for i, storage in enumerate(storages(user)):
-        if len(storage) < STORAGE_SIZE:
-            storage.append(character)
-            return f"Storage {i + 1}" if i < 4 else f"Premium storage {i - 3}"
-    return None
+    if len(user.storage_characters) >= STORAGE_CAPACITY:
+        return None
+    user.storage_characters.append(character)
+    return "Collection"
 
 
 def get_drop_from_list(char_list: List[Character], number_of_drop: int = 1) -> list:

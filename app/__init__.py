@@ -21,12 +21,14 @@ def create_app() -> Flask:
     from app.routes.play import bp as play_bp
     from app.routes.social import bp as social_bp
     from app.routes.admin import bp as admin_bp
+    from app.routes.battles import bp as battles_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(play_bp)
     app.register_blueprint(social_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(battles_bp)
 
     @app.get("/healthz")
     def healthz():

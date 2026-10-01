@@ -9,6 +9,7 @@ from app.game.items import Item, item_from_dict
 
 USRXPTOLEVEL = 100
 LVLSCALING = 0.09
+STORAGE_CAPACITY = 200
 
 class User:
     """| Class used as an interface to data ,Any change made to the class is also made to the data"""
@@ -32,32 +33,22 @@ class User:
         ]
         self.gang_id: Optional[str] = data["gang_id"]
         self.shop_id : Optional[str] = data["shop_id"]
-        self.character_storage_1: List[Character] = [
-            character_from_dict(s) for s in data["character_storage_1"]
+        legacy_storage = [
+            character
+            for key in (
+                "character_storage_1", "character_storage_2", "character_storage_3", "character_storage_4",
+                "pcharacter_storage_1", "pcharacter_storage_2", "pcharacter_storage_3", "pcharacter_storage_4",
+            )
+            for character in data.get(key, [])
         ]
-        self.character_storage_2: List[Character] = [
-            character_from_dict(s) for s in data["character_storage_2"]
-        ]
-        self.character_storage_3: List[Character] = [
-            character_from_dict(s) for s in data["character_storage_3"]
-        ]
-        self.character_storage_4: List[Character] = [
-            character_from_dict(s) for s in data["character_storage_4"]
-        ]
-        self.pcharacter_storage_1: List[Character] = [
-            character_from_dict(s) for s in data["pcharacter_storage_1"]
-        ]
-        self.pcharacter_storage_2: List[Character] = [
-            character_from_dict(s) for s in data["pcharacter_storage_2"]
-        ]
-        self.pcharacter_storage_3: List[Character] = [
-            character_from_dict(s) for s in data["pcharacter_storage_3"]
-        ]
-        self.pcharacter_storage_4: List[Character] = [
-            character_from_dict(s) for s in data["pcharacter_storage_4"]
-        ]
-        self.character_storage_list: List[List[Character]] = [self.character_storage_1, self.character_storage_2, self.character_storage_3, self.character_storage_4]
-        self.pcharacter_storage_list: List[List[Character]] = [self.pcharacter_storage_1, self.pcharacter_storage_2, self.pcharacter_storage_3, self.pcharacter_storage_4]
+        canonical_storage = data.get("storage_characters", [])
+        storage_by_uuid = {}
+        for stored in canonical_storage + legacy_storage:
+            stand = character_from_dict(stored)
+            storage_by_uuid.setdefault(stand.uuid, stand)
+        self.storage_characters = list(storage_by_uuid.values())
+        self.character_storage_list: List[List[Character]] = [self.storage_characters]
+        self.pcharacter_storage_list: List[List[Character]] = []
         self.items: List[Item] = [item_from_dict(s) for s in data["items"]]
         self.achievements: List[int] = data["achievements"]
         self.gang_invites: List[int] = data["gang_invites"]
@@ -120,30 +111,9 @@ class User:
         """
         # Determine which storage lists to consider based on the user's donator status
         
-        if storage_id == 0:
-            self.character_storage_1 = storage
-            return
-        if storage_id == 1:
-            self.character_storage_2 = storage
-            return
-        if storage_id == 2:
-            self.character_storage_3 = storage
-            return
-        if storage_id == 3:
-            self.character_storage_4 = storage
-            return
-        if storage_id == 4:
-            self.pcharacter_storage_1 = storage
-            return
-        if storage_id == 5:
-            self.pcharacter_storage_2 = storage
-            return
-        if storage_id == 6:
-            self.pcharacter_storage_3 = storage
-            return
-        if storage_id == 7:
-            self.pcharacter_storage_4 = storage
-            return
+        self.storage_characters = storage
+        self.character_storage_list = [self.storage_characters]
+        self.pcharacter_storage_list = []
     
     def update(self) -> None:
         """Update the user info in the database"""
@@ -162,7 +132,7 @@ class User:
         """Find a character by UUID across main + all storages.
         Returns (character, source_list, index) or (None, None, None).
         """
-        for char_list in [self.main_characters] + self.character_storage_list + self.pcharacter_storage_list:
+        for char_list in [self.main_characters, self.storage_characters]:
             for i, c in enumerate(char_list):
                 if c.uuid == target_uuid:
                     return c, char_list, i
@@ -172,15 +142,10 @@ class User:
         if len(self.main_characters) < 3 and not skip_main:
             self.main_characters.append(character)
             return "Main Characters Storage"
-        for i,storage in enumerate(self.character_storage_list):
-            if len(storage) < 25:
-                storage.append(character)
-                return f"Storage n°{i}"
-        for i,storage in enumerate(self.pcharacter_storage_list):
-            if len(storage) < 25:
-                storage.append(character)
-                return f"Premium Storage n°{i}"
-        return False
+        if len(self.storage_characters) >= STORAGE_CAPACITY:
+            return False
+        self.storage_characters.append(character)
+        return "Collection"
     def to_dict(self) -> dict:
         """Convert Class to storable data
 
@@ -190,14 +155,12 @@ class User:
         self.data["main_characters"] = [s.to_dict() for s in self.main_characters]
         self.data["gang_id"] = self.gang_id
         self.data["shop_id"] = self.shop_id
-        self.data["character_storage_1"] = [s.to_dict() for s in self.character_storage_1]
-        self.data["character_storage_2"] = [s.to_dict() for s in self.character_storage_2]
-        self.data["character_storage_3"] = [s.to_dict() for s in self.character_storage_3]
-        self.data["character_storage_4"] = [s.to_dict() for s in self.character_storage_4]
-        self.data["pcharacter_storage_1"] = [s.to_dict() for s in self.pcharacter_storage_1]
-        self.data["pcharacter_storage_2"] = [s.to_dict() for s in self.pcharacter_storage_2]
-        self.data["pcharacter_storage_3"] = [s.to_dict() for s in self.pcharacter_storage_3]
-        self.data["pcharacter_storage_4"] = [s.to_dict() for s in self.pcharacter_storage_4]
+        self.data["storage_characters"] = [s.to_dict() for s in self.storage_characters]
+        for key in (
+            "character_storage_1", "character_storage_2", "character_storage_3", "character_storage_4",
+            "pcharacter_storage_1", "pcharacter_storage_2", "pcharacter_storage_3", "pcharacter_storage_4",
+        ):
+            self.data[key] = []
         self.data["items"] = [s.to_dict() for s in self.items]
         self.data["achievements"] = self.achievements
         self.data["gang_invites"] = self.gang_invites
@@ -237,14 +200,7 @@ def create_user(user_id: str):
         "gang_id": None,
         "shop_id":None,
         "main_characters": [],
-        "character_storage_1": [],
-        "character_storage_2": [],
-        "character_storage_3": [],
-        "character_storage_4": [],
-        "pcharacter_storage_1": [],
-        "pcharacter_storage_2": [],
-        "pcharacter_storage_3": [],
-        "pcharacter_storage_4": [],
+        "storage_characters": [],
         "items": [],
         "achievements": [],
         "gang_invites": [],

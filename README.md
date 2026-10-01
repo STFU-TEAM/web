@@ -20,19 +20,22 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 ## Features
 - Discord OAuth2 login; account creation = `/adventure begin` (1 super fragment)
 - Banners: 10-pull with super fragments and pity, 5-pull with a Stand Arrow
-- Team and 4 + 4 premium storages: add, swap, store, release, fuse, ascend, reforge,
+- Team and one unified 200-stand collection: add, swap, store, release, fuse, ascend, reforge,
   equip, unequip, team presets
 - Items: use (arrows, chips, requiem arrow, bag of coins), crafting, default shop
 - Daily reward, energy refill, wormhole fights (turn by turn, taunt, terrain)
 - Quests (view, claim, claim all) and achievements tracked like the bot
 - Ranked Elo ladder, with global player profiles
+- Battle modes: dummy practice, live ranked queue and accepted friend challenges
+- Fight special animations loaded from `IMAGE_BASE_URL/special/<stand_id>.gif` when available
 - Gangs: creation, invitations, join/leave and war Elo standings
 - Player shops: list, buy and return items with locked buyer/seller transfers
 - Tower: six sequential PvE floors, persisted progress and shared fight UI
+- Adventure dungeon: map exploration with battles, weighted chests, bombs and energy wager
 - Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
 - Public stand encyclopedia, leaderboards, player profiles
 
-Not ported yet: ranked PvP matchmaking, dungeon, story, player-to-player trades.
+Not ported yet: story, player-to-player trades, multi-map dungeon progression.
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:
@@ -56,3 +59,12 @@ Admin access mirrors the bot's `give_character` permission IDs by default. Set
 
 ## Tests
 `pip install -r requirements.txt pytest fakeredis && pytest -q`
+
+## Storage migration
+Preview the old-box consolidation against the configured Redis database with
+`python scripts/migrate_storage.py`. Apply it with `python scripts/migrate_storage.py --apply`;
+the script backs up each original user pickle to `web:storage:migration:v1:backup`
+before writing the unified collection. The migration is safe to rerun. Keep the
+legacy bot offline during migration; do not restart a bot build that only reads
+the old per-box fields until it has been updated to read and write
+`storage_characters` as well.

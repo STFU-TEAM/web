@@ -16,6 +16,7 @@
       {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}
     </div>
     <h3 class="card-name">{{ s.name }}</h3>
+    <p class="card-flavor">{{ s.special_description|replace('`', '') }}</p>
     <dl class="card-stats four">
       <div><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
       <div><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>

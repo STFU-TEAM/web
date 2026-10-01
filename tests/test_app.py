@@ -54,6 +54,33 @@ def test_public_pages(client):
     assert client.get("/leaderboard").status_code == 200
 
 
+def test_dodge_chance_is_capped_for_extreme_speed_gaps(monkeypatch):
+    attacker = get_character_from_template(CHARACTER_FILE[0], ["ATTACK"], ["GOOD"])
+    defender = get_character_from_template(CHARACTER_FILE[1], ["SPEED"], ["GOOD"])
+    attacker.current_speed = 1
+    defender.current_speed = 1000
+    rolls = iter((100, 30))
+    monkeypatch.setattr("app.game.character.random.randint", lambda _low, _high: next(rolls))
+
+    result = attacker.attack(defender)
+
+    assert result["dodged"] is False
+    assert result["damage"] > 0
+
+
+def test_second_human_side_targets_the_first_side():
+    from app.game.fight import Fight, Side
+
+    first = get_character_from_template(CHARACTER_FILE[0], ["ATTACK"], ["GOOD"])
+    second = get_character_from_template(CHARACTER_FILE[1], ["SPEED"], ["GOOD"])
+    first.current_speed = 1
+    second.current_speed = 100
+    fight = Fight(Side("First", [first], True), Side("Second", [second], True), kind="friend")
+
+    assert fight.acting_side == 1
+    assert fight.targets() == [0]
+
+
 def test_admin_panel_mirrors_bot_permissions_and_audits_grants(client):
     assert "242367586233352193" in client.application.config["DISCORD_ADMIN_IDS"]
     client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
@@ -73,8 +100,16 @@ def test_admin_panel_mirrors_bot_permissions_and_audits_grants(client):
     response = client.post("/admin/grant", data={"user_id": "222", "kind": "item", "item_id": "1", "amount": "2"}, headers=headers)
     assert response.status_code == 302
     assert doc(client, "222")["items"] == [{"id": 1}, {"id": 1}]
+    response = client.post("/admin/grant-stand", data={"user_id": "222", "stand_id": "1", "level": "40", "awaken": "2"}, headers=headers)
+    assert response.status_code == 302
+    granted = doc(client, "222")["storage_characters"][-1]
+    assert granted["id"] == 1 and granted["xp"] == 4000 and granted["awaken"] == 2
+    response = client.post("/admin/grant-supporter", data={"user_id": "222"}, headers=headers)
+    assert response.status_code == 302
+    assert doc(client, "222")["donor_status"] > datetime.datetime.now()
     response = client.post("/admin/grant", data={"user_id": "222", "kind": "fragments", "amount": "1000001"}, headers=headers)
     assert response.status_code == 302 and doc(client, "222")["fragments"] == 500
+    assert client.fake.llen("web:admin:audit") == 4
 
     with client.session_transaction() as session:
         session["uid"] = "222"
@@ -99,6 +134,34 @@ def test_gang_and_shop_documents_use_bot_redis_hashes(client):
     assert db.get_gang("gang-1")["war_elo"] == 10
     db.delete_gang("gang-1")
     assert db.get_gang("gang-1") is None
+
+
+def test_user_unifies_legacy_storage_cases_without_losing_characters():
+    data = create_user("storage-user")
+    data["character_storage_1"] = [char(1), char(2)]
+    data["pcharacter_storage_2"] = [char(3)]
+    user = dbmod.User(data)
+
+    assert [stand.id for stand in user.storage_characters] == [1, 2, 3]
+    assert user.find_character_by_uuid(user.storage_characters[2].uuid)[0].id == 3
+    user.storage_characters.append(get_character_from_template(CHARACTER_FILE[3], ["ATTACK"], ["GOOD"]))
+    saved = user.to_dict()
+    assert [stand["id"] for stand in saved["storage_characters"]] == [1, 2, 3, 4]
+
+
+def test_storage_migration_is_idempotent_and_deduplicates_partial_runs():
+    first, second = char(1), char(2)
+    document = create_user("migration-user")
+    document["storage_characters"] = [first]
+    document["character_storage_1"] = [first, second]
+
+    migrated, changed = dbmod.migrate_storage_document(document)
+    again, changed_again = dbmod.migrate_storage_document(migrated)
+
+    assert changed and not changed_again
+    assert [stand["id"] for stand in migrated["storage_characters"]] == [1, 2]
+    assert migrated["character_storage_1"] == []
+    assert again == migrated
 
 
 def test_gang_invite_and_join_flow(client):
@@ -207,6 +270,110 @@ def test_tower_victory_unlocks_next_floor(client):
     assert saved["fragments"] > 500
 
 
+def test_adventure_dungeon_starts_and_blocks_walls(client):
+    user = create_user("444")
+    user["energy"] = 8
+    user["main_characters"] = [char(1, xp=10000)]
+    put(client, user)
+    headers = login(client, "444")
+
+    page = client.get("/adventure/dungeon")
+    assert page.status_code == 200 and b"Enter dungeon" in page.data
+    response = client.post("/adventure/dungeon/start", data={"energy": "8"}, headers=headers)
+    assert response.status_code == 302
+    saved = doc(client, "444")
+    assert saved["energy"] == 0 and saved["web_dungeon"]["energy"] == 8
+
+    response = client.post("/adventure/dungeon/move", data={"direction": "up"}, headers=headers)
+    assert response.status_code == 302
+    saved = doc(client, "444")
+    assert saved["web_dungeon"]["position"] == [0, 0]
+    assert saved["web_dungeon"]["energy"] == 8
+    assert b"Dungeon" in client.get("/adventure/dungeon").data
+
+
+def test_adventure_dungeon_fight_and_chest_events(client):
+    user = create_user("555")
+    user["energy"] = 20
+    user["main_characters"] = [char(1, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
+                               char(10, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
+                               char(31, xp=1000000, awaken=3, quals=("UNIVERSAL",))]
+    put(client, user)
+    headers = login(client, "555")
+    client.post("/adventure/dungeon/start", data={"energy": "12"}, headers=headers)
+
+    for _ in range(7):
+        client.post("/adventure/dungeon/move", data={"direction": "down"}, headers=headers)
+    fight = dbmod.load_fight("555")
+    assert fight.kind == "dungeon" and len(fight.sides[1].chars) == 3
+    response = client.post("/adventure/dungeon/attack", data={"forfeit": "1"}, headers=headers)
+    assert response.status_code == 200 and dbmod.load_fight("555").finished
+    client.post("/adventure/dungeon/leave", headers=headers)
+
+    client.post("/adventure/dungeon/move", data={"direction": "down"}, headers=headers)
+    saved = doc(client, "555")
+    assert saved["web_dungeon"]["position"] == [0, 8]
+    assert len(saved["items"]) == 1
+
+
+def test_battle_modes_dummy_friend_and_ranked_share_fight_state(client):
+    first = create_user("111")
+    first["main_characters"] = [char(1, xp=100000)]
+    second = create_user("222")
+    second["main_characters"] = [char(2, xp=100000)]
+    put(client, first)
+    put(client, second)
+    headers = login(client, "111")
+
+    assert client.get("/battles?mode=dummy").status_code == 200
+    client.post("/battles/dummy/start", headers=headers)
+    dummy_fight = dbmod.load_fight("111")
+    assert dummy_fight.kind == "dummy" and dummy_fight.sides[1].name == "Training Dummy"
+    assert b"Practice Dummy" in client.get("/battles?mode=dummy").data
+    dummy_fight.forfeit()
+    dbmod.save_fight("111", dummy_fight)
+    client.post("/battles/leave", headers=headers)
+
+    client.post("/battles/friends/invite", data={"user_id": "222"}, headers=headers)
+    inbox = client.fake.smembers("web:friend:inbox:222")
+    assert len(inbox) == 1
+    challenge_id = inbox.pop().decode()
+    with client.session_transaction() as session:
+        session["uid"], session["name"] = "222", "Player Two"
+    client.post(f"/battles/friends/accept/{challenge_id}", headers=headers)
+    first_fight = dbmod.load_fight("111")
+    second_fight = dbmod.load_fight("222")
+    assert first_fight.kind == "friend" and second_fight.id == first_fight.id
+    assert first_fight.meta["players"] == ["111", "222"]
+    friend_page = client.get("/battles?mode=friends")
+    assert friend_page.status_code == 200 and b"Friendly Duel" in friend_page.data
+    assert b"Waiting for" in friend_page.data or b"choose who" in friend_page.data
+
+    dbmod.clear_fight("111")
+    dbmod.clear_fight("222")
+    with client.session_transaction() as session:
+        session["uid"], session["name"] = "111", "Jotaro"
+    client.post("/battles/ranked/queue", headers=headers)
+    with client.session_transaction() as session:
+        session["uid"], session["name"] = "222", "Player Two"
+    client.post("/battles/ranked/queue", headers=headers)
+    ranked = dbmod.load_fight("111")
+    assert ranked.kind == "ranked"
+    assert dbmod.load_fight("222").id == ranked.id
+    ranked.sides[1].chars[0].current_hp = 0
+    ranked._finish()
+    winner_id = ranked.meta["players"][0]
+    loser_id = ranked.meta["players"][1]
+    dbmod.save_fight("111", ranked)
+    dbmod.save_fight("222", ranked)
+    with client.session_transaction() as session:
+        session["uid"] = "111"
+    client.post("/battles/attack", data={"log_len": len(ranked.log)}, headers=headers)
+    client.post("/battles/attack", data={"log_len": len(ranked.log)}, headers=headers)
+    assert doc(client, winner_id)["global_elo"] == 25
+    assert doc(client, loser_id)["global_elo"] == 0
+
+
 def test_begin_pull_and_team(client):
     h = login(client)
     assert client.get("/team").headers["Location"].endswith("/auth/welcome")
@@ -222,12 +389,12 @@ def test_begin_pull_and_team(client):
     assert b"media.tenor.com" not in r.data
     assert b"/opening/" in r.data
     d = doc(client, "111")
-    assert d["super_fragements"] == 0 and d["pity"] == 10 and len(d["character_storage_1"]) == 10
+    assert d["super_fragements"] == 0 and d["pity"] == 10 and len(d["storage_characters"]) == 10
     # second pull refused
     assert b"costs 1 super fragment" in client.post("/banners/0/pull", headers=h).data
 
     # move 3 into the team, swap a 4th in
-    ids = [c["uuid"] for c in d["character_storage_1"]]
+    ids = [c["uuid"] for c in d["storage_characters"]]
     for u in ids[:3]:
         assert b"joined your team" in client.post("/team/main", data={"uuid": u}, headers=h).data
     r = client.post("/team/main", data={"uuid": ids[3], "swap": ids[0]}, headers=h)
@@ -245,7 +412,7 @@ def test_begin_pull_and_team(client):
     # release
     assert b"was released" in client.post("/team/release", data={"uuid": ids[5]}, headers=h).data
     assert client.get("/team").status_code == 200
-    assert client.get("/team/collection?shelf=s1").status_code == 200
+    assert client.get("/team/collection").status_code == 200
     # daily + cooldown
     assert b"Claimed" in client.post("/daily", headers=h).data
     assert b"back in" in client.post("/daily", headers=h).data.lower()
@@ -302,10 +469,10 @@ def test_legacy_bytes_key_user_items_shop(client):
     assert b"You crafted Holy Corpse" in client.post("/items/craft", data={"recipe": "Holy Corpse"}, headers=h).data
     assert b"You bought Super Fragment" in client.post("/shop/buy", data={"key": "super_fragment"}, headers=h).data
     # fuse the two Star Platinum copies
-    s1 = doc(client, "b'333'")["character_storage_1"]
+    s1 = doc(client, "b'333'")["storage_characters"]
     r = client.post("/team/fuse", data={"uuid": s1[0]["uuid"], "fodder": s1[1]["uuid"]}, headers=h)
     assert b"Fused" in r.data
-    s1 = doc(client, "b'333'")["character_storage_1"]
+    s1 = doc(client, "b'333'")["storage_characters"]
     assert len(s1) == 1 and s1[0]["awaken"] == 1
     # reforge costs 10000
     frag = doc(client, "b'333'")["fragments"]

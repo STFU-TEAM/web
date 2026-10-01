@@ -1,5 +1,5 @@
 {% from "macros.html" import owned_card %}
-<div class="collection" hx-vals='{"shelf": "{{ shelf }}"}'>
+<div class="collection">
 {% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
 {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
 {% set equipable = u.items|unique_equipable %}
@@ -70,21 +70,15 @@
 <section class="shelf">
   <header class="shelf-head">
     <h2 class="h2">Storage</h2>
-    <p class="muted">25 stands per storage.</p>
+    <p class="muted">{{ u.storage_characters|length }} / 200 stands.</p>
   </header>
-  <nav class="tabs" aria-label="Storages">
-    {% for kind, i, label, lst in shelves %}
-      {% set key = kind ~ i %}
-      <a href="?shelf={{ key }}" hx-get="{{ url_for('play.collection', shelf=key) }}" hx-target="#collection"
-         {% if key == shelf %}aria-current="true"{% endif %}>{{ label }} <small>{{ lst|length }}</small></a>
-    {% endfor %}
-  </nav>
-  {% for kind, i, label, lst in shelves if (kind ~ i) == shelf %}
-    {% if kind == 'p' and not u.is_donator() %}<p class="notice">Premium storages are read-only until your supporter status comes back.</p>{% endif %}
-    {% if lst %}
-    <div class="grid">
-      {% for c in lst %}
-        <div class="slot">
+  <label class="collection-filter">Filter collection
+    <input id="collection-filter" type="search" placeholder="Name or rarity" autocomplete="off">
+  </label>
+    {% if u.storage_characters %}
+    <div class="grid collection-grid">
+      {% for c in u.storage_characters %}
+        <div class="slot collection-card" data-search="{{ c.name|lower }} {{ c.rarity|lower }} {{ c.id }}">
           {{ owned_card(c, size='small') }}
           <details class="menu">
             <summary>Manage {{ c.name }}</summary>
@@ -118,9 +112,9 @@
       {% endfor %}
     </div>
     {% else %}
-      <p class="notice">Empty. Banner pulls land in the first storage with room.</p>
+      <p class="notice">Collection empty. Pulls and rewards are added here automatically.</p>
     {% endif %}
-  {% endfor %}
+  <p class="muted collection-empty" hidden>No stands match this filter.</p>
 </section>
 </div>
 {% if request.headers.get('HX-Request') %}{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}{% endif %}

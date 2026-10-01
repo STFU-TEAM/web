@@ -62,10 +62,9 @@ def register(app):
     def copies(c, u):
         """Other copies of the same stand sitting in storage (fuse candidates)."""
         out = []
-        for lst in u.character_storage_list + u.pcharacter_storage_list:
-            for o in lst:
-                if o.id == c.id and o.uuid != c.uuid:
-                    out.append(o)
+        for o in u.storage_characters:
+            if o.id == c.id and o.uuid != c.uuid:
+                out.append(o)
         return out
 
     @app.template_filter("rank")

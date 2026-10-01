@@ -70,5 +70,5 @@ def profile(uid: str):
         abort(404)
     user = User(doc)
     gang = get_db().get_gang(user.gang_id)
-    owned = len(user.main_characters) + sum(len(s) for s in user.character_storage_list + user.pcharacter_storage_list)
+    owned = len(user.main_characters) + len(user.storage_characters)
     return render_template("profile.html", u=user, ident=identity(uid), gang=gang, uid=uid, owned=owned)

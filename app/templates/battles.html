@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Battles | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  {% if fight %}
+    <header class="player-bar"><div><p class="kicker">Battle mode</p><h1 class="display sm">{{ {"dummy":"Practice Dummy", "ranked":"Ranked", "friend":"Friendly Duel"}.get(fight.kind, "Battle") }}</h1></div></header>
+    {% set my_side = fight.meta.get("players", [me.id]).index(me.id) if me.id in fight.meta.get("players", [me.id]) else 0 %}
+    {% set fight_action = url_for('battles.attack') %}
+    {% set fight_leave_action = url_for('battles.leave') %}
+    {% set fight_label = "Battle" %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <header class="player-bar">
+      <div><p class="kicker">Combat arena</p><h1 class="display sm">Battles</h1></div>
+      <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
+    </header>
+    <nav class="tabs battle-tabs" aria-label="Battle mode">
+      {% for key, label in [('dummy', 'Dummy'), ('ranked', 'Ranked'), ('friends', 'Friends')] %}
+        <a href="{{ url_for('battles.index', mode=key) }}" {% if mode == key %}aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if mode == 'dummy' %}
+      <section class="battle-panel">
+        <div><p class="kicker">Practice</p><h2 class="h2">Training Dummy</h2><p>Try your team's abilities and watch the fight log. Practice has no cost and does not change Elo.</p></div>
+        {% if not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
+        {% else %}<form method="post" action="{{ url_for('battles.dummy_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Fight the dummy</button></form>{% endif %}
+      </section>
+    {% elif mode == 'ranked' %}
+      <section class="battle-panel">
+        <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2><p>Queue against another web player. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
+        {% if waiting %}
+          <p class="notice">Searching the ranked queue. Refresh or check again for a match.</p>
+          <form method="post" action="{{ url_for('battles.ranked_cancel') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn danger">Leave queue</button></form>
+          <form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn">Check for match</button></form>
+        {% elif not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
+        {% else %}<form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Join ranked queue</button></form>{% endif %}
+      </section>
+    {% else %}
+      <section class="battle-panel">
+        <div><p class="kicker">Direct challenge</p><h2 class="h2">Challenge a friend</h2><p>Send an invitation to a registered player by Discord ID. Their acceptance opens a shared turn-based fight.</p></div>
+        <form class="inline" method="post" action="{{ url_for('battles.invite_friend') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label for="friend-id">Discord user ID</label><input id="friend-id" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" required>
+          <button class="btn gold">Send challenge</button>
+        </form>
+      </section>
+      {% if pending %}
+        <section class="battle-panel"><h2 class="h2">Incoming challenges</h2>
+          <ul class="social-list">{% for challenge in pending %}<li><strong>{{ challenge.challenger_name }}</strong>
+            <form method="post" action="{{ url_for('battles.accept_friend', challenge_id=challenge.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">Accept</button></form></li>{% endfor %}</ul>
+        </section>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

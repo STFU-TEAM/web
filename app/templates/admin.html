@@ -4,6 +4,11 @@
 <section class="page narrow">
   <p class="kicker">Restricted tools</p>
   <h1 class="display sm">Admin panel</h1>
+  <dl class="figures compact admin-counts">
+    <div><dt>Accounts</dt><dd>{{ counts.players|num }}</dd></div>
+    <div><dt>Gangs</dt><dd>{{ counts.gangs|num }}</dd></div>
+    <div><dt>Player shops</dt><dd>{{ counts.shops|num }}</dd></div>
+  </dl>
   <section class="social-panel">
     <h2 class="h2">Find a player</h2>
     <form class="inline admin-search" method="get" action="{{ url_for('admin.index') }}">
@@ -34,6 +39,36 @@
       </form>
       <p class="muted">Currency grants are capped at 1,000,000; item grants at 25 per action. Every change is recorded in the admin audit list.</p>
     </section>
+    <section class="social-panel">
+      <h3 class="h3">Grant a stand</h3>
+      <form class="social-form admin-grant" method="post" action="{{ url_for('admin.grant_stand') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="user_id" value="{{ target.id }}">
+        <label>Stand<select name="stand_id">{% for stand in STANDS %}<option value="{{ stand.id }}">{{ stand.id }} · {{ stand.name }} ({{ stand.rarity }})</option>{% endfor %}</select></label>
+        <label>Level<input type="number" name="level" min="0" max="100" value="0" required></label>
+        <label>Awakening<select name="awaken">{% for rank in range(4) %}<option value="{{ rank }}">{{ rank }}</option>{% endfor %}</select></label>
+        <button class="btn gold">Grant stand</button>
+      </form>
+      <form class="inline admin-supporter" method="post" action="{{ url_for('admin.grant_supporter') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="user_id" value="{{ target.id }}">
+        <button class="btn">Grant 30 days supporter</button>
+      </form>
+    </section>
   {% endif %}
+
+  <section class="social-panel">
+    <h2 class="h2">Recent admin actions</h2>
+    <ol class="admin-audit">
+      {% for event in audit %}
+        <li><time datetime="{{ event.at }}">{{ event.at[:19]|replace('T', ' ') }} UTC</time>
+          <strong>{{ event.kind|replace('_', ' ')|title }}</strong>
+          <span>{{ event.actor }} → {{ event.target }}</span>
+          {% if event.kind == 'stand' %}<span>Stand #{{ event.stand_id }}, level {{ event.level }}, awaken {{ event.awaken }}</span>
+          {% elif event.kind == 'item' %}<span>Item #{{ event.item_id }} × {{ event.amount }}</span>
+          {% elif event.kind == 'supporter' %}<span>{{ event.days }} days</span>
+          {% else %}<span>{{ event.amount }} {{ event.kind }}</span>{% endif %}
+        </li>
+      {% else %}<li class="muted">No admin actions recorded.</li>{% endfor %}
+    </ol>
+  </section>
 </section>
 {% endblock %}

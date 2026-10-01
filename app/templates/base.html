@@ -22,18 +22,41 @@
     <nav class="nav" aria-label="Main">
       {% set ep = request.endpoint or '' %}
       {% if me.id %}
-        <a href="{{ url_for('play.team') }}" {% if ep == 'play.team' %}aria-current="page"{% endif %}>Team</a>
-        <a href="{{ url_for('play.banners') }}" {% if ep == 'play.banners' %}aria-current="page"{% endif %}>Banners</a>
-        <a href="{{ url_for('play.items') }}" {% if ep == 'play.items' %}aria-current="page"{% endif %}>Items</a>
-        <a href="{{ url_for('play.wormhole') }}" {% if ep == 'play.wormhole' %}aria-current="page"{% endif %}>Wormhole</a>
-        <a href="{{ url_for('play.tower') }}" {% if ep in ('play.tower', 'play.tower_start') %}aria-current="page"{% endif %}>Tower</a>
-        <a href="{{ url_for('play.quests') }}" {% if ep == 'play.quests' %}aria-current="page"{% endif %}>Quests</a>
-        <a href="{{ url_for('social.gangs') }}" {% if ep.startswith('social.gang') %}aria-current="page"{% endif %}>Gangs</a>
-        <a href="{{ url_for('social.shops') }}" {% if ep.startswith('social.shop') %}aria-current="page"{% endif %}>Shops</a>
+        <details class="nav-group" {% if ep in ('play.team', 'play.banners', 'play.items', 'play.quests') %}open{% endif %}>
+          <summary {% if ep in ('play.team', 'play.banners', 'play.items', 'play.quests') %}aria-current="page"{% endif %}>Game</summary>
+          <div class="nav-menu">
+            <a href="{{ url_for('play.team') }}" {% if ep == 'play.team' %}aria-current="page"{% endif %}>Team</a>
+            <a href="{{ url_for('play.banners') }}" {% if ep == 'play.banners' %}aria-current="page"{% endif %}>Banners</a>
+            <a href="{{ url_for('play.items') }}" {% if ep == 'play.items' %}aria-current="page"{% endif %}>Items</a>
+            <a href="{{ url_for('play.quests') }}" {% if ep == 'play.quests' %}aria-current="page"{% endif %}>Quests</a>
+            <a href="{{ url_for('play.dungeon') }}" {% if ep.startswith('play.dungeon') %}aria-current="page"{% endif %}>Dungeon</a>
+          </div>
+        </details>
+        <details class="nav-group" {% if ep.startswith('battles.') or ep in ('play.wormhole', 'play.tower') %}open{% endif %}>
+          <summary {% if ep.startswith('battles.') or ep in ('play.wormhole', 'play.tower') %}aria-current="page"{% endif %}>Battle</summary>
+          <div class="nav-menu">
+            <a href="{{ url_for('battles.index', mode='dummy') }}" {% if ep.startswith('battles.') %}aria-current="page"{% endif %}>Dummy / Ranked / Friends</a>
+            <a href="{{ url_for('play.wormhole') }}" {% if ep == 'play.wormhole' %}aria-current="page"{% endif %}>Wormhole</a>
+            <a href="{{ url_for('play.tower') }}" {% if ep == 'play.tower' %}aria-current="page"{% endif %}>Tower</a>
+          </div>
+        </details>
+        <details class="nav-group" {% if ep.startswith('social.') %}open{% endif %}>
+          <summary {% if ep.startswith('social.') %}aria-current="page"{% endif %}>Community</summary>
+          <div class="nav-menu">
+            <a href="{{ url_for('social.gangs') }}" {% if ep.startswith('social.gang') %}aria-current="page"{% endif %}>Gangs</a>
+            <a href="{{ url_for('social.shops') }}" {% if ep.startswith('social.shop') %}aria-current="page"{% endif %}>Player shops</a>
+            <a href="{{ url_for('battles.index', mode='friends') }}">Friends</a>
+          </div>
+        </details>
         {% if me.id in config.DISCORD_ADMIN_IDS %}<a href="{{ url_for('admin.index') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}>Admin</a>{% endif %}
       {% endif %}
-      <a href="{{ url_for('main.stands') }}" {% if ep in ('main.stands','main.stand') %}aria-current="page"{% endif %}>Stands</a>
-      <a href="{{ url_for('main.leaderboard') }}" {% if ep == 'main.leaderboard' %}aria-current="page"{% endif %}>Ranked</a>
+      <details class="nav-group" {% if ep in ('main.stands','main.stand','main.leaderboard') %}open{% endif %}>
+        <summary {% if ep in ('main.stands','main.stand','main.leaderboard') %}aria-current="page"{% endif %}>Explore</summary>
+        <div class="nav-menu">
+          <a href="{{ url_for('main.stands') }}" {% if ep in ('main.stands','main.stand') %}aria-current="page"{% endif %}>Stands</a>
+          <a href="{{ url_for('main.leaderboard') }}" {% if ep == 'main.leaderboard' %}aria-current="page"{% endif %}>Ranked ladder</a>
+        </div>
+      </details>
     </nav>
     <div class="account">
       {% if me.id %}

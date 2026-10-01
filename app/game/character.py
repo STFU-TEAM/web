@@ -19,6 +19,7 @@ SPEEDSCALING = 1
 CRITICALSCALING = 1
 CRITMULTIPLIER = 1
 DODGENERF = 1
+DODGE_CHANCE_CAP = 25
 STXPTOLEVEL = 100
 MAX_LEVEL = 100
 LEVEL_TO_STAT_INCREASE = 1
@@ -171,9 +172,13 @@ class Character:
         multi *= dmg_reduction
         # If the ennemy is faster check if he dodged
         if ennemy_character.current_speed > self.current_speed:
+            dodge_chance = min(
+                DODGE_CHANCE_CAP,
+                (ennemy_character.current_speed - self.current_speed) // DODGENERF,
+            )
             dodge_roll = (
                 random.randint(0, 100)
-                < (ennemy_character.current_speed - self.current_speed) // DODGENERF
+                < dodge_chance
             )
             atck["dodged"] = dodge_roll
         # if it is dodged the we do not compute damage
