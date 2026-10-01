@@ -10,7 +10,9 @@
       {% if s.taunt %}<span class="taunt" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
     </header>
     <div class="card-window">
-      <img src="{{ s.id|stand_img }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+       <img src="{{ s.id|stand_img }}" alt="{{ s.name }}" loading="lazy"
+         onload="if(this.naturalWidth / this.naturalHeight > 0.84) this.classList.add('cover')"
+           onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
       {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}
     </div>
     <h3 class="card-name">{{ s.name }}</h3>

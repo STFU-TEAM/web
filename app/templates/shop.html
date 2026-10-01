@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ shop.name }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Shop by {{ owner.name }}</p><h1 class="display sm">{{ shop.name }}</h1><p class="muted">{{ shop.description }}</p></div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  {% if shop.owner == me.id %}
+    <section class="social-panel">
+      <h2 class="h2">List an item</h2>
+      {% if u.items %}
+        <form class="inline listing-form" method="post" action="{{ url_for('social.shop_list_item', shop_id=shop._id) }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label>Item<select name="item" required>{% for item in u.items|unique_equipable %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+            {% for item in u.items if not item.is_equipable %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label>
+          <label>Price<input type="number" name="price" min="1" max="10000000" required></label>
+          <button class="btn gold">List item</button>
+        </form>
+      {% else %}<p class="notice">Your inventory is empty.</p>{% endif %}
+    </section>
+  {% endif %}
+
+  <section class="social-panel">
+    <h2 class="h2">Listings</h2>
+    <ul class="inventory market-inventory">
+      {% for listing in items %}
+        <li class="item"><div><h3>{{ listing.item.name }}</h3><p>{{ listing.item.emoji }} | {{ listing.price|num }} fragments</p></div>
+          {% if shop.owner == me.id %}
+            <form method="post" action="{{ url_for('social.shop_unlist_item', shop_id=shop._id, index=listing.index) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Return to inventory</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('social.shop_buy_item', shop_id=shop._id, index=listing.index) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">Buy</button>
+            </form>
+          {% endif %}
+        </li>
+      {% else %}<li class="notice">This shop has no listings right now.</li>{% endfor %}
+    </ul>
+  </section>
+  <p><a href="{{ url_for('social.shops') }}">Back to shops</a></p>
+</section>
+{% endblock %}

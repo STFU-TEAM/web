@@ -45,12 +45,166 @@ def char(cid, xp=0, awaken=0, items=None, types=("ATTACK",), quals=("GOOD",)):
 
 
 def test_public_pages(client):
-    assert client.get("/").status_code == 200
+    home = client.get("/")
+    assert home.status_code == 200 and b"randomAsset/avatar.png" in home.data
     r = client.get("/stands?q=star&rarity=SSR", headers={"HX-Request": "true"})
     assert r.status_code == 200 and b"Star platinum" in r.data
     assert client.get("/stands/1").status_code == 200
     assert client.get("/stands/999").status_code == 404
     assert client.get("/leaderboard").status_code == 200
+
+
+def test_admin_panel_mirrors_bot_permissions_and_audits_grants(client):
+    assert "242367586233352193" in client.application.config["DISCORD_ADMIN_IDS"]
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    put(client, create_user("111"))
+    put(client, create_user("222"))
+    headers = login(client, "111")
+
+    response = client.get("/admin?user_id=222")
+    assert response.status_code == 200 and b"Admin panel" in response.data
+    assert b"Grant resources" in response.data
+    response = client.post("/admin/grant", data={"user_id": "222", "kind": "fragments", "amount": "500"}, headers=headers)
+    assert response.status_code == 302
+    assert doc(client, "222")["fragments"] == 500
+    audit = client.fake.lrange("web:admin:audit", 0, -1)
+    assert len(audit) == 1 and b'"actor": "111"' in audit[0]
+
+    response = client.post("/admin/grant", data={"user_id": "222", "kind": "item", "item_id": "1", "amount": "2"}, headers=headers)
+    assert response.status_code == 302
+    assert doc(client, "222")["items"] == [{"id": 1}, {"id": 1}]
+    response = client.post("/admin/grant", data={"user_id": "222", "kind": "fragments", "amount": "1000001"}, headers=headers)
+    assert response.status_code == 302 and doc(client, "222")["fragments"] == 500
+
+    with client.session_transaction() as session:
+        session["uid"] = "222"
+    assert client.get("/admin").status_code == 403
+
+
+def test_gang_and_shop_documents_use_bot_redis_hashes(client):
+    gang = {"_id": "gang-1", "name": "Stardust", "users": ["111"], "ranks": {"111": 0}}
+    shop = {"_id": "shop-1", "owner": "111", "name": "Joestar Market", "items": [{"id": 1}], "prices": [250]}
+    db = dbmod.Database()
+
+    db.create_gang(gang)
+    db.create_shop(shop)
+
+    assert db.get_gang("gang-1") == gang
+    assert db.get_shop("shop-1") == shop
+    assert list(db.all_gangs()) == [gang]
+    assert list(db.all_shops()) == [shop]
+
+    gang["war_elo"] = 10
+    db.update_gang(gang)
+    assert db.get_gang("gang-1")["war_elo"] == 10
+    db.delete_gang("gang-1")
+    assert db.get_gang("gang-1") is None
+
+
+def test_gang_invite_and_join_flow(client):
+    leader = create_user("111")
+    leader["fragments"] = 20000
+    put(client, leader)
+    member = create_user("222")
+    put(client, member)
+    headers = login(client, "111")
+
+    response = client.post("/gangs/create", data={"name": "Stardust", "motto": "Yare yare", "motd": "Welcome"}, headers=headers)
+    assert response.status_code == 302
+    gang_id = doc(client, "111")["gang_id"]
+    assert doc(client, "111")["fragments"] == 10000
+    assert client.get("/gangs").status_code == 200
+
+    response = client.post("/gangs/invite", data={"user_id": "222"}, headers=headers)
+    assert response.status_code == 302
+    assert gang_id in doc(client, "222")["gang_invites"]
+
+    with client.session_transaction() as session:
+        session["uid"], session["name"] = "222", "Jotaro"
+    response = client.post(f"/gangs/join/{gang_id}", headers=headers)
+    assert response.status_code == 302
+    assert doc(client, "222")["gang_id"] == gang_id
+    assert set(map(str, dbmod.Database().get_gang(gang_id)["users"])) == {"111", "222"}
+
+
+def test_player_shop_listing_and_purchase(client):
+    owner = create_user("111")
+    owner["fragments"] = 5000
+    owner["items"] = [{"id": 1}]
+    put(client, owner)
+    buyer = create_user("222")
+    buyer["fragments"] = 1000
+    put(client, buyer)
+    headers = login(client, "111")
+
+    response = client.post("/shops/create", data={"name": "Joestar Market", "description": "Good finds"}, headers=headers)
+    assert response.status_code == 302
+    shop_id = doc(client, "111")["shop_id"]
+    assert doc(client, "111")["fragments"] == 2000
+    assert b"Joestar Market" in client.get("/shops").data
+
+    client.post(f"/shops/{shop_id}/list", data={"item": "1", "price": "750"}, headers=headers)
+    assert doc(client, "111")["items"] == []
+    assert client.get(f"/shops/{shop_id}").status_code == 200
+
+    with client.session_transaction() as session:
+        session["uid"], session["name"] = "222", "Jotaro"
+    response = client.post(f"/shops/{shop_id}/buy/0", headers=headers)
+    assert response.status_code == 302
+    assert doc(client, "222")["fragments"] == 250
+    assert doc(client, "222")["items"] == [{"id": 1}]
+    assert doc(client, "111")["fragments"] == 2750
+
+
+def test_tower_entry_and_bot_invite(client):
+    user = create_user("111")
+    user["fragments"] = 1200
+    user["main_characters"] = [char(1, xp=10000)]
+    put(client, user)
+    headers = login(client, "111")
+
+    assert client.get("/tower").status_code == 200
+    response = client.post("/tower/start", headers=headers)
+    assert response.status_code == 302
+    fight = dbmod.load_fight("111")
+    assert fight.kind == "tower" and len(fight.sides[1].chars) == 3
+    assert doc(client, "111")["fragments"] == 700
+    assert b"Your tower fight is active" in client.get("/wormhole").data
+    response = client.post("/wormhole/attack", data={"target": "0"}, headers=headers)
+    assert response.status_code == 409
+    assert dbmod.load_fight("111").turn == fight.turn
+    assert b"/randomAsset/avatar.png" in client.get("/stands/31").data
+
+    client.application.config["DISCORD_CLIENT_ID"] = "123456"
+    response = client.get("/auth/bot")
+    assert response.status_code == 302
+    assert "scope=bot+applications.commands" in response.headers["Location"]
+
+
+def test_tower_victory_unlocks_next_floor(client):
+    user = create_user("111")
+    user["fragments"] = 1000
+    user["main_characters"] = [char(1, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
+                               char(10, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
+                               char(31, xp=1000000, awaken=3, quals=("UNIVERSAL",))]
+    put(client, user)
+    headers = login(client, "111")
+    client.post("/tower/start", headers=headers)
+
+    for _ in range(200):
+        fight = dbmod.load_fight("111")
+        if fight.finished:
+            break
+        assert fight.awaiting_input
+        response = client.post("/tower/attack", data={"target": fight.targets()[0], "log_len": len(fight.log)}, headers=headers)
+        assert response.status_code == 200
+
+    fight = dbmod.load_fight("111")
+    assert fight.finished and fight.winner == 0
+    saved = doc(client, "111")
+    assert saved["web_tower_floor"] == 1
+    assert saved["web_tower_active"] is True
+    assert saved["fragments"] > 500
 
 
 def test_begin_pull_and_team(client):
@@ -64,6 +218,9 @@ def test_begin_pull_and_team(client):
     assert client.get("/banners").status_code == 200
     r = client.post("/banners/0/pull", headers=h)
     assert r.status_code == 200 and b"10 stands" in r.data, r.data[:500]
+    assert b"randomAsset/avatar.png" in r.data
+    assert b"media.tenor.com" not in r.data
+    assert b"/opening/" in r.data
     d = doc(client, "111")
     assert d["super_fragements"] == 0 and d["pity"] == 10 and len(d["character_storage_1"]) == 10
     # second pull refused

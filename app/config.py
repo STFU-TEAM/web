@@ -1,5 +1,15 @@
 import os
 
+_BOT_GIVE_CHARACTER_ADMINS = (
+    "242367586233352193",
+    "112866272106012672",
+    "289413979644755970",
+    "704961055662538833",
+    "348342650853785602",
+    "476057912532533273",
+    "435082104381112340",
+)
+
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
@@ -12,6 +22,11 @@ class Config:
     )
     # Optional: lets the leaderboard show names of players who never logged in on the web
     DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
+    DISCORD_ADMIN_IDS = frozenset(
+        user_id.strip()
+        for user_id in os.environ.get("DISCORD_ADMIN_IDS", "").split(",")
+        if user_id.strip().isdigit()
+    ) or frozenset(_BOT_GIVE_CHARACTER_ADMINS)
 
     # Stand art. The bot used https://storage.stfurequiem.com/Image/{id}.png
     IMAGE_BASE_URL = os.environ.get("IMAGE_BASE_URL", "https://images.stfurequiem.com").rstrip("/")

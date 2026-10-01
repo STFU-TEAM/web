@@ -3,11 +3,15 @@
   <p class="toast error" role="alert">{{ error }}</p>
 {% else %}
   <section class="pull-batch">
-    <header>
-      <p class="menace small" aria-hidden="true">ドドドド</p>
-      <h2 class="display sm">{{ res.banner.name }}: {{ res.drawn|length }} stands</h2>
-      <p class="muted">Pity is now {{ u.pity }}/100.</p>
-    </header>
+    <div class="pull-showcase">
+      <img class="pull-avatar" src="{{ 'randomAsset/avatar.png'|asset }}" alt="STFU Requiem" width="220" height="220" loading="eager">
+      <div class="pull-announcement">
+        <p class="menace small" aria-hidden="true">ドドドド</p>
+        <h2 class="display sm">{{ res.banner.name }}: {{ res.drawn|length }} stands</h2>
+        <p class="muted">Pity is now {{ u.pity }}/100.</p>
+      </div>
+      <img class="pull-tier" src="{{ ('opening/' ~ opening_id ~ '.gif')|asset }}" alt="{{ top_rarity }} pull animation" width="96" height="96" loading="eager">
+    </div>
     <div class="grid pull-grid">
       {% for c, where in res.drawn %}
         <div class="slot" style="--d: {{ loop.index0 }}">

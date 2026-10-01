@@ -19,10 +19,14 @@ def create_app() -> Flask:
     from app.auth import bp as auth_bp
     from app.routes.main import bp as main_bp
     from app.routes.play import bp as play_bp
+    from app.routes.social import bp as social_bp
+    from app.routes.admin import bp as admin_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
     app.register_blueprint(play_bp)
+    app.register_blueprint(social_bp)
+    app.register_blueprint(admin_bp)
 
     @app.get("/healthz")
     def healthz():
@@ -32,6 +36,10 @@ def create_app() -> Flask:
     @app.errorhandler(404)
     def not_found(_):
         return render_template("error.html", code=404, message="This page doesn't exist."), 404
+
+    @app.errorhandler(403)
+    def forbidden(_):
+        return render_template("error.html", code=403, message="This Discord account can't access this page."), 403
 
     @app.errorhandler(500)
     def server_error(_):

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Tower | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <div class="tower-intro narrow">
+      <p class="kicker">Part 3 | Stardust Crusaders</p>
+      <h1 class="display sm">The Tower</h1>
+      <p class="lede">Six consecutive floors. Clear each one to reach the next; a defeat sends you back to the current floor.</p>
+      <ol class="tower-floors" aria-label="Tower progress">
+        {% for floor in range(6) %}
+          <li class="{% if floor < stage %}cleared{% elif floor == stage %}current{% endif %}"><span>{{ floor + 1 }}</span></li>
+        {% endfor %}
+      </ol>
+      <p>Floor {{ stage + 1 }} of 6 · Entry {{ 500|num }} fragments{% if climb_active %} · entry paid{% endif %}</p>
+      {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+      {% if other_fight %}
+        <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.wormhole') }}">Return to the wormhole</a>.</p>
+      {% elif not u.main_characters %}
+        <p class="notice">Set up a team before entering. <a href="{{ url_for('play.team') }}">Open your team</a>.</p>
+      {% elif u.fragments < 500 and not climb_active %}
+        <p class="notice">You need {{ 500|num }} fragments to begin a climb.</p>
+      {% else %}
+        <form method="post" action="{{ url_for('play.tower_start') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">{{ "Continue to floor " ~ (stage + 1) if climb_active else "Begin the climb" }}</button>
+        </form>
+      {% endif %}
+      <p class="muted">A climb costs 500 fragments once. Victories award fragments, XP and an item.</p>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

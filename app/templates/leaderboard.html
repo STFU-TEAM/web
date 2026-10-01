@@ -2,7 +2,8 @@
 {% block title %}Leaderboard | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page narrow">
-  <h1 class="display sm">Leaderboard</h1>
+  <p class="kicker">Global Elo ladder</p>
+  <h1 class="display sm">Ranked</h1>
   {% set tabs = [('global_elo','Ranked'),('xp','Level'),('tower_level','Tower'),('missions_level','Dungeon'),('prestige','Prestige')] %}
   <nav class="tabs" aria-label="Rank by">
     {% for key, label in tabs %}

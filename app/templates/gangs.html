@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Gangs | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Crews</p><h1 class="display sm">Gangs</h1></div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  {% if gang %}
+    <section class="social-panel gang-panel">
+      <div class="social-heading">
+        <div><p class="kicker">Your gang</p><h2 class="h2">{{ gang.name }}</h2><p class="muted">{{ gang.motto or "No motto set." }}</p></div>
+        <form method="post" action="{{ url_for('social.gang_leave') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn danger small">Leave gang</button>
+        </form>
+      </div>
+      {% if gang.motd %}<p class="notice">{{ gang.motd }}</p>{% endif %}
+      <dl class="figures compact">
+        <div><dt>Members</dt><dd>{{ members|length }}</dd></div>
+        <div><dt>War Elo</dt><dd>{{ gang.war_elo|num }}</dd></div>
+        <div><dt>Raid level</dt><dd>{{ gang.raid_level }}</dd></div>
+      </dl>
+      <ol class="member-list">
+        {% for member in members %}
+          <li><span class="rank">{{ ["Boss", "Capo", "Soldier"][member.rank] if member.rank in (0, 1, 2) else "Soldier" }}</span>
+            <a href="{{ url_for('main.profile', uid=member.id) }}">{{ member.identity.name }}</a></li>
+        {% endfor %}
+      </ol>
+      {% if gang.ranks.get(me.id, 2)|int <= 1 %}
+        <form class="inline invite-form" method="post" action="{{ url_for('social.gang_invite') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label for="invite-id">Invite by Discord user ID</label>
+          <input id="invite-id" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" required>
+          <button class="btn small">Invite</button>
+        </form>
+      {% endif %}
+    </section>
+  {% else %}
+    {% if invites %}
+      <section class="social-panel">
+        <h2 class="h2">Invitations</h2>
+        <ul class="social-list">
+          {% for invite in invites %}
+            <li><strong>{{ invite.name }}</strong><span>{{ invite.motto or "" }}</span>
+              <form method="post" action="{{ url_for('social.gang_join', gang_id=invite._id) }}">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">Join</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+    <section class="social-panel">
+      <h2 class="h2">Found a gang</h2>
+      <p>Creation costs {{ 10000|num }} fragments.</p>
+      <form class="social-form" method="post" action="{{ url_for('social.gang_create') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label>Gang name<input type="text" name="name" minlength="2" maxlength="32" required></label>
+        <label>Motto<input type="text" name="motto" maxlength="120"></label>
+        <label>Message of the day<input type="text" name="motd" maxlength="160"></label>
+        <button class="btn gold">Create gang</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="social-panel">
+    <h2 class="h2">Gang standings</h2>
+    <ol class="social-list gang-standings">
+      {% for item in gangs %}
+        <li><span class="rank">{{ loop.index }}</span><strong>{{ item.name }}</strong>
+          <span>{{ item.users|length }} members</span><b>{{ item.war_elo|default(0)|num }} Elo</b></li>
+      {% else %}<li class="notice">No gangs yet.</li>{% endfor %}
+    </ol>
+  </section>
+</section>
+{% endblock %}

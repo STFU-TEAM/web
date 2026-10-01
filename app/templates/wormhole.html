@@ -11,7 +11,9 @@
       <p class="lede">A wandering soul drags your team into a fight. Its stands scale with your level: at level {{ u.level }} you face {% if u.level < 5 %}one or two R{% elif u.level < 25 %}one SR{% elif u.level < 50 %}two or three SSR{% elif u.level < 75 %}three UR{% else %}three LR{% endif %} stands.</p>
       <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_in %}, full refill in {{ st.energy_in|delta }}{% endif %}.</p>
       {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
-      {% if not u.main_characters %}
+      {% if other_fight %}
+        <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.tower') if other_fight == 'tower' else url_for('play.wormhole') }}">Return to it</a>.</p>
+      {% elif not u.main_characters %}
         <p class="notice">You need at least one stand in your team. <a href="{{ url_for('play.team') }}">Set up your team</a>.</p>
       {% elif st.wormhole %}
         <p class="notice">The next wormhole opens in {{ st.wormhole|delta }}.</p>

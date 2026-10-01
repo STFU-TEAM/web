@@ -14,6 +14,8 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Pickle protocol 4 (bot image is Python 3.11).
 - Website-only keys start with `web:` (OAuth state, action locks, fights in progress,
   cached Discord names, cached leaderboards).
+- Website-only tower progress is stored in `web_tower_*` user fields; the bot's user model
+  preserves unknown fields when it writes the shared document.
 
 ## Features
 - Discord OAuth2 login; account creation = `/adventure begin` (1 super fragment)
@@ -23,9 +25,14 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Items: use (arrows, chips, requiem arrow, bag of coins), crafting, default shop
 - Daily reward, energy refill, wormhole fights (turn by turn, taunt, terrain)
 - Quests (view, claim, claim all) and achievements tracked like the bot
+- Ranked Elo ladder, with global player profiles
+- Gangs: creation, invitations, join/leave and war Elo standings
+- Player shops: list, buy and return items with locked buyer/seller transfers
+- Tower: six sequential PvE floors, persisted progress and shared fight UI
+- Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
 - Public stand encyclopedia, leaderboards, player profiles
 
-Not ported yet: ranked, tower, dungeon, story, gangs, player shops, trades.
+Not ported yet: ranked PvP matchmaking, dungeon, story, player-to-player trades.
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:
@@ -40,6 +47,12 @@ files again.
 2. Environment from `.env.example`; `REDIS_URL` = the bot's Redis (put both in the same
    Coolify network, or use the bot Redis' public URL with a password).
 3. Discord developer portal, OAuth2, Redirects: `https://stfurequiem.com/auth/callback`.
+
+The site also links to Discord's standard bot-install authorization at `/auth/bot`.
+It uses the existing `DISCORD_CLIENT_ID` and requests the `bot` and
+`applications.commands` scopes; no extra secret or password flow is needed.
+Admin access mirrors the bot's `give_character` permission IDs by default. Set
+`DISCORD_ADMIN_IDS` to a comma-separated Discord ID list to override them.
 
 ## Tests
 `pip install -r requirements.txt pytest fakeredis && pytest -q`

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Player shops | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Player market</p><h1 class="display sm">Shops</h1></div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  {% if own_shop %}
+    <section class="social-panel own-shop-row">
+      <div><p class="kicker">Your shop</p><h2 class="h2">{{ own_shop.name }}</h2><p class="muted">{{ own_shop.description }}</p></div>
+      <a class="btn gold" href="{{ url_for('social.shop_view', shop_id=own_shop._id) }}">Manage shop</a>
+    </section>
+  {% else %}
+    <section class="social-panel">
+      <h2 class="h2">Open a shop</h2>
+      <p>Creation costs {{ 3000|num }} fragments.</p>
+      <form class="social-form" method="post" action="{{ url_for('social.shop_create') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label>Shop name<input type="text" name="name" minlength="2" maxlength="40" required></label>
+        <label>Description<input type="text" name="description" maxlength="180"></label>
+        <button class="btn gold">Open shop</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <section class="social-panel">
+    <h2 class="h2">Open listings</h2>
+    <ul class="social-list shop-list">
+      {% for item in shops %}
+        <li><div><a href="{{ url_for('social.shop_view', shop_id=item._id) }}"><strong>{{ item.name }}</strong></a>
+          <span>by {{ identities[item._id].name }}</span></div>
+          <span>{{ item.items|length }} listing{{ "s" if item.items|length != 1 }}</span></li>
+      {% else %}<li class="notice">No player listings yet.</li>{% endfor %}
+    </ul>
+  </section>
+</section>
+{% endblock %}

@@ -7,7 +7,7 @@ document.addEventListener("toggle", (e) => {
 
 // Scroll a fresh pull result into view.
 document.addEventListener("htmx:afterSwap", (e) => {
-  if (e.detail.target.id === "use-result" && e.detail.target.firstElementChild) {
+  if (["use-result", "pull-result"].includes(e.detail.target.id) && e.detail.target.firstElementChild) {
     e.detail.target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 });

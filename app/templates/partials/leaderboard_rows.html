@@ -3,10 +3,10 @@
   <li class="{% if row.id == me.id %}you{% endif %}">
     <span class="rank">{{ row.rank }}</span>
     <a class="who" href="{{ url_for('main.profile', uid=row.id) }}">
-      {% if row.avatar %}<img src="{{ row.avatar }}" alt="" width="36" height="36" loading="lazy">{% else %}<span class="avatar-blank"></span>{% endif %}
+      {% if row.avatar %}<img src="{{ row.avatar }}" alt="" width="36" height="36" loading="lazy" onerror="this.remove()">{% else %}<span class="avatar-blank"></span>{% endif %}
       <span>{{ row.name }}</span>
     </a>
-    {% if row.lead %}<img class="lead" src="{{ row.lead|stand_img }}" alt="" width="40" height="40" loading="lazy" onerror="this.remove()">{% endif %}
+    {% if row.lead %}<img class="lead" src="{{ row.lead|stand_img }}" alt="Stand portrait" width="40" height="40" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">{% endif %}
     <span class="value">{% if by == "global_elo" %}<small class="tier">{{ row.value|rank }}</small> {% endif %}{{ row.value|num }}</span>
   </li>
   {% else %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Admin | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <p class="kicker">Restricted tools</p>
+  <h1 class="display sm">Admin panel</h1>
+  <section class="social-panel">
+    <h2 class="h2">Find a player</h2>
+    <form class="inline admin-search" method="get" action="{{ url_for('admin.index') }}">
+      <label for="admin-user-id">Discord user ID</label>
+      <input id="admin-user-id" type="text" name="user_id" inputmode="numeric" pattern="[0-9]+" value="{{ target_id }}" required>
+      <button class="btn small">Search</button>
+    </form>
+  </section>
+
+  {% if target %}
+    <section class="social-panel">
+      <header class="admin-target">
+        <div><p class="kicker">Game account</p><h2 class="h2">{{ target_identity.name }}</h2><p class="muted">Discord ID {{ target.id }}</p></div>
+        <dl class="figures compact">
+          <div><dt>Fragments</dt><dd>{{ target.fragments|num }}</dd></div>
+          <div><dt>Super fragments</dt><dd>{{ target.super_fragements|num }}</dd></div>
+          <div><dt>Items</dt><dd>{{ target.items|length }}</dd></div>
+        </dl>
+      </header>
+      <h3 class="h3">Grant resources</h3>
+      <form class="social-form admin-grant" method="post" action="{{ url_for('admin.grant') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="user_id" value="{{ target.id }}">
+        <label>Resource<select name="kind"><option value="fragments">Fragments</option><option value="super_fragments">Super fragments</option><option value="item">Item</option></select></label>
+        <label>Item<select name="item_id"><option value="">Select an item</option>{% for item in items %}<option value="{{ item.id }}">{{ item.id }} · {{ item.name }}</option>{% endfor %}</select></label>
+        <label>Amount<input type="number" name="amount" min="1" max="1000000" required></label>
+        <button class="btn gold">Grant</button>
+      </form>
+      <p class="muted">Currency grants are capped at 1,000,000; item grants at 25 per action. Every change is recorded in the admin audit list.</p>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

@@ -42,6 +42,17 @@ def player_required(view):
     return wrapper
 
 
+def admin_required(view):
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if "uid" not in session:
+            return redirect(url_for("auth.login", next=request.path))
+        if session["uid"] not in current_app.config["DISCORD_ADMIN_IDS"]:
+            abort(403, "This Discord account is not allowed to use the admin panel.")
+        return view(*args, **kwargs)
+    return wrapper
+
+
 @bp.get("/login")
 def login():
     cfg = current_app.config
@@ -61,6 +72,16 @@ def login():
         "prompt": "none",
     }
     return redirect(f"https://discord.com/oauth2/authorize?{urlencode(params)}")
+
+
+@bp.get("/bot")
+def bot_invite():
+    """Offer the Discord application's standard bot-install authorization."""
+    client_id = current_app.config["DISCORD_CLIENT_ID"]
+    if not client_id:
+        abort(503, "DISCORD_CLIENT_ID is not configured")
+    params = urlencode({"client_id": client_id, "scope": "bot applications.commands"})
+    return redirect(f"https://discord.com/oauth2/authorize?{params}")
 
 
 @bp.get("/callback")

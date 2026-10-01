@@ -3,7 +3,7 @@
   {% if targetable %}
   <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}"></button>
   {% endif %}
-  <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+  <img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
   <div class="fighter-info">
     <h3>{{ c.name }} {% if c.taunt %}<span title="Taunt">🎯</span>{% endif %}</h3>
     {% set hp = [c.current_hp, 0]|max %}
@@ -27,7 +27,7 @@
 {% set targets = fight.targets() %}
 {% set base = fresh_from if (fresh_from is defined and fresh_from is not none) else fight.log|length %}
 <div id="fight" class="fight">
-  <form hx-post="{{ url_for('play.wormhole_attack') }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <form hx-post="{{ fight_action }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
     <input type="hidden" name="log_len" value="{{ fight.log|length }}">
     <div class="arena">
       <section class="side foe">
@@ -62,9 +62,9 @@
       {% else %}
         <p>The wormhole spits you out without any reward.</p>
       {% endif %}
-      <form method="post" action="{{ url_for('play.wormhole_leave') }}">
+      <form method="post" action="{{ fight_leave_action }}">
         <input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <button class="btn">Back to the wormhole</button>
+        <button class="btn">Back to {{ fight_label|lower }}</button>
       </form>
     </div>
   {% endif %}

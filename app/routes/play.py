@@ -5,8 +5,9 @@ from flask import Blueprint, redirect, render_template, request, session, url_fo
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, save_fight, user_lock
 from app.game import logic
+from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, fighting_copy
-from app.game.items import item_file
+from app.game.items import item_file, item_from_dict
 from app.game.logic import BANNERS, DEFAULT_SHOP, RECIPES, GameError
 from app.game.quests import QUEST_BY_ID, ensure_quests_assigned
 
@@ -205,7 +206,11 @@ def pull(banner_id: int, mode: str):
     fn = logic.banner_pull if mode == "pull" else logic.arrow_pull
     user, res, err = action(lambda u: fn(u, banner_id))
     arrows = sum(1 for i in user.items if i.id == 2)
-    return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows, mode=mode)
+    rarity_score = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+    top_rarity = max((char.rarity for char, _ in res["drawn"]), key=rarity_score.get) if res else "R"
+    opening_id = 6 if top_rarity in ("UR", "LR") else 5 if top_rarity == "SSR" else 4
+    return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows,
+                           mode=mode, top_rarity=top_rarity, opening_id=opening_id)
 
 
 # --------------------------------------------------------------------------- #
@@ -308,7 +313,15 @@ def quest_claim():
 def wormhole():
     user = _user()
     _refill(user)
-    return render_template("wormhole.html", u=user, fight=load_fight(session["uid"]), st=status(user))
+    fight = load_fight(session["uid"])
+    other_fight = None
+    if fight and fight.kind != "wormhole":
+        other_fight = fight.kind
+        fight = None
+    return render_template("wormhole.html", u=user, fight=fight, st=status(user),
+                           other_fight=other_fight,
+                           fight_action=url_for("play.wormhole_attack"),
+                           fight_leave_action=url_for("play.wormhole_leave"), fight_label="Wormhole")
 
 
 @bp.post("/wormhole/start")
@@ -339,8 +352,8 @@ def wormhole_attack():
     try:
         with user_lock(uid, ttl=5):
             fight = load_fight(uid)
-            if fight is None:
-                return '<p class="notice">This fight expired. <a href="/wormhole">Back to the wormhole</a></p>'
+            if fight is None or fight.kind != "wormhole":
+                return '<p class="notice">This wormhole fight is not active. <a href="/wormhole">Back to the wormhole</a></p>', 409
             if not fight.finished:
                 if request.form.get("forfeit"):
                     fight.forfeit()
@@ -353,13 +366,146 @@ def wormhole_attack():
             save_fight(uid, fight)
     except Busy:
         fight = load_fight(uid)
-    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"))
+    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"),
+                           fight_action=url_for("play.wormhole_attack"),
+                           fight_leave_action=url_for("play.wormhole_leave"), fight_label="Wormhole")
 
 
 @bp.post("/wormhole/leave")
 @player_required
 def wormhole_leave():
     fight = load_fight(session["uid"])
-    if fight and fight.finished:
+    if fight and fight.kind == "wormhole" and fight.finished:
         clear_fight(session["uid"])
     return redirect(url_for("play.wormhole"))
+
+
+TOWER_WAVES = (
+    ((8, "SPEED", "GOOD", 0), (11, "ATTACK", "GOOD", 0), (12, "DEFENSE", "GOOD", 0)),
+    ((7, "SPEED", "GREAT", 1), (13, "ATTACK", "GREAT", 1), (18, "ATTACK", "GOOD", 1)),
+    ((19, "LUCK", "GREAT", 2), (22, "SPEED", "GREAT", 2), (25, "ATTACK", "SUPREME", 1)),
+    ((27, "ATTACK", "SUPREME", 2), (28, "LUCK", "SUPREME", 2), (29, "ATTACK", "GREAT", 2)),
+    ((14, "ATTACK", "SUPREME", 2), (30, "ATTACK", "SUPREME", 2), (16, "DEFENSE", "SUPREME", 2)),
+    ((10, "ATTACK", "UNIVERSAL", 3), (30, "ATTACK", "SUPREME", 2), (21, "DEFENSE", "SUPREME", 2)),
+)
+TOWER_COST = 500
+
+
+def _tower_team(stage, completed_towers):
+    enemies = []
+    for char_id, type_name, quality, awaken in TOWER_WAVES[stage]:
+        data = {"id": char_id, "xp": (2000 + stage * 1000) + completed_towers * 2000,
+                "awaken": min(3, awaken + completed_towers // 2), "types": [type_name],
+                "qualities": [quality], "items": [{"id": 1}]}
+        enemies.append(character_from_dict(data))
+    return enemies
+
+
+@bp.get("/tower")
+@player_required
+def tower():
+    user = _user()
+    fight = load_fight(session["uid"])
+    other_fight = None
+    if fight and fight.kind != "tower":
+        other_fight = fight.kind
+        fight = None
+    stage = int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES)
+    return render_template("tower.html", u=user, fight=fight, stage=stage, other_fight=other_fight,
+                           climb_active=bool(user.data.get("web_tower_active")),
+                           fight_action=url_for("play.tower_attack"),
+                           fight_leave_action=url_for("play.tower_leave"), fight_label="Tower")
+
+
+@bp.post("/tower/start")
+@player_required
+def tower_start():
+    uid = session["uid"]
+    if load_fight(uid):
+        return redirect(url_for("play.tower"))
+
+    def start(user):
+        if not user.main_characters:
+            raise GameError("Set up a team before entering the tower.")
+        active = bool(user.data.get("web_tower_active"))
+        if not active and user.fragments < TOWER_COST:
+            raise GameError(f"A tower climb costs {TOWER_COST} fragments.")
+        if not active:
+            user.fragments -= TOWER_COST
+            user.data["web_tower_active"] = True
+            logic.track_quest_progress(user, "tower_attempt")
+            logic.check_achievements(user, "tower_attempt")
+        stage = int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES)
+        enemies = _tower_team(stage, user.tower_level)
+        fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True,
+                           session.get("avatar")),
+                      Side(f"Floor {stage + 1}", enemies, False), kind="tower",
+                      meta={"stage": stage, "tower_level": user.tower_level})
+        fight.advance()
+        return fight
+
+    user, fight, err = action(start)
+    if err:
+        return render_template("tower.html", u=user, fight=None,
+                               stage=int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES),
+                               climb_active=bool(user.data.get("web_tower_active")), error=err)
+    save_fight(uid, fight)
+    return redirect(url_for("play.tower"))
+
+
+@bp.post("/tower/attack")
+@player_required
+def tower_attack():
+    uid = session["uid"]
+    try:
+        with user_lock(uid, ttl=5):
+            fight = load_fight(uid)
+            if fight is None or fight.kind != "tower":
+                return '<p class="notice">This tower fight expired. <a href="/tower">Back to the tower</a></p>'
+            if not fight.finished:
+                if request.form.get("forfeit"):
+                    fight.forfeit()
+                else:
+                    fight.advance(_int("target"))
+            if fight.finished and fight.rewards is None:
+                user = get_db().get_user(uid)
+                won = fight.winner == 0
+                rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+                if won:
+                    stage = int(fight.meta["stage"])
+                    rewards["fragments"] = 150 + stage * 50
+                    rewards["xp"] = 100 + stage * 50
+                    rewards["stand_xp"] = 10 + stage * 5
+                    user.fragments += rewards["fragments"]
+                    user.xp += rewards["xp"]
+                    for char in user.main_characters:
+                        char.xp += rewards["stand_xp"]
+                    item = item_from_dict({"id": (13, 1, 2, 7, 9)[stage % 5]})
+                    user.items.append(item)
+                    rewards["item"] = item.name
+                    if stage == len(TOWER_WAVES) - 1:
+                        user.tower_level = max(user.tower_level, int(fight.meta["tower_level"]) + 1)
+                        user.data["web_tower_floor"] = 0
+                        user.data["web_tower_active"] = False
+                        logic.track_quest_progress(user, "tower_complete")
+                    else:
+                        user.data["web_tower_floor"] = stage + 1
+                else:
+                    user.data["web_tower_active"] = False
+                fight.rewards = rewards
+                user.update()
+            save_fight(uid, fight)
+    except Busy:
+        fight = load_fight(uid)
+    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"),
+                           fight_action=url_for("play.tower_attack"),
+                           fight_leave_action=url_for("play.tower_leave"), fight_label="Tower")
+
+
+@bp.post("/tower/leave")
+@player_required
+def tower_leave():
+    fight = load_fight(session["uid"])
+    if fight and fight.kind == "tower" and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("play.tower"))

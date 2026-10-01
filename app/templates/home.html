@@ -14,6 +14,7 @@
       {% else %}
         <a class="btn gold" href="{{ url_for('auth.login') }}">Log in with Discord</a>
       {% endif %}
+      {% if config.DISCORD_CLIENT_ID %}<a class="btn ghost" href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}
       <a class="btn ghost" href="{{ url_for('main.stands') }}">Browse all {{ STAND_COUNT }} stands</a>
     </p>
   </div>

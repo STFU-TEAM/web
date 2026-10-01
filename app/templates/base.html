@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}STFU Requiem{% endblock %}</title>
   <meta name="description" content="Pull JoJo stands from banners, build a team of three and fight. Your Discord progress comes with you.">
-  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="icon" href="{{ 'randomAsset/avatar.png'|asset }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
@@ -15,7 +15,10 @@
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
   <header class="topbar">
-    <a class="wordmark" href="{{ url_for('main.home') }}">STFU<span>Requiem</span></a>
+    <a class="wordmark" href="{{ url_for('main.home') }}">
+      <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="40" height="40">
+      <span class="brand-name">STFU</span><span class="brand-suffix">Requiem</span>
+    </a>
     <nav class="nav" aria-label="Main">
       {% set ep = request.endpoint or '' %}
       {% if me.id %}
@@ -23,10 +26,14 @@
         <a href="{{ url_for('play.banners') }}" {% if ep == 'play.banners' %}aria-current="page"{% endif %}>Banners</a>
         <a href="{{ url_for('play.items') }}" {% if ep == 'play.items' %}aria-current="page"{% endif %}>Items</a>
         <a href="{{ url_for('play.wormhole') }}" {% if ep == 'play.wormhole' %}aria-current="page"{% endif %}>Wormhole</a>
+        <a href="{{ url_for('play.tower') }}" {% if ep in ('play.tower', 'play.tower_start') %}aria-current="page"{% endif %}>Tower</a>
         <a href="{{ url_for('play.quests') }}" {% if ep == 'play.quests' %}aria-current="page"{% endif %}>Quests</a>
+        <a href="{{ url_for('social.gangs') }}" {% if ep.startswith('social.gang') %}aria-current="page"{% endif %}>Gangs</a>
+        <a href="{{ url_for('social.shops') }}" {% if ep.startswith('social.shop') %}aria-current="page"{% endif %}>Shops</a>
+        {% if me.id in config.DISCORD_ADMIN_IDS %}<a href="{{ url_for('admin.index') }}" {% if ep.startswith('admin.') %}aria-current="page"{% endif %}>Admin</a>{% endif %}
       {% endif %}
       <a href="{{ url_for('main.stands') }}" {% if ep in ('main.stands','main.stand') %}aria-current="page"{% endif %}>Stands</a>
-      <a href="{{ url_for('main.leaderboard') }}" {% if ep == 'main.leaderboard' %}aria-current="page"{% endif %}>Leaderboard</a>
+      <a href="{{ url_for('main.leaderboard') }}" {% if ep == 'main.leaderboard' %}aria-current="page"{% endif %}>Ranked</a>
     </nav>
     <div class="account">
       {% if me.id %}
@@ -52,7 +59,7 @@
 
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
-    <p><a href="https://discord.gg/stfurequiem">Discord server</a></p>
+    <p><a href="https://discord.gg/stfurequiem">Discord server</a>{% if config.DISCORD_CLIENT_ID %} | <a href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}</p>
   </footer>
 </body>
 </html>

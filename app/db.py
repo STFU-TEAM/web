@@ -12,7 +12,7 @@ Website-only keys are prefixed "web:" and never touch the bot's keys.
 import json
 import pickle
 import time
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from typing import Optional
 
 import redis
@@ -66,6 +66,41 @@ class Database:
             return None
         raw = _redis.hget("gangs", gang_id)
         return pickle.loads(raw) if raw else None
+
+    def all_gangs(self):
+        for _, raw in _redis.hscan_iter("gangs", count=500):
+            try:
+                yield pickle.loads(raw)
+            except Exception:
+                continue
+
+    def create_gang(self, document: dict):
+        _redis.hset("gangs", document["_id"], pickle.dumps(document, protocol=PICKLE_PROTOCOL))
+
+    def update_gang(self, document: dict):
+        self.create_gang(document)
+
+    def delete_gang(self, gang_id: str):
+        _redis.hdel("gangs", gang_id)
+
+    def get_shop(self, shop_id: Optional[str]) -> Optional[dict]:
+        if not shop_id:
+            return None
+        raw = _redis.hget("shops", shop_id)
+        return pickle.loads(raw) if raw else None
+
+    def all_shops(self):
+        for _, raw in _redis.hscan_iter("shops", count=500):
+            try:
+                yield pickle.loads(raw)
+            except Exception:
+                continue
+
+    def create_shop(self, document: dict):
+        _redis.hset("shops", document["_id"], pickle.dumps(document, protocol=PICKLE_PROTOCOL))
+
+    def update_shop(self, document: dict):
+        self.create_shop(document)
 
     def all_user_docs(self):
         for field, raw in _redis.hscan_iter("users", count=500):
@@ -127,6 +162,15 @@ def user_lock(user_id: str, ttl: int = 10):
     finally:
         if _redis.get(key) == token.encode():
             _redis.delete(key)
+
+
+@contextmanager
+def users_lock(*user_ids: str, ttl: int = 10):
+    """Lock multiple accounts in a stable order for marketplace transfers."""
+    with ExitStack() as stack:
+        for user_id in sorted(set(map(str, user_ids))):
+            stack.enter_context(user_lock(user_id, ttl))
+        yield
 
 
 # --------------------------------------------------------------------------- #
