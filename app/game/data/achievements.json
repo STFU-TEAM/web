@@ -1,0 +1,211 @@
+{
+    "achievements": [
+        {
+            "id": 1,
+            "name": "First Steps",
+            "description": "Register and begin your adventure",
+            "action": "register",
+            "target": 1,
+            "reward": {"fragments": 100, "super_fragments": 0, "items": []},
+            "emoji": "👣"
+        },
+        {
+            "id": 2,
+            "name": "Wormhole Rookie",
+            "description": "Win your first wormhole fight",
+            "action": "wormhole_win",
+            "target": 1,
+            "reward": {"fragments": 200, "super_fragments": 0, "items": []},
+            "emoji": "🌀"
+        },
+        {
+            "id": 3,
+            "name": "Wormhole Explorer",
+            "description": "Win 10 wormhole fights",
+            "action": "wormhole_win",
+            "target": 10,
+            "reward": {"fragments": 500, "super_fragments": 0, "items": [{"id": 2}]},
+            "emoji": "🌀"
+        },
+        {
+            "id": 4,
+            "name": "Wormhole Conqueror",
+            "description": "Win 50 wormhole fights",
+            "action": "wormhole_win",
+            "target": 50,
+            "reward": {"fragments": 0, "super_fragments": 2, "items": []},
+            "emoji": "🌀"
+        },
+        {
+            "id": 5,
+            "name": "Tower Novice",
+            "description": "Complete your first tower",
+            "action": "tower_complete",
+            "target": 1,
+            "reward": {"fragments": 300, "super_fragments": 0, "items": []},
+            "emoji": "🏗️"
+        },
+        {
+            "id": 6,
+            "name": "Tower Veteran",
+            "description": "Complete 10 towers",
+            "action": "tower_complete",
+            "target": 10,
+            "reward": {"fragments": 0, "super_fragments": 1, "items": [{"id": 3}]},
+            "emoji": "🏗️"
+        },
+        {
+            "id": 7,
+            "name": "Arrow Beginner",
+            "description": "Pull from a banner for the first time",
+            "action": "banner_pull",
+            "target": 1,
+            "reward": {"fragments": 200, "super_fragments": 0, "items": []},
+            "emoji": "🏹"
+        },
+        {
+            "id": 8,
+            "name": "Gacha Veteran",
+            "description": "Pull from banners 25 times",
+            "action": "banner_pull",
+            "target": 25,
+            "reward": {"fragments": 0, "super_fragments": 2, "items": []},
+            "emoji": "🏹"
+        },
+        {
+            "id": 9,
+            "name": "Fighter",
+            "description": "Win 10 fights",
+            "action": "fight_win",
+            "target": 10,
+            "reward": {"fragments": 500, "super_fragments": 0, "items": []},
+            "emoji": "⚔️"
+        },
+        {
+            "id": 10,
+            "name": "Champion",
+            "description": "Win 50 fights",
+            "action": "fight_win",
+            "target": 50,
+            "reward": {"fragments": 0, "super_fragments": 2, "items": [{"id": 2}]},
+            "emoji": "⚔️"
+        },
+        {
+            "id": 11,
+            "name": "Ranked Debut",
+            "description": "Win your first ranked fight",
+            "action": "fight_ranked_win",
+            "target": 1,
+            "reward": {"fragments": 500, "super_fragments": 0, "items": []},
+            "emoji": "🏆"
+        },
+        {
+            "id": 12,
+            "name": "Ranked Legend",
+            "description": "Win 25 ranked fights",
+            "action": "fight_ranked_win",
+            "target": 25,
+            "reward": {"fragments": 0, "super_fragments": 3, "items": []},
+            "emoji": "🏆"
+        },
+        {
+            "id": 13,
+            "name": "Daily Devotee",
+            "description": "Claim daily rewards 7 times",
+            "action": "daily_claim",
+            "target": 7,
+            "reward": {"fragments": 300, "super_fragments": 0, "items": [{"id": 13}]},
+            "emoji": "📅"
+        },
+        {
+            "id": 14,
+            "name": "Daily Addict",
+            "description": "Claim daily rewards 30 times",
+            "action": "daily_claim",
+            "target": 30,
+            "reward": {"fragments": 0, "super_fragments": 2, "items": []},
+            "emoji": "📅"
+        },
+        {
+            "id": 15,
+            "name": "Craftsman",
+            "description": "Craft your first item",
+            "action": "item_craft",
+            "target": 1,
+            "reward": {"fragments": 200, "super_fragments": 0, "items": []},
+            "emoji": "🔨"
+        },
+        {
+            "id": 16,
+            "name": "Master Craftsman",
+            "description": "Craft 10 items",
+            "action": "item_craft",
+            "target": 10,
+            "reward": {"fragments": 0, "super_fragments": 1, "items": []},
+            "emoji": "🔨"
+        },
+        {
+            "id": 17,
+            "name": "Dungeon Diver",
+            "description": "Complete 5 dungeons",
+            "action": "dungeon_complete",
+            "target": 5,
+            "reward": {"fragments": 500, "super_fragments": 0, "items": []},
+            "emoji": "🗺️"
+        },
+        {
+            "id": 18,
+            "name": "Dungeon Master",
+            "description": "Complete 25 dungeons",
+            "action": "dungeon_complete",
+            "target": 25,
+            "reward": {"fragments": 0, "super_fragments": 2, "items": []},
+            "emoji": "🗺️"
+        },
+        {
+            "id": 19,
+            "name": "Shopper",
+            "description": "Buy 5 items from the shop",
+            "action": "shop_buy",
+            "target": 5,
+            "reward": {"fragments": 300, "super_fragments": 0, "items": []},
+            "emoji": "🛒"
+        },
+        {
+            "id": 20,
+            "name": "Level 10",
+            "description": "Reach level 10",
+            "action": "reach_level",
+            "target": 10,
+            "reward": {"fragments": 500, "super_fragments": 1, "items": []},
+            "emoji": "⬆️"
+        },
+        {
+            "id": 21,
+            "name": "Level 25",
+            "description": "Reach level 25",
+            "action": "reach_level",
+            "target": 25,
+            "reward": {"fragments": 1000, "super_fragments": 1, "items": []},
+            "emoji": "⬆️"
+        },
+        {
+            "id": 22,
+            "name": "Level 50",
+            "description": "Reach level 50",
+            "action": "reach_level",
+            "target": 50,
+            "reward": {"fragments": 0, "super_fragments": 3, "items": []},
+            "emoji": "⬆️"
+        },
+        {
+            "id": 23,
+            "name": "Level 100",
+            "description": "Reach level 100",
+            "action": "reach_level",
+            "target": 100,
+            "reward": {"fragments": 0, "super_fragments": 5, "items": [{"id": 3}]},
+            "emoji": "⬆️"
+        }
+    ]
+}

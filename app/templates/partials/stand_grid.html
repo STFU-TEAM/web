@@ -1,0 +1,7 @@
+{% from "macros.html" import template_card %}
+<p class="count" role="status">{{ stands|length }} stand{{ '' if stands|length == 1 else 's' }}</p>
+{% if stands %}
+<div class="grid">{% for t in stands %}{{ template_card(t) }}{% endfor %}</div>
+{% else %}
+<p class="notice">No stand matches. Try a shorter name, or clear the rarity filter.</p>
+{% endif %}

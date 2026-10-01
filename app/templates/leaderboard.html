@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <h1 class="display sm">Leaderboard</h1>
+  {% set tabs = [('global_elo','Ranked'),('xp','Level'),('tower_level','Tower'),('missions_level','Dungeon'),('prestige','Prestige')] %}
+  <nav class="tabs" aria-label="Rank by">
+    {% for key, label in tabs %}
+      <a href="?by={{ key }}" hx-get="?by={{ key }}" hx-target="#board" hx-push-url="true"
+         {% if by == key %}aria-current="true"{% endif %}
+         hx-on::after-request="document.querySelectorAll('.tabs a').forEach(a=>a.removeAttribute('aria-current'));this.setAttribute('aria-current','true')">{{ label }}</a>
+    {% endfor %}
+  </nav>
+  <div id="board">{% include "partials/leaderboard_rows.html" %}</div>
+</section>
+{% endblock %}

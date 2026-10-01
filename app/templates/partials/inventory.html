@@ -1,0 +1,97 @@
+{% set usable = groups|rejectattr('item.is_equipable')|list %}
+{% set gear = groups|selectattr('item.is_equipable')|list %}
+<section class="shelf">
+  <header class="shelf-head">
+    <h2 class="h2">To use</h2>
+    <p class="muted">Stand Arrows also work on <a href="{{ url_for('play.banners') }}">banners</a>, where they draw 5 stands at SR or better.</p>
+  </header>
+  {% if usable %}
+  <ul class="inventory">
+    {% for g in usable %}{% set it = g.item %}
+    <li class="item {% if it.id in (2, 3, 12) %}arrow{% endif %}">
+      <div class="item-info">
+        <h3>{{ it.name }}</h3>
+        <p class="muted">You have {{ g.count }}.{% if it.id == 2 %} Used here, it draws one stand of any rarity.{% endif %}</p>
+      </div>
+      {% if it.id == 3 %}
+        {% if u.main_characters %}
+        <form class="inline" hx-post="{{ url_for('play.use') }}" hx-target="#use-result">
+          <input type="hidden" name="item" value="3">
+          <label><span class="sr">Stand to awaken</span>
+            <select name="uuid">{% for c in u.main_characters %}<option value="{{ c.uuid }}">{{ c.name }}</option>{% endfor %}</select>
+          </label>
+          <button class="btn small gold">Pierce</button>
+        </form>
+        {% else %}<p class="muted">Needs a stand in your team.</p>{% endif %}
+      {% elif it.id in (2, 12, 13) or (8 <= it.id <= 32 and it.id not in (15, 16)) %}
+        <button class="btn small {% if it.id in (2, 12) %}gold{% endif %}" hx-post="{{ url_for('play.use') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result" hx-disabled-elt="this">
+          {% if it.id == 13 %}Open{% else %}Use{% endif %}
+        </button>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="notice">Nothing to use. The daily reward and wormholes drop items.</p>
+  {% endif %}
+</section>
+
+<section class="shelf">
+  <header class="shelf-head">
+    <h2 class="h2">Gear</h2>
+    <p class="muted">A stand in your team holds up to three. Equip them from <a href="{{ url_for('play.team') }}">your team</a>.</p>
+  </header>
+  {% if gear %}
+  <ul class="inventory">
+    {% for g in gear %}{% set it = g.item %}
+    <li class="item">
+      <div class="item-info">
+        <h3>{{ it.name }}</h3>
+        <p class="muted">
+          {%- set bonus = [] -%}
+          {%- if it.bonus_hp %}{% set _ = bonus.append('+' ~ it.bonus_hp ~ ' HP') %}{% endif -%}
+          {%- if it.bonus_damage %}{% set _ = bonus.append('+' ~ it.bonus_damage ~ ' damage') %}{% endif -%}
+          {%- if it.bonus_armor %}{% set _ = bonus.append('+' ~ it.bonus_armor ~ ' armor') %}{% endif -%}
+          {%- if it.bonus_speed %}{% set _ = bonus.append('+' ~ it.bonus_speed ~ ' speed') %}{% endif -%}
+          {%- if it.bonus_critical %}{% set _ = bonus.append('+' ~ it.bonus_critical ~ ' % crit') %}{% endif -%}
+          {{ bonus|join(', ') if bonus else 'Triggers an effect in fights' }}{% if it.is_active and bonus %}, plus an effect in fights{% endif %}. You have {{ g.count }}.
+        </p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="notice">No gear yet.</p>
+  {% endif %}
+</section>
+
+<section class="shelf">
+  <header class="shelf-head"><h2 class="h2">Crafting</h2></header>
+  <ul class="inventory">
+    {% for r in recipes %}
+    <li class="item">
+      <div class="item-info">
+        <h3>{{ r.name }}</h3>
+        <p class="muted">{% for name, need, have in r.parts %}{{ name }} {{ have }}/{{ need }}{{ ', ' if not loop.last }}{% endfor %}</p>
+      </div>
+      <button class="btn small" hx-post="{{ url_for('play.craft') }}" hx-vals='{"recipe": "{{ r.name }}"}' hx-target="#use-result" {% if not r.ready %}disabled{% endif %}>Craft</button>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="shelf">
+  <header class="shelf-head">
+    <h2 class="h2">Shop</h2>
+    <p class="muted">You have {{ u.fragments|num }} fragments.</p>
+  </header>
+  <ul class="inventory">
+    {% for key, e in shop.items() %}
+    <li class="item">
+      <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{{ e.price|num }} fragments</p></div>
+      <button class="btn small {% if key == 'super_fragment' %}gold{% endif %}" hx-post="{{ url_for('play.shop_buy') }}" hx-vals='{"key": "{{ key }}"}' hx-target="#use-result"
+              {% if u.fragments < e.price %}disabled{% endif %}>Buy</button>
+    </li>
+    {% endfor %}
+  </ul>
+</section>

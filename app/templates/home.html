@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "macros.html" import template_card %}
+{% block main %}
+<section class="hero">
+  <div class="hero-copy">
+    <p class="menace" aria-hidden="true">ゴゴゴゴ</p>
+    <h1 class="display">Your stands followed you here.</h1>
+    <p class="lede">STFU Requiem leaves Discord. Log in with the same account and your team, storages, items, fragments and quests are already waiting. New here? You start with a super fragment, enough for your first 10-pull.</p>
+    <p class="cta">
+      {% if registered %}
+        <a class="btn gold" href="{{ url_for('play.team') }}">Open my team</a>
+      {% elif me.id %}
+        <a class="btn gold" href="{{ url_for('auth.welcome') }}">Begin my adventure</a>
+      {% else %}
+        <a class="btn gold" href="{{ url_for('auth.login') }}">Log in with Discord</a>
+      {% endif %}
+      <a class="btn ghost" href="{{ url_for('main.stands') }}">Browse all {{ STAND_COUNT }} stands</a>
+    </p>
+  </div>
+  <div class="hand" aria-label="A few stands">
+    {% for t in hand %}
+      <div class="hand-slot" style="--n: {{ loop.index0 - 2 }}">{{ template_card(t) }}</div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="steps page">
+  <h2 class="h2">How it works</h2>
+  <ol>
+    <li><h3>Log in with Discord</h3><p>No password to create. Your Discord ID is your save, so bot players keep everything.</p></li>
+    <li><h3>Pull a banner</h3><p>A super fragment buys ten stands from one JoJo part. Each comes with its own types and qualities, and pity guarantees a rare one at 100.</p></li>
+    <li><h3>Fall into a wormhole</h3><p>Pick targets turn by turn against a team scaled to your level. Winning pays fragments, experience and sometimes an item.</p></li>
+  </ol>
+</section>
+{% endblock %}

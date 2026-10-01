@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}My team | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div class="who">
+      {% if me.avatar %}<img class="avatar" src="{{ me.avatar }}" alt="" width="64" height="64">{% endif %}
+      <div>
+        <h1 class="display sm">{{ me.name }}</h1>
+        <p class="muted">Level {{ u.level }}, {{ u.global_elo|rank }} ({{ u.global_elo }} elo)</p>
+      </div>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  <div class="actions-row">
+    <div id="daily" class="action-tile">{% include "partials/daily_tile.html" %}</div>
+    <div class="action-tile">
+      <h2 class="h3">Wormhole</h2>
+      {% if fight and not fight.finished %}
+        <p>A fight is waiting for your move.</p>
+        <a class="btn" href="{{ url_for('play.wormhole') }}">Resume the fight</a>
+      {% elif st.wormhole %}
+        <p class="muted">Next wormhole in {{ st.wormhole|delta }}.</p>
+      {% else %}
+        <p>Fight a team scaled to your level. Costs 1 energy.</p>
+        <a class="btn" href="{{ url_for('play.wormhole') }}">Enter the wormhole</a>
+      {% endif %}
+    </div>
+    <div class="action-tile">
+      <h2 class="h3">Banners</h2>
+      <p>{% if u.super_fragements %}You can afford {{ u.super_fragements }} 10-pull{{ 's' if u.super_fragements > 1 }}.{% else %}5,000 fragments buy a super fragment in the shop.{% endif %} Pity {{ u.pity }}/100.</p>
+      <a class="btn" href="{{ url_for('play.banners') }}">Open the banners</a>
+    </div>
+  </div>
+
+  <div id="collection">{% include "partials/collection.html" %}</div>
+</section>
+{% endblock %}

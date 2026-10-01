@@ -1,0 +1,5 @@
+<dl class="figures compact" id="wallet" {% if oob %}hx-swap-oob="true"{% endif %}>
+  <div><dt>Fragments</dt><dd>{{ u.fragments|num }}</dd></div>
+  <div><dt>Super fragments</dt><dd>{{ u.super_fragements|num }}</dd></div>
+  <div><dt>Energy</dt><dd>{{ u.energy }}/{{ u.total_energy }}</dd></div>
+</dl>

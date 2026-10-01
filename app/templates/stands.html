@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Stands | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <h1 class="display sm">Every stand</h1>
+  <form class="filters" hx-get="{{ url_for('main.stands') }}" hx-target="#grid" hx-trigger="input changed delay:250ms from:input[name=q], change" hx-push-url="true">
+    <label class="search">
+      <span class="sr">Search stands</span>
+      <input type="search" name="q" value="{{ q }}" placeholder="Search by name or ability" autocomplete="off">
+    </label>
+    <fieldset class="chips">
+      <legend class="sr">Rarity</legend>
+      <label><input type="radio" name="rarity" value="" {% if not rarity %}checked{% endif %}><span>All</span></label>
+      {% for r in rarities %}
+        <label><input type="radio" name="rarity" value="{{ r }}" {% if rarity == r %}checked{% endif %}><span>{{ r }}</span></label>
+      {% endfor %}
+    </fieldset>
+  </form>
+  <div id="grid">{% include "partials/stand_grid.html" %}</div>
+</section>
+{% endblock %}

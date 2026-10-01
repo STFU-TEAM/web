@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Items | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <h1 class="display sm">Items</h1>
+    {% include "partials/wallet.html" %}
+  </header>
+  <div id="use-result" class="use-result" aria-live="polite"></div>
+  <div id="inventory">{% include "partials/inventory.html" %}</div>
+</section>
+{% endblock %}

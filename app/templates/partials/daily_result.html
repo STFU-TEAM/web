@@ -1,0 +1,9 @@
+{% if error %}
+  <h2 class="h3">Daily reward</h2>
+  <p class="notice error">{{ error }}</p>
+{% else %}
+  <h2 class="h3">Claimed</h2>
+  <p class="loot">+{{ res.fragments }} fragments{% if res.item %}, {{ res.item.name }}{% endif %}{% if res.super %}, and a super fragment{% endif %}.</p>
+  <p class="muted">Back in {{ st.daily|delta }}.</p>
+{% endif %}
+{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

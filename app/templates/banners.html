@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Banners | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div>
+      <h1 class="display sm">Banners</h1>
+      <p class="muted">Pity {{ u.pity }}/100: at 100 your next banner pull is a guaranteed UR or SSR. {{ st.free_slots }} free storage slot{{ 's' if st.free_slots != 1 }}.</p>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
+  {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your super fragment on any banner below.</p>{% endif %}
+
+  <div id="pull-result" class="use-result" aria-live="polite"></div>
+
+  <div class="banners">
+    {% for b in banners %}
+    <article class="banner" id="banner-{{ b.id }}">
+      <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+      <div class="banner-body">
+        <h2 class="h2">{{ b.name }}</h2>
+        {% set featured = b|banner_stands %}
+        <p class="muted">{{ b.cards|length }} stands, led by {% for c in featured[:3] %}<a href="{{ url_for('main.stand', stand_id=c.id) }}">{{ c.name }}</a> ({{ c.rarity }}){{ ', ' if not loop.last }}{% endfor %}.</p>
+        <table class="odds">
+          <caption class="sr">Draw odds</caption>
+          <tr><th scope="col"></th><th scope="col">R</th><th scope="col">SR</th><th scope="col">SSR</th><th scope="col">UR</th></tr>
+          <tr><th scope="row">10-pull</th><td>80 %</td><td>19 %</td><td>0.9 %</td><td>0.1 %</td></tr>
+          <tr><th scope="row">Arrow</th><td>0 %</td><td>70 %</td><td>22 %</td><td>8 %</td></tr>
+        </table>
+        <div class="banner-actions">
+          <button class="btn gold" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
+                  {% if u.super_fragements < b.cost %}disabled title="You need {{ b.cost }} super fragment"{% endif %}>Pull 10 for {{ b.cost }} super fragment</button>
+          <button class="btn" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
+                  {% if not arrows %}disabled title="You have no Stand Arrow"{% endif %}>Pull 5 with an arrow <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

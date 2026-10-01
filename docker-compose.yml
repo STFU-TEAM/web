@@ -1,0 +1,23 @@
+# Coolify: new resource -> Docker Compose -> this repo.
+# Domain https://stfurequiem.com on service "web", port 8000.
+# REDIS_URL MUST be the bot's Redis: it is the game's only database.
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - SECRET_KEY=${SECRET_KEY}
+      - REDIS_URL=${REDIS_URL}
+      - DISCORD_CLIENT_ID=${DISCORD_CLIENT_ID}
+      - DISCORD_CLIENT_SECRET=${DISCORD_CLIENT_SECRET}
+      - DISCORD_REDIRECT_URI=${DISCORD_REDIRECT_URI:-https://stfurequiem.com/auth/callback}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
+      - IMAGE_BASE_URL=${IMAGE_BASE_URL:-https://images.stfurequiem.com}
+      - IMAGE_PATH=${IMAGE_PATH:-/Image/{id}.png}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

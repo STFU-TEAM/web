@@ -1,0 +1,7 @@
+<h2 class="h3">Daily reward</h2>
+{% if st.daily %}
+  <p class="muted">Back in {{ st.daily|delta }}.</p>
+{% else %}
+  <p>100 fragments, often an item, rarely a super fragment.</p>
+  <button class="btn" hx-post="{{ url_for('play.daily') }}" hx-target="#daily" hx-disabled-elt="this">Claim it</button>
+{% endif %}

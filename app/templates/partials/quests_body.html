@@ -1,0 +1,44 @@
+{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+{% if claimed %}
+  <p class="toast ok" role="status">Claimed:
+    {% for c in claimed %}{{ c.name }}{% if c.fragments %} (+{{ c.fragments }} fragments){% endif %}{% if c.super_fragments %} (+{{ c.super_fragments }} super fragment){% endif %}{% if c.xp %} (+{{ c.xp }} XP){% endif %}{{ ', ' if not loop.last }}{% endfor %}.
+  </p>
+{% endif %}
+{% set ready = [] %}{% for label, rows in groups.items() %}{% for q in rows if q.ready %}{% set _ = ready.append(q) %}{% endfor %}{% endfor %}
+{% if ready|length > 1 %}
+  <p><button class="btn gold" hx-post="{{ url_for('play.quest_claim') }}" hx-target="#quests">Claim all {{ ready|length }} rewards</button></p>
+{% endif %}
+{% for label, rows in groups.items() %}
+<section class="shelf">
+  <header class="shelf-head"><h2 class="h2">{{ label }}</h2></header>
+  {% if rows %}
+  <ul class="quests">
+    {% for row in rows %}{% set q = row.q %}
+    <li class="{% if row.claimed %}done{% elif row.ready %}ready{% endif %}">
+      <div>
+        <h3>{{ q.name }}</h3>
+        <p class="muted">{{ q.description }}. Reward:
+          {%- set r = q.rewards -%}
+          {%- set parts = [] -%}
+          {%- if r.fragments %}{% set _ = parts.append(r.fragments ~ ' fragments') %}{% endif -%}
+          {%- if r.super_fragments %}{% set _ = parts.append(r.super_fragments ~ ' super fragment') %}{% endif -%}
+          {%- if r.xp %}{% set _ = parts.append(r.xp ~ ' XP') %}{% endif -%}
+          {%- if r['items'] %}{% set _ = parts.append(r['items']|length ~ ' item' ~ ('s' if r['items']|length > 1 else '')) %}{% endif %}
+          {{ parts|join(', ') }}.</p>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ q.target }}" aria-valuenow="{{ row.progress }}" aria-label="{{ row.progress }} of {{ q.target }}"><i style="width: {{ (100 * row.progress / q.target)|round }}%"></i></div>
+      </div>
+      {% if row.claimed %}
+        <span class="muted">Claimed</span>
+      {% elif row.ready %}
+        <button class="btn small gold" hx-post="{{ url_for('play.quest_claim') }}" hx-vals='{"quest": {{ q.id }}}' hx-target="#quests">Claim</button>
+      {% else %}
+        <span class="muted">{{ row.progress }}/{{ q.target }}</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="notice">No {{ label|lower }} quest right now.</p>
+  {% endif %}
+</section>
+{% endfor %}

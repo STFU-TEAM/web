@@ -1,0 +1,23 @@
+{% from "macros.html" import owned_card %}
+{% if error %}
+  <p class="toast error" role="alert">{{ error }}</p>
+{% else %}
+  <section class="pull-batch">
+    <header>
+      <p class="menace small" aria-hidden="true">ドドドド</p>
+      <h2 class="display sm">{{ res.banner.name }}: {{ res.drawn|length }} stands</h2>
+      <p class="muted">Pity is now {{ u.pity }}/100.</p>
+    </header>
+    <div class="grid pull-grid">
+      {% for c, where in res.drawn %}
+        <div class="slot" style="--d: {{ loop.index0 }}">
+          {{ owned_card(c, size='small', reveal=True) }}
+          <p class="where muted">{{ where }}</p>
+        </div>
+      {% endfor %}
+    </div>
+    <p><a class="btn ghost" href="{{ url_for('play.team') }}">Go to my team</a></p>
+  </section>
+{% endif %}
+{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}
+{% for b in [0,1,2,3,4,5,6,7] %}<span id="arrows-{{ b }}" class="arrows" hx-swap-oob="true">({{ arrows }} left)</span>{% endfor %}

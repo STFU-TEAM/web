@@ -1,0 +1,38 @@
+{# A stand drawn as a tarot card. s: Character object or template dict. #}
+{% macro card(s, hp, dmg, arm, spd, level=None, awaken=0, owned=None, size='', link=True, reveal=False) %}
+{% set rar = s.rarity|rarity %}
+<article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}">
+  {% if link %}<a class="card-link" href="{{ url_for('main.stand', stand_id=s.id) }}" aria-label="{{ s.name }}"></a>{% endif %}
+  <div class="card-face">
+    <header class="card-top">
+      <span class="rar-badge">{{ s.rarity }}</span>
+      {% if awaken %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>{% endif %}
+      {% if s.taunt %}<span class="taunt" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
+    </header>
+    <div class="card-window">
+      <img src="{{ s.id|stand_img }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+      {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}
+    </div>
+    <h3 class="card-name">{{ s.name }}</h3>
+    <dl class="card-stats four">
+      <div><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
+      <div><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>
+      <div><dt>ARM</dt><dd>{{ arm|stat }}</dd></div>
+      <div><dt>SPD</dt><dd>{{ spd|stat }}</dd></div>
+    </dl>
+    {% if owned %}
+      {% set tr = owned|traits %}
+      {% if tr %}<ul class="traits">{% for emo, t, q, rank, qemo in tr %}<li title="{{ t }}, {{ q }}">{{ emo }} {{ rank }}</li>{% endfor %}</ul>{% endif %}
+      {% if owned.items %}<ul class="card-items">{% for it in owned.items %}<li title="{{ it.name }}">{{ it.name }}</li>{% endfor %}</ul>{% endif %}
+    {% endif %}
+  </div>
+</article>
+{% endmacro %}
+
+{% macro template_card(t, size='', link=True) -%}
+  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, size=size, link=link) }}
+{%- endmacro %}
+
+{% macro owned_card(c, size='', link=True, reveal=False) -%}
+  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal) }}
+{%- endmacro %}

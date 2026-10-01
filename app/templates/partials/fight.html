@@ -1,0 +1,85 @@
+{% macro fighter(c, idx, targetable, acting) %}
+<li class="fighter {% if not c.is_alive() %}down{% endif %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}">
+  {% if targetable %}
+  <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}"></button>
+  {% endif %}
+  <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+  <div class="fighter-info">
+    <h3>{{ c.name }} {% if c.taunt %}<span title="Taunt">🎯</span>{% endif %}</h3>
+    {% set hp = [c.current_hp, 0]|max %}
+    <div class="hp" role="meter" aria-label="Health" aria-valuemin="0" aria-valuemax="{{ c.start_hp }}" aria-valuenow="{{ hp|int }}">
+      <i style="width: {{ ([100 * hp / ([c.start_hp, 1]|max), 100]|min)|round }}%"></i>
+    </div>
+    <p class="fighter-meta">
+      {{ hp|int }} / {{ c.start_hp|int }} HP
+      {% for e in c.effects if e.emoji %}<span title="{{ e.type.name|lower }}">{{ e.emoji }}</span>{% endfor %}
+      {% if c.is_alive() %}
+        {% set left = c.turn_for_ability - c.special_meter %}
+        <span class="charge {% if left <= 0 %}ready{% endif %}">{{ 'Ability ready' if left <= 0 else 'Ability in ' ~ left }}</span>
+      {% endif %}
+    </p>
+  </div>
+</li>
+{% endmacro %}
+
+{% set you, foe = fight.sides[0], fight.sides[1] %}
+{% set my_turn = fight.awaiting_input %}
+{% set targets = fight.targets() %}
+{% set base = fresh_from if (fresh_from is defined and fresh_from is not none) else fight.log|length %}
+<div id="fight" class="fight">
+  <form hx-post="{{ url_for('play.wormhole_attack') }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
+    <input type="hidden" name="log_len" value="{{ fight.log|length }}">
+    <div class="arena">
+      <section class="side foe">
+        <h2 class="h3">{{ foe.name }}</h2>
+        <ul>{% for c in foe.chars %}{{ fighter(c, loop.index0, my_turn and loop.index0 in targets, False) }}{% endfor %}</ul>
+      </section>
+
+      <p class="turn-banner{% if fight.finished %} done{% endif %}" role="status">
+        {% if fight.finished %}
+          {{ 'Victory' if fight.winner == 0 else 'Defeat' }}
+        {% elif my_turn %}
+          Turn {{ fight.turn + 1 }}: choose who {{ fight.acting_char.name }} attacks
+        {% endif %}
+      </p>
+      {% if fight.terrain.name != 'DEFAULT' %}<p class="terrain">{{ fight.terrain.emoji }} {{ fight.terrain.display_name }}</p>{% endif %}
+
+      <section class="side you">
+        <h2 class="h3">{{ you.name }}</h2>
+        <ul>{% for c in you.chars %}{{ fighter(c, loop.index0, False, my_turn and loop.index0 == fight.si) }}{% endfor %}</ul>
+      </section>
+    </div>
+
+    {% if my_turn %}
+      <p class="fight-controls"><button class="btn small danger" name="forfeit" value="1" hx-confirm="Surrender this fight? You get no reward.">Surrender</button></p>
+    {% endif %}
+  </form>
+
+  {% if fight.finished %}
+    <div class="result {{ 'win' if fight.winner == 0 else 'loss' }}">
+      {% if fight.rewards and fight.rewards.won %}
+        <p class="loot">+{{ fight.rewards.fragments }} fragments, +{{ fight.rewards.xp }} player XP, +{{ fight.rewards.stand_xp }} XP for each stand{% if fight.rewards.item %}, and <strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
+      {% else %}
+        <p>The wormhole spits you out without any reward.</p>
+      {% endif %}
+      <form method="post" action="{{ url_for('play.wormhole_leave') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button class="btn">Back to the wormhole</button>
+      </form>
+    </div>
+  {% endif %}
+
+  <section class="log">
+    <h2 class="h3">Combat log</h2>
+    <ol reversed>
+      {% for e in fight.log|reverse %}
+        {% set fresh = (fight.log|length - loop.index0) > base %}
+        <li class="{{ e.kind }} {{ 'mine' if e.side == 0 else 'theirs' }}{% if fresh %} fresh{% endif %}" {% if fresh %}style="--d: {{ loop.index0 }}"{% endif %}>
+          <span class="t">T{{ e.turn }}</span> {{ e.text|replace('`', '') }}
+        </li>
+      {% else %}
+        <li class="muted">The fight begins.</li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>

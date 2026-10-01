@@ -1,0 +1,292 @@
+{
+    "quests": [
+        {
+            "id": 1,
+            "name": "Wormhole Wanderer",
+            "description": "Complete 1 wormhole fight",
+            "category": "daily",
+            "action": "wormhole_complete",
+            "target": 1,
+            "rewards": {
+                "fragments": 200,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 2,
+            "name": "Wormhole Victor",
+            "description": "Win 1 wormhole fight",
+            "category": "daily",
+            "action": "wormhole_win",
+            "target": 1,
+            "rewards": {
+                "fragments": 300,
+                "super_fragments": 0,
+                "xp": 150,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 3,
+            "name": "Tower Climber",
+            "description": "Enter a tower",
+            "category": "daily",
+            "action": "tower_attempt",
+            "target": 1,
+            "rewards": {
+                "fragments": 200,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 4,
+            "name": "Daily Login",
+            "description": "Claim your daily rewards",
+            "category": "daily",
+            "action": "daily_claim",
+            "target": 1,
+            "rewards": {
+                "fragments": 100,
+                "super_fragments": 0,
+                "xp": 50,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 5,
+            "name": "Dungeon Crawler",
+            "description": "Complete 1 dungeon",
+            "category": "daily",
+            "action": "dungeon_complete",
+            "target": 1,
+            "rewards": {
+                "fragments": 300,
+                "super_fragments": 0,
+                "xp": 150,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 6,
+            "name": "Brawler",
+            "description": "Win 2 fights",
+            "category": "daily",
+            "action": "fight_win",
+            "target": 2,
+            "rewards": {
+                "fragments": 250,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 7,
+            "name": "Item User",
+            "description": "Use 1 item",
+            "category": "daily",
+            "action": "item_use",
+            "target": 1,
+            "rewards": {
+                "fragments": 150,
+                "super_fragments": 0,
+                "xp": 50,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 8,
+            "name": "Shopper",
+            "description": "Buy something from the shop",
+            "category": "daily",
+            "action": "shop_buy",
+            "target": 1,
+            "rewards": {
+                "fragments": 150,
+                "super_fragments": 0,
+                "xp": 50,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 101,
+            "name": "Wormhole Warrior",
+            "description": "Win 5 wormhole fights",
+            "category": "weekly",
+            "action": "wormhole_win",
+            "target": 5,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 0,
+                "xp": 500,
+                "items": [{"id": 2}]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 102,
+            "name": "Tower Master",
+            "description": "Complete 3 towers",
+            "category": "weekly",
+            "action": "tower_complete",
+            "target": 3,
+            "rewards": {
+                "fragments": 1000,
+                "super_fragments": 0,
+                "xp": 500,
+                "items": [{"id": 13}]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 103,
+            "name": "Gacha Addict",
+            "description": "Pull from banners 3 times",
+            "category": "weekly",
+            "action": "banner_pull",
+            "target": 3,
+            "rewards": {
+                "fragments": 500,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 104,
+            "name": "Ranked Fighter",
+            "description": "Win 3 ranked fights",
+            "category": "weekly",
+            "action": "fight_ranked_win",
+            "target": 3,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 500,
+                "items": []
+            },
+            "level_requirement": 5,
+            "enabled": true
+        },
+        {
+            "id": 105,
+            "name": "Craftsman",
+            "description": "Craft 2 items",
+            "category": "weekly",
+            "action": "item_craft",
+            "target": 2,
+            "rewards": {
+                "fragments": 500,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 106,
+            "name": "Dungeon Delver",
+            "description": "Complete 5 dungeons",
+            "category": "weekly",
+            "action": "dungeon_complete",
+            "target": 5,
+            "rewards": {
+                "fragments": 800,
+                "super_fragments": 0,
+                "xp": 400,
+                "items": [{"id": 2}]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1001,
+            "name": "First Tower",
+            "description": "Complete tower 1 for the first time",
+            "category": "permanent",
+            "action": "tower_complete",
+            "target": 1,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 0,
+                "xp": 500,
+                "items": [{"id": 2}]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1002,
+            "name": "First Ranked Win",
+            "description": "Win your first ranked fight",
+            "category": "permanent",
+            "action": "fight_ranked_win",
+            "target": 1,
+            "rewards": {
+                "fragments": 500,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1003,
+            "name": "Rising Star",
+            "description": "Reach level 10",
+            "category": "permanent",
+            "action": "reach_level",
+            "target": 10,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 0,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1004,
+            "name": "Veteran",
+            "description": "Reach level 50",
+            "category": "permanent",
+            "action": "reach_level",
+            "target": 50,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 0,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        }
+    ]
+}

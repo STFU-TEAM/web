@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% from "macros.html" import owned_card %}
+{% block title %}{{ ident.name }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="profile-head">
+    {% if ident.avatar %}<img class="avatar" src="{{ ident.avatar }}" alt="" width="96" height="96">{% endif %}
+    <div>
+      <h1 class="display sm">{{ ident.name }}</h1>
+      <p class="muted">Playing since {{ u.join_date.strftime('%B %Y') }}{% if gang %}, member of {{ gang.name }}{% endif %}{% if u.is_donator() %}, supporter{% endif %}.</p>
+    </div>
+  </header>
+  <dl class="figures">
+    <div><dt>Level</dt><dd>{{ u.level }}</dd></div>
+    <div><dt>Ranked</dt><dd>{{ u.global_elo|rank }}</dd></div>
+    <div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div>
+    <div><dt>Tower floor</dt><dd>{{ u.tower_level }}</dd></div>
+    <div><dt>Stands owned</dt><dd>{{ owned }}</dd></div>
+  </dl>
+  <h2 class="h2">Team</h2>
+  {% if u.main_characters %}
+    <div class="grid team-grid">{% for c in u.main_characters %}{{ owned_card(c) }}{% endfor %}</div>
+  {% else %}
+    <p class="notice">No stand in the team right now.</p>
+  {% endif %}
+</section>
+{% endblock %}

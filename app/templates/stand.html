@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "macros.html" import template_card %}
+{% block title %}{{ s.name }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page stand-detail">
+  <div class="stage">{{ template_card(s, size='big', link=False) }}</div>
+  <div class="detail-copy">
+    <p class="kicker">{{ s.rarity }} stand from {{ s.universe }}</p>
+    <h1 class="display sm">{{ s.name }}</h1>
+    <h2 class="h3">Ability</h2>
+    <p class="lede">{{ s.special_description|replace('`', '') }}</p>
+    <p>Charges in {{ s.turn_for_ability }} turn{{ 's' if s.turn_for_ability != 1 }}.</p>
+    {% if s.taunt %}<p>🎯 Taunt: enemies must hit this stand first with basic attacks. It gets extra health and armor.</p>{% endif %}
+    {% if terrain %}<p>Sets the terrain to {{ terrain.emoji }} {{ terrain.display_name }} while it's the fastest terrain setter alive.</p>{% endif %}
+    {% for t, perks in boosts.items() %}
+      <p>Stronger on {{ t.emoji }} {{ t.display_name }}: {% for stat, v in perks %}{{ stat|replace('_pct','')|replace('_flat','')|replace('crit','critical')|replace('regen','regeneration') }} +{{ (v * 100)|int if v < 1 else v }}{{ '%' if v < 1 }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+    {% endfor %}
+    <h2 class="h3">Base stats</h2>
+    <table class="stats">
+      <tr><th scope="row">Health</th><td>{{ s.base_hp }}</td></tr>
+      <tr><th scope="row">Damage</th><td>{{ s.base_damage }}</td></tr>
+      <tr><th scope="row">Armor</th><td>{{ s.armor }}</td></tr>
+      <tr><th scope="row">Speed</th><td>{{ s.base_speed }}</td></tr>
+      <tr><th scope="row">Critical chance</th><td>{{ s.base_critical }} %</td></tr>
+    </table>
+    <p class="muted">Levels, awakenings, items, types and qualities all raise these numbers.</p>
+    {% if banners %}<p>Found on the {% for b in banners %}<a href="{{ url_for('play.banners') }}#banner-{{ b.id }}">{{ b.name }}</a>{{ ', ' if not loop.last }}{% endfor %} banner.</p>{% endif %}
+    <p class="cta">
+      {% if s.id > 1 %}<a class="btn ghost" href="{{ url_for('main.stand', stand_id=s.id-1) }}">Previous stand</a>{% endif %}
+      {% if s.id < STAND_COUNT %}<a class="btn ghost" href="{{ url_for('main.stand', stand_id=s.id+1) }}">Next stand</a>{% endif %}
+    </p>
+  </div>
+</section>
+{% endblock %}

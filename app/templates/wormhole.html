@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Wormhole | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <div class="crusade-intro narrow">
+      <p class="menace" aria-hidden="true">ゴゴゴ</p>
+      <h1 class="display sm">Wormhole</h1>
+      <p class="lede">A wandering soul drags your team into a fight. Its stands scale with your level: at level {{ u.level }} you face {% if u.level < 5 %}one or two R{% elif u.level < 25 %}one SR{% elif u.level < 50 %}two or three SSR{% elif u.level < 75 %}three UR{% else %}three LR{% endif %} stands.</p>
+      <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_in %}, full refill in {{ st.energy_in|delta }}{% endif %}.</p>
+      {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+      {% if not u.main_characters %}
+        <p class="notice">You need at least one stand in your team. <a href="{{ url_for('play.team') }}">Set up your team</a>.</p>
+      {% elif st.wormhole %}
+        <p class="notice">The next wormhole opens in {{ st.wormhole|delta }}.</p>
+      {% elif u.energy < 1 %}
+        <p class="notice">You're out of energy.</p>
+      {% else %}
+        <form method="post" action="{{ url_for('play.wormhole_start') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">Enter the wormhole</button>
+        </form>
+        <p class="muted">Entering costs 1 energy and starts the cooldown, even if you leave mid-fight. Unattended fights expire after 15 minutes.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

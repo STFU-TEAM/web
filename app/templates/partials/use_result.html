@@ -1,0 +1,24 @@
+{% from "macros.html" import owned_card %}
+{% if error %}
+  <p class="toast error" role="alert">{{ error }}</p>
+{% elif res.kind == 'stand' or res.kind == 'requiem' %}
+  <div class="pull">
+    <div class="stage">{{ owned_card(res.stand, size='big', reveal=True) }}</div>
+    <div class="pull-copy">
+      <p class="menace small" aria-hidden="true">ドドドド</p>
+      <h2 class="display sm">{% if res.kind == 'requiem' %}Requiem: {% endif %}{{ res.stand.name }}</h2>
+      <p>{{ res.stand.special_description|replace('`', '') }}</p>
+      {% if res.where %}<p class="muted">Sent to {{ res.where|lower }}.</p>{% endif %}
+    </div>
+  </div>
+{% elif res.kind == 'fragments' %}
+  <p class="toast ok" role="status">The bag held {{ res.fragments }} fragments.</p>
+{% elif res.kind == 'awaken' %}
+  <p class="toast ok" role="status">{{ res.stand.name }} reached awakening {{ res.stand.awaken }}.</p>
+{% elif res.kind == 'crafted' %}
+  <p class="toast ok" role="status">You crafted {{ res.item.name }}.</p>
+{% elif res.kind == 'bought' %}
+  <p class="toast ok" role="status">You bought {{ res.name }}.</p>
+{% endif %}
+<div id="inventory" hx-swap-oob="true">{% include "partials/inventory.html" %}</div>
+{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

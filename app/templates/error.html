@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow empty">
+  <h1 class="display">{{ code }}</h1>
+  <p>{{ message }}</p>
+  <p><a class="btn" href="{{ url_for('main.home') }}">Back to the start</a></p>
+</section>
+{% endblock %}

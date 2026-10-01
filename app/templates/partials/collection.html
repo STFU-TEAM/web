@@ -1,0 +1,126 @@
+{% from "macros.html" import owned_card %}
+<div class="collection" hx-vals='{"shelf": "{{ shelf }}"}'>
+{% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+{% set equipable = u.items|unique_equipable %}
+
+<section class="shelf">
+  <header class="shelf-head">
+    <h2 class="h2">Team</h2>
+    <p class="muted">{{ u.main_characters|length }} of 3. These three fight for you.</p>
+  </header>
+  <div class="grid team-grid">
+    {% for c in u.main_characters %}
+      <div class="slot">
+        {{ owned_card(c) }}
+        <details class="menu">
+          <summary>Manage {{ c.name }}</summary>
+          <div class="menu-body">
+            <button class="btn small ghost" hx-post="{{ url_for('play.store') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection">Move to storage</button>
+            {% if c.level >= 100 and c.awaken < 3 %}
+              <button class="btn small gold" hx-post="{{ url_for('play.ascend') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
+                      hx-confirm="Ascend {{ c.name }}? Its level resets to 0.">Ascend</button>
+            {% endif %}
+            <button class="btn small ghost" hx-post="{{ url_for('play.reforge') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
+                    hx-confirm="Reroll {{ c.name }}'s types and qualities for 10,000 fragments? The new roll can be worse.">Reforge (10,000 fragments)</button>
+            {% if c.items|length < 3 and equipable %}
+              <form class="inline" hx-post="{{ url_for('play.equip') }}" hx-target="#collection">
+                <input type="hidden" name="uuid" value="{{ c.uuid }}">
+                <label><span class="sr">Item to equip</span>
+                  <select name="item">{% for it in equipable %}<option value="{{ it.id }}">{{ it.name }}</option>{% endfor %}</select>
+                </label>
+                <button class="btn small">Equip</button>
+              </form>
+            {% endif %}
+            {% for it in c.items %}
+              <button class="btn small ghost" hx-post="{{ url_for('play.unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' hx-target="#collection">Unequip {{ it.name }}</button>
+            {% endfor %}
+          </div>
+        </details>
+      </div>
+    {% endfor %}
+    {% for _ in range(3 - u.main_characters|length) %}
+      <div class="slot empty-slot"><p>Empty slot</p><p class="muted">Add a stand from storage below.</p></div>
+    {% endfor %}
+  </div>
+
+  <div class="presets">
+    <h3 class="h3">Team presets</h3>
+    {% if u.teams %}
+      <ul>
+        {% for name, uuids in u.teams.items() %}
+          <li>
+            <span class="preset-name">{{ name }}</span>
+            <span class="muted">{% for uid in uuids %}{% set found = u.find_character_by_uuid(uid)[0] %}{{ found.name if found else 'missing' }}{{ ', ' if not loop.last }}{% endfor %}</span>
+            <button class="btn small" hx-post="{{ url_for('play.preset_load') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection">Load</button>
+            <button class="btn small ghost" hx-post="{{ url_for('play.preset_delete') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection" hx-confirm="Delete the preset “{{ name }}”?">Delete</button>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% if u.main_characters %}
+      <form class="inline" hx-post="{{ url_for('play.preset_save') }}" hx-target="#collection">
+        <label><span class="sr">Preset name</span><input type="text" name="name" maxlength="20" placeholder="Preset name" required></label>
+        <button class="btn small">Save current team</button>
+      </form>
+    {% endif %}
+  </div>
+</section>
+
+<section class="shelf">
+  <header class="shelf-head">
+    <h2 class="h2">Storage</h2>
+    <p class="muted">25 stands per storage.</p>
+  </header>
+  <nav class="tabs" aria-label="Storages">
+    {% for kind, i, label, lst in shelves %}
+      {% set key = kind ~ i %}
+      <a href="?shelf={{ key }}" hx-get="{{ url_for('play.collection', shelf=key) }}" hx-target="#collection"
+         {% if key == shelf %}aria-current="true"{% endif %}>{{ label }} <small>{{ lst|length }}</small></a>
+    {% endfor %}
+  </nav>
+  {% for kind, i, label, lst in shelves if (kind ~ i) == shelf %}
+    {% if kind == 'p' and not u.is_donator() %}<p class="notice">Premium storages are read-only until your supporter status comes back.</p>{% endif %}
+    {% if lst %}
+    <div class="grid">
+      {% for c in lst %}
+        <div class="slot">
+          {{ owned_card(c, size='small') }}
+          <details class="menu">
+            <summary>Manage {{ c.name }}</summary>
+            <div class="menu-body">
+              {% if u.main_characters|length < 3 %}
+                <button class="btn small" hx-post="{{ url_for('play.to_main') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection">Add to team</button>
+              {% else %}
+                <form class="inline" hx-post="{{ url_for('play.to_main') }}" hx-target="#collection">
+                  <input type="hidden" name="uuid" value="{{ c.uuid }}">
+                  <label><span class="sr">Swap with</span>
+                    <select name="swap">{% for m in u.main_characters %}<option value="{{ m.uuid }}">Swap with {{ m.name }}</option>{% endfor %}</select>
+                  </label>
+                  <button class="btn small">Swap in</button>
+                </form>
+              {% endif %}
+              {% set dupes = c|copies(u) %}
+              {% if dupes %}
+                <form class="inline" hx-post="{{ url_for('play.fuse') }}" hx-target="#collection" hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
+                  <input type="hidden" name="uuid" value="{{ c.uuid }}">
+                  <label><span class="sr">Copy to consume</span>
+                    <select name="fodder">{% for d in dupes %}<option value="{{ d.uuid }}">Consume copy Lv {{ d.level }}{% for emo, t, q, rank, qemo in d|traits %} {{ emo }}{{ rank }}{% endfor %}</option>{% endfor %}</select>
+                  </label>
+                  <button class="btn small gold">Fuse</button>
+                </form>
+              {% endif %}
+              <button class="btn small danger" hx-post="{{ url_for('play.release') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#collection"
+                      hx-confirm="Release {{ c.name }} for good? This can't be undone.">Release</button>
+            </div>
+          </details>
+        </div>
+      {% endfor %}
+    </div>
+    {% else %}
+      <p class="notice">Empty. Banner pulls land in the first storage with room.</p>
+    {% endif %}
+  {% endfor %}
+</section>
+</div>
+{% if request.headers.get('HX-Request') %}{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}{% endif %}
