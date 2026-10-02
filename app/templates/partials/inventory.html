@@ -40,7 +40,7 @@
       <span class="item-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
       <div class="item-info">
         <h3>{{ it.name }} <span class="count">×{{ g.count }}</span></h3>
-        <p class="muted">{% if it.id == 2 %}Draws one stand of any rarity here, or 5 at SR+ on a banner.{% elif it.id == 3 %}Awakens a team stand (Requiem for a few).{% elif it.id == 12 %}Draws a random Part 3 stand.{% elif it.id == 13 %}A bag of fragments.{% elif 8 <= it.id <= 32 %}Unlocks {{ it.name|replace(' Stand Chip', '')|replace('  ', ' ') }} as a stand.{% elif 34 <= it.id <= 36 %}Raid drop. Collect all three corpse parts to craft the Holy Corpse.{% else %}Collectible.{% endif %}</p>
+        <p class="muted">{% if it.id == 2 %}Draws one stand of any rarity here, or 5 at SR+ on a banner.{% elif it.id == 3 %}Awakens a team stand (Requiem for a few).{% elif it.id == 12 %}Draws a random Part 3 stand.{% elif it.id == 13 %}A bag of fragments.{% elif 8 <= it.id <= 32 %}Unlocks {{ it.name|replace(' Stand Chip', '')|replace('  ', ' ') }} as a stand.{% elif 34 <= it.id <= 36 %}Raid drop. Collect all three corpse parts to craft the Holy Corpse.{% elif it.id in (38, 39, 40) %}Crafting material from raids, the boss rush, the wormhole and dailies. See Crafting below.{% else %}Collectible.{% endif %}</p>
       </div>
       <div class="item-actions">
         {% if it.id == 3 %}
@@ -117,7 +117,8 @@
     {% for r in recipes %}
     <li class="item-tile {% if r.ready %}ready{% endif %}">
       <div class="item-info">
-        <h3>{{ r.name }}</h3>
+        <h3>{{ (r.result.emoji or '◈')|emoji }} {{ r.name }}</h3>
+        {% if r.result.is_equipable %}<p class="recipe-bonus">{{ bonuses(r.result) }}</p>{% endif %}
         <p class="muted">{% for name, need, have in r.parts %}<span class="{{ 'have' if have >= need else 'need' }}">{{ name }} {{ have }}/{{ need }}</span>{{ ', ' if not loop.last }}{% endfor %}</p>
       </div>
       <div class="item-actions">

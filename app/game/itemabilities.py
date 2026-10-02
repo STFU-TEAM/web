@@ -53,37 +53,29 @@ def giornos_ladybug(
 def sheer_heart_attack(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    multiplier = 30
     valid_stand = [i for i in ennemy_stand if i.is_alive()]
-    if len(valid_stand) != 0:
-        target = random.choice(valid_stand)
-        target.current_hp -= multiplier
-        message = f"｢{stand.name}｣'s Sheer heart attack explode on {target.name} for {multiplier} damage"
-    message = f"Sheer heart attack schearch for ennemies"
-    return message
+    if not valid_stand:
+        return "None"
+    target = random.choice(valid_stand)
+    dealt = target.take(stand.current_damage * 0.4)
+    return f"｢{stand.name}｣'s Sheer Heart Attack homes in on {target.name} and explodes for {dealt}!"
 
 
 def red_stone_of_aja(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    stand.current_hp += 100
-    stand.current_speed += 20
-    stand.current_damage += 50
-    stand.current_critical += 50
-
-    message = f"｢{stand.name}｣ becomes transcend"
-
-    return message
+    healed = stand.heal(stand.start_hp * 0.15)
+    stand.add_effect(Effect(EffectType.DAMAGEUP, 2, stand.start_damage * 0.25, stand))
+    stand.add_effect(Effect(EffectType.CRITUP, 2, 20, stand))
+    return f"｢{stand.name}｣ is amplified by the Red Stone: heals {healed}, +25% damage and +20 crit!"
 
 
 def stone_mask(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    stand.current_hp += 30
-    stand.current_damage += 30
-
-    message = f"｢{stand.name}｣ becomes a vempire"
-    return message
+    healed = stand.heal(stand.start_hp * 0.10)
+    grown = stand.grow("damage", 0.10)
+    return f"｢{stand.name}｣ becomes a vampire: heals {healed}, +{round(grown)} damage!"
 
 
 def lottery_ticket(
@@ -96,15 +88,11 @@ def lottery_ticket(
 def polpos_lighter(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    e_type = [e.type for e in stand.effects if not e.sender in allied_stand]
-    if EffectType.POISON in e_type:
-        index = e_type.index(EffectType.POISON)
-        target = stand.effects[index].sender
-        target.effects.append(Effect(EffectType.WEAKEN, 1, 0.95, stand))
-        message = (
-            f"｢{stand.name}｣ manifest ｢Black Sabbath｣ and {target.name} gets weakened"
-        )
-        return message
+    poisoner = next((e.sender for e in stand.effects
+                     if e.type == EffectType.POISON and e.sender is not None and e.sender not in allied_stand), None)
+    if poisoner is not None and poisoner.is_alive():
+        poisoner.add_effect(Effect(EffectType.WEAKEN, 1, poisoner.current_damage * 0.15, stand))
+        return f"｢{stand.name}｣ manifests ｢Black Sabbath｣ and {poisoner.name} gets weakened"
 
     message = "None"
     return message
@@ -113,14 +101,43 @@ def polpos_lighter(
 def holy_corpse(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    # Heal all allies and boost their stats
+    healed = 0
     for ally in allied_stand:
         if ally.is_alive():
-            ally.current_hp += 50
-            ally.current_damage += 15
-            ally.current_armor += 10
-    message = f"｢{stand.name}｣ channels the Holy Corpse, blessing all allies with +50 HP, +15 DMG, +10 ARM"
-    return message
+            healed += ally.heal(ally.start_hp * 0.08)
+            ally.add_effect(Effect(EffectType.DAMAGEUP, 2, ally.start_damage * 0.10, stand))
+            ally.add_effect(Effect(EffectType.ARMORUP, 2, ally.start_armor * 0.10, stand))
+    return f"｢{stand.name}｣ channels the Holy Corpse: the team heals {healed}, +10% damage and armor!"
+
+
+def steel_ball(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    valid = [i for i in ennemy_stand if i.is_alive()]
+    if not valid:
+        return "None"
+    focus = getattr(stand, "_focus", None)
+    target = focus if focus in valid else random.choice(valid)
+    dealt = target.take(stand.current_damage * 0.6)
+    target.add_effect(Effect(EffectType.SLOW, 1, max(2, target.current_speed * 0.15), stand))
+    return f"｢{stand.name}｣ throws the Steel Ball: the Golden Spin hits {target.name} for {dealt} and slows it!"
+
+
+def rokakaka_graft(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    healed = stand.heal(stand.start_hp * 0.12)
+    if not healed:
+        return "None"
+    return f"｢{stand.name}｣'s Rokakaka graft takes root: heals {healed}!"
+
+
+def ultimate_being_mask(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    healed = stand.heal(stand.start_hp * 0.10)
+    stand.add_effect(Effect(EffectType.DAMAGEUP, 2, stand.start_damage * 0.20, stand))
+    return f"｢{stand.name}｣ becomes the Ultimate Being: heals {healed} and +20% damage!"
 
 
 item_specials = {
@@ -134,4 +151,7 @@ item_specials = {
     "15": lottery_ticket,
     "16": polpos_lighter,
     "37": holy_corpse,
+    "41": steel_ball,
+    "43": rokakaka_graft,
+    "45": ultimate_being_mask,
 }

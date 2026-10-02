@@ -1,7 +1,20 @@
-<h2 class="h3">Daily reward</h2>
+{% macro streak_strip(st) %}
+  <ol class="streak" aria-label="Daily streak">
+    {% for b in st.streak_rewards %}
+      {% set d = loop.index %}
+      {% set done = d < st.streak.next_day or (st.streak.claimed_today and d == st.streak.next_day) %}
+      <li class="{{ 'done' if done else ('next' if d == st.streak.next_day else '') }}" title="Day {{ d }}">
+        <small>Day {{ d }}</small>
+        <span>{% if b.super %}✦ 1 super{% elif b.fragments %}{{ b.fragments }}{% elif b['items'] %}{{ {2: 'Arrow', 13: 'Coins'}[b['items'][0]] }}{% endif %}</span>
+      </li>
+    {% endfor %}
+  </ol>
+{% endmacro %}
+<h2 class="h3">Daily reward {% if st.streak.count %}<small class="streak-count">🔥 {{ st.streak.count }} day{{ 's' if st.streak.count != 1 }}</small>{% endif %}</h2>
+{{ streak_strip(st) }}
 {% if st.daily %}
   <p class="muted">Back in {{ st.daily|delta }}.</p>
 {% else %}
-  <p>100 fragments, often an item, rarely a super fragment.</p>
+  <p>100 fragments and often an item, plus today's streak bonus. Come back tomorrow to keep the streak.</p>
   <button class="btn" hx-post="{{ url_for('play.daily') }}" hx-target="#daily" hx-disabled-elt="this">Claim it</button>
 {% endif %}

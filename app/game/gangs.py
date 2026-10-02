@@ -2,16 +2,13 @@
 
 Gangs are pickled dicts in the "gangs" hash (see models/gameobjects/gang.py).
 Wars are matched and ended by the bot's parallel_process/warmatchmaking.py,
-raids are ended by parallel_process/raid_end.py; the web only queues, attacks
-and reads the shared keys:
+raids are web-only and weekly (see "Weekly raid" below); for wars the web queues,
+attacks and reads the shared keys:
     PUBLISH war_matchmaking_requests pickle(gang_id)
     HGET   active_wars <gang_id>      -> pickle(opponent gang id)
     HGETALL war_records               -> pickle({winner, loser, winner_damage, loser_damage, timestamp})
-    HGET   RAID_RECORDS raid_<gang_id> -> pickle({successful, rewards, ...})
 """
 import datetime
-import json
-import os
 import pickle
 import re
 from typing import Optional
@@ -26,10 +23,6 @@ MAX_GUARDIANS = 3
 GANG_COST = 10000
 MATCHMAKING_CHANNEL = "war_matchmaking_requests"
 DEFAULT_IMAGE = "https://media1.tenor.com/m/-fG6_QSIjZAAAAAC/amicreeper-galaxy.gif"
-
-with open(os.path.join(os.path.dirname(__file__), "data", "raid.json"), encoding="utf-8") as _f:
-    RAID = json.load(_f)
-RAID_REWARD_NAMES = [item_file[i - 1]["name"] for i in RAID["rewards"]]
 
 
 def new_gang(gang_id: str, owner: str, name: str, motto: str, motd: str) -> dict:
@@ -222,36 +215,128 @@ def war_damage(enemies) -> int:
 
 
 # --------------------------------------------------------------------------- #
-# Raids
+# Weekly raid (web): one villain per week, one attack per member per day,
+# gang damage unlocks reward tiers that every attacker claims.
 # --------------------------------------------------------------------------- #
-def raid_active(gang: dict) -> bool:
-    return gang.get("end_of_raid", datetime.datetime.min) > now()
+WEEKLY_RAIDS = [
+    {"name": "DIO", "boss": 10, "minions": [30, 19], "flavor": "The World stops time over Cairo. Vanilla Ice and Death 13 guard the stairs."},
+    {"name": "Yoshikage Kira", "boss": 58, "minions": [54, 51], "flavor": "Bites the Dust loops Morioh's morning. Stray Cat and Atom Heart Father watch the house."},
+    {"name": "Diavolo", "boss": 75, "minions": [81, 82], "flavor": "King Crimson erases the hours. Green Day and Oasis hold the Colosseum."},
+    {"name": "Enrico Pucci", "boss": 109, "minions": [108, 107], "flavor": "Made in Heaven accelerates the universe. C-Moon and Whitesnake buy him time."},
+    {"name": "Funny Valentine", "boss": 120, "minions": [124, 126], "flavor": "D4C hides behind every dimension. His guards rewind and booby-trap the train."},
+    {"name": "Toru", "boss": 161, "minions": [154, 149], "flavor": "Wonder of U turns pursuit into calamity. Walking Heart and Doobie Wah stalk the hospital."},
+    {"name": "Diego Brando", "boss": 134, "minions": [117, 132], "flavor": "THE WORLD from another universe, with Scary Monsters and Civil War at its side."},
+    {"name": "Chariot Requiem", "boss": 83, "minions": [68, 74], "flavor": "Every soul in Rome swaps. Man in the Mirror and White Album seal the exits."},
+]
+RAID_LEVEL, RAID_AWAKEN, RAID_BOSS_HP = 80, 1, 12  # the boss is a damage sponge, not a kill
+RAID_TIERS = [
+    {"damage": 10_000, "fragments": 1500, "items": [40, 40]},
+    {"damage": 50_000, "fragments": 3000, "items": [38, 38, 39]},
+    {"damage": 200_000, "fragments": 5000, "super": 1, "items": [2, 38, 38]},
+    {"damage": 600_000, "fragments": 8000, "super": 2, "items": [39, 39, "corpse"]},
+]
 
 
-def start_raid(gang: dict, actor: str):
-    require_rank(gang, actor, CAPO)
-    if raid_active(gang):
-        raise GameError("Your gang is already raiding.")
-    if int(gang.get("vault", 0)) < RAID["cost"]:
-        raise GameError(f"A raid costs {RAID['cost']:,} fragments from the vault.")
-    gang["vault"] -= RAID["cost"]
-    gang["end_of_raid"] = now() + datetime.timedelta(days=1)
-    gang["damage_to_current_raid"] = 0
-    gang["raid_attacks"] = []
+def week_key(when=None) -> str:
+    year, week, _ = (when or now()).isocalendar()
+    return f"{year}-W{week:02d}"
 
 
-def raid_boss():
-    return [character_from_dict(dict(c)) for c in RAID["main_characters"]]
+def week_ends(when=None) -> datetime.datetime:
+    when = when or now()
+    monday = (when - datetime.timedelta(days=when.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    return monday + datetime.timedelta(days=7)
+
+
+def weekly_boss(when=None) -> dict:
+    _, week, _ = (when or now()).isocalendar()
+    return WEEKLY_RAIDS[week % len(WEEKLY_RAIDS)]
+
+
+def raid_state(gang: dict) -> dict:
+    """This week's raid on the gang, reset lazily when a new week starts."""
+    state = gang.get("web_raid")
+    if not state or state.get("week") != week_key():
+        state = {"week": week_key(), "damage": 0, "attacks": {}, "hits": {}, "claimed": {}}
+        gang["web_raid"] = state
+    return state
+
+
+def can_attack(gang: dict, uid: str) -> bool:
+    return raid_state(gang)["attacks"].get(str(uid)) != now().date().isoformat()
+
+
+def raid_team() -> list:
+    boss = weekly_boss()
+    team = []
+    for i, cid in enumerate([boss["boss"]] + boss["minions"]):
+        c = character_from_dict({"id": cid, "xp": RAID_LEVEL * 100, "awaken": RAID_AWAKEN, "types": ["BALANCE"],
+                                 "qualities": ["GREAT"], "items": [{"id": 1}] if i == 0 else []})
+        if i == 0:
+            c.start_hp *= RAID_BOSS_HP
+            c.current_hp = c.start_hp
+        team.append(c)
+    return team
+
+
+def start_raid_attack(gang: dict, uid: str):
+    if not can_attack(gang, uid):
+        raise GameError("You already attacked the raid boss today. Come back tomorrow.")
+    raid_state(gang)["attacks"][str(uid)] = now().date().isoformat()
 
 
 def raid_damage(enemies) -> int:
-    """HP taken off the raid boss team (fighthandler calculate_team_damage)."""
+    """HP taken off the raid team."""
     return int(sum(max(0, c.start_hp - max(c.current_hp, 0)) for c in enemies))
 
 
-def raid_record(redis, gang_id: str) -> Optional[dict]:
-    raw = redis.hget("RAID_RECORDS", f"raid_{gang_id}")
-    return pickle.loads(raw) if raw else None
+def record_raid_damage(gang: dict, uid: str, damage: int, week: str):
+    state = raid_state(gang)
+    if state["week"] != week:  # the fight started last week: too late to count
+        return
+    state["damage"] += damage
+    state["hits"][str(uid)] = state["hits"].get(str(uid), 0) + damage
+
+
+def claimable_tiers(gang: dict, uid: str) -> list:
+    state = raid_state(gang)
+    if str(uid) not in state["hits"]:
+        return []
+    done = set(state["claimed"].get(str(uid), []))
+    return [i for i, t in enumerate(RAID_TIERS) if state["damage"] >= t["damage"] and i not in done]
+
+
+def tier_text(tier: dict) -> str:
+    parts = [f"{tier['fragments']:,} fragments"]
+    if tier.get("super"):
+        parts.append(f"{tier['super']} super fragment{'s' if tier['super'] > 1 else ''}")
+    counts = {}
+    for i in tier["items"]:
+        name = "a Saint's Corpse part" if i == "corpse" else item_file[i - 1]["name"]
+        counts[name] = counts.get(name, 0) + 1
+    parts += [f"{n} × {name}" if n > 1 else name for name, n in counts.items()]
+    return ", ".join(parts)
+
+
+def claim_raid(gang: dict, user) -> list:
+    import random
+    tiers = claimable_tiers(gang, user.id)
+    if not tiers:
+        raise GameError("Nothing to claim yet. Attack the boss and reach the next tier.")
+    for i in tiers:
+        tier = RAID_TIERS[i]
+        user.fragments += tier["fragments"]
+        user.super_fragements += tier.get("super", 0)
+        for item_id in tier["items"]:
+            user.items.append(item_from_dict({"id": random.choice([34, 35, 36]) if item_id == "corpse" else item_id}))
+    raid_state(gang)["claimed"].setdefault(str(user.id), []).extend(tiers)
+    return tiers
+
+
+def raid_board(gangs: list, limit: int = 10) -> list:
+    week = week_key()
+    rows = [(g.get("web_raid", {}).get("damage", 0), g) for g in gangs if g.get("web_raid", {}).get("week") == week]
+    return [{"name": g.get("name", "?"), "damage": d, "id": g["_id"]} for d, g in sorted(rows, key=lambda x: -x[0])[:limit] if d]
 
 
 def attack_rewards(user, won: bool) -> dict:

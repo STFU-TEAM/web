@@ -12,6 +12,7 @@ from app.game import character as character_mod
 from app.game import logic
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
 from app.game.characterabilities import SYNERGIES
+from app.game import fight as fight_mod
 from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain
 
 TOPICS = [
@@ -38,9 +39,9 @@ TERRAIN_BLURB = {
     "DEFAULT": "No terrain setter is alive, so nobody gets terrain bonuses.",
     "OCEAN": "Water stands take the field and hit faster and harder.",
     "DESERT": "Fire and sand stands burn hotter; The Fool digs in.",
-    "FROZEN": "Ice stands harden while their allies speed up.",
+    "FROZEN": "Ice stands harden while everyone else slows down.",
     "MIRROR": "Illusionists reshape the arena and strike from reflections.",
-    "NATURE": "Living terrain heals life stands and sharpens their allies.",
+    "NATURE": "Living terrain heals everyone and feeds poison.",
     "GRAVITY": "Gravity users bend speed and damage in their favour.",
 }
 
@@ -62,31 +63,31 @@ SYNERGY_INFO = {
 SYNERGY_EFFECTS = {
     "crusaders": {
         1: "Always lands one extra punch.",
-        2: "Crossfire Hurricane burns every enemy (2 turns) instead of one.",
-        3: "Emerald Splash hits at 0.7× instead of 0.5×.",
-        6: "+15 speed and keeps its armor (normally +10 speed, −25% armor).",
+        2: "Crossfire Hurricane burns every enemy for 2 turns instead of hitting one.",
+        3: "Emerald Splash hits at 0.75× instead of 0.55×.",
+        6: "Keeps its armor while shedding it for speed (normally −20% armor).",
     },
     "kira": {
-        49: "Bombs two enemies for 200% damage instead of one for 150%.",
-        54: "Guided bubbles hit every enemy at 1.5× and add a burn.",
+        49: "Bombs two enemies for 1.5× plus a burn instead of one for 1.9×.",
+        54: "Guided bubbles hit every enemy and add a burn.",
     },
     "squadra": {
-        63: "Deflates every enemy (−20% armor, −10% damage) instead of one.",
-        68: "Traps two enemies in the mirror (stun + weaken) instead of one.",
-        72: "Stronger aging: poison 30% (from 20%) and slow 5 (from 3).",
-        73: "Steals 25% damage (from 15%) plus 10% speed.",
-        74: "+50% armor (from 40%) and slows enemies by 6 (from 4).",
+        63: "Deflates every enemy (−25% armor, −12% damage) instead of one.",
+        68: "Traps two enemies in the mirror (stun, −20% damage) instead of one.",
+        72: "Stronger aging: poison 0.45× (from 0.35×) and −30% speed (from −20%).",
+        73: "Steals 25% damage (from 20%) plus 15% speed.",
+        74: "+40% armor (from 30%) and a stronger slow.",
     },
     "passione": {
-        59: "Heals 50 (from 30) and gives the whole team +3 speed.",
-        60: "+7 crit and +5 speed, plus a 0.5× zipper strike (normally +5 crit).",
-        64: "Up to 8 bullets at 0.4× (normally 6 at 0.3×).",
-        67: "Strafes at 0.45× (from 0.35×) and makes the weakest enemy bleed.",
+        59: "Heals 16% (from 12%) and gives the whole team +15% speed.",
+        60: "1.5× strike, +15 crit and +25% speed (normally 1.2× and +10 crit).",
+        64: "6 bullets at 0.32× (normally 5 at 0.26×).",
+        67: "Strafes at 0.6× (from 0.5×) and makes the weakest enemy bleed.",
     },
     "pucci": {
-        107: "The DISC theft also weakens the target for 2 turns.",
-        108: "Slows enemies by 4 (from 2) and cuts their armor by 10%.",
-        109: "+8 speed, +30 damage, +8 crit, and other Pucci stands get +5 speed, +10 damage.",
+        107: "The DISC theft also stuns the target.",
+        108: "Slows enemies by 25% (from 15%) and cuts their armor by 15%.",
+        109: "Other Pucci stands also get +25% speed and +15% damage.",
     },
     "tusk": {
         112: "The guided nail also slows the target.",
@@ -95,21 +96,23 @@ SYNERGY_EFFECTS = {
     },
     "clash_talking": {
         76: "Warps between two confused enemies, hitting and stunning both.",
-        77: "Confuses every enemy: −25% speed and critical ×0.6.",
+        77: "Confuses every enemy: −25% speed and −15% damage.",
     },
 }
 
 EFFECT_INFO = {
-    "STUN": ("Stun", "Skips its next action."),
-    "POISON": ("Poison", "Loses health at the end of each turn."),
-    "BURN": ("Burn", "Loses health at the end of each turn."),
-    "BLEED": ("Bleed", "Loses health at the end of each turn."),
+    "STUN": ("Stun", "Skips its next turn. A stand that just sat out a stun shrugs off stuns on its following turn."),
+    "POISON": ("Poison", "Loses health at the end of each of its turns. Stronger in Nature."),
+    "BURN": ("Burn", "Loses health at the end of each of its turns. Stronger in the Desert, put out by the Ocean."),
+    "BLEED": ("Bleed", "Loses health at the end of each of its turns."),
     "WEAKEN": ("Weaken", "Damage is lowered while it lasts."),
     "SLOW": ("Slow", "Speed is lowered while it lasts."),
-    "REGENERATION": ("Regeneration", "Heals at the end of each turn, up to max health."),
+    "ARMORBREAK": ("Armor break", "Armor is lowered while it lasts."),
+    "REGENERATION": ("Regeneration", "Heals at the end of each of its turns, up to max health."),
     "DAMAGEUP": ("Damage up", "Damage is raised while it lasts."),
     "SPEEDUP": ("Speed up", "Speed is raised while it lasts."),
-    "HEALTHBOOST": ("Health boost", "Temporary extra health, removed when it ends."),
+    "ARMORUP": ("Armor up", "Armor is raised while it lasts."),
+    "CRITUP": ("Critical up", "Critical chance is raised (or lowered) while it lasts."),
 }
 
 TYPE_INFO = {
@@ -163,6 +166,7 @@ def terrain_rows():
         rows.append({
             "key": terrain.name.lower(), "name": terrain.display_name, "emoji": terrain.emoji,
             "blurb": TERRAIN_BLURB.get(terrain.name, ""),
+            "rule": terrain.rule if terrain != Terrain.DEFAULT else "",
             "setters": [_stand(c) for c in setters],
             "boosted": boosted,
             "specials": [_stand(c) for c in sorted(TERRAIN_SPECIALS.get(terrain.name, ()))],
@@ -229,6 +233,11 @@ def facts():
     return {
         "xp_per_level": character_mod.STXPTOLEVEL, "max_level": character_mod.MAX_LEVEL,
         "dodge_cap": character_mod.DODGE_CHANCE_CAP, "crit_multiplier": character_mod.CRITMULTIPLIER,
+        "crit_cap": character_mod.CRIT_CHANCE_CAP, "armor_cap": character_mod.ARMOR_CAP,
+        "armor_floor": round(200 / (100 + character_mod.ARMOR_CAP) * 100),
+        "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),
+        "sudden_death_round": fight_mod.SUDDEN_DEATH_ROUND, "sudden_death_step": round(fight_mod.SUDDEN_DEATH_STEP * 100),
+        "sudden_death_heal": round(fight_mod.SUDDEN_DEATH_HEAL * 100), "max_rounds": fight_mod.MAX_ROUNDS,
         "reforge_cost": logic.REFORGE_COST, "max_presets": logic.MAX_TEAMS,
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,

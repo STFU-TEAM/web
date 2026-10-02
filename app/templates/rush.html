@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Boss rush | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page rush">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Weekly boss rush · resets in {{ ends_in|delta }}</p>
+      <h1 class="display sm">The Gauntlet</h1>
+      <p class="muted">Six bosses back to back. Your team's health carries over, with a {{ patch_up }}% patch-up between fights. One run a day; your best run of the week counts.</p>
+    </div>
+    <div class="rush-best"><small>Your best this week</small><strong>{{ s.best.bosses }}/{{ bosses|length }}</strong>{% if s.best.bosses %}<span class="muted">{{ s.best.rounds }} rounds</span>{% endif %}</div>
+  </header>
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    {% set run = s.run %}
+    <div class="rush-run">
+      {% if run %}
+        {% set next = bosses[run.index] %}
+        <div>
+          <p class="kicker">Run in progress · {{ run.index }}/{{ bosses|length }} down · {{ run.rounds }} rounds</p>
+          <h2 class="h2">Next: {{ next.title }}</h2>
+          <ul class="rush-team">
+            {% for c in u.main_characters %}
+              {% set hp = run.hp.get(c.uuid, c.start_hp) %}
+              <li class="{{ 'down' if hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }}</span>
+                <div class="hp"><i style="width: {{ ([100 * hp / c.start_hp, 100]|min)|round }}%"></i></div><small>{{ hp|int }}/{{ c.start_hp|int }}</small></li>
+            {% endfor %}
+          </ul>
+        </div>
+        <form method="post" action="{{ url_for('progress.rush_fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">Fight boss {{ run.index + 1 }} →</button></form>
+      {% elif ran_today %}
+        <p class="notice">You ran the gauntlet today ({{ s.best.bosses }} boss{{ 'es' if s.best.bosses != 1 }} is your best this week). Come back tomorrow for another run.</p>
+      {% elif not u.main_characters %}
+        <p class="notice">Put stands in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+      {% else %}
+        <div><h2 class="h2">Today's run is ready</h2><p class="muted">Bring your best three: a fallen stand stays down for the rest of the run.</p></div>
+        <form method="post" action="{{ url_for('progress.rush_fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">Start the run →</button></form>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="rush-grid">
+    <section>
+      <h2 class="h3">The bosses</h2>
+      <ol class="rush-bosses">
+        {% for b in bosses %}
+          {% set state = 'beaten' if b.index in s.claimed else ('next' if s.run and s.run.index == b.index else '') %}
+          <li class="{{ state }}">
+            <img src="{{ b.lead|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+            <span><strong>{{ loop.index }}. {{ b.title }}</strong><small class="muted">{{ b.part }} · Lv {{ b.level }}{% if b.awaken %} ★{{ b.awaken }}{% endif %}</small>
+              <small class="rush-reward">{{ '✓ ' if b.index in s.claimed }}Weekly reward: {{ b.reward }}</small></span>
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+    <section>
+      <h2 class="h3">This week's leaderboard</h2>
+      {% if board %}
+        <ol class="social-list gang-standings">
+          {% for row in board %}<li class="{{ 'me' if row.uid == me.id }}"><span class="rank">{{ loop.index }}</span><strong>{{ row.name }}</strong><span>{{ row.rounds }} rounds</span><b>{{ row.bosses }}/{{ bosses|length }}</b></li>{% endfor %}
+        </ol>
+      {% else %}<p class="muted">Nobody has beaten a boss yet this week. Be the first.</p>{% endif %}
+    </section>
+  </div>
+</section>
+{% endblock %}

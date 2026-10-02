@@ -23,38 +23,53 @@
 </head>
 {%- set ep = request.endpoint or '' -%}
 {%- set is_admin = me.id and me.id in config.DISCORD_ADMIN_IDS -%}
-{#- Every destination once: (label, url, active, icon). Desktop bar, mobile dock and the menu sheet all read from here. -#}
+{#- Every destination once: (label, url, active, icon, why it matters). Desktop menus, mobile dock,
+    the menu sheet and the new-player tour all read from here. -#}
 {%- set L = {
-  'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟'),
-  'banners': ('Banners', url_for('play.banners'), ep == 'play.banners', '✦'),
-  'items': ('Items', url_for('play.items'), ep == 'play.items', '◈'),
-  'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑'),
-  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.'), '⚔'),
-  'wormhole': ('Wormhole', url_for('play.wormhole'), ep.startswith('play.wormhole'), '◎'),
-  'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲'),
-  'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦'),
-  'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖'),
-  'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆'),
-  'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛'),
-  'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑'),
-  'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖'),
-  'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄'),
-  'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜'),
-  'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆'),
-  'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙'),
+  'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟', 'Your 3 fighters and every stand you own. Fuse, lock and equip here.'),
+  'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', 'Equipment, Stand Arrows, crafting and the shop.'),
+  'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend super fragments for 10 new stands. Pity guarantees SSR+.'),
+  'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜', 'Travel Parts 3 to 8 beside each JoJo. The best rewards for new players.'),
+  'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'The six story bosses back to back, health carried over. Weekly leaderboard.'),
+  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.'), '⚔', 'Practice dummy, ranked duels and friend challenges.'),
+  'wormhole': ('Wormhole', url_for('play.wormhole'), ep.startswith('play.wormhole'), '◎', 'A random team scaled to your level, for fragments and items.'),
+  'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'Six floors in a row. Clear them all to raise the tower.'),
+  'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'Wager energy, explore a map, open chests.'),
+  'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
+  'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),
+  'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑', 'Join a clan: shared vault, wars and raids.'),
+  'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and fragments with players.'),
+  'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖', 'Buy items other players listed, or sell yours.'),
+  'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛', 'The top players by Elo, level and collection.'),
+  'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
+  'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖', 'How fights work: terrains, synergies, status effects.'),
+  'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
+  'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
-{%- set battle_keys = ['battles', 'wormhole', 'tower', 'dungeon'] -%}
-{%- set more_keys = ['story', 'achievements', 'gangs', 'trades', 'shops', 'stands', 'ladder'] + (['admin'] if is_admin else []) -%}
+{%- set battle_keys = ['story', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) -%}
+{%- set progress_keys = ['quests', 'achievements'] -%}
+{%- set community_keys = ['gangs', 'trades', 'shops', 'ladder'] -%}
+{%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
-  {%- set sheet = [('Play', ['team', 'banners', 'items', 'quests']), ('Battle', battle_keys),
-                   ('Progress', ['story', 'achievements']), ('Community', ['gangs', 'trades', 'shops']),
-                   ('Explore', ['wiki', 'stands', 'ladder'] + (['admin'] if is_admin else []))] -%}
+  {%- set sheet = [('Collection', ['team', 'items', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
+                   ('Community', community_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
-  {%- set sheet = [('Explore', ['wiki', 'stands', 'ladder'])] -%}
+  {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
 {%- endif -%}
 {%- macro nav_link(key, cls='') -%}
-  {%- set label, href, active, icon = L[key] -%}
-  <a class="{{ cls }}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+  {%- set label, href, active, icon, why = L[key] -%}
+  <a class="{{ cls }}" href="{{ href }}" data-tour="{{ key }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
+{%- endmacro -%}
+{%- macro menu_link(key) -%}
+  {%- set label, href, active, icon, why = L[key] -%}
+  <a class="menu-item{% if key == 'story' and story_hot %} hot{% endif %}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span><strong>{{ label }}{% if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% endif %}</strong><small>{{ why }}</small></span></a>
+{%- endmacro -%}
+{%- macro nav_menu(title, keys, tour, hot=False) -%}
+  <details class="nav-drop{% if hot %} hot{% endif %}" data-tour="{{ tour }}">
+    <summary {% if any_active(keys) %}aria-current="page"{% endif %}>{{ title }}{% if hot %}<span class="nav-dot" aria-label="New story stage"></span>{% endif %}</summary>
+    <div class="nav-menu wide">{% for k in keys %}{{ menu_link(k) }}{% endfor %}</div>
+  </details>
 {%- endmacro -%}
 {%- macro any_active(keys) -%}{% for k in keys if L[k][2] %}1{% endfor %}{%- endmacro -%}
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
@@ -67,18 +82,13 @@
 
     <nav class="nav" aria-label="Main">
       {% if me.id %}
-        {{ nav_link('team') }}{{ nav_link('banners') }}{{ nav_link('items') }}{{ nav_link('quests') }}
-        <details class="nav-drop">
-          <summary {% if any_active(battle_keys) %}aria-current="page"{% endif %}>Battle</summary>
-          <div class="nav-menu">{% for k in battle_keys %}{{ nav_link(k) }}{% endfor %}</div>
-        </details>
-        {{ nav_link('wiki') }}
-        <details class="nav-drop">
-          <summary {% if any_active(more_keys) %}aria-current="page"{% endif %}>More</summary>
-          <div class="nav-menu">{% for k in more_keys %}{{ nav_link(k) }}{% endfor %}</div>
-        </details>
+        {{ nav_link('team') }}{{ nav_link('banners') }}{{ nav_link('items') }}
+        {{ nav_menu('Battle', battle_keys, 'battle', hot=story_hot) }}
+        {{ nav_menu('Progress', progress_keys, 'progress') }}
+        {{ nav_menu('Community', community_keys, 'community') }}
+        {{ nav_menu('Explore', explore_keys, 'explore') }}
       {% else %}
-        {{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}
+        {{ nav_link('news') }}{{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}
       {% endif %}
     </nav>
 
@@ -92,6 +102,8 @@
           <div class="nav-menu right">
             <a href="{{ url_for('main.profile', uid=me.id) }}" {% if ep == 'main.profile' %}aria-current="page"{% endif %}>My profile</a>
             <a href="{{ url_for('auth.account') }}" {% if ep == 'auth.account' %}aria-current="page"{% endif %}>Account & login</a>
+            <a href="?tour=1" data-tour-start>Show me around</a>
+            <a href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support on Ko-fi</a>
             <form method="post" action="{{ url_for('auth.logout') }}">
               <input type="hidden" name="csrf" value="{{ csrf_token }}">
               <button class="link">Log out</button>
@@ -106,18 +118,19 @@
 
   <nav class="dock" aria-label="Quick navigation">
     {% if me.id %}
-      {% for k in ['team', 'banners', 'battles', 'wiki'] %}
-        {%- set label, href, active, icon = L[k] -%}
-        <a href="{{ href }}" {% if active or (k == 'battles' and any_active(battle_keys)) %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ icon }}</span>{{ 'Battle' if k == 'battles' else label }}</a>
+      {% for k, label, tour in [('team', 'Team', 'team'), ('banners', 'Summon', 'banners'), ('story', 'Battle', 'battle'), ('quests', 'Quests', 'progress')] %}
+        {%- set _l, href, active, icon, why = L[k] -%}
+        {%- set on = active or (k == 'story' and any_active(battle_keys)) -%}
+        <a href="{{ href }}" data-tour="{{ tour }}" class="{{ 'hot' if k == 'story' and story_hot }}" {% if on %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ '⚔' if k == 'story' else icon }}</span>{{ label }}{% if k == 'story' and story_hot %}<span class="nav-dot" aria-hidden="true"></span>{% endif %}</a>
       {% endfor %}
     {% else %}
       <a href="{{ url_for('main.home') }}" {% if ep == 'main.home' %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">⌂</span>Home</a>
       {% for k in ['stands', 'wiki', 'ladder'] %}
-        {%- set label, href, active, icon = L[k] -%}
+        {%- set label, href, active, icon, why = L[k] -%}
         <a href="{{ href }}" {% if active %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ icon }}</span>{{ 'Ladder' if k == 'ladder' else label }}</a>
       {% endfor %}
     {% endif %}
-    <button type="button" data-sheet-open aria-controls="nav-sheet" aria-haspopup="dialog"><span class="dock-icon" aria-hidden="true">☰</span>Menu</button>
+    <button type="button" data-sheet-open data-tour="menu" aria-controls="nav-sheet" aria-haspopup="dialog"><span class="dock-icon" aria-hidden="true">☰</span>Menu</button>
   </nav>
 
   <dialog id="nav-sheet" class="sheet" aria-label="All pages">
@@ -137,14 +150,16 @@
       <p class="sheet-group">{{ title }}</p>
       <div class="sheet-grid">
         {% for k in keys %}
-          {%- set label, href, active, icon = L[k] -%}
-          <a href="{{ href }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span>{{ label }}</a>
+          {%- set label, href, active, icon, why = L[k] -%}
+          <a href="{{ href }}" class="{{ 'hot' if k == 'story' and story_hot }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span><span>{{ label }}<small>{{ why }}</small></span></a>
         {% endfor %}
       </div>
     {% endfor %}
     {% if me.id %}
       <p class="sheet-group">Account</p>
-      <div class="sheet-grid"><a href="{{ url_for('auth.account') }}" {% if ep == 'auth.account' %}aria-current="page"{% endif %}><span aria-hidden="true">🔑</span>Account & login</a></div>
+      <div class="sheet-grid"><a href="{{ url_for('auth.account') }}" {% if ep == 'auth.account' %}aria-current="page"{% endif %}><span aria-hidden="true">🔑</span>Account & login</a>
+        <a href="?tour=1" data-tour-start><span aria-hidden="true">🧭</span>Show me around</a>
+        <a href="{{ config.KOFI_URL }}" target="_blank" rel="noopener"><span aria-hidden="true">☕</span>Support on Ko-fi</a></div>
       <form class="sheet-logout" method="post" action="{{ url_for('auth.logout') }}">
         <input type="hidden" name="csrf" value="{{ csrf_token }}">
         <button class="btn ghost small">Log out</button>
@@ -158,9 +173,11 @@
 
   <main id="main">{% block main %}{% endblock %}</main>
 
+  {% if me.id %}{% include "partials/tour.html" %}{% endif %}
+
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
-    <p><a href="https://discord.gg/stfurequiem">Discord server</a>{% if config.DISCORD_CLIENT_ID %} | <a href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}</p>
+    <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a>{% if config.DISCORD_CLIENT_ID %} | <a href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}</p>
   </footer>
 </body>
 </html>

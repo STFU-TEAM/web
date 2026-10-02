@@ -1,6 +1,6 @@
 """Logged-in game pages. Every mutation goes through `action()`: take the
 per-user lock, reload fresh data from Redis, apply the rule, save."""
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, save_fight, user_lock
@@ -13,6 +13,8 @@ from app.game.fight import Fight, Side, fighting_copy
 from app.game.items import item_file, item_from_dict
 from app.game.logic import BANNERS, DEFAULT_SHOP, RECIPES, GameError
 from app.game.quests import QUEST_BY_ID, ensure_quests_assigned
+
+from app.routes.fightturn import play_turn  # noqa: E402
 
 bp = Blueprint("play", __name__)
 
@@ -49,6 +51,7 @@ def status(user):
         "wormhole": logic.cooldown_left(user.last_wormhole, logic.wormhole_wait(user)),
         "energy_in": logic.energy_refill_in(user),
         "free_slots": logic.free_slots(user),
+        "streak": logic.streak(user), "streak_rewards": logic.STREAK_REWARDS,
     }
 
 
@@ -60,6 +63,13 @@ def _refill(user):
     """Apply the bot's energy refill on page load (it also runs every minute bot-side)."""
     if logic.refill_energy(user):
         user.update()
+
+
+@bp.before_request
+def dungeon_closed():
+    if (request.endpoint or "").startswith("play.dungeon") and not current_app.config.get("DUNGEON_ENABLED"):
+        flash("The dungeon is closed for now. Try the story or the weekly boss rush.", "error")
+        return redirect(url_for("battles.index"))
 
 
 # --------------------------------------------------------------------------- #
@@ -86,7 +96,8 @@ def collection_ctx(user):
     counts = {}
     for c in user.storage_characters:
         counts[c.id] = counts.get(c.id, 0) + 1
-    return {"locked": logic.locked(user), "copies": counts,
+    fusable = sum(len(f) for _, f in logic.auto_fuse_plan(user))
+    return {"locked": logic.locked(user), "copies": counts, "fusable": fusable, "suggested": logic.best_team(user),
             "power": {c.uuid: power_score(c) for c in user.main_characters + user.storage_characters}}
 
 
@@ -144,6 +155,8 @@ def release():
     msg = None
     if res:
         msg = f"{res[0].name} was released." if len(res) == 1 else f"{len(res)} stands were released."
+        if len(uuids) > len(res):
+            msg += f" {len(uuids) - len(res)} locked or team stand{'s' if len(uuids) - len(res) != 1 else ''} kept."
     return _collection(user, msg, err)
 
 
@@ -161,6 +174,28 @@ def fuse():
     a, b = request.form.get("uuid"), request.form.get("fodder")
     user, res, err = action(lambda u: logic.fuse(u, a, b))
     return _collection(user, f"Fused. {res.name} is now awakening {res.awaken}, level {res.level}." if res else None, err)
+
+
+@bp.post("/team/autofuse")
+@player_required
+def autofuse():
+    user, res, err = action(logic.auto_fuse)
+    msg = None
+    if res:
+        msg = (f"Auto-fuse: {res['copies']} duplicate{'s' if res['copies'] != 1 else ''} fused into "
+               f"{len(res['stands'])} stand{'s' if len(res['stands']) != 1 else ''}.")
+    if request.values.get("view") == "toast":  # from the pull result
+        return render_template("partials/autofuse_toast.html", u=user, message=msg, error=err)
+    return _collection(user, msg, err)
+
+
+@bp.post("/team/lock-many")
+@player_required
+def lock_many():
+    uuids, lock_them = request.form.getlist("uuid"), request.form.get("lock") == "1"
+    user, res, err = action(lambda u: logic.set_locks(u, uuids, lock_them))
+    msg = None if err else f"{res} stand{'s' if res != 1 else ''} {'locked' if lock_them else 'unlocked'}."
+    return _collection(user, msg, err)
 
 
 @bp.post("/team/reforge")
@@ -185,6 +220,14 @@ def unequip():
     uuid, slot = request.form.get("uuid"), _int("slot")
     user, res, err = action(lambda u: logic.unequip(u, uuid, slot))
     return _collection(user, f"{res[1].name} removed from {res[0].name}." if res else None, err)
+
+
+@bp.post("/team/suggested")
+@player_required
+def use_suggested():
+    uuids = request.form.getlist("uuid")
+    user, res, err = action(lambda u: logic.use_team(u, uuids))
+    return _collection(user, "Suggested team in place: " + ", ".join(c.name for c in res) + "." if res else None, err)
 
 
 @bp.post("/team/preset/save")
@@ -234,7 +277,20 @@ def banners():
     history = [{**h, "rarities": sorted(h["rarities"], key=lambda x: -rank.get(x, 0))}
                for h in user.data.get("web_pull_history", [])[:10]]
     return render_template("banners.html", u=user, banners=active, arrows=arrows, st=status(user),
+                           sparks=logic.sparks(user), SPARK_COST=logic.SPARK_COST,
                            welcome=request.args.get("welcome"), history=history)
+
+
+@bp.post("/banners/<int:banner_id>/spark")
+@player_required
+def spark(banner_id: int):
+    stand_id = _int("stand")
+    user, res, err = action(lambda u: logic.spark_exchange(u, banner_id, stand_id))
+    if err:
+        flash(err, "error")
+    else:
+        flash(f"Spark exchange: {res.name} joined your collection.", "ok")
+    return redirect(url_for("play.banners") + f"#banner-{banner_id}")
 
 
 @bp.post("/banners/<int:banner_id>/<mode>")
@@ -248,8 +304,11 @@ def pull(banner_id: int, mode: str):
     if res:  # rarest last: reveal builds up to the best card
         res["cards"].sort(key=lambda e: rarity_score.get(e["stand"].rarity, 0))
     opening_id = 6 if top_rarity in ("UR", "LR") else 5 if top_rarity == "SSR" else 4
+    banner = next((b for b in BANNERS if b["id"] == banner_id), None)
+    fusable = sum(len(f) for _, f in logic.auto_fuse_plan(user))
     return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows,
-                           mode=mode, top_rarity=top_rarity, opening_id=opening_id)
+                           mode=mode, top_rarity=top_rarity, opening_id=opening_id, banner=banner,
+                           fusable=fusable, free=logic.free_slots(user))
 
 
 # --------------------------------------------------------------------------- #
@@ -269,7 +328,8 @@ def _recipes(user):
     out = []
     for r in RECIPES:
         parts = [(item_file[i - 1]["name"], n, have.get(i, 0)) for i, n in r["ingredients"]]
-        out.append({"name": r["name"], "parts": parts, "ready": all(h >= n for _, n, h in parts)})
+        result = item_from_dict({"id": r["result"]})
+        out.append({"name": r["name"], "parts": parts, "ready": all(h >= n for _, n, h in parts), "result": result})
     return out
 
 
@@ -401,8 +461,10 @@ def wormhole_start():
 
     def start(u):
         name, enemies, multi = logic.wormhole_start(u)
+        foes = Side(name, enemies, False)
+        foes.ai = "easy" if u.level < 5 else "smart"
         fight = Fight(Side(session.get("name", "You"), fighting_copy(u.main_characters), True, session.get("avatar")),
-                      Side(name, enemies, False), meta={"multi": multi})
+                      foes, meta={"multi": multi})
         fight.advance()
         return fight
 
@@ -416,28 +478,8 @@ def wormhole_start():
 @bp.post("/wormhole/attack")
 @player_required
 def wormhole_attack():
-    uid = session["uid"]
-    try:
-        with user_lock(uid, ttl=5):
-            fight = load_fight(uid)
-            if fight is None or fight.kind != "wormhole":
-                return '<p class="notice">This wormhole fight is not active. <a href="/wormhole">Back to the wormhole</a></p>', 409
-            if not fight.finished:
-                if request.form.get("forfeit"):
-                    fight.forfeit()
-                else:
-                    fight.advance(_int("target"))
-            if fight.finished and fight.rewards is None:
-                u = get_db().get_user(uid)
-                fight.rewards = logic.wormhole_reward(u, fight.winner == 0, fight.meta.get("multi", 1))
-                u.update()
-            save_fight(uid, fight)
-    except Busy:
-        fight = load_fight(uid)
-    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"),
-                           fight_action=url_for("play.wormhole_attack"),
-                           fight_leave_action=url_for("play.wormhole_leave"), fight_label="Wormhole")
-
+    return play_turn("wormhole", url_for("play.wormhole"), "Wormhole", "play.wormhole_attack", "play.wormhole_leave",
+                     lambda user, fight: logic.wormhole_reward(user, fight.winner == 0, fight.meta.get("multi", 1)))
 
 @bp.post("/wormhole/leave")
 @player_required
@@ -462,7 +504,7 @@ TOWER_COST = 500
 def _tower_team(stage, completed_towers):
     enemies = []
     for char_id, type_name, quality, awaken in TOWER_WAVES[stage]:
-        data = {"id": char_id, "xp": (2000 + stage * 1000) + completed_towers * 2000,
+        data = {"id": char_id, "xp": (1000 + stage * 900) + completed_towers * 2000,
                 "awaken": min(3, awaken + completed_towers // 2), "types": [type_name],
                 "qualities": [quality], "items": [{"id": 1}]}
         enemies.append(character_from_dict(data))
@@ -521,54 +563,35 @@ def tower_start():
     return redirect(url_for("play.tower"))
 
 
+def _tower_settle(user, fight):
+    won = fight.winner == 0
+    rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    if not won:
+        user.data["web_tower_active"] = False
+        return rewards
+    stage = int(fight.meta["stage"])
+    rewards.update(fragments=150 + stage * 50, xp=100 + stage * 50, stand_xp=10 + stage * 5)
+    user.fragments += rewards["fragments"]
+    user.xp += rewards["xp"]
+    for char in user.main_characters:
+        char.xp += rewards["stand_xp"]
+    item = item_from_dict({"id": (13, 1, 2, 7, 9)[stage % 5]})
+    user.items.append(item)
+    rewards["item"] = item.name
+    if stage == len(TOWER_WAVES) - 1:
+        user.tower_level = max(user.tower_level, int(fight.meta["tower_level"]) + 1)
+        user.data["web_tower_floor"] = 0
+        user.data["web_tower_active"] = False
+        logic.track_quest_progress(user, "tower_complete")
+    else:
+        user.data["web_tower_floor"] = stage + 1
+    return rewards
+
+
 @bp.post("/tower/attack")
 @player_required
 def tower_attack():
-    uid = session["uid"]
-    try:
-        with user_lock(uid, ttl=5):
-            fight = load_fight(uid)
-            if fight is None or fight.kind != "tower":
-                return '<p class="notice">This tower fight expired. <a href="/tower">Back to the tower</a></p>'
-            if not fight.finished:
-                if request.form.get("forfeit"):
-                    fight.forfeit()
-                else:
-                    fight.advance(_int("target"))
-            if fight.finished and fight.rewards is None:
-                user = get_db().get_user(uid)
-                won = fight.winner == 0
-                rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
-                if won:
-                    stage = int(fight.meta["stage"])
-                    rewards["fragments"] = 150 + stage * 50
-                    rewards["xp"] = 100 + stage * 50
-                    rewards["stand_xp"] = 10 + stage * 5
-                    user.fragments += rewards["fragments"]
-                    user.xp += rewards["xp"]
-                    for char in user.main_characters:
-                        char.xp += rewards["stand_xp"]
-                    item = item_from_dict({"id": (13, 1, 2, 7, 9)[stage % 5]})
-                    user.items.append(item)
-                    rewards["item"] = item.name
-                    if stage == len(TOWER_WAVES) - 1:
-                        user.tower_level = max(user.tower_level, int(fight.meta["tower_level"]) + 1)
-                        user.data["web_tower_floor"] = 0
-                        user.data["web_tower_active"] = False
-                        logic.track_quest_progress(user, "tower_complete")
-                    else:
-                        user.data["web_tower_floor"] = stage + 1
-                else:
-                    user.data["web_tower_active"] = False
-                fight.rewards = rewards
-                user.update()
-            save_fight(uid, fight)
-    except Busy:
-        fight = load_fight(uid)
-    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"),
-                           fight_action=url_for("play.tower_attack"),
-                           fight_leave_action=url_for("play.tower_leave"), fight_label="Tower")
-
+    return play_turn("tower", url_for("play.tower"), "Tower", "play.tower_attack", "play.tower_leave", _tower_settle)
 
 @bp.post("/tower/leave")
 @player_required
@@ -684,47 +707,30 @@ def dungeon_move():
     return redirect(url_for("play.dungeon"))
 
 
+def _dungeon_settle(user, fight):
+    won = fight.winner == 0
+    for char in user.main_characters:
+        char.xp += 10
+    user.xp += 100
+    state = user.data.get("web_dungeon")
+    if state and not won:
+        state["energy"] -= 2
+    exhausted = bool(state and state["energy"] <= 0)
+    if exhausted:
+        user.data.pop("web_dungeon", None)
+        user.data["web_dungeon_message"] = "The expedition ran out of energy before reaching the exit."
+    elif won:
+        user.data["web_dungeon_message"] = "Monsters defeated. Continue toward the exit."
+    else:
+        user.data["web_dungeon_message"] = "The team was defeated and lost 2 more energy."
+    return {"won": won, "fragments": 0, "xp": 100, "stand_xp": 10, "item": None, "dungeon_exhausted": exhausted}
+
+
 @bp.post("/adventure/dungeon/attack")
 @player_required
 def dungeon_attack():
-    uid = session["uid"]
-    try:
-        with user_lock(uid, ttl=5):
-            fight = load_fight(uid)
-            if fight is None or fight.kind != "dungeon":
-                return '<p class="notice">This dungeon fight is no longer active. <a href="/adventure/dungeon">Back to dungeon</a></p>', 409
-            if not fight.finished:
-                if request.form.get("forfeit"):
-                    fight.forfeit()
-                else:
-                    fight.advance(_int("target"))
-            if fight.finished and fight.rewards is None:
-                user = get_db().get_user(uid)
-                won = fight.winner == 0
-                for char in user.main_characters:
-                    char.xp += 10
-                user.xp += 100
-                state = user.data.get("web_dungeon")
-                if state and not won:
-                    state["energy"] -= 2
-                exhausted = bool(state and state["energy"] <= 0)
-                if exhausted:
-                    user.data.pop("web_dungeon", None)
-                    user.data["web_dungeon_message"] = "The expedition ran out of energy before reaching the exit."
-                elif won:
-                    user.data["web_dungeon_message"] = "Monsters defeated. Continue toward the exit."
-                else:
-                    user.data["web_dungeon_message"] = "The team was defeated and lost 2 more energy."
-                fight.rewards = {"won": won, "fragments": 0, "xp": 100,
-                                 "stand_xp": 10, "item": None, "dungeon_exhausted": exhausted}
-                user.update()
-            save_fight(uid, fight)
-    except Busy:
-        fight = load_fight(uid)
-    return render_template("partials/fight.html", fight=fight, fresh_from=_int("log_len"),
-                           fight_action=url_for("play.dungeon_attack"),
-                           fight_leave_action=url_for("play.dungeon_leave"), fight_label="Dungeon")
-
+    return play_turn("dungeon", url_for("play.dungeon"), "Dungeon", "play.dungeon_attack", "play.dungeon_leave",
+                     _dungeon_settle)
 
 @bp.post("/adventure/dungeon/leave")
 @player_required

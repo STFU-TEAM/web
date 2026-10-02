@@ -1,45 +1,84 @@
 {% extends "base.html" %}
 {% block title %}Story | STFU Requiem{% endblock %}
 {% block main %}
-<section class="page narrow story">
-  <p class="kicker">Story mode · {{ done }}/{{ total }} steps</p>
-  {% if step %}
-    {% set n = chapter.steps|length %}
-    <h1 class="display sm">{{ chapter.name }}</h1>
-    <ol class="story-dots" aria-label="Chapter progress">
-      {% for s in chapter.steps %}<li class="{{ 'done' if loop.index0 < idx else ('now' if loop.index0 == idx) }}"><span class="sr">Step {{ loop.index }}</span></li>{% endfor %}
-    </ol>
-    <article class="story-step">
-      <p class="muted">Step {{ idx + 1 }} of {{ n }}</p>
-      <h2 class="h2">{{ step.title }}</h2>
-      {% if step.image %}<img class="story-image" src="{{ step.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">{% endif %}
-      <div class="story-text">{% for para in step.text.split('\n') if para.strip() %}<p>{{ para|replace('**', '') }}</p>{% endfor %}</div>
-      {% if step.action_label %}
-        <p class="story-task {{ 'met' if met else '' }}">{{ '✅' if met else '⏳' }} {{ step.action_label }}
-          {% if not met and link %}<a class="btn small" href="{{ url_for(link[0]) }}">{{ link[1] }}</a>{% endif %}</p>
-      {% endif %}
-      {% if reward %}<p class="story-reward">🎁 {{ 'Claimed: ' if already_claimed else 'Reward: ' }}{{ reward|join(', ') }}</p>{% endif %}
-      <div class="story-nav">
-        <form method="post" action="{{ url_for('progress.story_back') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <button class="btn ghost" {% if chapter.id == 1 and idx == 0 %}disabled{% endif %}>← Back</button></form>
-        <form method="post" action="{{ url_for('progress.story_next') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <button class="btn gold" {% if not met %}disabled{% endif %}>{{ 'Claim & continue →' if reward and not already_claimed else 'Continue →' }}</button></form>
+<section class="page story">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Story mode · The Bizarre Journey</p>
+      <h1 class="display sm">{{ stage.part_title if stage else 'Journey complete' }}</h1>
+    </div>
+    <div class="story-progress" title="Stages cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} stages
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+  </header>
+  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% elif stage %}
+    {% set part = journey|selectattr('part', 'equalto', stage.part)|first %}
+    <article class="story-stage{% if stage.boss %} boss{% endif %}" style="--part: {{ part.color }}">
+      <div class="story-stage-text">
+        <p class="kicker">Stage {{ stage.number }}{% if stage.boss %} · Boss{% endif %}{% if stage.jojo %} · alongside {{ stage.jojo }}{% endif %}</p>
+        <h2 class="h2">{{ stage.title }}</h2>
+        {% if stage.index == 0 or part.stages[0].index == stage.index %}<p class="story-intro">{{ part.intro }}</p>{% endif %}
+        <p class="story-text">{{ stage.text }}</p>
+        <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
+        {% if u.main_characters %}
+          <form method="post" action="{{ url_for('progress.story_fight') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn gold big">{{ 'Face the boss' if stage.boss else 'Fight' }} →</button>
+          </form>
+        {% else %}
+          {% if u.storage_characters %}
+            <p class="notice">Put at least one stand in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+          {% else %}
+            <p class="notice">You need stands to fight. Your first pull fills your team. <a class="btn small gold" href="{{ url_for('play.banners') }}">Summon</a></p>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div class="story-foes" aria-label="Enemies">
+        <p class="muted">Enemies · level {{ stage.level }}{% if stage.awaken %} · ★{{ stage.awaken }}{% endif %} · {{ stage.quality }}</p>
+        <ul>
+          {% for c in stage.enemy_stands %}
+            <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">
+              <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span>{{ c.name }}</span><small>{{ c.rarity }}</small></a></li>
+          {% endfor %}
+        </ul>
       </div>
     </article>
   {% else %}
-    <h1 class="display sm">Story complete 🎉</h1>
-    <p class="lede">You've finished every chapter written so far. New chapters arrive with updates.</p>
-    <form method="post" action="{{ url_for('progress.story_back') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn ghost">Reread the last step</button></form>
+    <article class="story-stage done">
+      <h2 class="h2">You walked through every part 🎉</h2>
+      <p class="story-text">The Arrow finally lets go. Every JoJo you fought beside remembers a stranger who showed up when it mattered. New parts arrive with updates.</p>
+    </article>
   {% endif %}
 
-  <h2 class="h3 story-chapters-title">Chapters</h2>
-  <ul class="story-chapters">
-    {% for row in chapters %}
-      <li class="{{ 'current' if row.current }}"><strong>{{ row.chapter.id }}. {{ row.chapter.name }}</strong>
-        <span class="muted">{{ row.chapter.description }}</span>
-        <div class="meter"><i style="width: {{ (100 * row.done / row.total)|round }}%"></i></div>
-        <small class="muted">{{ row.done }}/{{ row.total }}</small></li>
+  <h2 class="h3 story-map-title">The journey</h2>
+  <ol class="story-map">
+    {% for p in journey %}
+      <li class="story-part{% if p.cleared == p.stages|length %} complete{% endif %}" style="--part: {{ p.color }}">
+        <header><strong>{{ p.title }}</strong>{% if p.jojo %}<small>{{ p.jojo }}</small>{% endif %}<span class="muted">{{ p.cleared }}/{{ p.stages|length }}</span></header>
+        <ol class="story-nodes">
+          {% for s in p.stages %}
+            <li class="node {{ s.state }}{% if s.boss %} boss{% endif %}" title="{{ s.title }} · enemy level {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}">
+              <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if s.boss else s.index + 1) }}</span>
+              <span class="node-label">{{ s.title }}</span>
+              <small class="node-level">Lv {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}</small>
+              {% if s.state == 'cleared' and not fight %}
+                <form method="post" action="{{ url_for('progress.story_fight') }}" class="node-replay">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="stage" value="{{ s.index }}">
+                  <button class="btn small ghost" title="Replay for stand XP and a fifth of the fragments">↻ 1⚡</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </li>
     {% endfor %}
-  </ul>
+  </ol>
+  <p class="muted wiki-note">Cleared stages can be replayed for 1 energy: full stand XP and a fifth of the fragments, a good way to level a new team. Enemies grow stronger with every stage. When a stage is a wall, come back after levelling, fusing and pulling: first-clear rewards include Stand Arrows and a super fragment for every boss.</p>
 </section>
 {% endblock %}

@@ -65,20 +65,30 @@
       {% endif %}
     </section>
 
-    <section class="social-panel gang-card" id="raid">
-      <h2 class="h2">🐉 Raid: {{ raid.name }}</h2>
-      {% if raid_active %}
-        {% set pct = [100 * gang.damage_to_current_raid / raid.target_damage, 100]|min %}
-        <div class="meter" role="meter" aria-label="Raid damage" aria-valuemin="0" aria-valuemax="{{ raid.target_damage }}" aria-valuenow="{{ gang.damage_to_current_raid }}"><i style="width: {{ pct|round }}%"></i></div>
-        <p>{{ gang.damage_to_current_raid|num }} / {{ raid.target_damage|num }} damage · ends in {{ (gang.end_of_raid - now)|delta }}</p>
-        {% if raid_attacked %}<p class="muted">You already attacked in this raid.</p>
-        {% else %}{{ post('gangs.attack_start', 'Attack the raid boss', 'btn gold', mode='raid') }}{% endif %}
-      {% else %}
-        <p class="muted">Costs {{ raid.cost|num }} vault fragments. Hit {{ raid.target_damage|num }} total damage in 24 hours: every attacker earns fragments and stand XP, and the stash gets one of {{ raid_rewards|join(', ') }}.</p>
-        {% if capo %}{{ post('gangs.raid_start', 'Start a raid', 'btn gold' if gang.vault >= raid.cost else 'btn', confirm='Spend ' ~ raid.cost ~ ' vault fragments on a raid?') }}{% endif %}
-      {% endif %}
-      {% if raid_record %}
-        <p class="muted">Last raid: {{ 'success, rewards sent to the stash' if raid_record.successful else 'failed' }}.</p>
+    <section class="social-panel gang-card raid-card" id="raid">
+      <p class="kicker">Weekly raid · ends in {{ (week_ends - now)|delta }}</p>
+      <h2 class="h2">🐉 {{ raid_villain.name }}</h2>
+      <p class="muted">{{ raid_villain.flavor }}</p>
+      {% set top = tiers[-1].damage %}
+      <div class="raid-meter" role="meter" aria-label="Gang raid damage" aria-valuemin="0" aria-valuemax="{{ top }}" aria-valuenow="{{ raid.damage }}">
+        <i style="width: {{ ([100 * raid.damage / top, 100]|min)|round(1) }}%"></i>
+        {% for t in tiers %}<span class="raid-tick{% if raid.damage >= t.damage %} reached{% endif %}" style="left: {{ 100 * t.damage / top }}%" title="Tier {{ loop.index }}: {{ t.damage|num }}"></span>{% endfor %}
+      </div>
+      <p><strong>{{ raid.damage|num }}</strong> damage this week</p>
+      <ol class="raid-tiers">
+        {% for t in tiers %}
+          <li class="{{ 'reached' if raid.damage >= t.damage }}"><strong>Tier {{ loop.index }} · {{ t.damage|num }}</strong><span>{{ t.text }}</span></li>
+        {% endfor %}
+      </ol>
+      <div class="raid-actions">
+        {% if raid_ready %}{{ post('gangs.attack_start', 'Attack ' ~ raid_villain.name, 'btn gold', mode='raid') }}
+        {% else %}<p class="muted">You attacked today. Come back tomorrow.</p>{% endif %}
+        {% if raid_claim %}{{ post('gangs.raid_claim', 'Claim ' ~ raid_claim|length ~ ' tier reward' ~ ('s' if raid_claim|length > 1 else ''), 'btn gold') }}{% endif %}
+      </div>
+      <p class="muted small-print">One attack per member per day. The boss can't fall: every point of damage counts. Everyone who attacked this week claims each tier the gang reaches.</p>
+      {% if raid_hits %}
+        <h3 class="h3">Top damage this week</h3>
+        <ol class="raid-hits">{% for name, d in raid_hits[:8] %}<li><span>{{ name }}</span><strong>{{ d|num }}</strong></li>{% endfor %}</ol>
       {% endif %}
     </section>
   </div>
@@ -139,7 +149,7 @@
     <h2 class="h2">Vault & stash</h2>
     <div class="gang-grid">
       <div>
-        <p>The vault holds <strong>{{ gang.vault|num }}</strong> fragments. Raids are paid from it.</p>
+        <p>The vault holds <strong>{{ gang.vault|num }}</strong> fragments. Pay members from it for their raid and war work.</p>
         <form class="inline" method="post" action="{{ url_for('gangs.deposit') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token }}">
           <label><span class="sr">Amount</span><input type="number" name="amount" min="1" max="{{ u.fragments }}" placeholder="Amount" required></label>
@@ -165,7 +175,7 @@
               </li>
             {% endfor %}
           </ul>
-        {% else %}<p class="muted">Empty. Successful raids drop item parts here.</p>{% endif %}
+        {% else %}<p class="muted">Empty.</p>{% endif %}
       </div>
     </div>
   </section>
@@ -218,5 +228,13 @@
     </ol>
   </section>
 {% endif %}
+  <section class="social-panel">
+    <h2 class="h2">🐉 Raid leaderboard · {{ raid_villain.name }}</h2>
+    {% if raid_board %}
+      <ol class="social-list gang-standings">
+        {% for row in raid_board %}<li><span class="rank">{{ loop.index }}</span><strong>{{ row.name }}</strong><span></span><b>{{ row.damage|num }} dmg</b></li>{% endfor %}
+      </ol>
+    {% else %}<p class="muted">No gang has hit {{ raid_villain.name }} yet this week.</p>{% endif %}
+  </section>
 </section>
 {% endblock %}

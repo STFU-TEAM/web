@@ -14,6 +14,15 @@
       <div><p class="kicker">Combat arena</p><h1 class="display sm">Battles</h1></div>
       <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
     </header>
+    {% if story_stage %}
+      <a class="story-cta" href="{{ url_for('progress.story_page') }}">
+        <span class="story-cta-icon" aria-hidden="true">📜</span>
+        <span><small>Story mode · {{ story_cleared }}/{{ story_total }} · {{ story_stage.part_title }}</small>
+          <strong>Next: {{ story_stage.title }}{% if story_stage.boss %} (boss){% endif %}</strong>
+          <span class="muted">{{ 'Fight beside ' ~ story_stage.jojo ~ '.' if story_stage.jojo else 'The Arrow is waiting.' }} First clear: {{ story_stage.reward|join(', ') }}.</span></span>
+        <span class="btn gold">Continue →</span>
+      </a>
+    {% endif %}
     <nav class="tabs battle-tabs" aria-label="Battle mode">
       {% for key, label in [('dummy', 'Dummy'), ('ranked', 'Ranked'), ('friends', 'Friends')] %}
         <a href="{{ url_for('battles.index', mode=key) }}" {% if mode == key %}aria-current="true"{% endif %}>{{ label }}</a>

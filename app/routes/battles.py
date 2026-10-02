@@ -8,7 +8,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from app.accounts import resolve_player
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import logic
+from app.game import logic, story
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, fighting_copy
 from app.filters import PLAYABLE
@@ -73,9 +73,11 @@ def index():
             pending.append(challenge)
         else:
             r().srem(inbox, challenge_id)
-    return render_template("battles.html", u=get_db().get_user(uid), mode=request.args.get("mode", "dummy"),
+    user = get_db().get_user(uid)
+    return render_template("battles.html", u=user, mode=request.args.get("mode", "dummy"),
                            fight=_active_fight(uid), pending=pending, waiting=bool(r().zscore(RANKED_QUEUE, uid)),
-                           stands=PLAYABLE)
+                           stands=PLAYABLE, story_stage=story.current(user), story_cleared=story.cleared(user),
+                           story_total=story.TOTAL)
 
 
 @bp.post("/dummy/start")

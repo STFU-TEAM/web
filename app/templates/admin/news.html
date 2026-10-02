@@ -1,0 +1,54 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}News{% endblock %}
+{% block admin %}
+{% set p = editing or {} %}
+<section class="admin-card">
+  <h2 class="h2">{{ 'Edit post' if editing else 'New post' }}</h2>
+  <form class="news-form" method="post" enctype="multipart/form-data" action="{{ url_for('admin.news_admin', edit=p.id) if editing else url_for('admin.news_admin') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% if editing %}<input type="hidden" name="id" value="{{ p.id }}">{% endif %}
+    <label>Title <input type="text" name="title" maxlength="120" required value="{{ form.get('title', p.get('title', '')) }}"></label>
+    <label>Post
+      <textarea name="body" rows="12" maxlength="10000" required placeholder="Blank lines start a new paragraph. **bold** and [link text](https://…) work.">{{ form.get('body', p.get('body', '')) }}</textarea>
+    </label>
+    <fieldset class="news-cover-pick">
+      <legend>Cover image</legend>
+      {% if p.cover %}<img src="{{ p.cover }}" alt="Current cover" class="news-cover-preview">{% endif %}
+      <label>Upload (PNG, JPEG, GIF or WebP, up to 3 MB) <input type="file" name="cover_file" accept="image/png,image/jpeg,image/gif,image/webp" data-cover-input></label>
+      <label>…or link <input type="url" name="cover_url" placeholder="https://…" value="{{ form.get('cover_url', p.cover if p.cover and p.cover.startswith('https://') else '') }}"></label>
+      {% if p.cover %}<label class="check"><input type="checkbox" name="remove_cover" value="1"> Remove the cover</label>{% endif %}
+      <img class="news-cover-preview" data-cover-preview hidden alt="New cover preview">
+    </fieldset>
+    <div class="banner-actions">
+      <button class="btn gold">{{ 'Save changes' if editing else 'Publish' }}</button>
+      {% if editing %}<a class="btn ghost" href="{{ url_for('admin.news_admin') }}">Cancel</a>{% endif %}
+    </div>
+  </form>
+</section>
+
+<section class="admin-card">
+  <h2 class="h2">Published</h2>
+  {% if posts %}
+    <ul class="admin-news">
+      {% for post in posts %}
+        <li>
+          {% if post.cover %}<img src="{{ post.cover }}" alt="" loading="lazy">{% else %}<span class="no-cover" aria-hidden="true">📰</span>{% endif %}
+          <span><a href="{{ url_for('main.news_post', post_id=post.id) }}"><strong>{{ post.title }}</strong></a><small class="muted">{{ post.created[:16]|replace('T', ' ') }}</small></span>
+          <a class="btn small ghost" href="{{ url_for('admin.news_admin', edit=post.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('admin.news_delete', post_id=post.id) }}" onsubmit="return confirm('Delete “{{ post.title|e }}”?')">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Delete</button></form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}<p class="muted">Nothing published yet.</p>{% endif %}
+</section>
+<script>
+document.addEventListener("change", (e) => {
+  if (!e.target.matches("[data-cover-input]")) return;
+  const img = document.querySelector("[data-cover-preview]");
+  const file = e.target.files[0];
+  img.hidden = !file;
+  if (file) img.src = URL.createObjectURL(file);
+});
+</script>
+{% endblock %}

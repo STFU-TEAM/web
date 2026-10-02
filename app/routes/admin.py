@@ -14,7 +14,7 @@ from app.game import logic
 from app.game.character import CHARACTER_FILE, get_character_from_template
 from app.game.items import item_file, item_from_dict
 from app.game.logic import BANNERS
-from app.game.story import CHAPTERS
+from app.game import story
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 MAX_CURRENCY_GRANT = 1_000_000
@@ -163,7 +163,7 @@ def player(uid):
                            username=accounts.username_of(uid), banned=r().sismember("web:banned", uid),
                            items=sorted(counts.values(), key=lambda x: x[0].id), stands=stands,
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, fight=load_fight(uid),
-                           history=_audit_rows(15, target=uid), now=logic.now(), chapters=CHAPTERS,
+                           history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
                            section="players")
 
 
@@ -299,7 +299,8 @@ def player_action(uid, op):
 
     elif op == "story_reset":
         def run(t):
-            t.story_progress = {"current_chapter": 1, "current_step": 1, "completed_steps": [], "rewards_claimed": []}
+            t.data["web_story"] = {"cleared": 0}
+            r().delete(f"web:story_done:{uid}")
         _edit(uid, run, "story_reset", f"Story reset for {name}.")
 
     elif op == "supporter":
@@ -434,6 +435,40 @@ def banners():
     rows = [{"b": b, "on": logic.banner_enabled(b), "override": r().hget("web:banner_state", str(b["id"]))}
             for b in BANNERS]
     return render_template("admin/banners.html", rows=rows, section="banners")
+
+
+@bp.route("/news", methods=["GET", "POST"])
+@admin_required
+def news_admin():
+    from app import news
+    editing = news.get_post(request.args.get("edit", "")) if request.args.get("edit") else None
+    if request.method == "POST":
+        f = request.form
+        upload = request.files.get("cover_file")
+        data = upload.read() if upload and upload.filename else None
+        try:
+            post = news.save_post(session["uid"], f.get("title", ""), f.get("body", ""), f.get("cover_url", ""),
+                                  data, post_id=f.get("id") or None, remove_cover=bool(f.get("remove_cover")))
+        except news.NewsError as e:
+            flash(str(e), "error")
+            return render_template("admin/news.html", posts=news.list_posts(50), editing=editing, form=f,
+                                   section="news"), 400
+        audit("news_edit" if f.get("id") else "news_post", post["id"], title=post["title"])
+        flash("Post updated." if f.get("id") else "Post published.", "ok")
+        return redirect(url_for("main.news_post", post_id=post["id"]))
+    return render_template("admin/news.html", posts=news.list_posts(50), editing=editing, form={}, section="news")
+
+
+@bp.post("/news/<post_id>/delete")
+@admin_required
+def news_delete(post_id):
+    from app import news
+    post = news.get_post(post_id)
+    if post:
+        news.delete_post(post_id)
+        audit("news_delete", post_id, title=post["title"])
+        flash("Post deleted.", "ok")
+    return redirect(url_for("admin.news_admin"))
 
 
 @bp.get("/audit")

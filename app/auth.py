@@ -253,6 +253,7 @@ def welcome():
                 user = db.add_user(session["uid"])
                 begin(user)
                 user.update()
+                r().set(f"web:tour:{session['uid']}", 1)  # show the new-player tour once
         except Busy:
             return redirect(url_for("auth.welcome"))
         return redirect(url_for("play.banners", welcome=1))

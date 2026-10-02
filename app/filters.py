@@ -50,6 +50,16 @@ def register(app):
         chars = [CHARACTER_FILE[i - 1] for i in banner["cards"]]
         return sorted(chars, key=lambda c: order.index(c["rarity"]))
 
+    @app.template_filter("news_body")
+    def news_body(text):
+        from app.news import render_body
+        return render_body(text or "")
+
+    @app.template_filter("news_summary")
+    def news_summary(text, length=180):
+        from app.news import summary
+        return summary(text or "", length)
+
     @app.template_filter("rarity")
     def rarity(r):
         return RARITY.get(r, "common")
@@ -139,7 +149,14 @@ def register(app):
     def inject():
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(24)
+        uid = session.get("uid")
+        story_hot = tour_pending = False
+        if uid and request.endpoint != "static":
+            from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
+            story_hot = not r().exists(f"web:story_done:{uid}")
+            tour_pending = bool(r().exists(f"web:tour:{uid}"))
         return {
+            "story_hot": story_hot, "tour_pending": tour_pending,
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),

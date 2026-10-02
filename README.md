@@ -28,8 +28,15 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Ranked Elo ladder, with global player profiles
 - Battle modes: dummy practice, live ranked queue and accepted friend challenges
 - Fight special animations loaded from `IMAGE_BASE_URL/special/<stand_id>.gif` when available
-- Gangs: ranks (kick/promote/demote/hand over boss), guardians, vault + payments, stash, wars and
-  raids. Wars are matched and raids are closed by the bot's warmatchmaking/raid_end workers
+- Gangs: ranks (kick/promote/demote/hand over boss), guardians, vault + payments, stash and wars
+  (matched by the bot's warmatchmaking worker). Weekly raids are web-only: one villain a week,
+  one attack per member per day, four damage tiers every attacker claims (`app/game/gangs.py`)
+- Story mode (`app/game/story.py`) and the weekly boss rush (`app/game/rush.py`): the six story
+  bosses back to back with health carried over, one run a day, weekly leaderboard
+- News feed (`app/news.py`): admins post from /admin/news with an uploaded or linked cover image
+- Crafting: materials (Meteorite Shard, Rokakaka Fruit, Arrow Fragment) and craftable gear in
+  `items.json` / `recipes.json`; gear specials live in `itemabilities.py`
+- The adventure dungeon is closed for now: set `DUNGEON_ENABLED=1` to bring it back
 - Logins: Discord OAuth or username + password (app/accounts.py). Password saves get an `acc…` id;
   linking Discord later moves the save to the Discord id so the bot sees it
 - Story mode, achievements page, trades (async offers of stands/items/fragments), item selling
@@ -69,8 +76,15 @@ It uses the existing `DISCORD_CLIENT_ID` and requests the `bot` and
 Admin access mirrors the bot's `give_character` permission IDs by default. Set
 `DISCORD_ADMIN_IDS` to a comma-separated Discord ID list to override them.
 
+## Local testing
+`pip install -r requirements-dev.txt && python scripts/dev.py`, then log in at
+http://127.0.0.1:5000/auth/login with `admin` / `admin`. That account is an admin (`/admin`)
+and starts with a team, storage, fragments and items. Data lives in an in-memory Redis
+that is wiped when the server stops; pass `--redis redis://localhost:6379/0` to keep it.
+The script ignores `REDIS_URL`, so it never touches the bot's Redis by accident.
+
 ## Tests
-`pip install -r requirements.txt pytest fakeredis && pytest -q`
+`pip install -r requirements-dev.txt && pytest -q`
 
 ## Storage migration
 Preview the old-box consolidation against the configured Redis database with

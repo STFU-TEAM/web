@@ -1,0 +1,29 @@
+{#- New-player tour: each step points at a nav tab (desktop bar or mobile dock) and says why it matters.
+    Starts once for a new save (tour_pending) or from "Show me around" (?tour=1). -#}
+<script type="application/json" id="tour-steps">{{ [
+  {"title": "The Arrow chose you", "text": "Thirty seconds to see where everything lives. You can replay this from your account menu anytime."},
+  {"target": ["team"], "title": "Team", "text": "Your three fighters and every stand you own. Put your best three in the team, lock favourites, and auto-fuse R and SR duplicates to make them stronger."},
+  {"target": ["banners"], "title": "Summon", "text": "Super fragments buy ten stands from a banner. You start with one, so pull now. Pity guarantees an SSR or better within " ~ PITY_LIMIT ~ " pulls."},
+  {"target": ["battle"], "title": "Battle · start with the Story", "text": "The Story sends you through Parts 3 to 8 beside each JoJo, with arrows and super fragments on the way. Wormhole and Tower farm loot, the weekly boss rush has a leaderboard, and Battles is where ranked Elo lives."},
+  {"target": ["progress"], "title": "Progress", "text": "Daily and weekly quests are your steadiest source of fragments. Achievements pay out for long-term milestones."},
+  {"target": ["community", "menu"], "title": "Community", "text": "Join a gang for wars and raids, trade stands with friends, and buy from player shops."},
+  {"target": ["explore", "menu"], "title": "Explore", "text": "The wiki explains fights: terrains, synergies and status effects. Every stand's stats and special are in the encyclopedia."},
+  {"title": "Ready?", "text": "Pull your first stands, then begin the journey in Part 3 alongside Jotaro.", "cta": [url_for('play.banners'), "Summon"], "cta2": [url_for('progress.story_page'), "Start the story"]},
+]|tojson }}</script>
+<div class="tour" id="tour" hidden data-autostart="{{ 1 if tour_pending else 0 }}" data-done="{{ url_for('progress.tour_done') }}">
+  <div class="tour-spot" aria-hidden="true"></div>
+  <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <p class="tour-count muted"></p>
+    <h2 class="h3" id="tour-title"></h2>
+    <p class="tour-text"></p>
+    <div class="tour-actions">
+      <button type="button" class="btn small ghost" data-tour-skip>Skip</button>
+      <span class="tour-nav">
+        <button type="button" class="btn small" data-tour-back>Back</button>
+        <button type="button" class="btn small gold" data-tour-next>Next</button>
+        <a class="btn small" data-tour-cta hidden></a>
+        <a class="btn small gold" data-tour-cta2 hidden></a>
+      </span>
+    </div>
+  </div>
+</div>

@@ -79,6 +79,10 @@
             <button class="btn small gold">Swap in</button>
           </form>
         {% endif %}
+        {% set need = 3 - c.awaken %}
+        {% if need > 0 %}
+          <p class="fuse-path {{ 'ready' if dupes|length >= need else '' }}">★{{ c.awaken }} → ★3: {{ need }} more cop{{ 'ies' if need != 1 else 'y' }} needed · you own {{ dupes|length }} spare{{ 's' if dupes|length != 1 }}{% if dupes|length >= need %} — enough to max it{% endif %}.</p>
+        {% endif %}
         {% if dupes %}
           <form class="inline" hx-post="{{ url_for('play.fuse') }}" {{ acts|safe }} hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
             <input type="hidden" name="uuid" value="{{ c.uuid }}">

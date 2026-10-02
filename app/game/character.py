@@ -5,7 +5,10 @@ import enum
 import uuid
 
 from app.game.items import Item, item_from_dict
-from app.game.effects import Effect, EffectType
+from app.game.effects import (
+    DOT_EFFECTS, STAT_EFFECTS, TERRAIN_CRIT_MULT, TERRAIN_CRIT_PIERCES, TERRAIN_DAMAGE_MULT, TERRAIN_DOT_MULT,
+    TERRAIN_HEAL_MULT, TERRAIN_NO_DODGE, TERRAIN_REGEN, Effect, EffectType, Terrain,
+)
 from app.game.characterabilities import (
     specials,
     not_implemented,
@@ -13,13 +16,19 @@ from app.game.characterabilities import (
 from typing import List, TypeVar
 
 
-HPSCALING = 3
-DAMAGESCALING = 1
+# Health and damage grow at the same rate so a fight takes as many hits at level 100 as at level 1.
+HPSCALING = 2
+DAMAGESCALING = 2
 SPEEDSCALING = 1
 CRITICALSCALING = 1
 CRITMULTIPLIER = 1.5  # bot's globals/variables.py value; character.py shadowed it with 1
+CRIT_CHANCE_CAP = 75
 DODGENERF = 1
 DODGE_CHANCE_CAP = 25
+ARMOR_CAP = 400  # damage taken never drops below 200 / (100 + 400) = 40%
+GROWTH_CAP = 1.0
+TAUNT_HP = 0  # taunt already draws every basic attack; keep the extra bulk modest
+TAUNT_ARMOR = 20  # permanent self-buffs stop at +100% of the starting stat
 STXPTOLEVEL = 100
 MAX_LEVEL = 100
 LEVEL_TO_STAT_INCREASE = 1
@@ -65,11 +74,11 @@ class Character:
         self.level: int = min(MAX_LEVEL, self.xp // STXPTOLEVEL)
 
         # Compute the starting Items and XP scaling.
-        bonus_hp = (100 * self.taunt) + 100 # Give taunting characters more effective health
+        bonus_hp = (TAUNT_HP * self.taunt) + 100 # Give taunting characters more effective health
         bonus_damage = 0
         bonus_speed = 0
         bonus_critical = 0
-        bonus_armor = (100 * self.taunt) # Give taunting characters more effective health
+        bonus_armor = (TAUNT_ARMOR * self.taunt) # Give taunting characters more effective health
         for item in self.items:
             bonus_hp += item.bonus_hp
             bonus_damage += item.bonus_damage
@@ -123,6 +132,8 @@ class Character:
                 self.current_critical *= (quality.coef ** 0.25)
             elif type_ == Types.DEFENSE:
                 self.current_armor *= quality.coef
+            elif type_ == Types.SPEED:
+                self.current_speed *= quality.coef
             elif type_ == Types.LUCK:
                 self.current_critical *= quality.coef
         
@@ -146,86 +157,111 @@ class Character:
             self.current_hp = 0
         return self.current_hp > 0
 
-    def attack(self, ennemy_character: character, multiplier: int = 1) -> dict:
-        """Attack a character
+    @property
+    def terrain(self) -> Terrain:
+        return getattr(self, "_active_terrain", Terrain.DEFAULT)
 
-        Args:
-            ennemy_character (character): the character to attack
+    def attack(self, ennemy_character: character, multiplier: float = 1, pierce: bool = False) -> dict:
+        """Attack a character. pierce=True ignores the target's armor.
 
         Returns:
             dict: Default {"damage": 0, "critical": False, "dodged": False}
         """
-        # create a return dict this time :)
         atck = {"damage": 0, "critical": False, "dodged": False}
-        crit = random.randint(0, 100)
-        # classic attack have no modifiers so x1
-        multi = multiplier
-        if self.current_critical >= crit:
-            multi *= CRITMULTIPLIER
+        terrain = self.terrain
+        multi = multiplier * TERRAIN_DAMAGE_MULT.get(terrain, 1)
+        if min(self.current_critical, CRIT_CHANCE_CAP) >= random.randint(0, 100):
+            multi *= TERRAIN_CRIT_MULT.get(terrain, CRITMULTIPLIER)
             atck["critical"] = True
-        dodge_roll = False
-        # armor reduction calculation
-        dmg_reduction = (ennemy_character.current_armor +100)/(2* ennemy_character.current_armor)
-        # dmg reduction is capped at 10
-        dmg_reduction = min(10,dmg_reduction)
-        # we apply the dmg reduction
-        multi *= dmg_reduction
-        # If the ennemy is faster check if he dodged
-        if ennemy_character.current_speed > self.current_speed:
-            dodge_chance = min(
-                DODGE_CHANCE_CAP,
-                (ennemy_character.current_speed - self.current_speed) // DODGENERF,
-            )
-            dodge_roll = (
-                random.randint(0, 100)
-                < dodge_chance
-            )
-            atck["dodged"] = dodge_roll
-        # if it is dodged the we do not compute damage
-        if dodge_roll:
-            return atck
-        damage = int(
-            self.current_damage * multi
-        )
+            pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
+        # Armor: 100 is neutral, 0 doubles damage, 400 (the cap) takes 40%.
+        if not pierce:
+            armor = min(max(ennemy_character.current_armor, 0), ARMOR_CAP)
+            multi *= 200 / (100 + armor)
+        # A faster target may dodge: one percent per point of speed gap.
+        if ennemy_character.current_speed > self.current_speed and terrain not in TERRAIN_NO_DODGE:
+            dodge_chance = min(DODGE_CHANCE_CAP, (ennemy_character.current_speed - self.current_speed) // DODGENERF)
+            if random.randint(0, 100) < dodge_chance:
+                atck["dodged"] = True
+                return atck
+        damage = max(1, int(self.current_damage * multi)) if multi > 0 else 0
         ennemy_character.current_hp -= damage
         atck["damage"] = damage
         return atck
 
-    def is_stunned(self) -> bool:
-        """Check if the character is stunned
+    def heal(self, amount: float) -> int:
+        """Heal up to max health (start_hp). Returns what was actually restored."""
+        if not self.is_alive() or amount <= 0:
+            return 0
+        amount *= TERRAIN_HEAL_MULT.get(self.terrain, 1) * getattr(self, "_heal_mult", 1)
+        gained = int(min(amount, self.start_hp - self.current_hp))
+        if gained <= 0:
+            return 0
+        self.current_hp += gained
+        return gained
 
-        Returns:
-            bool: whether the character is stunned
-        """
+    def take(self, amount: float) -> int:
+        """True damage: no armor, dodge or crit. Returns what was dealt."""
+        dealt = int(max(0, min(amount, self.current_hp)))
+        self.current_hp -= dealt
+        return dealt
+
+    def add_effect(self, effect: Effect) -> Effect:
+        """Attach an effect. Stat effects change the stat right away and undo it when they expire."""
+        effect.fresh = bool(getattr(self, "_my_turn", False))
+        if effect.type in STAT_EFFECTS:
+            attr, sign = STAT_EFFECTS[effect.type]
+            if sign < 0:  # never take a stat below its floor, so the revert stays exact
+                floor = 1 if attr == "current_damage" else 0
+                effect.value = max(0, min(effect.value, getattr(self, attr) - floor))
+            setattr(self, attr, getattr(self, attr) + sign * effect.value)
+            effect.used = True
+        self.effects.append(effect)
+        return effect
+
+    def grow(self, stat: str, pct: float) -> float:
+        """Permanent self-buff of pct x the starting stat, capped at GROWTH_CAP in total per stat."""
+        grown = self.__dict__.setdefault("_growth", {})
+        base = getattr(self, f"start_{stat}")
+        room = GROWTH_CAP * base - grown.get(stat, 0)
+        add = max(0, min(base * pct, room))
+        grown[stat] = grown.get(stat, 0) + add
+        setattr(self, f"current_{stat}", getattr(self, f"current_{stat}") + add)
+        return add
+
+    def is_stunned(self) -> bool:
+        """Stunned unless it was stunned on its previous turn (no stun-locks)."""
+        if getattr(self, "_stun_guard", False):
+            self.effects = [e for e in self.effects if e.type != EffectType.STUN]
+            return False
         return EffectType.STUN in [e.type for e in self.effects]
 
     def end_turn(self) -> None:
-        """Make the relevant action at the end of the turn"""
-        # Apply effects
+        """End of this stand's own turn: damage over time, regen, durations and the special meter."""
+        terrain = self.terrain
         for effect in self.effects:
             if effect.duration <= 0:
                 continue
-            if effect.type in [EffectType.POISON, EffectType.BLEED, EffectType.BURN]:
-                self.current_hp -= effect.value
-            elif effect.type == EffectType.WEAKEN and not effect.used:
-                self.current_damage -= effect.value
+            if effect.type in DOT_EFFECTS:
+                self.current_hp -= int(effect.value * TERRAIN_DOT_MULT.get(terrain, {}).get(effect.type, 1))
             elif effect.type == EffectType.REGENERATION:
-                self.current_hp = min(self.current_hp + effect.value, self.start_hp)
-            elif effect.type == EffectType.SLOW and not effect.used:
-                self.current_speed -= effect.value
+                self.heal(effect.value)
+            elif effect.type in STAT_EFFECTS and not effect.used:
+                # legacy path: effects appended without add_effect apply here once
+                attr, sign = STAT_EFFECTS[effect.type]
+                setattr(self, attr, getattr(self, attr) + sign * effect.value)
+                effect.used = True
             elif effect.type == EffectType.HEALTHBOOST and not effect.used:
                 self.current_hp += effect.value
-            elif effect.type == EffectType.DAMAGEUP and not effect.used:
-                self.current_damage += effect.value
-            elif effect.type == EffectType.SPEEDUP  and not effect.used:
-                self.current_speed += effect.value
-            effect.duration -= 1
-            if not effect.used:
                 effect.used = True
+            if effect.fresh:
+                effect.fresh = False
+            else:
+                effect.duration -= 1
+        if terrain in TERRAIN_REGEN:
+            self.heal(self.start_hp * TERRAIN_REGEN[terrain])
 
         # Cleanup effects that have ended: undo exactly what each one applied.
-        # (The bot's version restored armor for Weaken and subtracted "stat - value"
-        # for the buffs, so stats drifted further every time an effect expired.)
         remaining_effects = []
         for effect in self.effects:
             if effect.duration > 0:
@@ -233,18 +269,15 @@ class Character:
                 continue
             if not effect.used:
                 continue
-            if effect.type == EffectType.HEALTHBOOST:
+            if effect.type in STAT_EFFECTS:
+                attr, sign = STAT_EFFECTS[effect.type]
+                setattr(self, attr, getattr(self, attr) - sign * effect.value)
+            elif effect.type == EffectType.HEALTHBOOST:
                 self.current_hp = max(self.current_hp - effect.value, 1)
-            elif effect.type == EffectType.DAMAGEUP:
-                self.current_damage = max(self.current_damage - effect.value, 1)
-            elif effect.type == EffectType.SPEEDUP:
-                self.current_speed = max(self.current_speed - effect.value, 1)
-            elif effect.type == EffectType.WEAKEN:
-                self.current_damage += effect.value
-            elif effect.type == EffectType.SLOW:
-                self.current_speed += effect.value
-
         self.effects = remaining_effects
+
+        # A stand that just sat out a stun shrugs off stuns on its next turn (set by the fight loop).
+        self._stun_guard = self.__dict__.pop("_skipped", False)
 
         # Add to the special meter
         self.special_meter += 1

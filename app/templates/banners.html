@@ -11,6 +11,11 @@
         <div class="meter" role="meter" aria-label="Pity" aria-valuemin="0" aria-valuemax="{{ PITY_LIMIT }}" aria-valuenow="{{ u.pity }}"><i style="width: {{ ([100 * u.pity / PITY_LIMIT, 100]|min)|round }}%"></i></div>
         <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed SSR or UR · {{ st.free_slots }} free slots</small>
       </div>
+      <div class="pity sparks" title="Every 10-pull earns a spark. {{ SPARK_COST }} sparks buy any SSR from a banner.">
+        <span>✦ Sparks {{ sparks }}/{{ SPARK_COST }}</span>
+        <div class="meter" role="meter" aria-label="Sparks" aria-valuemin="0" aria-valuemax="{{ SPARK_COST }}" aria-valuenow="{{ sparks }}"><i style="width: {{ ([100 * sparks / SPARK_COST, 100]|min)|round }}%"></i></div>
+        <small class="muted">{% if sparks >= SPARK_COST %}Ready: pick any SSR on a banner below.{% else %}{{ SPARK_COST - sparks }} more 10-pull{{ 's' if SPARK_COST - sparks != 1 }} to choose any SSR.{% endif %}</small>
+      </div>
     </div>
     {% include "partials/wallet.html" %}
   </header>
@@ -38,6 +43,14 @@
           </table>
           <p class="muted">Every 10-pull holds at least one SR. Pity guarantees an SSR or UR after {{ PITY_LIMIT }} pulls without one, and any SSR+ resets it.</p>
         </details>
+        {% set ssrs = pool|selectattr('rarity', 'equalto', 'SSR')|list %}
+        {% if sparks >= SPARK_COST and ssrs %}
+          <form class="spark-pick" method="post" action="{{ url_for('play.spark', banner_id=b.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <label>✦ Spark exchange: <select name="stand" required>{% for c in ssrs %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+            <button class="btn small gold" onclick="return confirm('Spend {{ SPARK_COST }} sparks on this SSR?')">Take it</button>
+          </form>
+        {% endif %}
         <div class="banner-actions">
           <button class="btn gold" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
                   {% if u.super_fragements < b.cost %}disabled title="You need {{ b.cost }} super fragment"{% endif %}>Pull 10 · {{ b.cost }} super fragment</button>

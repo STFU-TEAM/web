@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}News | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page news">
+  <header class="player-bar">
+    <div><p class="kicker">From the team</p><h1 class="display sm">News</h1></div>
+    {% if me.id and me.id in config.DISCORD_ADMIN_IDS %}<a class="btn small gold" href="{{ url_for('admin.news_admin') }}">Write a post</a>{% endif %}
+  </header>
+  {% if posts %}
+    <div class="news-grid">
+      {% for p in posts %}
+        <a class="news-card{% if loop.first and page == 0 %} lead{% endif %}" href="{{ url_for('main.news_post', post_id=p.id) }}">
+          {% if p.cover %}<img src="{{ p.cover }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+          <span class="news-card-body">
+            <time datetime="{{ p.created }}">{{ p.created[:10] }}</time>
+            <strong>{{ p.title }}</strong>
+            <span class="muted">{{ p.body|news_summary(220 if loop.first and page == 0 else 140) }}</span>
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+    <nav class="news-pages">
+      {% if page > 0 %}<a class="btn small ghost" href="{{ url_for('main.news_list', page=page - 1) }}">← Newer</a>{% endif %}
+      {% if more %}<a class="btn small ghost" href="{{ url_for('main.news_list', page=page + 1) }}">Older →</a>{% endif %}
+    </nav>
+  {% else %}
+    <p class="notice">No news yet. Check back soon.</p>
+  {% endif %}
+</section>
+{% endblock %}

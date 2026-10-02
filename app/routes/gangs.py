@@ -68,8 +68,9 @@ def index():
     db = get_db()
     user = db.get_user(session["uid"])
     gang = db.get_gang(user.gang_id)
-    ctx = {"u": user, "gang": gang, "R": G, "raid": G.RAID, "raid_rewards": G.RAID_REWARD_NAMES,
-           "fight": load_fight(user.id)}
+    ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(),
+           "tiers": [{**t, "text": G.tier_text(t)} for t in G.RAID_TIERS], "week_ends": G.week_ends(),
+           "raid_board": G.raid_board(db.all_gangs())}
     if gang:
         me_rank = G.rank_of(gang, user.id)
         roster = sorted(({"id": m, "identity": identity(m), "rank": G.rank_of(gang, m)} for m in G.members(gang)),
@@ -83,9 +84,9 @@ def index():
             opponent=opponent, queued=bool(r().get(f"web:gang:queued:{gang['_id']}")) and not opponent,
             war_attacked=user.id in [str(x) for x in gang.get("war_attacks", [])],
             last_war=G.last_war(r(), gang["_id"]),
-            raid_active=G.raid_active(gang),
-            raid_attacked=user.id in [str(x) for x in gang.get("raid_attacks", [])],
-            raid_record=G.raid_record(r(), gang["_id"]),
+            raid=G.raid_state(gang), raid_ready=G.can_attack(gang, user.id),
+            raid_claim=G.claimable_tiers(gang, user.id),
+            raid_hits=sorted(((identity(m)["name"], d) for m, d in G.raid_state(gang)["hits"].items()), key=lambda x: -x[1]),
             now=logic.now(),
         )
         if ctx["last_war"]:
@@ -302,11 +303,15 @@ def war_start():
     return _back()
 
 
-@bp.post("/raid/start")
+@bp.post("/raid/claim")
 @player_required
-def raid_start():
-    gang_action(lambda db, user, gang: G.start_raid(gang, user.id),
-                ok=f"Raid on {G.RAID['name']} started. Every member gets one attack in the next 24 hours.")
+def raid_claim():
+    def run(db, user, gang):
+        if not gang:
+            raise GameError("You are not in a gang.")
+        tiers = G.claim_raid(gang, user)
+        flash("Raid rewards: " + "; ".join(G.tier_text(G.RAID_TIERS[i]) for i in tiers) + ".", "ok")
+    gang_action(run)
     return _back()
 
 
@@ -325,10 +330,10 @@ def attack_start(mode):
             raise GameError("You are not in a gang.")
         if not user.main_characters:
             raise GameError("Put stands in your team before attacking.")
-        field = "war_attacks" if mode == "war" else "raid_attacks"
-        if user.id in [str(x) for x in gang.get(field, [])]:
-            raise GameError(f"You already attacked in this {mode}.")
+        meta = {"gang": gang["_id"]}
         if mode == "war":
+            if user.id in [str(x) for x in gang.get("war_attacks", [])]:
+                raise GameError("You already attacked in this war.")
             opp = db.get_gang(G.opponent_id(r(), gang["_id"]))
             if not opp:
                 raise GameError("Your gang is not at war.")
@@ -336,13 +341,13 @@ def attack_start(mode):
             if not enemies:
                 raise GameError("The enemy gang has no guardians left to fight.")
             foe = opp["name"]
+            gang.setdefault("war_attacks", []).append(user.id)  # one attempt, even if the fight is abandoned
         else:
-            if not G.raid_active(gang):
-                raise GameError("Your gang is not raiding right now.")
-            enemies, foe = G.raid_boss(), G.RAID["name"]
-        gang.setdefault(field, []).append(user.id)  # one attempt, even if the fight is abandoned
+            G.start_raid_attack(gang, user.id)  # one a day, even if the fight is abandoned
+            enemies, foe = G.raid_team(), G.weekly_boss()["name"]
+            meta["week"] = G.week_key()
         fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
-                      Side(foe, enemies, False), kind=f"gang_{mode}", meta={"gang": gang["_id"]})
+                      Side(foe, enemies, False), kind=f"gang_{mode}", meta=meta)
         fight.advance()
         save_fight(uid, fight)
 
@@ -401,12 +406,13 @@ def _settle(fight):
             won = fight.winner == 0
             if fight.kind == "gang_war":
                 damage = G.war_damage(enemies)
-                field = "damage_to_current_war"
+                if gang:
+                    gang["damage_to_current_war"] = int(gang.get("damage_to_current_war", 0)) + damage
             else:
                 damage = G.raid_damage(enemies)
-                field = "damage_to_current_raid"
+                if gang:
+                    G.record_raid_damage(gang, uid, damage, fight.meta.get("week", ""))
             if gang:
-                gang[field] = int(gang.get(field, 0)) + damage
                 db.update_gang(gang)
             fight.rewards = G.attack_rewards(user, won)
             fight.meta["damage"] = damage

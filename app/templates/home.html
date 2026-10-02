@@ -30,6 +30,21 @@
   </div>
 </section>
 
+{% if posts %}
+<section class="page home-news">
+  <header class="shelf-head"><h2 class="h2">Latest news</h2><a href="{{ url_for('main.news_list') }}">All news →</a></header>
+  <div class="news-grid">
+    {% for p in posts %}
+      <a class="news-card{% if loop.first %} lead{% endif %}" href="{{ url_for('main.news_post', post_id=p.id) }}">
+        {% if p.cover %}<img src="{{ p.cover }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+        <span class="news-card-body"><time datetime="{{ p.created }}">{{ p.created[:10] }}</time><strong>{{ p.title }}</strong>
+          <span class="muted">{{ p.body|news_summary(160) }}</span></span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 <section class="steps page">
   <h2 class="h2">How it works</h2>
   <ol>
@@ -37,5 +52,6 @@
     <li><h3>Pull a banner</h3><p>A super fragment buys ten stands from one JoJo part. Each comes with its own types and qualities, every 10-pull holds an SR or better, and pity guarantees an SSR within {{ PITY_LIMIT }} pulls.</p></li>
     <li><h3>Fall into a wormhole</h3><p>Pick targets turn by turn against a team scaled to your level. Winning pays fragments, experience and sometimes an item.</p></li>
   </ol>
+  <p class="kofi-cta">STFU Requiem is free and made by one fan. If you enjoy it, <a class="btn small" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ buy me a coffee on Ko-fi</a></p>
 </section>
 {% endblock %}

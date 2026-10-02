@@ -4,7 +4,7 @@
 <header class="wiki-head">
   <p class="kicker">Combat</p>
   <h1 class="display sm">Terrain explorer</h1>
-  <p>The <strong>fastest living stand that sets a terrain</strong> decides the field, for both teams. It is checked again every turn, so killing or slowing that stand can flip the terrain. Bonuses apply to every matching stand on the field, enemies included.</p>
+  <p>The <strong>fastest living stand that sets a terrain</strong> decides the field, for both teams. It is checked again every turn, so killing or slowing that stand can flip the terrain. Every terrain has a <strong>field rule</strong> that applies to everyone, and <strong>native</strong> stands get extra bonuses and ignore the field's speed penalty, enemies included.</p>
 </header>
 
 <div class="explorer-tools" data-explorer>
@@ -28,6 +28,7 @@
         <div>
           <h2>{{ t.name }}</h2>
           <p>{{ t.blurb }}</p>
+          {% if t.rule %}<p class="terrain-rule"><strong>Field rule:</strong> {{ t.rule }}</p>{% endif %}
         </div>
       </header>
       {% if t.setters %}
@@ -37,7 +38,7 @@
         </ul>
       {% endif %}
       {% if t.boosted %}
-        <h3 class="explorer-label">Gets stronger</h3>
+        <h3 class="explorer-label">Natives</h3>
         <ul class="bonus-rows">
           {% for b in t.boosted %}
             <li data-name="{{ b.stand.name|lower }}"><a href="{{ url_for('main.stand', stand_id=b.stand.id) }}">{{ b.stand.name }}</a><span>{{ b.bonuses|join(', ') }}</span></li>
@@ -55,5 +56,5 @@
   {% endfor %}
   <p class="explorer-empty muted" hidden>No terrain matches that stand.</p>
 </div>
-<p class="muted wiki-note">Damage, speed and armor bonuses are percentages of the stand's current stat, recalculated whenever the terrain changes. Regen heals that share of starting health each turn.</p>
+<p class="muted wiki-note">Damage, speed and armor bonuses are percentages of the stand's current stat, recalculated whenever the terrain changes. Regen heals that share of max health on each of the stand's turns.</p>
 {% endblock %}

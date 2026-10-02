@@ -5,9 +5,9 @@
        hx-get="{{ url_for('play.stand_panel', uuid=c.uuid) }}" hx-target="#stand-panel-body"
        hx-trigger="click[!this.closest('.selecting')], keyup[key=='Enter' && !this.closest('.selecting')]" data-open-panel
        data-name="{{ c.name|lower }}" data-rarity="{{ rank.get(c.rarity, 0) }}" data-level="{{ c.level * 10 + c.awaken }}"
-       data-power="{{ power.get(c.uuid, 0) }}" data-idx="{{ i }}" data-dupe="{{ 1 if copies.get(c.id, 0) > 1 else 0 }}"
+       data-power="{{ power.get(c.uuid, 0) }}" data-idx="{{ i }}" data-dupe="{{ 1 if copies.get(c.id, 0) > 1 else 0 }}" data-sid="{{ c.id }}"
        data-search="{{ c.name|lower }} {{ c.rarity|lower }} {{ c.id }}">
-    {% if not team %}<input class="pick-box" type="checkbox" name="uuid" value="{{ c.uuid }}" aria-label="Select {{ c.name }}" tabindex="-1" {% if c.uuid in locked %}disabled{% endif %}>{% endif %}
+    {% if not team %}<input class="pick-box" type="checkbox" name="uuid" value="{{ c.uuid }}" aria-label="Select {{ c.name }}" tabindex="-1">{% endif %}
     {{ owned_card(c, size='small' if small else '', link=False,
                   badges={'team': team, 'locked': c.uuid in locked, 'copies': (copies.get(c.id, 0) - (0 if team else 1)) if copies.get(c.id, 0) > (0 if team else 1) else 0}) }}
   </div>
@@ -27,6 +27,15 @@
       <div class="slot empty-slot"><p>Empty slot</p><p class="muted">Pick a stand from storage below.</p></div>
     {% endfor %}
   </div>
+
+  {% if suggested.team and not suggested.same %}
+    <form class="suggest" hx-post="{{ url_for('play.use_suggested') }}" hx-target="#collection">
+      <div><p class="kicker">Suggested team{% if suggested.gain %} · +{{ suggested.gain }}% power{% endif %}</p>
+        <p class="suggest-names">{% for c in suggested.team %}<input type="hidden" name="uuid" value="{{ c.uuid }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }} <small>Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}</small></span>{% endfor %}</p>
+        {% if suggested.why %}<p class="muted">Bonus: {{ suggested.why|join(', ') }}.</p>{% endif %}</div>
+      <button class="btn small gold">Use this team</button>
+    </form>
+  {% endif %}
 
   <div class="presets">
     <h3 class="h3">Team presets <small class="muted">{{ u.teams|length }}/5</small></h3>
@@ -54,7 +63,12 @@
 <section class="shelf storage" id="storage">
   <header class="shelf-head">
     <h2 class="h2">Storage</h2>
-    <p class="muted">{{ u.storage_characters|length }} / 200 stands{% if locked %} · {{ locked|length }} locked{% endif %}</p>
+    <p class="{{ 'storage-full' if u.storage_characters|length >= 180 else 'muted' }}">{{ u.storage_characters|length }} / 200 stands{% if locked %} · {{ locked|length }} locked{% endif %}{% if u.storage_characters|length >= 180 %} · almost full{% endif %}</p>
+    {% if fusable %}
+      <button class="btn small gold autofuse" hx-post="{{ url_for('play.autofuse') }}" hx-target="#collection"
+              hx-confirm="Fuse every unlocked R and SR duplicate into its best copy (your team copy first)? {{ fusable }} cards will be consumed."
+              title="Each R and SR stand you own more than once is fused into one copy: +1 awakening (up to 3) and +50 levels of XP per copy. Locked copies are never used up.">Auto-fuse R &amp; SR · {{ fusable }} cop{{ 'ies' if fusable != 1 else 'y' }}</button>
+    {% endif %}
   </header>
   {% if u.storage_characters %}
   <div class="storage-tools" data-storage-tools>
@@ -63,6 +77,7 @@
       <button type="button" class="filter-chip" data-rarity-filter="" aria-pressed="true">All</button>
       {% for r in ['R', 'SR', 'SSR', 'UR', 'LR'] %}{% set n = u.storage_characters|selectattr('rarity', 'equalto', r)|list|length %}{% if n %}<button type="button" class="filter-chip" data-rarity-filter="{{ rank[r] }}" aria-pressed="false">{{ r }} <small>{{ n }}</small></button>{% endif %}{% endfor %}
       <button type="button" class="filter-chip" data-dupe-filter aria-pressed="false" title="Stands you own more than once, ready to fuse">Fusable</button>
+      <button type="button" class="filter-chip" data-stack-toggle aria-pressed="false" title="Show one card per stand, with how many copies you own">Group copies</button>
     </div>
     <label class="sort-pick">Sort
       <select data-storage-sort>
@@ -72,12 +87,17 @@
     </label>
     <button type="button" class="btn small ghost" data-select-toggle aria-pressed="false">Select</button>
   </div>
-  <form class="bulk-bar" hx-post="{{ url_for('play.release') }}" hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked"
-        hx-confirm="Release every selected stand for good? This can't be undone." hidden>
+  <div class="bulk-bar" hidden>
     <span data-selected-count>0 selected</span>
     <button type="button" class="btn small ghost" data-select-visible>Select all shown</button>
-    <button class="btn small danger">Release selected</button>
-  </form>
+    <button type="button" class="btn small ghost" data-select-none>Clear</button>
+    <span class="bulk-actions">
+      <button class="btn small" hx-post="{{ url_for('play.lock_many') }}" hx-vals='{"lock": "1"}' hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked">Lock</button>
+      <button class="btn small" hx-post="{{ url_for('play.lock_many') }}" hx-vals='{"lock": "0"}' hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked">Unlock</button>
+      <button class="btn small danger" hx-post="{{ url_for('play.release') }}" hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked"
+              hx-confirm="Release every selected stand for good? Locked stands are kept. This can't be undone.">Release</button>
+    </span>
+  </div>
   <div class="grid collection-grid" id="storage-grid">
     {% for c in u.storage_characters|reverse %}{{ slot(c, loop.index0) }}{% endfor %}
   </div>

@@ -1,10 +1,21 @@
+"""Stand specials.
+
+Balance rules every special follows:
+- Damage goes through character.attack (scales with damage, armor, crit, dodge)
+  or is a share of a stat (true damage via target.take).
+- Heals are a share of max health and go through target.heal, which caps at max.
+- Buffs and debuffs are a share of the stat and temporary (effects); permanent
+  self-growth uses character.grow, which stops at +100% of the starting stat.
+- Single-target specials hit the stand's focus: the enemy it attacked this turn.
+- Durations count the affected stand's own turns.
+"""
 import random
 
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 
-from app.game.effects import Effect, EffectType, NEGATIVE_EFFECTS, Terrain
+from app.game.effects import Effect, EffectType, NEGATIVE_EFFECTS, POSITIVE_EFFECTS, Terrain
 
 # It's for typehint
 if TYPE_CHECKING:
@@ -63,6 +74,111 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
     return len(group & ids) >= 2
 
 
+# ── Helpers ─────────────────────────────────────────────────────────────
+
+def _alive(chars: list) -> list:
+    return [c for c in chars if c.is_alive()]
+
+
+def _target(character: "Character", enemies: list) -> Optional["Character"]:
+    """The enemy this stand attacked this turn, or a random living one."""
+    focus = getattr(character, "_focus", None)
+    if focus is not None and focus in enemies and focus.is_alive():
+        return focus
+    valid = _alive(enemies)
+    return random.choice(valid) if valid else None
+
+
+def _weakest(chars: list) -> Optional["Character"]:
+    """Living stand with the lowest share of its health."""
+    valid = _alive(chars)
+    return min(valid, key=lambda c: c.current_hp / max(1, c.start_hp)) if valid else None
+
+
+def _impaired(c: "Character") -> bool:
+    types = [e.type for e in c.effects]
+    return EffectType.STUN in types or EffectType.SLOW in types or c.current_speed < c.start_speed
+
+
+def _hit(character, target, multiplier, pierce=False) -> int:
+    return character.attack(target, multiplier=multiplier, pierce=pierce)["damage"]
+
+
+def _aoe(character, enemies, multiplier) -> int:
+    return sum(_hit(character, e, multiplier) for e in _alive(enemies))
+
+
+def _dot(target, kind: EffectType, turns: int, value: float, sender) -> None:
+    target.add_effect(Effect(kind, turns, max(1, int(value)), sender))
+
+
+def _stun(target, sender, turns: int = 1) -> None:
+    target.add_effect(Effect(EffectType.STUN, turns, 0, sender))
+
+
+_STAT_UP = {"damage": EffectType.DAMAGEUP, "speed": EffectType.SPEEDUP, "armor": EffectType.ARMORUP,
+            "critical": EffectType.CRITUP}
+_STAT_DOWN = {"damage": EffectType.WEAKEN, "speed": EffectType.SLOW, "armor": EffectType.ARMORBREAK}
+
+
+# Base speeds are small (mostly 0-15), so speed changes move at least pct x SPEED_FLOOR points:
+# +25% speed is always worth a few points of dodge.
+SPEED_FLOOR = 20
+
+
+def _buff(target, stat: str, pct: float, turns: int, sender) -> int:
+    """Temporary +pct of the starting stat (critical: pct is flat points)."""
+    value = pct if stat == "critical" else getattr(target, f"start_{stat}") * pct
+    if stat == "speed":
+        value = max(value, pct * SPEED_FLOOR)
+    target.add_effect(Effect(_STAT_UP[stat], turns, value, sender))
+    return round(value)
+
+
+def _debuff(target, stat: str, pct: float, turns: int, sender) -> int:
+    """Temporary -pct of the current stat."""
+    value = getattr(target, f"current_{stat}") * pct
+    if stat == "speed":
+        value = max(value, pct * SPEED_FLOOR)
+    return round(target.add_effect(Effect(_STAT_DOWN[stat], turns, value, sender)).value)
+
+
+def _cleanse(target) -> None:
+    """Remove negative effects, undoing their stat changes."""
+    from app.game.effects import STAT_EFFECTS
+    kept = []
+    for e in target.effects:
+        if e.type not in NEGATIVE_EFFECTS:
+            kept.append(e)
+        elif e.type in STAT_EFFECTS and e.used:
+            attr, sign = STAT_EFFECTS[e.type]
+            setattr(target, attr, getattr(target, attr) - sign * e.value)
+    target.effects = kept
+
+
+def _purge(target) -> None:
+    """Remove positive effects, undoing their stat changes."""
+    from app.game.effects import STAT_EFFECTS
+    kept = []
+    for e in target.effects:
+        if e.type not in POSITIVE_EFFECTS:
+            kept.append(e)
+        elif e.type in STAT_EFFECTS and e.used:
+            attr, sign = STAT_EFFECTS[e.type]
+            setattr(target, attr, getattr(target, attr) - sign * e.value)
+    target.effects = kept
+
+
+def _pct(x: float) -> str:
+    return f"{round(x * 100)}%"
+
+
+def _time_stop(character, enemies, multiplier=0.75) -> tuple:
+    payload = get_payload()
+    damage = _aoe(character, enemies, multiplier)
+    return payload, f"｢{character.name}｣ STOPS TIME and hits every enemy for {damage} total!"
+
+
 """
 
 name your fonction to the character
@@ -74,2799 +190,1840 @@ def special_boiler_plate(character:"Character",allied_characters:List["Character
     #message is what should be printed to the embed
     return payload,message
 
-their is a load of exemple bellow
-AOE attack : the_world
-AOE effect : weather_report
-self buff  : made_in_heaven
-
 """
 
 
-def the_world_over_heaven(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+# ── Part 3 ──────────────────────────────────────────────────────────────
+
+def the_world_over_heaven(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    damage = 0
-    for ennemy in enemy_characters:
-        damage += character.attack(ennemy, multiplier=1000)["damage"]
-    message = f"｢{character.name}｣! damaged everyone for {int(damage)}!"
-    return payload, message
+    damage = _aoe(character, enemy_characters, 1000)
+    return payload, f"｢{character.name}｣! damaged everyone for {damage}!"
 
 
-def star_platinum(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def star_platinum(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "crusaders")
-    multiplier = random.randint(1, 4)
-    if synergy:
-        multiplier += 1  # Crusaders synergy: guaranteed extra hit
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if valid_characters:
-        target = random.choice(valid_characters)
-        character.attack(target, multiplier=multiplier)
-        msg = f"｢{character.name}｣ punches {target.name} {multiplier} times for {int(character.current_damage*multiplier)} damage!"
-        if synergy:
-            msg += " ⭐ Crusaders synergy!"
-        message = msg
-    else:
-        message = f"｢{character.name}｣ punches multiple times!"
-    return payload, message
-
-
-def silver_chariot(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "crusaders")
-    if synergy:
-        # Crusaders synergy: shed armor without the penalty
-        character.current_speed += 15
-        message = f"｢{character.name}｣ sheds its armor! +15 speed, no armor loss! ⭐ Crusaders synergy!"
-    else:
-        character.current_speed += 10
-        character.current_armor = max(1, int(character.current_armor * 0.75))
-        message = f"｢{character.name}｣ gains speed but loses resistance."
-    return payload, message
-
-
-def the_world(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.6
-    damage = 0
-    for ennemy in enemy_characters:
-        damage += character.attack(ennemy, multiplier=multiplier)["damage"]
-    message = f"｢{character.name}｣ STOPS TIME! and damages everyone for {int(damage)}"
-    return payload, message
-
-
-def cream(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.current_speed += 5
-    character.current_damage += 5
-    character.effects.append(Effect(EffectType.STUN, 1, 0, character))
-    message = f"｢{character.name}｣ gets faster"
-    return payload, message
-
-
-def star_platinum_the_world(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.6
-    damage = 0
-    for ennemy in enemy_characters:
-        damage += character.attack(ennemy, multiplier=multiplier)["damage"]
-    message = f"｢{character.name}｣ STOPS TIME! and damages everyone for {int(damage)}"
-    return payload, message
-
-
-def crazy_diamond(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in allied_characters if i.is_alive() and i != character]
-    if len(valid_characters) != 0:
-        ally: "Character" = random.choice(valid_characters)
-        dif_damage = abs(character.start_hp - character.current_hp)
-        heal = min(ally.start_hp, ally.current_hp + (dif_damage // 2))
-        ally.current_hp = heal
-        message = f"｢{character.name}｣ heals {ally.name}"
-    else:
-        message = f"｢{character.name}｣ enraged!"
-    return payload, message
-
-
-def the_hand(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = random.choice((0.75, 1, 1.5, 2.5))
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ !"
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)
-        message = f"｢{character.name}｣ throws out random items and deals {damage} damage"
-    return payload, message
-
-
-def heavens_door(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplicator = 2
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, multiplicator, 0, character))
-        message = f"｢{character.name}｣ stuns {target.name} for {multiplicator} rounds!"
-    else:
-        message = f"｢{character.name}｣!"
-    return payload, message
-
-
-def killer_queen(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "kira")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if not valid_characters:
-        message = f"｢{character.name}｣!"
-        return payload, message
-    if synergy:
-        # Kira synergy: Stray Cat's air bubble + bomb = homing explosive on 2 targets
-        targets = random.sample(valid_characters, min(2, len(valid_characters)))
-        for target in targets:
-            target.effects.append(
-                Effect(EffectType.BURN, 1, 2.0 * character.current_damage, character)
-            )
-        names = " and ".join(t.name for t in targets)
-        message = f"｢{character.name}｣ plants air bubble bombs on {names}! 💣🐈 Kira synergy!"
-    else:
-        target = random.choice(valid_characters)
-        target.effects.append(
-            Effect(EffectType.BURN, 1, 1.5 * character.current_damage, character)
-        )
-        message = f"｢{character.name}｣ places a bomb on {target.name} for {int(1.5*character.current_damage)} damage!"
-    return payload, message
-
-
-def echoes_act_3(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplicator = 2
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, multiplicator, 0, character))
-        message = f"｢{character.name}｣ stuns {target.name} for {multiplicator} rounds and slow everyone else"
-        for st in valid_characters:
-            if st != target:
-                st.effects.append(Effect(EffectType.SLOW, 2, 10, character))
-    else:
-        message = f"｢{character.name}｣!"
-    return payload, message
-
-
-def dummy(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.current_hp = character.start_hp
-    message = f"｢{character.name}｣ restores all of its health to full!"
-    return payload, message
-
-
-def killer_queen_bite_the_dust(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    heal = (character.start_hp - character.current_hp) // 3
-    character.current_hp += heal
-    character.current_hp = max(0, min(character.current_hp, character.start_hp))
-    message = f"｢{character.name}｣ resets the timeline! and heals for {heal}"
-    return payload, message
-
-
-def gold_experience(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "passione")
-    heal_amount = 50 if synergy else 30
-    for ally in allied_characters:
-        if ally.current_hp < ally.start_hp:
-            ally.current_hp = min(ally.start_hp, ally.current_hp + heal_amount)
-    message = f"｢{character.name}｣ heals all allies for {heal_amount}!"
-    if synergy:
-        # Passione: also grant a small speed buff to the team
-        for ally in [a for a in allied_characters if a.is_alive()]:
-            ally.current_speed += 3
-        message += " 🐞 Passione synergy! +3 speed to all!"
-    return payload, message
-
-
-def sticky_finger(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "passione")
-    if synergy:
-        # Passione: Ariari combo — crit + speed + a zipper strike
-        character.current_critical += 7
-        character.current_speed += 5
-        valid = [e for e in enemy_characters if e.is_alive()]
-        if valid:
-            target = random.choice(valid)
-            dmg = character.attack(target, multiplier=0.5)["damage"]
-            message = f"｢{character.name}｣ ARI ARI ARI! +7 crit, +5 speed, {dmg} damage to {target.name}! 🐞 Passione synergy!"
-        else:
-            message = f"｢{character.name}｣ becomes razor-sharp! +7 crit, +5 speed! 🐞 Passione synergy!"
-    else:
-        character.current_critical += 5
-        message = f"｢{character.name}｣ becomes more precise. +5 crit!"
-    return payload, message
-
-
-def purple_haze(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.5
-    payload = get_payload()
-    for s in allied_characters + enemy_characters:
-        s.effects.append(
-            Effect(EffectType.POISON, 3, character.current_damage * multiplier, character)
-        )
-    message = f"｢{character.name}｣ poisons everyone for {character.current_damage*multiplier}!"
-    return payload, message
-
-
-def king_crimson(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    payload["king_crimson"] = True
-    message = f"｢{character.name}｣ has already..."
-    return payload, message
-
-
-def notorious_big(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.1
-    payload = get_payload()
-    alive_allies = [i for i in allied_characters if i.is_alive() and i != character]
-    if len(alive_allies) != 0:
-        character.effects.append(
-            Effect(EffectType.REGENERATION, 1, character.current_hp * multiplier, character)
-        )
-    message = f"｢{character.name}｣ Regenerates itself!"
-    return payload, message
-
-
-def metallica(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.5
-    payload = get_payload()
-    for ennemy in enemy_characters:
-        for effect in ennemy.effects:
-            if effect == EffectType.REGENERATION:
-                effect.value *= multiplier
-        ennemy.effects.append(
-            Effect(EffectType.POISON, 2, character.current_damage * 0.1, character)
-        )
-    message = f"｢{character.name}｣ infects their blood stream!"
-    return payload, message
-
-
-def green_day(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.90
-    payload = get_payload()
-    for ennemy in enemy_characters:
-        ennemy.effects.append(Effect(EffectType.WEAKEN, 3, multiplier, character))
-    message = f"｢{character.name}｣ weakens all enemies!"
-    return payload, message
-
-
-def chariot_requiem(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        if target.id != character.id:
-            try:
-                return specials[f"{target.id}"](character, allied_characters, enemy_characters)
-            except:
-                character.current_damage += 10
-    character.current_damage += 5
-    message = f"｢{character.name}｣'s soul searches for the arrow..."
-    return payload, message
-
-
-def gold_experience_requiem(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    payload["GER"] = True
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ You will never reach the truth, Return to Zero!"
-    # reset their scaling
-    for ennemy in enemy_characters:
-        ennemy: "Character" = character
-        ennemy.current_hp = min(ennemy.current_hp, ennemy.start_hp)
-        ennemy.current_damage = min(ennemy.current_damage, ennemy.start_damage)
-        ennemy.current_speed = min(ennemy.current_speed, ennemy.start_speed)
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, 2, 0, character))
-        message += f"｢{character.name}｣ stunned {target.name}!"
-    return payload, message
-
-
-def stone_free(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.90
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ frees the stone ocean!"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        target.current_speed *= multiplier
-    return payload, message
-
-
-def weather_report(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.20
-    for ennemy in enemy_characters:
-        ennemy.effects.append(
-            Effect(EffectType.POISON, 3, character.current_damage * multiplier, character)
-        )
-    message = f"｢{character.name}｣ makes death rain... and poisons everyone for {character.current_damage*multiplier}!"
-    return payload, message
-
-
-def jumpin_jack_flash(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ removes gravity!"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, character.turn // 2, 0, character))
-    return payload, message
-
-
-def bohemian_rhapsody(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    message = f"｢{character.name}｣ creates a perfect version of itself!"
-    for ally in allied_characters:
-        character.current_hp = max(character.current_hp, ally.current_hp)
-        character.current_damage = max(character.current_damage, ally.current_damage)
-        character.current_critical = max(character.current_critical, ally.current_critical)
-        character.current_speed = max(character.current_speed, ally.current_speed)
-    return payload, message
-
-
-def underworld(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 4
-    payload = get_payload()
-    if sum([s.is_alive() for s in allied_characters]) == len(allied_characters):
-        message = f"｢{character.name}｣ waits for an ally to die..."
-        character.special_meter = 2
-        return payload, message
-    valid_characters = [i for i in allied_characters if not i.is_alive()]
-    revived = random.choice(valid_characters)
-    revived.current_hp = revived.start_hp // 4
-    message = f"｢{character.name}｣ brings a memory of {revived.name}!"
-    return payload, message
-
-
-def c_moon(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "pucci")
-    slow_amount = 4 if synergy else 2
-    for ennemy in enemy_characters:
-        ennemy.current_speed -= slow_amount
-    message = f"｢{character.name}｣ alters the gravity! All enemies -{slow_amount} speed!"
-    if synergy:
-        # Pucci: gravity inversion also weakens armor
-        for ennemy in enemy_characters:
-            ennemy.current_armor = max(1, int(ennemy.current_armor * 0.9))
-        message += " ☽ Pucci synergy! -10% enemy armor!"
-    return payload, message
-
-
-def made_in_heaven(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "pucci")
-    if synergy:
-        # Pucci evolution: time acceleration amplified
-        character.current_speed += 8
-        character.current_damage += 30
-        character.current_critical += 8
-        # Also accelerate Pucci allies
-        pucci_ids = SYNERGIES["pucci"]
-        for ally in [a for a in allied_characters if a.is_alive() and a.id in pucci_ids and a != character]:
-            ally.current_speed += 5
-            ally.current_damage += 10
-        message = f"｢{character.name}｣ accelerates time for everyone! ☽ Pucci synergy!"
-    else:
-        character.current_speed += 5
-        character.current_damage += 20
-        character.current_critical += 5
-        message = f"｢{character.name}｣'s speed increases!"
-    return payload, message
-
-
-def tusk_act_4(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    payload["tusk_act_4"] = True
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    synergy = _has_synergy(character.id, allied_characters, "tusk")
-    message = f"｢{character.name}｣ Lesson 5!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        dmg = character.attack(target, multiplier=1.5)["damage"]
-        target.effects.append(
-            Effect(EffectType.POISON, 4, character.current_damage * 0.75, character)
-        )
-        target.current_armor = max(1, int(target.current_armor * 0.6))
-        message += f" Infinite rotation hits ｢{target.name}｣ for {int(dmg)} impact damage, poison for 4 rounds, -40% armor!"
-        if synergy:
-            for enemy in valid_characters:
-                if enemy != target:
-                    enemy.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.3, character))
-            message += " ✦ Tusk synergy! All other enemies bleed!"
-    return payload, message
-
-
-def ball_breaker(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.65
-    for ennemy in enemy_characters:
-        ennemy.effects.append(Effect(EffectType.WEAKEN, 1, multiplier, character))
-    for ally in allied_characters:
-        ally.current_damage += 5
-    message = f"｢{character.name}｣ harnesses the power of the spin!"
-    return payload, message
-
-
-def dirty_deed_done_dirt_cheap(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.effects = [e for e in character.effects if e.type == EffectType.REGENERATION]
-    message = f"｢{character.name}｣ retrieves an alternate version!"
-    return payload, message
-
-
-def boku_no_rythm_wo_kiitekure(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplicator = 0.5
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    for target in valid_characters:
-        target: "Character" = random.choice(valid_characters)
-        target.effects.append(
-            Effect(EffectType.POISON, 1, multiplicator * character.current_damage, character)
-        )
-    message = f"｢{character.name}｣ plants bombs on everyone."
-    return payload, message
-
-
-def mandom(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    for ally in allied_characters:
-        ally.current_critical += 5
-    message = f"Welcome to the True Man's world!"
-    return payload, message
-
-
-def the_world_sbr(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.6
-    damage = 0
-    for ennemy in enemy_characters:
-        damage += character.attack(ennemy, multiplier=multiplier)["damage"]
-    message = f"｢{character.name}｣ STOPS TIME! and damages everyone for {int(damage)}"
-    return payload, message
-
-
-def soft_and_wet(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    multiplier = 0.50
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ breaks and weakens!"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.WEAKEN, 1, multiplier, character))
-    return payload, message
-
-
-def doobie_wah(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.4
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ seeks it's enemy!"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.effects.append(
-            Effect(EffectType.POISON, 1, multiplier * character.current_damage, character)
-        )
-    return payload, message
-
-
-def walking_heart(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.current_damage += 5
-    character.current_critical += 1
-    message = f"｢{character.name}｣ !"
-    return payload, message
-
-
-def wonder_of_u(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplicator = 0.1
-    dif_damage = abs(character.start_hp - character.current_hp)
-    # web fix: a slowed Wonder of U can reach negative speed -> complex damage
-    woudamage = lambda speed: int(max(speed, 0) * (dif_damage * max(speed, 0) * multiplicator) ** (1 / 2))
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ !"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        target.current_hp -= woudamage(character.current_speed)
-        message = f"｢{character.name}｣ redirects calamity to {target.name} for {woudamage(character.current_speed)}!"
-    return payload, message
-
-
-def victorious_star_platinum(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.4
-    damage = 0
-    for ennemy in enemy_characters:
-        damage += character.attack(ennemy, multiplier=multiplier)["damage"]
-    message = f"｢{character.name}｣ STOPS TIME! and damages everyone for {int(damage)}"
-    return payload, message
-
-
-def magician_red(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "crusaders")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if not valid_characters:
-        message = f"｢{character.name}｣ releases flames!"
-        return payload, message
-    if synergy:
-        # Crusaders synergy: burn ALL enemies
-        for target in valid_characters:
-            target.effects.append(
-                Effect(EffectType.BURN, 2, 0.4 * character.current_damage, character)
-            )
-        message = f"｢{character.name}｣ unleashes Crossfire Hurricane on all enemies! ⭐ Crusaders synergy!"
-    else:
-        target = random.choice(valid_characters)
-        target.effects.append(
-            Effect(EffectType.BURN, 1, 0.5 * character.current_damage, character)
-        )
-        message = f"｢{character.name}｣ burns {target.name}!"
-    return payload, message
-
-
-def hierophant_green(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "crusaders")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    multiplier = 0.7 if synergy else 0.5
-    damage = 0
-    for s in valid_characters:
-        damage += character.attack(s, multiplier=multiplier)["damage"]
-    message = f"No one can deflect the Emerald Splash! {int(damage)} damage to all!"
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ punches the air!"
+    hits = random.randint(2, 4) + (1 if synergy else 0)
+    damage = sum(_hit(character, target, 0.45) for _ in range(hits) if target.is_alive())
+    message = f"｢{character.name}｣ ORA ORA! {hits} punches on {target.name} for {damage}!"
     if synergy:
         message += " ⭐ Crusaders synergy!"
     return payload, message
 
 
-def the_fool(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def magician_red(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "crusaders")
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ releases flames!"
+    if synergy:
+        for target in valid:
+            _dot(target, EffectType.BURN, 2, 0.4 * character.current_damage, character)
+        return payload, f"｢{character.name}｣ unleashes Crossfire Hurricane: every enemy burns for 2 turns! ⭐ Crusaders synergy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.7)
+    _dot(target, EffectType.BURN, 2, 0.4 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ scorches {target.name} for {damage} and sets it ablaze for 2 turns!"
+
+
+def hierophant_green(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "crusaders")
+    damage = _aoe(character, enemy_characters, 0.75 if synergy else 0.55)
+    message = f"No one can deflect the Emerald Splash! {damage} damage to all!"
+    if synergy:
+        message += " ⭐ Crusaders synergy!"
+    return payload, message
+
+
+def hermit_purple(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ lashes out!"
+    if terrain == Terrain.FROZEN:
+        for target in valid:
+            _debuff(target, "speed", 0.25, 2, character)
+            target.special_meter = max(0, target.special_meter - 1)
+        return payload, f"｢{character.name}｣ spreads vines across the ice! Every enemy is slowed and its special delayed!"
+    target = max(valid, key=lambda c: c.current_speed)
+    _debuff(target, "speed", 0.25, 2, character)
+    target.special_meter = max(0, target.special_meter - 1)
+    damage = _hit(character, target, 0.7)
+    return payload, f"｢{character.name}｣ divines {target.name}'s moves: {damage} damage, slowed, special delayed!"
+
+
+def the_fool(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    terrain = _terrain(character)
+    target = _target(character, enemy_characters)
     if terrain == Terrain.DESERT:
-        # Desert: sand fortress — massive armor + damage reflect
-        character.current_armor = int(character.current_armor * 1.25)
-        valid = [e for e in enemy_characters if e.is_alive()]
-        if valid:
-            target = random.choice(valid)
-            reflect = int(character.current_armor * 0.15)
-            target.current_hp -= reflect
-            message = f"｢{character.name}｣ raises a sand fortress! +25% armor, {reflect} sand damage to {target.name}!"
-        else:
-            message = f"｢{character.name}｣ raises a sand fortress! +25% armor!"
-    else:
-        character.current_armor = int(character.current_armor * 1.1)
-        message = f"｢{character.name}｣ becomes more resilient! +10% armor!"
+        character.grow("armor", 0.20)
+        damage = _hit(character, target, 1.0) if target else 0
+        return payload, f"｢{character.name}｣ raises a sand fortress! +20% armor and a {damage} sand blast!"
+    character.grow("armor", 0.08)
+    damage = _hit(character, target, 0.5) if target else 0
+    return payload, f"｢{character.name}｣ hardens its sand: +8% armor, {damage} damage!"
+
+
+def silver_chariot(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "crusaders")
+    _buff(character, "speed", 0.40, 2, character)
+    if not synergy:
+        _debuff(character, "armor", 0.20, 2, character)
+    target = _target(character, enemy_characters)
+    damage = sum(_hit(character, target, 0.45) for _ in range(3) if target and target.is_alive()) if target else 0
+    message = f"｢{character.name}｣ sheds its armor: +40% speed and a 3-hit rapier flurry for {damage}!"
+    if synergy:
+        message += " Keeps its armor! ⭐ Crusaders synergy!"
     return payload, message
 
 
-def hanged_man(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def dark_blue_moon(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    if terrain == Terrain.MIRROR:
-        # Mirror: infinite reflections — big crit boost + strike from reflection
-        character.current_critical *= 1.25
-        valid = [e for e in enemy_characters if e.is_alive()]
-        if valid:
-            target = random.choice(valid)
-            dmg = character.attack(target, multiplier=0.6)["damage"]
-            message = f"｢{character.name}｣ strikes from every reflection! +25% crit, {dmg} damage to {target.name}!"
-        else:
-            message = f"｢{character.name}｣ multiplies across reflections! +25% crit!"
-    else:
-        character.current_critical *= 1.1
-        message = f"｢{character.name}｣ finds the weak spot! +10% crit!"
-    return payload, message
-
-
-def emperor(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 1.5
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ headshot !"
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)["damage"]
-        message = f"｢{character.name}｣ headshot {target.name} for {damage}｣!"
-    return payload, message
-
-
-def justice(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 25
-    message = f"｢{character.name}｣ become more elusive"
-    character.current_speed += multiplier
-    return payload, message
-
-
-def death_13(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier_impared = 5
-    multiplier_classic = 0.3
-    damage = 0
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    for target in valid_characters:
-        if (
-            EffectType.STUN in [e.type for e in target.effects]
-            or EffectType.SLOW in [e.type for e in target.effects]
-            or target.current_speed < target.start_speed
-        ):
-            damage += character.attack(target, multiplier=multiplier_impared)["damage"]
-        else:
-            damage += character.attack(target, multiplier=multiplier_classic)["damage"]
-
-    message = f"｢{character.name}｣"
-    return payload, message
-
-
-def high_pristess(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    message = f"｢{character.name}｣ hardened"
-    character.current_armor = int(character.current_armor * 1.25)
-    return payload, message
-
-
-def geb(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    terrain = _terrain(character)
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if not valid_characters:
-        message = f"｢{character.name}｣ sneak attack!"
-        return payload, message
     if terrain == Terrain.OCEAN:
-        # Ocean: water amplifies Geb — hit harder + slow
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=2.0)["damage"]
-        target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-        message = f"｢{character.name}｣ surges from the water! {damage} damage to {target.name} + slowed!"
-    else:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=1.5)["damage"]
-        message = f"｢{character.name}｣ sneak attacks {target.name} for {damage}!"
-    return payload, message
+        _buff(character, "speed", 0.25, 2, character)
+        damage = _aoe(character, enemy_characters, 0.6)
+        return payload, f"｢{character.name}｣ dominates the ocean! +25% speed and {damage} damage to all!"
+    damage = 0
+    for target in _alive(enemy_characters):
+        damage += _hit(character, target, 0.85 if _impaired(target) else 0.3)
+    return payload, f"｢{character.name}｣ slashes with its scales for {damage}, hardest on slowed enemies!"
 
 
-def horus(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def tower_of_grey(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    multiplicator = 2
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, multiplicator, 0, character))
-        message = f"｢{character.name}｣ stuns {target.name} for {multiplicator} rounds!"
-    else:
-        message = f"｢{character.name}｣!"
-    return payload, message
+    _buff(character, "speed", 0.50, 2, character)
+    target = _weakest(enemy_characters)
+    damage = _hit(character, target, 0.9) if target else 0
+    return payload, f"｢{character.name}｣ darts at the weakest enemy{f', {target.name},' if target else ''} for {damage}! +50% speed!"
 
 
-def atum(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def strength(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    dice_roll = random.randint(0, 6)
-    multiplier = dice_roll
-    message = f"｢{character.name}｣ roll the dices"
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)["damage"]
-        message = f"｢{character.name}｣ roll the dices and land on {dice_roll} ! and damage {target.name} for {damage}"
-    return payload, message
+    healed = character.heal(character.start_hp * 0.08)
+    _buff(character, "armor", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ braces the ship: heals {healed} and gains +20% armor!"
 
 
-def osiris(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    dice_roll = random.randint(0, 6)
-    multiplier = dice_roll
-    message = f"｢{character.name}｣ roll the dices"
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)["damage"]
-        message = f"｢{character.name}｣ roll the dices and land on {dice_roll} ! and damage {target.name} for {damage}"
-    return payload, message
+def the_world(character, allied_characters, enemy_characters) -> tuple:
+    return _time_stop(character, enemy_characters)
 
 
-def aqua_necklace(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ strikes!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=1.5)["damage"]
-        target.effects.append(Effect(EffectType.SLOW, 2, 3, character))
-        message = f"｢{character.name}｣ lands a critical blow on {target.name} for {damage} and slows them!"
-    return payload, message
-
-
-def bad_company(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    alive_allies = sum(1 for a in allied_characters if a.is_alive())
-    multiplier = 0.4 * alive_allies
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ deploys the troops!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)["damage"]
-        message = f"｢{character.name}｣ deploys {alive_allies} units! {target.name} takes {damage} damage!"
-    return payload, message
-
-
-def echoes_act_0(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    payload["is_a_special"] = False
-    message = f"｢{character.name}｣ is just an egg... it does nothing."
-    return payload, message
-
-
-def the_lock(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    hp_lost = character.start_hp - character.current_hp
-    slow_value = max(1, int(hp_lost * 0.02))
-    for enemy in enemy_characters:
-        enemy.effects.append(Effect(EffectType.SLOW, 2, slow_value, character))
-    message = f"｢{character.name}｣ guilt weighs on everyone! Slows all enemies by {slow_value}!"
-    return payload, message
-
-
-def surface(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ takes control!"
-    if valid_characters:
-        controlled = random.choice(valid_characters)
-        other_targets = [i for i in enemy_characters if i.is_alive() and i != controlled]
-        if other_targets:
-            target = random.choice(other_targets)
-            damage = controlled.attack(target)["damage"]
-            message = f"｢{character.name}｣ controls {controlled.name} to attack {target.name} for {damage}!"
-        else:
-            damage = controlled.attack(controlled, multiplier=0.5)["damage"]
-            message = f"｢{character.name}｣ controls {controlled.name} to hurt itself for {damage}!"
-    return payload, message
-
-
-def love_deluxe(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ extends her hair!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        if target.current_speed > character.current_speed:
-            target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-            message = f"｢{character.name}｣ tangles {target.name}'s legs! Slowed!"
-        else:
-            target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-            message = f"｢{character.name}｣ wraps around {target.name}! Stunned!"
-    return payload, message
-
-
-def echoes_act_1(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ creates a sound!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=0.6)["damage"]
-        target.effects.append(Effect(EffectType.SLOW, 1, 2, character))
-        message = f"｢{character.name}｣ plants a sound on {target.name} for {damage} damage!"
-    return payload, message
-
-
-def pearl_jam(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def ebony_devil(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    if terrain == Terrain.NATURE:
-        # Nature: fresh ingredients — much stronger heal + regen
-        heal_amount = 50
-        for ally in [a for a in allied_characters if a.is_alive()]:
-            ally.current_hp = min(ally.start_hp, ally.current_hp + heal_amount)
-            ally.effects = [e for e in ally.effects if e.type not in NEGATIVE_EFFECTS]
-            ally.effects.append(Effect(EffectType.REGENERATION, 2, 15, character))
-        message = f"｢{character.name}｣ cooks a feast with fresh ingredients! All allies healed for {heal_amount} + regen!"
-    else:
-        heal_amount = 20
-        for ally in [a for a in allied_characters if a.is_alive()]:
-            ally.current_hp = min(ally.start_hp, ally.current_hp + heal_amount)
-            ally.effects = [e for e in ally.effects if e.type not in NEGATIVE_EFFECTS]
-        message = f"｢{character.name}｣ cooks a healing meal! All allies healed for {heal_amount} and debuffs cleared!"
-    return payload, message
+    lost = 1 - character.current_hp / max(1, character.start_hp)
+    rate = 0.6 if terrain == Terrain.DESERT else 0.4
+    dmg = character.grow("damage", rate * lost)
+    arm = character.grow("armor", rate * lost)
+    target = _target(character, enemy_characters)
+    hit = _hit(character, target, 0.8) if target else 0
+    message = f"｢{character.name}｣ feeds on hatred and slashes for {hit}! +{round(dmg)} damage, +{round(arm)} armor"
+    if terrain == Terrain.DESERT:
+        if target and target.is_alive():
+            _dot(target, EffectType.BURN, 2, 0.4 * character.current_damage, character)
+            message += f" and burns {target.name} in the heat"
+    return payload, message + "!"
 
 
-def achtung_baby(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def yellow_temperance(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    _buff(character, "armor", 0.50, 2, character)
+    healed = character.heal(character.start_hp * 0.08)
+    target = _target(character, enemy_characters)
+    if target:
+        _dot(target, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ engulfs {target.name if target else 'nothing'}: +50% armor, heals {healed}, devours for 2 turns!"
+
+
+def hanged_man(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    alive_allies = [a for a in allied_characters if a.is_alive() and a != character]
-    if alive_allies:
-        strongest = max(alive_allies, key=lambda c: c.current_damage)
-        if terrain == Terrain.MIRROR:
-            # Mirror: reflections amplify invisibility — speed + damage boost
-            strongest.current_speed += 50
-            boost = int(strongest.current_damage * 0.2)
-            strongest.current_damage += boost
-            message = f"｢{character.name}｣ bends light in the mirror world! {strongest.name} gains +50 speed and +{boost} damage!"
+    target = _target(character, enemy_characters)
+    if terrain == Terrain.MIRROR:
+        _buff(character, "critical", 25, 2, character)
+        damage = _hit(character, target, 1.4, pierce=True) if target else 0
+        return payload, f"｢{character.name}｣ strikes from every reflection for {damage}, ignoring armor! +25 crit!"
+    _buff(character, "critical", 15, 2, character)
+    damage = _hit(character, target, 0.9) if target else 0
+    return payload, f"｢{character.name}｣ strikes from a reflection for {damage}! +15 crit!"
+
+
+def emperor(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires into the air!"
+    damage = _hit(character, target, 2.2)
+    return payload, f"｢{character.name}｣ headshot on {target.name} for {damage}!"
+
+
+def wheel_of_fortune(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for ally in _alive(allied_characters):
+        _buff(ally, "speed", 0.25, 2, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.1) if target else 0
+    return payload, f"｢{character.name}｣ floors it! Team +25% speed, rams for {damage}!"
+
+
+def justice(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    damage = 0
+    for enemy in _alive(enemy_characters):
+        damage += _hit(character, enemy, 0.4)
+        _debuff(enemy, "damage", 0.15, 2, character)
+        _debuff(enemy, "speed", 0.15, 2, character)
+    _buff(character, "speed", 0.30, 2, character)
+    return payload, f"｢{character.name}｣'s fog puppets strike everyone for {damage}! Enemies -15% damage and speed!"
+
+
+def the_lovers(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ links souls!"
+    pain = character.start_hp * 0.10 + (character.start_hp - character.current_hp) * 0.25
+    dealt = target.take(pain)
+    return payload, f"｢{character.name}｣ links souls with {target.name} and shares its pain: {dealt} damage!"
+
+
+def the_sun(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    terrain = _terrain(character)
+    hot = terrain == Terrain.DESERT
+    for target in _alive(enemy_characters):
+        _debuff(target, "speed", 0.20 if hot else 0.10, 2, character)
+        _dot(target, EffectType.BURN, 2, (0.3 if hot else 0.15) * character.current_damage, character)
+    if hot:
+        return payload, f"｢{character.name}｣ scorches the desert! Every enemy slowed and burning!"
+    return payload, f"｢{character.name}｣ blazes overhead, burning and slowing every enemy!"
+
+
+def death_13(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    damage, asleep = 0, 0
+    for target in _alive(enemy_characters):
+        if _impaired(target):
+            damage += _hit(character, target, 1.8)
+            asleep += 1
         else:
-            strongest.current_speed += 50
-            message = f"｢{character.name}｣ makes {strongest.name} invisible! +50 speed!"
-    else:
-        character.current_speed += 50
-        message = f"｢{character.name}｣ turns invisible! +50 speed!"
-    return payload, message
+            damage += _hit(character, target, 0.5)
+            _debuff(target, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ haunts their dreams for {damage}! ({asleep} defenceless)"
 
 
-def ratt(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def judgement(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    multiplier = 0.3
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ fires a dart!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        target.effects.append(
-            Effect(EffectType.POISON, 3, character.current_damage * multiplier, character)
-        )
-        message = f"｢{character.name}｣ poisons {target.name} for {int(character.current_damage * multiplier)} over 3 turns!"
-    return payload, message
+    dead = [a for a in allied_characters if not a.is_alive() and a != character and not getattr(a, "_revived", False)]
+    if dead:
+        revived = random.choice(dead)
+        revived.current_hp = int(revived.start_hp * 0.25)
+        revived._revived = True
+        return payload, f"｢{character.name}｣ grants a wish: {revived.name} returns with 25% health!"
+    strongest = max(_alive(allied_characters), key=lambda c: c.current_damage)
+    _buff(strongest, "damage", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ grants a wish: {strongest.name} +25% damage!"
 
 
-def harvest(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def high_pristess(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    character.grow("armor", 0.12)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.0) if target else 0
+    return payload, f"｢{character.name}｣ becomes the floor and bites for {damage}! +12% armor!"
+
+
+def geb(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    stat_choices = ["damage", "speed", "armor", "critical"]
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ sneak attack!"
+    if terrain == Terrain.OCEAN:
+        damage = _hit(character, target, 2.0)
+        _debuff(target, "speed", 0.20, 2, character)
+        return payload, f"｢{character.name}｣ surges from the water! {damage} damage to {target.name} + slowed!"
+    damage = _hit(character, target, 1.6)
+    return payload, f"｢{character.name}｣ sneak attacks {target.name} for {damage}!"
+
+
+def khnum(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ takes on a disguise!"
+    dmg = max(0, target.current_damage - character.current_damage)
+    spd = max(0, target.current_speed - character.current_speed)
+    character.add_effect(Effect(EffectType.DAMAGEUP, 2, dmg, character))
+    character.add_effect(Effect(EffectType.SPEEDUP, 2, spd, character))
+    damage = _hit(character, target, 1.0)
+    return payload, f"｢{character.name}｣ disguises as {target.name}, copies its power and strikes for {damage}!"
+
+
+def tohth(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for ally in _alive(allied_characters):
+        _buff(ally, "critical", 12, 2, character)
+        _buff(ally, "damage", 0.15, 2, character)
+    target = _target(character, enemy_characters)
+    if target:
+        target.special_meter = max(0, target.special_meter - 1)
+    return payload, f"｢{character.name}｣ predicts the future! Team +12 crit and +15% damage, enemy special delayed!"
+
+
+def anubis(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ possesses the enemy!"
+    controlled = _target(character, enemy_characters)
+    others = [c for c in valid if c != controlled]
+    if others:
+        target = random.choice(others)
+        damage = _hit(controlled, target, 1.0)
+        return payload, f"｢{character.name}｣ possesses {controlled.name}, who slashes {target.name} for {damage}!"
+    damage = _hit(character, controlled, 1.5)
+    return payload, f"｢{character.name}｣ cuts {controlled.name} for {damage}!"
+
+
+def bastet(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ magnetizes the enemy!"
+    target = min(valid, key=lambda c: c.current_speed)
+    _stun(target, character)
+    damage = _hit(character, target, 0.4)
+    return payload, f"｢{character.name}｣ magnetizes {target.name}: {damage} damage and stunned!"
+
+
+def horus(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣!"
+    damage = _hit(character, target, 1.0)
+    _stun(target, character)
+    return payload, f"｢{character.name}｣ impales {target.name} with ice for {damage} and freezes it!"
+
+
+def atum(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ rolls the dice"
+    roll = random.randint(1, 6)
+    damage = _hit(character, target, 0.4 * roll)
+    return payload, f"｢{character.name}｣ reads {target.name}'s soul and rolls a {roll}: {damage} damage!"
+
+
+def osiris(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ rolls the dice"
+    roll = random.randint(1, 6)
+    damage = _hit(character, target, 0.35 * roll)
+    healed = character.heal(damage * 0.5)
+    return payload, f"｢{character.name}｣ wagers {target.name}'s soul on a {roll}: {damage} damage, heals {healed}!"
+
+
+def cream(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    damage = sum(_hit(character, e, 0.9, pierce=True) for e in _alive(enemy_characters))
+    _stun(character, character)
+    return payload, f"｢{character.name}｣ devours space: {damage} damage to all, ignoring armor! It vanishes for a turn."
+
+
+def star_platinum_the_world(character, allied_characters, enemy_characters) -> tuple:
+    return _time_stop(character, enemy_characters)
+
+
+# ── Part 4 ──────────────────────────────────────────────────────────────
+
+def crazy_diamond(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    ally = _weakest(allied_characters)
+    if ally and ally.current_hp < ally.start_hp:
+        healed = ally.heal(ally.start_hp * 0.25)
+        _cleanse(ally)
+        return payload, f"｢{character.name}｣ restores {ally.name}: +{healed} health, debuffs cleared!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.5) if target else 0
+    return payload, f"｢{character.name}｣ DORA! {damage} damage!"
+
+
+def aqua_necklace(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ strikes!"
+    damage = _hit(character, target, 1.1)
+    _debuff(target, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ slips inside {target.name} for {damage} and slows it!"
+
+
+def the_hand(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ erases the air!"
+    damage = _hit(character, target, 1.4, pierce=True)
+    _debuff(target, "armor", 0.30, 2, character)
+    return payload, f"｢{character.name}｣ erases space through {target.name}: {damage} damage ignoring armor, -30% armor!"
+
+
+def heavens_door(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣!"
+    damage = _hit(character, target, 1.1)
+    _stun(target, character)
+    _debuff(target, "damage", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ writes in {target.name} ({damage} damage): “cannot attack”. Stunned and -25% damage!"
+
+
+def killer_queen(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "kira")
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣!"
+    if synergy:
+        targets = random.sample(valid, min(2, len(valid)))
+        damage = 0
+        for target in targets:
+            damage += _hit(character, target, 1.5)
+            _dot(target, EffectType.BURN, 1, 0.3 * character.current_damage, character)
+        names = " and ".join(t.name for t in targets)
+        return payload, f"｢{character.name}｣ air-bubble bombs {names} for {damage}! 💣🐈 Kira synergy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.9)
+    return payload, f"｢{character.name}｣ detonates {target.name} for {damage}!"
+
+
+def echoes_act_3(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣!"
+    damage = _hit(character, target, 1.0)
+    _stun(target, character)
+    for other in _alive(enemy_characters):
+        if other != target:
+            _debuff(other, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ 3 FREEZE! {target.name} is pinned down for {damage}, the others slowed!"
+
+
+def dummy(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    character.current_hp = character.start_hp
+    return payload, f"｢{character.name}｣ restores all of its health to full!"
+
+
+def killer_queen_bite_the_dust(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    healed = sum(a.heal((a.start_hp - a.current_hp) * 0.3) for a in _alive(allied_characters))
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.5) if target else 0
+    return payload, f"｢{character.name}｣ Bites the Dust: rewinds {healed} health for the team and blows up {target.name if target else 'nothing'} for {damage}!"
+
+
+def bad_company(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    units = len(_alive(allied_characters))
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ deploys the troops!"
+    damage = _hit(character, target, 0.5 + 0.55 * units)
+    return payload, f"｢{character.name}｣ deploys {units} squads! {target.name} takes {damage}!"
+
+
+def echoes_act_0(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    healed = character.heal(character.start_hp * 0.10)
+    grown = character.grow("damage", 0.10)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.5) if target else 0
+    return payload, f"｢{character.name}｣ is about to hatch... heals {healed}, +{round(grown)} damage, pecks for {damage}!"
+
+
+def red_hot_chili_peper(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.3) if target else 0
+    _buff(character, "speed", 0.30, 2, character)
+    return payload, f"｢{character.name}｣ rides the power lines: {damage} damage and +30% speed!"
+
+
+def the_lock(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    lost = 1 - character.current_hp / max(1, character.start_hp)
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "speed", 0.20, 2, character)
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣'s guilt weighs on everyone!"
+    _debuff(target, "damage", 0.25 + 0.3 * lost, 2, character)
+    _hit(character, target, 0.7)
+    _dot(target, EffectType.BLEED, 2, 0.5 * character.current_damage, character)
+    return payload, f"｢{character.name}｣'s guilt weighs on everyone! Enemies slowed; {target.name} weakened and bleeding!"
+
+
+def surface(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ takes control!"
+    controlled = _target(character, enemy_characters)
+    others = [c for c in valid if c != controlled]
+    if others:
+        target = random.choice(others)
+        damage = _hit(controlled, target, 1.4)
+        return payload, f"｢{character.name}｣ mimics {controlled.name} into hitting {target.name} for {damage}!"
+    damage = _hit(controlled, controlled, 0.6)
+    return payload, f"｢{character.name}｣ makes {controlled.name} hurt itself for {damage}!"
+
+
+def love_deluxe(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ extends her hair!"
+    damage = _hit(character, target, 0.8)
+    if target.current_speed > character.current_speed:
+        _debuff(target, "speed", 0.35, 2, character)
+        return payload, f"｢{character.name}｣ tangles {target.name}'s legs: {damage} damage, -35% speed!"
+    _stun(target, character)
+    return payload, f"｢{character.name}｣ wraps around {target.name}: {damage} damage, stunned!"
+
+
+def echoes_act_1(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ creates a sound!"
+    damage = _hit(character, target, 1.0)
+    _debuff(target, "speed", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ sticks a sound on {target.name}: {damage} damage and slowed!"
+
+
+def echoes_act_2(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    damage = 0
+    for enemy in _alive(enemy_characters):
+        damage += _hit(character, enemy, 0.75)
+        _debuff(enemy, "speed", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ plants sound words on everyone: {damage} damage, all slowed!"
+
+
+def pearl_jam(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    terrain = _terrain(character)
+    fresh = terrain == Terrain.NATURE
+    healed = 0
+    for ally in _alive(allied_characters):
+        healed += ally.heal(ally.start_hp * (0.12 if fresh else 0.08))
+        _cleanse(ally)
+        if fresh:
+            ally.add_effect(Effect(EffectType.REGENERATION, 2, ally.start_hp * 0.03, character))
+    if fresh:
+        return payload, f"｢{character.name}｣ cooks with fresh ingredients! Team heals {healed} + regen, debuffs cleared!"
+    return payload, f"｢{character.name}｣ cooks a healing meal! Team heals {healed}, debuffs cleared!"
+
+
+def achtung_baby(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    terrain = _terrain(character)
+    allies = [a for a in _alive(allied_characters) if a != character]
+    target = max(allies, key=lambda c: c.current_damage) if allies else character
+    mirror = terrain == Terrain.MIRROR
+    _buff(target, "speed", 0.60, 2, character)
+    _buff(target, "critical", 15, 2, character)
+    _buff(target, "damage", 0.40 if mirror else 0.25, 2, character)
+    _hit(character, _target(character, enemy_characters), 0.6) if _target(character, enemy_characters) else 0
+    if mirror:
+        return payload, f"｢{character.name}｣ bends light in the mirror world! {target.name} +60% speed, +15 crit, +40% damage!"
+    return payload, f"｢{character.name}｣ makes {target.name} invisible! +60% speed, +15 crit, +25% damage!"
+
+
+def ratt(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires a dart!"
+    damage = _hit(character, target, 0.8)
+    _dot(target, EffectType.POISON, 3, 0.4 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ darts {target.name} for {damage}, melting it for 3 turns!"
+
+
+def harvest(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    terrain = _terrain(character)
+    rich = terrain == Terrain.NATURE
     collected = []
-    # Nature: double the harvest
-    lo, hi = (5, 15) if terrain == Terrain.NATURE else (2, 8)
-    for ally in [a for a in allied_characters if a.is_alive()]:
-        stat = random.choice(stat_choices)
-        amount = random.randint(lo, hi)
-        if stat == "damage":
-            ally.current_damage += amount
-        elif stat == "speed":
-            ally.current_speed += amount
-        elif stat == "armor":
-            ally.current_armor += amount
-        elif stat == "critical":
-            ally.current_critical += amount
-        collected.append(f"+{amount} {stat}")
-    prefix = "bountiful " if terrain == Terrain.NATURE else ""
-    message = f"｢{character.name}｣ collects {prefix}resources! {', '.join(collected)}!"
-    return payload, message
+    for ally in _alive(allied_characters):
+        stat = random.choice(["damage", "speed", "armor", "critical"])
+        amount = random.randint(10, 20) if stat == "critical" else random.uniform(0.15, 0.25)
+        if rich:
+            amount *= 1.6
+        _buff(ally, stat, amount, 3, character)
+        collected.append(f"{ally.name} +{amount if stat == 'critical' else _pct(amount)} {stat}")
+    prefix = "a bountiful harvest" if rich else "resources"
+    return payload, f"｢{character.name}｣ collects {prefix}! {', '.join(collected)}!"
 
 
-def atom_heart_father(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def cinderella(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    buff = 10
-    alive_allies = [a for a in allied_characters if a.is_alive() and a != character]
-    if alive_allies:
-        for ally in alive_allies:
-            ally.current_damage += buff
-        message = f"｢{character.name}｣ empowers allies! All allies gain +{buff} damage!"
-    else:
-        character.current_damage += buff * 2
-        message = f"｢{character.name}｣ focuses all power! +{buff * 2} damage!"
-    return payload, message
+    healed = 0
+    for ally in _alive(allied_characters):
+        _buff(ally, "critical", 12, 2, character)
+        _buff(ally, "damage", 0.15, 2, character)
+        healed += ally.heal(ally.start_hp * 0.08)
+    return payload, f"｢{character.name}｣ gives everyone a lucky makeover! Team +12 crit, +15% damage, heals {healed}!"
 
 
-def boy_ii_man(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def atom_heart_father(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    allies = [a for a in _alive(allied_characters) if a != character]
+    if allies:
+        for ally in allies:
+            _buff(ally, "damage", 0.20, 2, character)
+        target = _target(character, enemy_characters)
+        if target:
+            _stun(target, character)
+        return payload, f"｢{character.name}｣ traps {target.name if target else 'the enemy'} in a photo (stunned)! Allies +20% damage!"
+    _buff(character, "damage", 0.40, 2, character)
+    return payload, f"｢{character.name}｣ focuses all power! +40% damage!"
+
+
+def boy_ii_man(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ waits for a challenger!"
     roll = random.choice(["rock", "paper", "scissors"])
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
     if roll == "rock":
-        message = f"｢{character.name}｣ throws Rock! Nothing happens..."
-    elif roll == "paper":
-        damage_taken = character.start_hp - character.current_hp
-        if valid_characters and damage_taken > 0:
-            target = random.choice(valid_characters)
-            target.current_hp -= damage_taken
-            message = f"｢{character.name}｣ throws Paper! Reflects {int(damage_taken)} damage back at {target.name}!"
-        else:
-            message = f"｢{character.name}｣ throws Paper! No damage to reflect."
-    else:
-        if valid_characters:
-            target = random.choice(valid_characters)
-            damage = character.attack(target, multiplier=3.0)["damage"]
-            message = f"｢{character.name}｣ throws Scissors! Critical strike on {target.name} for {damage}!"
-        else:
-            message = f"｢{character.name}｣ throws Scissors!"
-    return payload, message
+        stolen = _debuff(target, "damage", 0.25, 3, character)
+        character.add_effect(Effect(EffectType.DAMAGEUP, 3, stolen, character))
+        return payload, f"｢{character.name}｣ throws Rock and wins! Steals {stolen} damage from {target.name}!"
+    if roll == "paper":
+        dealt = target.take(min(character.start_hp - character.current_hp, character.start_hp * 0.4) * 0.6)
+        return payload, f"｢{character.name}｣ throws Paper! Reflects {dealt} damage at {target.name}!"
+    damage = _hit(character, target, 2.0)
+    return payload, f"｢{character.name}｣ throws Scissors! Cuts {target.name} for {damage}!"
 
 
-def super_fly(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def highway_star(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.current_armor = int(character.current_armor * 1.3)
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    damage_taken = character.start_hp - character.current_hp
-    reflect = int(damage_taken * 0.25)
-    if valid_characters and reflect > 0:
-        for enemy in valid_characters:
-            enemy.current_hp -= reflect // len(valid_characters)
-        message = f"｢{character.name}｣ reflects {reflect} damage back! Armor increased!"
-    else:
-        message = f"｢{character.name}｣ stands firm like a tower! Armor increased!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ searches for nutrients"
+    damage = _hit(character, target, 0.7)
+    healed = character.heal(damage * 0.4)
+    return payload, f"｢{character.name}｣ drains {target.name} for {damage} and heals {healed}!"
 
 
-def cheap_trick(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    dead_allies = [a for a in allied_characters if not a.is_alive() and a != character]
-    valid_enemies = [i for i in enemy_characters if i.is_alive()]
-    if dead_allies and valid_enemies:
-        target = random.choice(valid_enemies)
-        target.current_hp = 0
-        character.current_hp = 0
-        message = f"｢{character.name}｣ drags {target.name} to hell! Both are eliminated!"
-    elif not dead_allies:
-        message = f"｢{character.name}｣ lurks, waiting for an ally to fall..."
-        character.special_meter = character.turn_for_ability - 1
-    else:
-        message = f"｢{character.name}｣ has no target to drag down!"
-    return payload, message
-
-
-def red_hot_chili_peper(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.01
-    dif_damge = (character.current_hp - character.start_hp) * multiplier
-    character.current_speed += int(dif_damge)
-    message = f"｢{character.name}｣ gains more speed ! {int(dif_damge)} speed !"
-    return payload, message
-
-
-def echoes_act_2(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 5
-    for ennemy in enemy_characters:
-        ennemy.effects.append(Effect(EffectType.SLOW, 3, multiplier, character))
-    message = f"｢{character.name}｣ slow everyone for {multiplier}!"
-    return payload, message
-
-
-def cinderella(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 5
-    for ally in [s for s in allied_characters if s.is_alive()]:
-        ally.current_critical += multiplier
-    message = f"｢{character.name}｣ make everyone prettier"
-    return payload, message
-
-
-def highway_star(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    multiplier = 0.5
-    message = f"｢{character.name}｣ schearch nutrient"
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if len(valid_characters) != 0:
-        target: "Character" = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=multiplier)["damage"]
-        character.current_hp += damage
-        message = f"｢{character.name}｣ damage {target.name} for {damage} and heal himself for {damage}"
-    return payload, message
-
-
-def stray_cat(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def stray_cat(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
     synergy = _has_synergy(character.id, allied_characters, "kira")
-    multiplier = 10
-    atck_multiplier = character.current_critical / multiplier
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if not valid_characters:
-        message = f"｢{character.name}｣ prepares an explosive bubble."
-        return payload, message
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ prepares an explosive bubble."
+    crit_bonus = 1 + min(character.current_critical, 75) / 100
     if synergy:
-        # Kira synergy: guided explosive bubbles — AoE + burn
         total = 0
-        for target in valid_characters:
-            total += character.attack(target, multiplier=atck_multiplier * 1.5)["damage"]
-            target.effects.append(Effect(EffectType.BURN, 1, character.current_damage * 0.3, character))
-        message = f"｢{character.name}｣ fires Killer Queen-guided bubbles! {total} damage + burn! 💣🐈 Kira synergy!"
-    elif terrain == Terrain.NATURE:
-        total = 0
-        for target in valid_characters:
-            total += character.attack(target, multiplier=atck_multiplier)["damage"]
-        message = f"｢{character.name}｣ fires explosive bubbles at everyone for {total} total damage!"
-    else:
-        target = random.choice(valid_characters)
-        damage = character.attack(target, multiplier=atck_multiplier)["damage"]
-        message = f"｢{character.name}｣ explodes a bubble on {target.name} for {damage} damage!"
-    return payload, message
+        for target in valid:
+            total += _hit(character, target, 0.7 * crit_bonus)
+            _dot(target, EffectType.BURN, 1, 0.3 * character.current_damage, character)
+        return payload, f"｢{character.name}｣ fires Killer Queen-guided bubbles! {total} damage + burn! 💣🐈 Kira synergy!"
+    if terrain == Terrain.NATURE:
+        total = sum(_hit(character, t, 0.6 * crit_bonus) for t in valid)
+        return payload, f"｢{character.name}｣ fires explosive bubbles at everyone for {total}!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.4 * crit_bonus)
+    return payload, f"｢{character.name}｣ pops an air bubble on {target.name} for {damage}!"
 
 
-def enigma(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def super_fly(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-
-    message = f"｢{character.name}｣ schearch their fears."
-    if len(valid_characters) != 0:
-        target = random.choice(valid_characters)
-        if (
-            EffectType.STUN in [e.type for e in target.effects]
-            or EffectType.SLOW in [e.type for e in target.effects]
-            or target.current_speed < target.start_speed
-        ):
-            target.current_armor = max(1, int(target.current_armor * 0.6))
-            message = f"｢{character.name}｣ make {target.name} weak"
-    return payload, message
+    _buff(character, "armor", 0.20, 2, character)
+    valid = _alive(enemy_characters)
+    reflect = (character.start_hp - character.current_hp) * 0.12
+    if valid and reflect > 0:
+        dealt = sum(e.take(reflect / len(valid)) for e in valid)
+        return payload, f"｢{character.name}｣ sends {dealt} damage back down the tower! +20% armor!"
+    return payload, f"｢{character.name}｣ stands firm like a tower! +20% armor!"
 
 
-def sex_pistol(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def enigma(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ searches for their fears."
+    if _impaired(target):
+        _stun(target, character)
+        _debuff(target, "armor", 0.40, 2, character)
+        return payload, f"｢{character.name}｣ folds the terrified {target.name} into paper! Stunned, -40% armor!"
+    damage = _hit(character, target, 1.2)
+    _debuff(target, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ finds {target.name}'s fear: {damage} damage, slowed!"
+
+
+def cheap_trick(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    dead_allies = [a for a in allied_characters if not a.is_alive() and a != character]
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ whispers to nobody."
+    if dead_allies:
+        dealt = target.take(target.current_hp * 0.5)
+        lost = character.take(character.current_hp * 0.3)
+        return payload, f"｢{character.name}｣ drags {target.name} toward hell: {dealt} damage, for {lost} of its own health!"
+    damage = _hit(character, target, 1.0)
+    _debuff(target, "speed", 0.25, 2, character)
+    _debuff(target, "armor", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ whispers behind {target.name}'s back: {damage} damage, -25% speed and armor."
+
+
+def gold_experience(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "passione")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ fires!"
-    if valid_characters:
-        max_shots = 8 if synergy else 6
-        shot_multi = 0.4 if synergy else 0.3
-        shots = min(max_shots, len(valid_characters) + random.randint(1, 3))
-        total_damage = 0
-        for _ in range(shots):
-            target = random.choice(valid_characters)
-            damage = character.attack(target, multiplier=shot_multi)["damage"]
-            total_damage += damage
-        message = f"｢{character.name}｣ fires {shots} guided bullets for {total_damage} total damage!"
-        if synergy:
-            message += " 🐞 Passione synergy!"
+    share = 0.16 if synergy else 0.12
+    healed = sum(a.heal(a.start_hp * share) for a in _alive(allied_characters))
+    message = f"｢{character.name}｣ gives life: the team heals {healed}!"
+    if synergy:
+        for ally in _alive(allied_characters):
+            _buff(ally, "speed", 0.15, 2, character)
+        message += " 🐞 Passione synergy! Team +15% speed!"
     return payload, message
 
 
-def kraft_work(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ locks objects in place!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-        message = f"｢{character.name}｣ locks {target.name} in place! Stunned and slowed!"
-    return payload, message
-
-
-def aerosmith(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def sticky_finger(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "passione")
-    multiplier = 0.45 if synergy else 0.35
+    target = _target(character, enemy_characters)
+    if synergy:
+        _buff(character, "critical", 15, 2, character)
+        _buff(character, "speed", 0.25, 2, character)
+        damage = _hit(character, target, 1.5) if target else 0
+        return payload, f"｢{character.name}｣ ARI ARI ARI! {damage} damage, +15 crit, +25% speed! 🐞 Passione synergy!"
+    _buff(character, "critical", 10, 2, character)
+    damage = _hit(character, target, 1.2) if target else 0
+    return payload, f"｢{character.name}｣ unzips {target.name if target else 'the air'} for {damage}! +10 crit!"
+
+
+def purple_haze(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _dot(enemy, EffectType.POISON, 2, 0.45 * character.current_damage, character)
+    for ally in _alive(allied_characters):
+        _dot(ally, EffectType.POISON, 1, 0.1 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ releases the virus! Every enemy is poisoned... and so are its allies, a little."
+
+
+def king_crimson(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _stun(enemy, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.0) if target else 0
+    return payload, f"｢{character.name}｣ erases time! Every enemy loses its next turn; {damage} damage to {target.name if target else 'nobody'}!"
+
+
+def notorious_big(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    character.add_effect(Effect(EffectType.REGENERATION, 2, character.start_hp * 0.08, character))
+    alone = len(_alive(allied_characters)) == 1
+    if alone:
+        _buff(character, "damage", 0.40, 2, character)
+        return payload, f"｢{character.name}｣ feeds on everything that moves! Regenerates and +40% damage!"
+    return payload, f"｢{character.name}｣ regenerates!"
+
+
+def metallica(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _dot(enemy, EffectType.BLEED, 2, 0.25 * character.current_damage, character)
+        _debuff(enemy, "damage", 0.10, 2, character)
+    return payload, f"｢{character.name}｣ pulls iron from their blood! Every enemy bleeds and -10% damage!"
+
+
+def green_day(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "damage", 0.20, 2, character)
+        _dot(enemy, EffectType.POISON, 2, 0.2 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ spreads the mold! Every enemy rots and loses 20% damage!"
+
+
+def chariot_requiem(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if target and target.id != character.id and str(target.id) in specials:
+        damage = _hit(character, target, 0.6)
+        _payload, message = specials[str(target.id)](character, allied_characters, enemy_characters)
+        return payload, f"｢{character.name}｣ swaps souls with {target.name} ({damage} damage) and borrows its power: {message}"
+    grown = character.grow("damage", 0.10)
+    return payload, f"｢{character.name}｣'s soul searches for the arrow... +{round(grown)} damage."
+
+
+def gold_experience_requiem(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    payload["GER"] = True
+    for enemy in _alive(enemy_characters):
+        _purge(enemy)
+        enemy.current_damage = min(enemy.current_damage, enemy.start_damage)
+        enemy.current_speed = min(enemy.current_speed, enemy.start_speed)
+        enemy.special_meter = 0
+    target = _target(character, enemy_characters)
+    message = f"｢{character.name}｣ You will never reach the truth! Every enemy returns to zero"
+    if target:
+        damage = _hit(character, target, 1.5)
+        _stun(target, character)
+        message += f"; {target.name} takes {damage} and is stunned"
+    return payload, message + "!"
+
+
+def stone_free(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ frees the stone ocean!"
+    damage = _hit(character, target, 0.6)
+    _stun(target, character)
+    return payload, f"｢{character.name}｣ ties {target.name} up in string: {damage} damage and stunned!"
+
+
+def weather_report(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _dot(enemy, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.0) if target else 0
+    return payload, f"｢{character.name}｣ makes poison frogs rain on everyone and strikes {target.name if target else 'nothing'} with lightning for {damage}!"
+
+
+def jumpin_jack_flash(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ removes gravity!"
+    damage = _hit(character, target, 1.2)
+    _stun(target, character)
+    return payload, f"｢{character.name}｣ sends {target.name} floating off for {damage}! Stunned!"
+
+
+def bohemian_rhapsody(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    best = max(_alive(allied_characters), key=lambda c: c.current_damage)
+    for stat, kind in (("damage", EffectType.DAMAGEUP), ("speed", EffectType.SPEEDUP), ("critical", EffectType.CRITUP)):
+        gap = getattr(best, f"current_{stat}") - getattr(character, f"current_{stat}")
+        if gap > 0:
+            character.add_effect(Effect(kind, 2, gap, character))
+    healed = character.heal(character.start_hp * 0.10)
+    return payload, f"｢{character.name}｣ becomes a perfect version of {best.name} and heals {healed}!"
+
+
+def underworld(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    dead = [a for a in allied_characters if not a.is_alive() and not getattr(a, "_revived", False)]
+    if dead:
+        revived = random.choice(dead)
+        revived.current_hp = int(revived.start_hp * 0.3)
+        revived._revived = True
+        return payload, f"｢{character.name}｣ digs up a memory of {revived.name}: back with 30% health!"
+    _buff(character, "armor", 0.40, 2, character)
+    return payload, f"｢{character.name}｣ digs in, waiting for an ally to fall... +40% armor."
+
+
+def c_moon(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "pucci")
     damage = 0
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    for target in valid_characters:
-        damage += character.attack(target, multiplier=multiplier)["damage"]
-    message = f"｢{character.name}｣ strafes everyone for {int(damage)} damage!"
+    for enemy in _alive(enemy_characters):
+        damage += _hit(character, enemy, 0.5)
+        _debuff(enemy, "speed", 0.25 if synergy else 0.15, 2, character)
+        if synergy:
+            _debuff(enemy, "armor", 0.15, 2, character)
+    message = f"｢{character.name}｣ turns gravity inside out: {damage} damage, every enemy slowed!"
     if synergy:
-        # Passione: Narancia tracks via CO2 — also apply bleed to lowest HP enemy
-        if valid_characters:
-            weakest = min(valid_characters, key=lambda c: c.current_hp)
-            weakest.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.15, character))
+        message += " ☽ Pucci synergy! -15% enemy armor!"
+    return payload, message
+
+
+def made_in_heaven(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "pucci")
+    character.grow("speed", 0.20)
+    character.grow("damage", 0.15)
+    _buff(character, "critical", 10, 2, character)
+    if synergy:
+        for ally in [a for a in _alive(allied_characters) if a.id in SYNERGIES["pucci"] and a != character]:
+            _buff(ally, "speed", 0.25, 2, character)
+            _buff(ally, "damage", 0.15, 2, character)
+        return payload, f"｢{character.name}｣ accelerates time for everyone! ☽ Pucci synergy!"
+    return payload, f"｢{character.name}｣ accelerates time: +20% speed, +15% damage, +10 crit!"
+
+
+# ── Part 5 ──────────────────────────────────────────────────────────────
+
+def black_sabbath(character, allied_characters, enemy_characters) -> tuple:
+    """ID 61 — Deals extra damage to enemies faster than it."""
+    payload = get_payload()
+    total = 0
+    for target in _alive(enemy_characters):
+        total += _hit(character, target, 0.7 if target.current_speed > character.current_speed else 0.35)
+    return payload, f"｢{character.name}｣ drags the fast into the shadows for {total} damage!"
+
+
+def moody_blues(character, allied_characters, enemy_characters) -> tuple:
+    """ID 62 — Resets an enemy's special and speeds up an ally's."""
+    payload = get_payload()
+    parts = []
+    target = _target(character, enemy_characters)
+    if target:
+        target.special_meter = 0
+        parts.append(f"resets {target.name}'s special")
+    allies = [a for a in _alive(allied_characters) if a != character and not a.as_special()]
+    if allies:
+        ally = random.choice(allies)
+        ally.special_meter += 1
+        parts.append(f"charges {ally.name}'s special")
+    return payload, f"｢{character.name}｣ replays the past: " + (" and ".join(parts) or "nothing useful") + "!"
+
+
+def soft_machine(character, allied_characters, enemy_characters) -> tuple:
+    """ID 63 — Deflates an enemy. Squadra: deflates every enemy."""
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "squadra")
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ slashes at the air!"
+    if synergy:
+        for target in valid:
+            _debuff(target, "armor", 0.25, 2, character)
+            _debuff(target, "damage", 0.12, 2, character)
+        return payload, f"｢{character.name}｣ deflates every enemy! -25% armor, -12% damage! 🗡️ Squadra synergy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.8)
+    _debuff(target, "armor", 0.30, 2, character)
+    _debuff(target, "damage", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ deflates {target.name}: {damage} damage, -30% armor, -15% damage!"
+
+
+def sex_pistol(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "passione")
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires!"
+    shots = 6 if synergy else 5
+    total = 0
+    for _ in range(shots):
+        if not target.is_alive():
+            target = _target(character, enemy_characters)
+            if not target:
+                break
+        total += _hit(character, target, 0.32 if synergy else 0.26)
+    message = f"｢{character.name}｣ guide {shots} bullets into {target.name if target else 'the enemy'} for {total}!"
+    if synergy:
+        message += " 🐞 Passione synergy!"
+    return payload, message
+
+
+def kraft_work(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ locks objects in place!"
+    damage = _hit(character, target, 0.8)
+    _stun(target, character)
+    _debuff(target, "speed", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ locks {target.name} in place: {damage} damage, stunned and slowed!"
+
+
+def little_feet(character, allied_characters, enemy_characters) -> tuple:
+    """ID 66 — The lower the enemy's health, the more it shrinks."""
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ shrinks the air!"
+    lost = 1 - target.current_hp / max(1, target.start_hp)
+    damage = _hit(character, target, 0.9)
+    cut = _debuff(target, "damage", 0.2 + 0.3 * lost, 2, character)
+    return payload, f"｢{character.name}｣ cuts {target.name} for {damage} and shrinks it: -{cut} damage!"
+
+
+def aerosmith(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "passione")
+    damage = _aoe(character, enemy_characters, 0.6 if synergy else 0.5)
+    message = f"｢{character.name}｣ strafes everyone for {damage} damage!"
+    if synergy:
+        weakest = _weakest(enemy_characters)
+        if weakest:
+            _dot(weakest, EffectType.BLEED, 2, 0.3 * character.current_damage, character)
             message += f" Locks onto {weakest.name} with bleed! 🐞 Passione synergy!"
     return payload, message
 
 
-def man_in_the_miror(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def man_in_the_miror(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "squadra")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ opens the mirror world!"
-    if valid_characters:
-        if synergy:
-            # Squadra: trap 2 enemies in the mirror world
-            targets = random.sample(valid_characters, min(2, len(valid_characters)))
-            for target in targets:
-                target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-                target.effects.append(Effect(EffectType.WEAKEN, 2, 0.75, character))
-            names = " and ".join(t.name for t in targets)
-            message = f"｢{character.name}｣ traps {names} in the mirror world! 🗡️ Squadra synergy!"
-        else:
-            target = random.choice(valid_characters)
-            target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-            target.effects.append(Effect(EffectType.WEAKEN, 2, 0.8, character))
-            message = f"｢{character.name}｣ traps {target.name} in the mirror world! Stunned and weakened!"
-    return payload, message
-
-
-def the_grateful_dead(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "squadra")
-    poison_multi = 0.3 if synergy else 0.2
-    slow_val = 5 if synergy else 3
-    for enemy in enemy_characters:
-        enemy.effects.append(Effect(EffectType.POISON, 3, character.current_damage * poison_multi, character))
-        enemy.effects.append(Effect(EffectType.SLOW, 3, slow_val, character))
-    message = f"｢{character.name}｣ ages everyone! Poison and slow applied to all enemies!"
-    if synergy:
-        message += " 🗡️ Squadra synergy!"
-    return payload, message
-
-
-def baby_face(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "squadra")
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ learns!"
-    if valid_characters:
-        steal_pct = 0.25 if synergy else 0.15
-        target = random.choice(valid_characters)
-        stolen_dmg = int(target.current_damage * steal_pct)
-        stolen_spd = int(target.current_speed * 0.1) if synergy else 0
-        target.current_damage -= stolen_dmg
-        character.current_damage += stolen_dmg
-        if stolen_spd:
-            target.current_speed -= stolen_spd
-            character.current_speed += stolen_spd
-        message = f"｢{character.name}｣ steals {stolen_dmg} damage"
-        if stolen_spd:
-            message += f" and {stolen_spd} speed"
-        message += f" from {target.name}!"
-        if synergy:
-            message += " 🗡️ Squadra synergy!"
-    return payload, message
-
-
-def white_album(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "squadra")
-    armor_multi = 1.5 if synergy else 1.4
-    character.current_armor = int(character.current_armor * armor_multi)
-    slow_val = 6 if synergy else 4
-    for enemy in enemy_characters:
-        enemy.effects.append(Effect(EffectType.SLOW, 2, slow_val, character))
-    message = f"｢{character.name}｣ freezes the area! +{int((armor_multi-1)*100)}% armor, all enemies slowed!"
-    if synergy:
-        message += " 🗡️ Squadra synergy!"
-    return payload, message
-
-
-def spice_girl(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    for ally in [a for a in allied_characters if a.is_alive()]:
-        ally.current_armor = int(ally.current_armor * 1.2)
-    message = f"｢{character.name}｣ softens the team! All allies gain +20% armor!"
-    return payload, message
-
-
-# ── Part 5 passive / minor stands ──────────────────────────────────────
-
-
-def black_sabbath(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 61 — Deals extra damage to enemies above a speed threshold."""
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_damage = 0
-    speed_threshold = character.current_speed * 1.5
-    for target in valid:
-        multi = 0.6 if target.current_speed > speed_threshold else 0.3
-        dmg = character.attack(target, multiplier=multi)["damage"]
-        total_damage += dmg
-    message = f"｢{character.name}｣ drags the fast into the shadows for {total_damage} damage!"
-    return payload, message
-
-
-def moody_blues(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 62 — Reset an enemy ability counter, boost an ally's counter."""
-    payload = get_payload()
-    valid_enemies = [e for e in enemy_characters if e.is_alive()]
-    valid_allies = [a for a in allied_characters if a.is_alive() and a != character and not a.as_special()]
-    msg_parts = []
-    if valid_enemies:
-        target = random.choice(valid_enemies)
-        target.special_meter = 0
-        msg_parts.append(f"reset {target.name}'s ability")
-    if valid_allies:
-        ally = random.choice(valid_allies)
-        ally.special_meter = ally.turn_for_ability
-        msg_parts.append(f"readied {ally.name}'s ability")
-    if not msg_parts:
-        msg_parts.append("replayed the past but found nothing useful")
-    message = f"｢{character.name}｣ " + " and ".join(msg_parts) + "!"
-    return payload, message
-
-
-def soft_machine(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 63 — Deflates a random enemy. Squadra: deflates ALL enemies."""
-    payload = get_payload()
-    synergy = _has_synergy(character.id, allied_characters, "squadra")
-    valid = [e for e in enemy_characters if e.is_alive()]
+    valid = _alive(enemy_characters)
     if not valid:
-        message = f"｢{character.name}｣ slashes at the air!"
-        return payload, message
+        return payload, f"｢{character.name}｣ opens the mirror world!"
     if synergy:
-        # Squadra: coordinated ambush — deflate everyone
-        total_armor = 0
-        total_dmg = 0
-        for target in valid:
-            ar = int(target.current_armor * 0.2)
-            dr = int(target.current_damage * 0.1)
-            target.current_armor -= ar
-            target.current_damage -= dr
-            total_armor += ar
-            total_dmg += dr
-        message = f"｢{character.name}｣ deflates all enemies! -{total_armor} armor, -{total_dmg} damage total! 🗡️ Squadra synergy!"
-    else:
-        target = random.choice(valid)
-        armor_reduction = int(target.current_armor * 0.25)
-        dmg_reduction = int(target.current_damage * 0.15)
-        target.current_armor -= armor_reduction
-        target.current_damage -= dmg_reduction
-        message = f"｢{character.name}｣ deflates {target.name}! -{armor_reduction} armor, -{dmg_reduction} damage!"
-    return payload, message
+        targets = random.sample(valid, min(2, len(valid)))
+        for target in targets:
+            _stun(target, character)
+            _debuff(target, "damage", 0.20, 2, character)
+        names = " and ".join(t.name for t in targets)
+        return payload, f"｢{character.name}｣ traps {names} in the mirror world! 🗡️ Squadra synergy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.8)
+    _stun(target, character)
+    _debuff(target, "damage", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ traps {target.name} in the mirror world: {damage} damage, stunned, -20% damage!"
 
 
-def little_feet(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 66 — The lower the enemy HP, the lower their damage (shrinking)."""
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_reduced = 0
-    for target in valid:
-        hp_ratio = target.current_hp / max(target.start_hp, 1)
-        reduction = int(target.current_damage * (1 - hp_ratio) * 0.3)
-        target.current_damage -= reduction
-        total_reduced += reduction
-    message = f"｢{character.name}｣ shrinks the enemies! Total damage reduced by {total_reduced}!"
-    return payload, message
-
-
-def mr_president(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 70 — Shelters weakest ally. Any non-DEFAULT terrain strengthens the room."""
+def mr_president(character, allied_characters, enemy_characters) -> tuple:
+    """ID 70 — Shelters the weakest ally. Any non-DEFAULT terrain strengthens the room."""
     payload = get_payload()
     terrain = _terrain(character)
-    valid_allies = [a for a in allied_characters if a.is_alive() and a != character]
     has_terrain = terrain != Terrain.DEFAULT
-    if valid_allies:
-        weakest = min(valid_allies, key=lambda a: a.current_hp)
-        if has_terrain:
-            # Any active terrain: the room absorbs the environment — stronger shelter
-            heal = int(weakest.start_hp * 0.25)
-            weakest.effects.append(Effect(EffectType.REGENERATION, 3, heal, character))
-            weakest.current_armor += 40
-            weakest.effects = [e for e in weakest.effects if e.type not in NEGATIVE_EFFECTS]
-            message = f"｢{character.name}｣ seals the {terrain.display_name} inside the room! {weakest.name} gets +{heal} regen, +40 armor, debuffs cleared!"
-        else:
-            heal = int(weakest.start_hp * 0.15)
-            weakest.effects.append(Effect(EffectType.REGENERATION, 2, heal, character))
-            weakest.current_armor += 20
-            message = f"｢{character.name}｣ shelters {weakest.name} in the turtle room! +{heal} regen, +20 armor!"
-    else:
-        armor_gain = 50 if has_terrain else 30
-        character.current_armor += armor_gain
-        message = f"｢{character.name}｣ retreats into its shell! +{armor_gain} armor!"
-    return payload, message
+    allies = [a for a in _alive(allied_characters) if a != character]
+    target = _weakest(allies) if allies else character
+    share = 0.10 if has_terrain else 0.07
+    target.add_effect(Effect(EffectType.REGENERATION, 2, target.start_hp * share, character))
+    _buff(target, "armor", 0.40 if has_terrain else 0.25, 2, character)
+    if has_terrain:
+        _cleanse(target)
+        return payload, f"｢{character.name}｣ seals the {terrain.display_name} inside the room! {target.name} regenerates, +40% armor, debuffs cleared!"
+    return payload, f"｢{character.name}｣ shelters {target.name} in the turtle room! Regen and +25% armor!"
 
 
-def beach_boy(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def beach_boy(character, allied_characters, enemy_characters) -> tuple:
     """ID 71 — Hooks enemies. In OCEAN: hooks ALL enemies."""
     payload = get_payload()
     terrain = _terrain(character)
-    valid = [e for e in enemy_characters if e.is_alive()]
+    valid = _alive(enemy_characters)
     if not valid:
-        message = f"｢{character.name}｣ casts its line but finds nothing!"
-        return payload, message
+        return payload, f"｢{character.name}｣ casts its line but finds nothing!"
     if terrain == Terrain.OCEAN:
-        # Ocean: hook every enemy
-        total_reflected = 0
+        total = 0
         for target in valid:
-            reflected = int(target.current_damage * 0.3)
-            target.current_hp -= reflected
-            target.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.15, character))
-            total_reflected += reflected
-        message = f"｢{character.name}｣ casts a wide net! {total_reflected} reflected damage and bleed on all enemies!"
-    else:
-        target = random.choice(valid)
-        reflected = int(target.current_damage * 0.3)
-        target.current_hp -= reflected
-        target.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.1, character))
-        message = f"｢{character.name}｣ hooks {target.name}! {reflected} reflected damage and bleed!"
+            total += _hit(character, target, 0.5)
+            _dot(target, EffectType.BLEED, 2, 0.15 * character.current_damage, character)
+        return payload, f"｢{character.name}｣ casts a wide net! {total} damage and bleed on every enemy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.7)
+    _dot(target, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ hooks {target.name} for {damage}, and it bleeds!"
+
+
+def the_grateful_dead(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "squadra")
+    for enemy in _alive(enemy_characters):
+        _hit(character, enemy, 0.3)
+        _dot(enemy, EffectType.POISON, 2, (0.45 if synergy else 0.35) * character.current_damage, character)
+        _debuff(enemy, "speed", 0.30 if synergy else 0.20, 2, character)
+    message = f"｢{character.name}｣ ages everyone! Every enemy withers and slows!"
+    if synergy:
+        message += " 🗡️ Squadra synergy!"
     return payload, message
 
 
-def clash(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def baby_face(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "squadra")
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ learns!"
+    damage = _hit(character, target, 1.0)
+    stolen = _debuff(target, "damage", 0.25 if synergy else 0.20, 3, character)
+    character.add_effect(Effect(EffectType.DAMAGEUP, 3, stolen, character))
+    message = f"｢{character.name}｣ takes {target.name} apart for {damage} and rebuilds itself: steals {stolen} damage"
+    if synergy:
+        spd = _debuff(target, "speed", 0.15, 3, character)
+        character.add_effect(Effect(EffectType.SPEEDUP, 3, spd, character))
+        message += f" and {spd} speed! 🗡️ Squadra synergy"
+    return payload, message + "!"
+
+
+def white_album(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    synergy = _has_synergy(character.id, allied_characters, "squadra")
+    _buff(character, "armor", 0.40 if synergy else 0.30, 2, character)
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "speed", 0.25 if synergy else 0.18, 2, character)
+    message = f"｢{character.name}｣ freezes the area! +{'40' if synergy else '30'}% armor, every enemy slowed!"
+    if synergy:
+        message += " 🗡️ Squadra synergy!"
+    return payload, message
+
+
+def clash(character, allied_characters, enemy_characters) -> tuple:
     """ID 76 — Teleports and bites. OCEAN: guaranteed stun. Duo with Talking Head: hit 2 targets."""
     payload = get_payload()
     terrain = _terrain(character)
     duo = _has_synergy(character.id, allied_characters, "clash_talking")
-    valid = [e for e in enemy_characters if e.is_alive()]
+    valid = _alive(enemy_characters)
     if not valid:
-        message = f"｢{character.name}｣ searches for water but finds none!"
-        return payload, message
+        return payload, f"｢{character.name}｣ searches for water but finds none!"
     if duo:
-        # Clash+TH duo: confusion lets Clash hit 2 targets, always stun
         targets = random.sample(valid, min(2, len(valid)))
         total = 0
         for t in targets:
-            total += character.attack(t, multiplier=0.6)["damage"]
-            t.effects.append(Effect(EffectType.STUN, 1, 0, character))
+            total += _hit(character, t, 0.8)
+            _stun(t, character)
         names = " and ".join(t.name for t in targets)
-        message = f"｢{character.name}｣ warps between {names} while they're confused! {total} damage, both stunned! 🦈🤥 Duo synergy!"
-    elif terrain == Terrain.OCEAN:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=0.8)["damage"]
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        message = f"｢{character.name}｣ surges through the water and bites {target.name} for {dmg} damage! Stunned!"
-    else:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=0.4)["damage"]
-        if random.random() < 0.3:
-            target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-            message = f"｢{character.name}｣ warps to {target.name} and bites for {dmg} damage! Stunned!"
-        else:
-            message = f"｢{character.name}｣ warps to {target.name} and bites for {dmg} damage!"
-    return payload, message
+        return payload, f"｢{character.name}｣ warps between {names} while they're confused! {total} damage, both stunned! 🦈🤥 Duo synergy!"
+    target = _target(character, enemy_characters)
+    if terrain == Terrain.OCEAN:
+        damage = _hit(character, target, 1.3)
+        _stun(target, character)
+        return payload, f"｢{character.name}｣ surges through the water and bites {target.name} for {damage}! Stunned!"
+    damage = _hit(character, target, 1.0)
+    if random.random() < 0.35:
+        _stun(target, character)
+        return payload, f"｢{character.name}｣ warps to {target.name} and bites for {damage}! Stunned!"
+    return payload, f"｢{character.name}｣ warps to {target.name} and bites for {damage}!"
 
 
-def talking_head(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def talking_head(character, allied_characters, enemy_characters) -> tuple:
     """ID 77 — Confuses an enemy. Duo with Clash: confuse ALL enemies."""
     payload = get_payload()
     duo = _has_synergy(character.id, allied_characters, "clash_talking")
-    valid = [e for e in enemy_characters if e.is_alive()]
+    valid = _alive(enemy_characters)
     if not valid:
-        message = f"｢{character.name}｣ has nothing to confuse!"
-        return payload, message
+        return payload, f"｢{character.name}｣ has nothing to confuse!"
     if duo:
-        # Clash+TH duo: confusion spreads to all enemies
-        total_spd = 0
         for target in valid:
-            spd_loss = int(target.current_speed * 0.25)
-            target.current_speed -= spd_loss
-            target.current_critical = max(0, target.current_critical * 0.6)
-            total_spd += spd_loss
-        message = f"｢{character.name}｣ confuses ALL enemies! -{total_spd} total speed, crit halved! 🦈🤥 Duo synergy!"
-    else:
-        target = random.choice(valid)
-        spd_loss = int(target.current_speed * 0.3)
-        crit_loss = target.current_critical * 0.5
-        target.current_speed -= spd_loss
-        target.current_critical = max(0, target.current_critical - crit_loss)
-        message = f"｢{character.name}｣ makes {target.name} say the opposite! -{spd_loss} speed, -{int(crit_loss)} crit!"
-    return payload, message
+            _debuff(target, "speed", 0.25, 2, character)
+            _debuff(target, "damage", 0.15, 2, character)
+        return payload, f"｢{character.name}｣ confuses ALL enemies! -25% speed, -15% damage! 🦈🤥 Duo synergy!"
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.8)
+    _debuff(target, "speed", 0.30, 2, character)
+    _debuff(target, "damage", 0.25, 2, character)
+    target.special_meter = max(0, target.special_meter - 1)
+    return payload, f"｢{character.name}｣ makes {target.name} say the opposite: {damage} damage, -30% speed, -25% damage, special delayed!"
 
 
-def oasis(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def spice_girl(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for ally in _alive(allied_characters):
+        _buff(ally, "armor", 0.30, 2, character)
+    return payload, f"｢{character.name}｣ softens every blow! Team +30% armor!"
+
+
+def oasis(character, allied_characters, enemy_characters) -> tuple:
     """ID 82 — Softens the ground; boosts own speed and deals AoE damage."""
     payload = get_payload()
-    character.current_speed = int(character.current_speed * 1.3)
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for target in valid:
-        dmg = character.attack(target, multiplier=0.25)["damage"]
-        total_dmg += dmg
-    message = f"｢{character.name}｣ softens the earth! +30% speed and {total_dmg} AoE damage!"
-    return payload, message
+    _buff(character, "speed", 0.30, 2, character)
+    total = _aoe(character, enemy_characters, 0.55)
+    return payload, f"｢{character.name}｣ softens the earth! +30% speed and {total} damage to all!"
 
 
-def rolling_stones(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    """ID 85 — Reveals fate: marks a random enemy for death (massive damage if HP below threshold)."""
+def rolling_stones(character, allied_characters, enemy_characters) -> tuple:
+    """ID 85 — Marks an enemy for death: executes it below 30% health."""
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        hp_ratio = target.current_hp / max(target.start_hp, 1)
-        if hp_ratio < 0.3:
-            execute_dmg = int(target.current_hp * 0.8)
-            target.current_hp -= execute_dmg
-            message = f"｢{character.name}｣ reveals {target.name}'s fate... inevitable! {execute_dmg} execution damage!"
-        else:
-            target.effects.append(Effect(EffectType.BLEED, 3, character.current_damage * 0.2, character))
-            message = f"｢{character.name}｣ shows {target.name} their future... bleed applied!"
-    else:
-        message = f"｢{character.name}｣ rolls aimlessly..."
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ rolls aimlessly..."
+    if target.current_hp / max(target.start_hp, 1) < 0.3:
+        dealt = target.take(target.current_hp * 0.8)
+        return payload, f"｢{character.name}｣ reveals {target.name}'s fate... inevitable! {dealt} execution damage!"
+    damage = _hit(character, target, 0.8)
+    _dot(target, EffectType.BLEED, 3, 0.3 * character.current_damage, character)
+    _debuff(target, "speed", 0.15, 3, character)
+    return payload, f"｢{character.name}｣ shows {target.name} its future: {damage} damage, bleeding and slowed for 3 turns!"
 
 
-"""
-def oasis_placeholder(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+# ── Part 6 ──────────────────────────────────────────────────────────────
+
+def goo_goo_dolls(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
-"""
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no target to shrink!"
+    damage = _hit(character, target, 1.2)
+    _debuff(target, "damage", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ shrinks {target.name}: {damage} damage and -25% damage!"
 
 
-def goo_goo_dolls(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def manhattan_transfer(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        reduction = 0.7
-        target.current_damage = int(target.current_damage * reduction)
-        target.current_hp = int(target.current_hp * reduction)
-        message = f"｢{character.name}｣ shrinks {target.name}! -30% damage and HP!"
-    else:
-        message = f"｢{character.name}｣ has no target to shrink!"
-    return payload, message
+    for ally in _alive(allied_characters):
+        _buff(ally, "critical", 10, 2, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.3, pierce=True) if target else 0
+    return payload, f"｢{character.name}｣ relays a sniper shot: {damage} damage ignoring armor! Team +10 crit!"
 
 
-def manhattan_transfer(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def kiss(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_critical += 10
-    message = f"｢{character.name}｣ guides the wind! All allies +10 critical!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no target!"
+    damage = _hit(character, target, 0.85)
+    if target.is_alive():
+        damage += _hit(character, target, 0.85)
+    return payload, f"｢{character.name}｣ sticks a sticker on {target.name}: two strikes for {damage}!"
 
 
-def kiss(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def highway_to_hell(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg1 = character.attack(target, multiplier=1)["damage"]
-        dmg2 = character.attack(target, multiplier=1)["damage"]
-        message = f"｢{character.name}｣ places a sticker on {target.name} and strikes twice for {int(dmg1 + dmg2)} damage!"
-    else:
-        message = f"｢{character.name}｣ has no target!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no target to bind!"
+    dealt = target.take(character.current_hp * 0.4)
+    lost = character.take(character.current_hp * 0.15)
+    return payload, f"｢{character.name}｣ shares its fate with {target.name}: {dealt} damage for {lost} of its own health!"
 
 
-def highway_to_hell(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def burning_down_the_house(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        shared_dmg = character.current_hp // 2
-        character.current_hp -= shared_dmg
-        target.current_hp -= shared_dmg
-        message = f"｢{character.name}｣ shares its fate with {target.name}! Both lose {shared_dmg} HP!"
-    else:
-        message = f"｢{character.name}｣ has no target to bind!"
-    return payload, message
+    healed = sum(a.heal(a.start_hp * 0.10) for a in _alive(allied_characters))
+    for ally in _alive(allied_characters):
+        _buff(ally, "armor", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ opens the ghost room! Team heals {healed}, +15% armor!"
 
 
-def burning_down_the_house(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def foo_fighters(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    heal_amount = character.current_damage * 2
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_hp += heal_amount
-    message = f"｢{character.name}｣ opens the ghost room! All allies heal {int(heal_amount)} HP!"
-    return payload, message
+    target = _weakest(allied_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no ally to heal!"
+    healed = target.heal(target.start_hp * 0.25)
+    return payload, f"｢{character.name}｣ patches {target.name} with plankton! +{healed} health!"
 
 
-def foo_fighters(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def marilyn_manson(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    alive_allies = [a for a in allied_characters if a.is_alive()]
-    if alive_allies:
-        target = min(alive_allies, key=lambda a: a.current_hp / max(1, a.start_hp))
-        heal = int(target.start_hp * 0.3)
-        target.current_hp += heal
-        message = f"｢{character.name}｣ injects plankton into {target.name}! +{heal} HP!"
-    else:
-        message = f"｢{character.name}｣ has no ally to heal!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no debt to collect!"
+    _hit(character, target, 0.8)
+    dmg = _debuff(target, "damage", 0.25, 3, character)
+    spd = _debuff(target, "speed", 0.25, 3, character)
+    character.add_effect(Effect(EffectType.DAMAGEUP, 3, dmg, character))
+    character.add_effect(Effect(EffectType.SPEEDUP, 3, spd, character))
+    return payload, f"｢{character.name}｣ collects the debt! Takes {dmg} damage and {spd} speed from {target.name}!"
 
 
-def marilyn_manson(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def limp_bizkit(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        stolen_dmg = target.current_damage // 4
-        stolen_spd = target.current_speed // 4
-        target.current_damage -= stolen_dmg
-        target.current_speed -= stolen_spd
-        character.current_damage += stolen_dmg
-        character.current_speed += stolen_spd
-        message = f"｢{character.name}｣ collects the debt! Stole {int(stolen_dmg)} dmg and {int(stolen_spd)} speed from {target.name}!"
-    else:
-        message = f"｢{character.name}｣ has no debt to collect!"
-    return payload, message
+    grown = character.grow("damage", 0.20)
+    healed = character.heal(character.start_hp * 0.15)
+    return payload, f"｢{character.name}｣ summons invisible zombies! +{round(grown)} damage, heals {healed}!"
 
 
-def limp_bizkit(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def diver_down(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.current_damage = int(character.current_damage * 1.5)
-    character.current_hp += character.start_hp // 4
-    message = f"｢{character.name}｣ summons invisible zombies! +50% damage and heals!"
-    return payload, message
+    allies = [a for a in _alive(allied_characters) if a != character]
+    target = _weakest(allies) if allies else character
+    _buff(target, "armor", 0.40, 2, character)
+    target.add_effect(Effect(EffectType.REGENERATION, 2, target.start_hp * 0.07, character))
+    return payload, f"｢{character.name}｣ dives into {target.name}! +40% armor and regen!"
 
 
-def diver_down(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def planet_waves(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    alive_allies = [a for a in allied_characters if a.is_alive() and a != character]
-    if alive_allies:
-        target = min(alive_allies, key=lambda a: a.current_hp)
-        target.current_armor += 50
-        target.effects.append(Effect(EffectType.REGENERATION, 2, character.current_damage * 0.5, character))
-        message = f"｢{character.name}｣ dives into {target.name}! +50 armor and regen!"
-    else:
-        character.current_armor += 50
-        character.effects.append(Effect(EffectType.REGENERATION, 2, character.current_damage * 0.5, character))
-        message = f"｢{character.name}｣ reinforces itself! +50 armor and regen!"
-    return payload, message
+    total, stunned = 0, 0
+    for enemy in _alive(enemy_characters):
+        total += _hit(character, enemy, 0.6)
+        if random.random() < 0.25:
+            _stun(enemy, character)
+            stunned += 1
+    return payload, f"｢{character.name}｣ pulls meteorites from orbit! {total} damage, {stunned} stunned!"
 
 
-def planet_waves(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def dragons_dream(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    total_dmg = 0
-    for enemy in enemy_characters:
-        if enemy.is_alive():
-            dmg = character.attack(enemy, multiplier=0.6)["damage"]
-            total_dmg += dmg
-            if random.random() < 0.3:
-                enemy.effects.append(Effect(EffectType.STUN, 1, 0, character))
-    message = f"｢{character.name}｣ pulls meteorites from orbit! {int(total_dmg)} total damage!"
-    return payload, message
+    for ally in _alive(allied_characters):
+        _buff(ally, "critical", 15, 2, character)
+        _buff(ally, "damage", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ points to the lucky directions! Team +15 crit, +20% damage!"
 
 
-def dragons_dream(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def yo_yo_ma(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_critical += 15
-    message = f"｢{character.name}｣ reveals the lucky spots! All allies +15 critical!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no target!"
+    _dot(target, EffectType.POISON, 3, 0.5 * character.current_damage, character)
+    _debuff(target, "armor", 0.15, 3, character)
+    return payload, f"｢{character.name}｣ drools acid on {target.name}! Poisoned and -15% armor for 3 turns!"
 
 
-def yo_yo_ma(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def green_green_grass_home(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.POISON, 3, character.current_damage * 0.4, character))
-        message = f"｢{character.name}｣ drools acid on {target.name}! Poisoned for 3 turns!"
-    else:
-        message = f"｢{character.name}｣ has no target!"
-    return payload, message
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "damage", 0.30, 2, character)
+    return payload, f"｢{character.name}｣ shrinks every enemy the closer they get! -30% damage!"
 
 
-def green_green_grass_home(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def jail_house_lock(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for enemy in enemy_characters:
-        if enemy.is_alive():
-            reduction = max(1, enemy.current_damage // 4)
-            enemy.current_damage -= reduction
-    message = f"｢{character.name}｣ shrinks all enemies! All enemies -25% damage!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    for enemy in _alive(enemy_characters):
+        enemy.special_meter = max(0, enemy.special_meter - 1)
+    if target:
+        _hit(character, target, 0.9)
+        _debuff(target, "damage", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ limits their memory: every special delayed, {target.name if target else 'nobody'} -25% damage!"
 
 
-def jail_house_lock(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def sky_high(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        enemy.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        enemy.current_speed = max(0, enemy.current_speed - 2)
-    message = f"｢{character.name}｣ locks their memories! All enemies stunned and -2 speed!"
-    return payload, message
+    drained = sum(e.take(e.current_hp * 0.13) for e in _alive(enemy_characters))
+    healed = character.heal(drained * 0.5)
+    return payload, f"｢{character.name}｣ sends the Rods! Drains {drained} from enemies, heals {healed}!"
 
 
-def sky_high(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def survivor(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    total_drain = 0
-    for enemy in enemy_characters:
-        if enemy.is_alive():
-            drain = int(enemy.current_hp * 0.1)
-            enemy.current_hp -= drain
-            total_drain += drain
-    character.current_hp += total_drain // 2
-    message = f"｢{character.name}｣ sends the rods! Drained {total_drain} HP from enemies!"
-    return payload, message
-
-
-def survivor(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
+    valid = _alive(enemy_characters)
     if len(valid) >= 2:
-        attacker = random.choice(valid)
-        targets = [e for e in valid if e != attacker]
-        target = random.choice(targets)
-        dmg = attacker.attack(target, multiplier=1)["damage"]
-        message = f"｢{character.name}｣ enrages the enemies! {attacker.name} attacks {target.name} for {int(dmg)} damage!"
-    elif len(valid) == 1:
-        valid[0].effects.append(Effect(EffectType.STUN, 1, 0, character))
-        message = f"｢{character.name}｣ enrages {valid[0].name}! Stunned for 1 turn!"
-    else:
-        message = f"｢{character.name}｣ has no target to enrage!"
-    return payload, message
+        attacker = _target(character, enemy_characters)
+        target = random.choice([e for e in valid if e != attacker])
+        damage = _hit(attacker, target, 1.2)
+        return payload, f"｢{character.name}｣ enrages the enemies! {attacker.name} attacks {target.name} for {damage}!"
+    if valid:
+        _stun(valid[0], character)
+        _debuff(valid[0], "armor", 0.20, 2, character)
+        return payload, f"｢{character.name}｣ enrages {valid[0].name}! Stunned and -20% armor!"
+    return payload, f"｢{character.name}｣ has no target to enrage!"
 
 
-def whitesnake(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def whitesnake(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
     synergy = _has_synergy(character.id, allied_characters, "pucci")
-    if valid:
-        target = max(valid, key=lambda e: e.current_speed)
-        stolen_dmg = target.current_damage // 3
-        stolen_spd = target.current_speed // 3
-        target.current_damage -= stolen_dmg
-        target.current_speed -= stolen_spd
-        character.current_damage += stolen_dmg
-        character.current_speed += stolen_spd
-        message = f"｢{character.name}｣ steals {target.name}'s DISC! +{int(stolen_dmg)} dmg, +{int(stolen_spd)} speed!"
-        if synergy:
-            target.effects.append(Effect(EffectType.WEAKEN, 2, character.current_damage * 0.2, character))
-            message += " ☽ Pucci synergy! Target weakened!"
-    else:
-        message = f"｢{character.name}｣ has no target to steal from!"
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ has no target to steal from!"
+    target = max(valid, key=lambda e: e.current_speed)
+    _hit(character, target, 0.8)
+    dmg = _debuff(target, "damage", 0.25, 3, character)
+    spd = _debuff(target, "speed", 0.25, 3, character)
+    character.add_effect(Effect(EffectType.DAMAGEUP, 3, dmg, character))
+    character.add_effect(Effect(EffectType.SPEEDUP, 3, spd, character))
+    message = f"｢{character.name}｣ steals {target.name}'s DISC! +{dmg} damage, +{spd} speed!"
+    if synergy:
+        _stun(target, character)
+        message += " ☽ Pucci synergy! Target stunned!"
     return payload, message
 
 
-def tusk_act_1(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+# ── Part 7 ──────────────────────────────────────────────────────────────
+
+def tusk_act_1(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.2)["damage"]
-        message = f"｢{character.name}｣ fires a nail bullet at {target.name} for {int(dmg)} damage!"
-    else:
-        message = f"｢{character.name}｣ fires into the void!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires into the void!"
+    damage = _hit(character, target, 1.15)
+    return payload, f"｢{character.name}｣ fires nail bullets at {target.name} for {damage}!"
 
 
-def tusk_act_2(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def tusk_act_2(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.4)["damage"]
-        target.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.15, character))
-        synergy = _has_synergy(character.id, allied_characters, "tusk")
-        message = f"｢{character.name}｣ shoots a guided nail at {target.name} for {int(dmg)} damage! Bleed applied!"
-        if synergy:
-            target.effects.append(Effect(EffectType.SLOW, 1, 2, character))
-            message += " ✦ Tusk synergy! Target slowed!"
-    else:
-        message = f"｢{character.name}｣ fires into the void!"
-    return payload, message
-
-
-def tusk_act_3(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires into the void!"
     synergy = _has_synergy(character.id, allied_characters, "tusk")
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.6)["damage"]
-        target.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.25, character))
-        target.current_armor = max(1, int(target.current_armor * 0.8))
-        message = f"｢{character.name}｣ fires a wormhole nail at {target.name} for {int(dmg)} damage! Bleed and -20% armor!"
+    damage = _hit(character, target, 1.1)
+    _dot(target, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
+    message = f"｢{character.name}｣ shoots a guided nail at {target.name} for {damage}! It bleeds!"
+    if synergy:
+        _debuff(target, "speed", 0.20, 2, character)
+        message += " ✦ Tusk synergy! Target slowed!"
+    return payload, message
+
+
+def tusk_act_3(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ fires into the void!"
+    synergy = _has_synergy(character.id, allied_characters, "tusk")
+    damage = _hit(character, target, 1.15)
+    _dot(target, EffectType.BLEED, 2, 0.25 * character.current_damage, character)
+    _debuff(target, "armor", 0.20, 2, character)
+    message = f"｢{character.name}｣ fires a wormhole nail at {target.name} for {damage}! Bleed and -20% armor!"
+    if synergy:
+        _dot(target, EffectType.POISON, 2, 0.25 * character.current_damage, character)
+        message += " ✦ Tusk synergy! Poisoned too!"
+    return payload, message
+
+
+def tusk_act_4(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    payload["tusk_act_4"] = True
+    target = _target(character, enemy_characters)
+    synergy = _has_synergy(character.id, allied_characters, "tusk")
+    message = f"｢{character.name}｣ Lesson 5!"
+    if target:
+        damage = _hit(character, target, 1.4, pierce=True)
+        _dot(target, EffectType.POISON, 3, 0.4 * character.current_damage, character)
+        _debuff(target, "armor", 0.40, 3, character)
+        message += f" Infinite rotation hits {target.name} for {damage} through armor: poisoned, -40% armor!"
         if synergy:
-            target.effects.append(Effect(EffectType.POISON, 2, character.current_damage * 0.2, character))
-            message += " ✦ Tusk synergy! Poison applied!"
-    else:
-        message = f"｢{character.name}｣ fires into the void!"
+            for enemy in _alive(enemy_characters):
+                if enemy != target:
+                    _dot(enemy, EffectType.BLEED, 2, 0.3 * character.current_damage, character)
+            message += " ✦ Tusk synergy! Every other enemy bleeds!"
     return payload, message
 
 
-def oh_lonesome_me(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        target.current_damage = int(target.current_damage * 0.8)
-        message = f"｢{character.name}｣ lassoes {target.name}! Stunned and -20% damage!"
-    else:
-        message = f"｢{character.name}｣ swings the rope..."
-    return payload, message
-
-
-def scary_monsters(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.current_damage = int(character.current_damage * 1.4)
-    character.current_speed += 3
-    character.current_critical += 5
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=0.8)["damage"]
-        message = f"｢{character.name}｣ transforms into a dinosaur! +40% damage, +3 speed, and bites {target.name} for {int(dmg)}!"
-    else:
-        message = f"｢{character.name}｣ transforms into a dinosaur! +40% damage, +3 speed!"
-    return payload, message
-
-
-def cream_starter(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    alive_allies = [a for a in allied_characters if a.is_alive()]
-    if alive_allies:
-        target = min(alive_allies, key=lambda a: a.current_hp / max(1, a.start_hp))
-        heal = int(target.start_hp * 0.25)
-        target.current_hp += heal
-        target.current_damage = int(target.current_damage * 1.1)
-        message = f"｢{character.name}｣ reshapes {target.name}'s flesh! +{heal} HP and +10% damage!"
-    else:
-        message = f"｢{character.name}｣ has no one to heal!"
-    return payload, message
-
-
-def ticket_to_ride(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.effects.append(Effect(EffectType.REGENERATION, 3, character.current_damage * 0.3, character))
-    for enemy in enemy_characters:
-        if enemy.is_alive():
-            enemy.effects.append(Effect(EffectType.WEAKEN, 2, 0.85, character))
-    message = f"｢{character.name}｣ emits the holy light! Allies regenerate, enemies weakened!"
-    return payload, message
-
-
-def in_a_silent_way(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.5)["damage"]
-        total_dmg += dmg
-        enemy.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.2, character))
-    message = f"｢{character.name}｣ stores sound into blades! {int(total_dmg)} total damage and bleed to all!"
-    return payload, message
-
-
-def hey_ya(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def ball_breaker(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_critical += 10
-            ally.current_speed += 2
-    message = f"｢{character.name}｣ cheers everyone on! All allies +10 critical, +2 speed!"
-    return payload, message
-
-
-def tomb_of_boom(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.POISON, 2, character.current_damage * 0.6, character))
-        target.current_speed = max(0, target.current_speed - 3)
-        message = f"｢{character.name}｣ implants iron in {target.name}! Poisoned and -3 speed!"
-    else:
-        message = f"｢{character.name}｣ has no target!"
-    return payload, message
-
-
-def wired(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.4)["damage"]
-        total_dmg += dmg
-        enemy.effects.append(Effect(EffectType.BLEED, 1, character.current_damage * 0.15, character))
-    message = f"｢{character.name}｣ launches barbed wire! {int(total_dmg)} total damage and bleed!"
-    return payload, message
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "damage", 0.15, 2, character)
+        _debuff(enemy, "speed", 0.15, 2, character)
+    for ally in _alive(allied_characters):
+        _buff(ally, "damage", 0.10, 2, character)
+    return payload, f"｢{character.name}｣ harnesses the golden spin! Enemies age (-15% damage and speed), allies +10% damage!"
 
 
-def catch_the_rainbow(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    character.current_armor += 80
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.5)["damage"]
-        message = f"｢{character.name}｣ freezes in the rain! +80 armor and pierces {target.name} for {int(dmg)}!"
-    else:
-        character.current_damage += 15
-        message = f"｢{character.name}｣ freezes in the rain! +80 armor, +15 damage!"
-    return payload, message
-
-
-def sugar_mountain(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def oh_lonesome_me(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_damage += 10
-            ally.current_hp += 50
-    message = f"｢{character.name}｣ offers gifts from the spring! All allies +10 damage, +50 HP!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ swings the rope..."
+    damage = _hit(character, target, 0.8)
+    _stun(target, character)
+    _debuff(target, "damage", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ lassoes {target.name}: {damage} damage, stunned, -20% damage!"
 
 
-def tatoo_you(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def scary_monsters(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_armor += 30
-    message = f"｢{character.name}｣ hides the team in its skin! All allies +30 armor!"
-    return payload, message
-
-
-def tubular_bells(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.3)["damage"]
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        message = f"｢{character.name}｣ inflates a balloon animal that attacks {target.name} for {int(dmg)}! Stunned!"
-    else:
-        message = f"｢{character.name}｣ inflates a balloon..."
-    return payload, message
+    character.grow("damage", 0.20)
+    _buff(character, "speed", 0.20, 2, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.3) if target else 0
+    return payload, f"｢{character.name}｣ goes full dinosaur! +20% damage for good, +20% speed, bites for {damage}!"
 
 
-def twentieth_century_boy(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def cream_starter(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.current_armor += 200
-    character.effects.append(Effect(EffectType.REGENERATION, 2, character.start_hp * 0.1, character))
-    message = f"｢{character.name}｣ kneels and becomes invincible! +200 armor and regen!"
-    return payload, message
+    target = _weakest(allied_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no one to heal!"
+    healed = target.heal(target.start_hp * 0.20)
+    _buff(target, "damage", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ sprays flesh onto {target.name}! +{healed} health, +15% damage!"
 
 
-def civil_war(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        enemy.effects.append(Effect(EffectType.POISON, 2, character.current_damage * 0.3, character))
-        enemy.current_damage = int(enemy.current_damage * 0.85)
-    message = f"｢{character.name}｣ summons the guilt of the past! All enemies poisoned and -15% damage!"
-    return payload, message
+    for ally in _alive(allied_characters):
+        ally.add_effect(Effect(EffectType.REGENERATION, 2, ally.start_hp * 0.06, character))
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "damage", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ shines a holy light! Allies regenerate, enemies -15% damage!"
 
 
-def chocolate_disco(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def dirty_deed_done_dirt_cheap(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.7)["damage"]
-        total_dmg += dmg
-    message = f"｢{character.name}｣ marks the grid! Precise strikes for {int(total_dmg)} total damage!"
-    return payload, message
-
-
-def paisley_park(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    for ally in allied_characters:
-        if ally.is_alive():
-            ally.current_speed += 3
-            ally.current_critical += 5
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = min(valid, key=lambda e: e.current_hp)
-        message = f"｢{character.name}｣ finds the optimal path! Allies +3 speed, +5 critical! Weakest enemy revealed: {target.name}!"
-    else:
-        message = f"｢{character.name}｣ finds the optimal path! Allies +3 speed, +5 critical!"
-    return payload, message
-
+    _cleanse(character)
+    healed = character.heal(character.start_hp * 0.20)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.6) if target else 0
+    return payload, f"｢{character.name}｣ swaps in a fresh self from another world: heals {healed}, cleansed, and strikes for {damage}!"
 
-def doggy_style(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.3)["damage"]
-        target.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.2, character))
-        message = f"｢{character.name}｣ unravels and lashes {target.name} for {int(dmg)} damage! Bleed applied!"
-    else:
-        message = f"｢{character.name}｣ unravels into the air..."
-    return payload, message
-
-
-def nut_king_call(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.current_armor = max(1, int(target.current_armor * 0.6))
-        target.current_damage = int(target.current_damage * 0.8)
-        dmg = character.attack(target, multiplier=1.2)["damage"]
-        message = f"｢{character.name}｣ unscrews {target.name}! -40% armor, -20% damage, {int(dmg)} hit!"
-    else:
-        message = f"｢{character.name}｣ screws the air..."
-    return payload, message
 
-
-def paper_moon_king(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def in_a_silent_way(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        enemy.current_critical = max(0, enemy.current_critical - 10)
-        enemy.current_speed = max(0, enemy.current_speed - 2)
-    message = f"｢{character.name}｣ distorts perception! All enemies -10 critical, -2 speed!"
-    return payload, message
-
-
-def king_nothing(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = max(valid, key=lambda e: e.current_damage)
-        target.current_armor = max(1, int(target.current_armor * 0.7))
-        target.effects.append(Effect(EffectType.WEAKEN, 2, 0.8, character))
-        message = f"｢{character.name}｣ tracks {target.name}'s scent! -30% armor and weakened!"
-    else:
-        message = f"｢{character.name}｣ searches for a scent..."
-    return payload, message
-
-
-def speed_king(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        dmg = character.attack(target, multiplier=1.5)["damage"]
-        target.effects.append(Effect(EffectType.BURN, 2, character.current_damage * 0.3, character))
-        message = f"｢{character.name}｣ ignites {target.name} from the inside! {int(dmg)} damage and burn!"
-    else:
-        message = f"｢{character.name}｣ heats up..."
-    return payload, message
-
-
-def fun_fun_fun(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.STUN, 2, 0, character))
-        target.current_damage = int(target.current_damage * 0.7)
-        message = f"｢{character.name}｣ takes control of {target.name}! Stunned 2 turns and -30% damage!"
-    else:
-        message = f"｢{character.name}｣ has no one to control!"
-    return payload, message
+    total = 0
+    for enemy in _alive(enemy_characters):
+        total += _hit(character, enemy, 0.5)
+        _dot(enemy, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ turns sound into blades! {total} damage and every enemy bleeds!"
 
 
-def california_king_bed(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        stolen_dmg = target.current_damage // 3
-        target.current_damage -= stolen_dmg
-        character.current_damage += stolen_dmg
-        message = f"｢{character.name}｣ steals a memory from {target.name}! Took {int(stolen_dmg)} damage!"
-    else:
-        message = f"｢{character.name}｣ has no memory to steal!"
-    return payload, message
-
-
-def born_this_way(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.5)["damage"]
-        total_dmg += dmg
-        enemy.effects.append(Effect(EffectType.SLOW, 2, 3, character))
-    message = f"｢{character.name}｣ rides in on the frozen wind! {int(total_dmg)} AOE damage and all enemies slowed!"
-    return payload, message
+def hey_ya(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for ally in _alive(allied_characters):
+        _buff(ally, "critical", 15, 2, character)
+        _buff(ally, "speed", 0.20, 2, character)
+        _buff(ally, "damage", 0.25, 2, character)
+    healed = sum(a.heal(a.start_hp * 0.08) for a in _alive(allied_characters))
+    return payload, f"｢{character.name}｣ cheers everyone on! Team +15 crit, +20% speed, +25% damage, heals {healed}!"
 
 
-def les_feuilles(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.POISON, 3, character.current_damage * 0.25, character))
-        target.current_speed = max(0, target.current_speed - 3)
-        message = f"｢{character.name}｣ wraps leaves around {target.name}! Poisoned 3 turns and -3 speed!"
-    else:
-        message = f"｢{character.name}｣ scatters leaves..."
-    return payload, message
+def tomb_of_boom(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no target!"
+    damage = _hit(character, target, 1.0)
+    _dot(target, EffectType.POISON, 2, 0.5 * character.current_damage, character)
+    _debuff(target, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ magnetizes iron inside {target.name}: {damage} damage, poisoned and slowed!"
 
 
-def i_am_a_rock(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def boku_no_rythm_wo_kiitekure(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        enemy.effects.append(Effect(EffectType.STUN, 1, 0, character))
-    character.current_armor += 40
-    message = f"｢{character.name}｣ attracts everything! All enemies stunned and +40 armor!"
-    return payload, message
+    for enemy in _alive(enemy_characters):
+        _dot(enemy, EffectType.BURN, 1, 0.8 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ sticks a ticking bomb on every enemy!"
 
 
-def love_love_deluxe(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.POISON, 2, character.current_damage * 0.3, character))
-        target.current_armor = max(1, int(target.current_armor * 0.8))
-        message = f"｢{character.name}｣ extends hair into {target.name}! Poisoned and -20% armor!"
-    else:
-        message = f"｢{character.name}｣ extends its hair..."
-    return payload, message
+def wired(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    total = 0
+    for enemy in _alive(enemy_characters):
+        total += _hit(character, enemy, 0.45)
+        _dot(enemy, EffectType.BLEED, 2, 0.15 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ launches barbed wire! {total} damage and bleed!"
 
 
-def schott_key(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def mandom(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.6)["damage"]
-        total_dmg += dmg
-    message = f"｢{character.name}｣ explodes! {int(total_dmg)} AOE damage!"
-    return payload, message
+    healed = 0
+    for ally in _alive(allied_characters):
+        _cleanse(ally)
+        healed += ally.heal(ally.start_hp * 0.08)
+    target = _target(character, enemy_characters)
+    if target:
+        target.special_meter = max(0, target.special_meter - 1)
+    return payload, f"Welcome to the True Man's world! Six seconds rewound: team cleansed, heals {healed}, {target.name if target else 'nobody'}'s special delayed!"
 
 
-def vitamine_c(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def catch_the_rainbow(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        enemy.current_speed = max(0, enemy.current_speed - 3)
-        enemy.current_damage = int(enemy.current_damage * 0.85)
-    message = f"｢{character.name}｣ softens everything! All enemies -3 speed and -15% damage!"
-    return payload, message
+    _buff(character, "armor", 0.30, 2, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.2) if target else 0
+    return payload, f"｢{character.name}｣ walks on frozen rain: +30% armor and pierces {target.name if target else 'nothing'} for {damage}!"
 
 
-def milagro_man(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        curse_dmg = int(target.current_damage * 0.5)
-        target.current_hp -= curse_dmg
-        target.effects.append(Effect(EffectType.POISON, 2, curse_dmg * 0.5, character))
-        message = f"｢{character.name}｣ curses {target.name} with endless wealth! {curse_dmg} damage and poison!"
-    else:
-        message = f"｢{character.name}｣ scatters cursed money..."
-    return payload, message
+def sugar_mountain(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    healed = 0
+    for ally in _alive(allied_characters):
+        _buff(ally, "damage", 0.15, 2, character)
+        healed += ally.heal(ally.start_hp * 0.08)
+    return payload, f"｢{character.name}｣ offers gifts from the spring! Team +15% damage, heals {healed}!"
 
 
-def blue_hawaii(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.STUN, 2, 0, character))
-        target.effects.append(Effect(EffectType.POISON, 2, character.current_damage * 0.2, character))
-        message = f"｢{character.name}｣ takes control of {target.name}! Stunned 2 turns and poisoned!"
-    else:
-        message = f"｢{character.name}｣ has no one to control!"
-    return payload, message
+def tatoo_you(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for ally in _alive(allied_characters):
+        _buff(ally, "armor", 0.25, 2, character)
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 0.8) if target else 0
+    return payload, f"｢{character.name}｣ hides the team in its skin and ambushes for {damage}! Team +25% armor!"
 
 
-def brain_storm(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.5)["damage"]
-        total_dmg += dmg
-        enemy.effects.append(Effect(EffectType.BLEED, 2, character.current_damage * 0.15, character))
-    message = f"｢{character.name}｣ folds the pages! {int(total_dmg)} AOE damage and bleed!"
-    return payload, message
+def tubular_bells(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ inflates a balloon..."
+    damage = _hit(character, target, 0.9)
+    _stun(target, character)
+    return payload, f"｢{character.name}｣'s balloon animal attacks {target.name} for {damage}! Stunned!"
 
 
-def ozon_baby(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def twentieth_century_boy(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    for enemy in valid:
-        pressure_dmg = int(enemy.current_hp * 0.12)
-        enemy.current_hp -= pressure_dmg
-        enemy.current_speed = max(0, enemy.current_speed - 2)
-    message = f"｢{character.name}｣ increases air pressure! All enemies lose 12% HP and -2 speed!"
-    return payload, message
+    _buff(character, "armor", 0.4, 1, character)
+    character.add_effect(Effect(EffectType.REGENERATION, 2, character.start_hp * 0.04, character))
+    return payload, f"｢{character.name}｣ kneels and becomes nearly invincible! +40% armor for a turn and regen!"
 
 
-def doctor_wu(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.POISON, 3, character.current_damage * 0.35, character))
-        target.current_armor = max(1, int(target.current_armor * 0.8))
-        message = f"｢{character.name}｣ infiltrates {target.name}'s body! Poison 3 turns and -20% armor!"
-    else:
-        message = f"｢{character.name}｣ scatters its particles..."
-    return payload, message
+def civil_war(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    for enemy in _alive(enemy_characters):
+        _dot(enemy, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+        _debuff(enemy, "damage", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ summons the guilt of the past! Every enemy is haunted (-15% damage) and suffers!"
 
 
-def awaking_iii_leaves(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    if valid:
-        target = random.choice(valid)
-        target.effects.append(Effect(EffectType.STUN, 1, 0, character))
-        target.current_speed = max(0, target.current_speed - 5)
-        message = f"｢{character.name}｣ pressurizes {target.name}! Stunned and -5 speed!"
-    else:
-        message = f"｢{character.name}｣ builds pressure..."
-    return payload, message
+def chocolate_disco(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    total = _aoe(character, enemy_characters, 0.55)
+    return payload, f"｢{character.name}｣ marks the grid! Precise strikes for {total} total damage!"
 
 
-def space_trucking(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid = [e for e in enemy_characters if e.is_alive()]
-    total_dmg = 0
-    for enemy in valid:
-        dmg = character.attack(enemy, multiplier=0.6)["damage"]
-        total_dmg += dmg
-    character.current_speed += 3
-    message = f"｢{character.name}｣ extends its arms! {int(total_dmg)} AOE damage and +3 speed!"
-    return payload, message
+def the_world_sbr(character, allied_characters, enemy_characters) -> tuple:
+    return _time_stop(character, enemy_characters)
 
 
-"""
-def tusk_act_3_stub(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def soft_and_wet(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ releases bubbles!"
+    damage = _hit(character, target, 1.4)
+    stolen = _debuff(target, "damage", 0.30, 2, character)
+    return payload, f"｢{character.name}｣'s bubble pops on {target.name} for {damage} and steals its strength: -{stolen} damage!"
 
 
-def scary_monster(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def paisley_park(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    for ally in _alive(allied_characters):
+        _buff(ally, "speed", 0.20, 2, character)
+        _buff(ally, "critical", 15, 2, character)
+    target = _weakest(enemy_characters)
+    damage = 0
+    if target:
+        _debuff(target, "armor", 0.30, 2, character)
+        damage = _hit(character, target, 1.0)
+    return payload, f"｢{character.name}｣ finds the path: team +20% speed and +15 crit, {target.name if target else 'nobody'} exposed (-30% armor) and hit for {damage}!"
 
 
-def in_a_silent_way(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def doggy_style(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ unravels into the air..."
+    damage = _hit(character, target, 1.1)
+    _dot(target, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ unravels and lashes {target.name} for {damage}! It bleeds!"
 
 
-def tomb_of_boom(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def nut_king_call(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ screws the air..."
+    _debuff(target, "armor", 0.30, 2, character)
+    _debuff(target, "damage", 0.15, 2, character)
+    damage = _hit(character, target, 1.7)
+    return payload, f"｢{character.name}｣ unscrews {target.name}: -30% armor, -15% damage, {damage} damage!"
 
 
-def wired(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def paper_moon_king(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    damage = 0
+    for enemy in _alive(enemy_characters):
+        damage += _hit(character, enemy, 0.35)
+        enemy.add_effect(Effect(EffectType.CRITUP, 2, -min(10, enemy.current_critical), character))
+        _debuff(enemy, "speed", 0.15, 2, character)
+        _debuff(enemy, "damage", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ folds their perception for {damage}! Every enemy -10 crit, -15% speed, -20% damage!"
 
 
-def catch_the_rainbow(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def king_nothing(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    valid = _alive(enemy_characters)
+    if not valid:
+        return payload, f"｢{character.name}｣ searches for a scent..."
+    target = max(valid, key=lambda e: e.current_damage)
+    _debuff(target, "armor", 0.30, 2, character)
+    _debuff(target, "damage", 0.25, 2, character)
+    damage = _hit(character, target, 1.0)
+    return payload, f"｢{character.name}｣ tracks {target.name}'s scent: {damage} damage, -30% armor, -25% damage!"
 
 
-def civil_war(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def speed_king(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ heats up..."
+    damage = _hit(character, target, 1.1)
+    _dot(target, EffectType.BURN, 2, 0.25 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ ignites {target.name} from the inside! {damage} damage and burn!"
 
 
-def paisley_park(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def fun_fun_fun(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no one to control!"
+    damage = _hit(character, target, 0.8)
+    _stun(target, character)
+    _debuff(target, "damage", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ pins {target.name}'s marks: {damage} damage, stunned, -25% damage!"
 
 
-def nut_king_call(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def california_king_bed(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no memory to steal!"
+    damage = _hit(character, target, 0.8)
+    stolen = _debuff(target, "damage", 0.25, 3, character)
+    character.add_effect(Effect(EffectType.DAMAGEUP, 3, stolen, character))
+    target.special_meter = max(0, target.special_meter - 1)
+    return payload, f"｢{character.name}｣ steals a memory from {target.name}: {damage} damage, {stolen} damage taken, special delayed!"
 
 
-def speed_king(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def born_this_way(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    total = 0
+    for enemy in _alive(enemy_characters):
+        total += _hit(character, enemy, 0.5)
+        _debuff(enemy, "speed", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ rides in on the frozen wind! {total} damage, every enemy slowed!"
 
 
-def fun_fun_fun(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def les_feuilles(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ scatters leaves..."
+    damage = _hit(character, target, 0.7)
+    _dot(target, EffectType.POISON, 3, 0.5 * character.current_damage, character)
+    _debuff(target, "speed", 0.20, 3, character)
+    return payload, f"｢{character.name}｣ wraps leaves around {target.name}: {damage} damage, poisoned and slowed for 3 turns!"
 
 
-def born_this_way(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def i_am_a_rock(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if target:
+        _stun(target, character)
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "speed", 0.15, 2, character)
+    _buff(character, "armor", 0.30, 2, character)
+    return payload, f"｢{character.name}｣ pulls everything onto {target.name if target else 'itself'}! Stunned, enemies slowed, +30% armor!"
 
 
-def i_am_a_rock(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def doobie_wah(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ seeks its enemy!"
+    damage = _hit(character, target, 1.5)
+    _dot(target, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+    return payload, f"｢{character.name}｣'s tornado follows {target.name}'s breath: {damage} damage and suffocating!"
 
 
-def blue_hawaii(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def love_love_deluxe(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ extends its hair..."
+    damage = _hit(character, target, 0.7)
+    _dot(target, EffectType.POISON, 2, 0.35 * character.current_damage, character)
+    _debuff(target, "armor", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ grows hair into {target.name}: {damage} damage, poisoned and -25% armor!"
 
 
-def ozon_baby(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def schott_key(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    total = _aoe(character, enemy_characters, 0.7)
+    return payload, f"｢{character.name}｣ explodes! {total} damage to all!"
 
 
-def doctor_wu(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def vitamine_c(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    for enemy in _alive(enemy_characters):
+        _debuff(enemy, "speed", 0.20, 2, character)
+        _debuff(enemy, "damage", 0.20, 2, character)
+        _debuff(enemy, "armor", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ softens everything! Every enemy -20% speed, damage and armor!"
 
 
-def space_trucking(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def walking_heart(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
+    target = _target(character, enemy_characters)
+    damage = _hit(character, target, 1.4) if target else 0
+    _buff(character, "damage", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ stabs with its heels for {damage}! +15% damage!"
 
 
-def empress(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def milagro_man(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    # Whatever your code does to the lists above
-    # Payload Contain behavior change to the game
-    # message is what should be printed to the embed
-    return payload, message
-"""
-
-
-def hermit_purple(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    terrain = _terrain(character)
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if not valid_characters:
-        message = f"｢{character.name}｣ lashes out!"
-        return payload, message
-    if terrain == Terrain.FROZEN:
-        # Frozen: vines spread on ice — slow ALL enemies
-        for target in valid_characters:
-            target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-        message = f"｢{character.name}｣ spreads vines across the ice! All enemies slowed!"
-    else:
-        target = max(valid_characters, key=lambda c: c.current_speed)
-        target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-        message = f"｢{character.name}｣ slows {target.name}!"
-    return payload, message
-
-
-def dark_blue_moon(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    terrain = _terrain(character)
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    if terrain == Terrain.OCEAN:
-        # Ocean: massive speed surge + AoE damage to all enemies
-        character.current_speed += 15
-        total = 0
-        for target in valid_characters:
-            total += character.attack(target, multiplier=0.8)["damage"]
-        message = f"｢{character.name}｣ dominates the ocean! +15 speed, {int(total)} AoE damage!"
-    else:
-        # Out of water: weaker, just hits slowed targets harder
-        damage = 0
-        for target in valid_characters:
-            is_slowed = (
-                EffectType.SLOW in [e.type for e in target.effects]
-                or target.current_speed < target.start_speed
-            )
-            multiplier = 1.0 if is_slowed else 0.3
-            damage += character.attack(target, multiplier=multiplier)["damage"]
-        message = f"｢{character.name}｣ attacks for {int(damage)} damage!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ scatters cursed money..."
+    curse = target.take(target.current_damage * 0.6)
+    _dot(target, EffectType.POISON, 2, curse * 0.4, character)
+    return payload, f"｢{character.name}｣ curses {target.name} with endless money! {curse} damage and poison!"
 
 
-def tower_of_grey(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def blue_hawaii(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.current_speed += 20
-    character.current_damage = max(1, character.current_damage - 15)
-    message = f"｢{character.name}｣ moves at extreme speed but loses damage!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ has no one to control!"
+    _stun(target, character)
+    _dot(target, EffectType.POISON, 2, 0.35 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ takes control of {target.name}! Stunned and poisoned!"
 
 
-def strength(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def brain_storm(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    heal = int((character.start_hp - character.current_hp) * 0.15)
-    character.current_hp = min(character.start_hp, character.current_hp + heal)
-    message = f"｢{character.name}｣ heals for {heal}!"
-    return payload, message
-
+    total = 0
+    for enemy in _alive(enemy_characters):
+        total += _hit(character, enemy, 0.6)
+        _dot(enemy, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
+    return payload, f"｢{character.name}｣ folds the pages! {total} damage and bleed!"
 
-def ebony_devil(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    terrain = _terrain(character)
-    damage_taken = character.start_hp - character.current_hp
-    if terrain == Terrain.DESERT:
-        # Desert: heat amplifies hatred — double scaling + burn a target
-        power_gained = max(1, int(damage_taken * 0.2))
-        character.current_damage += power_gained
-        character.current_armor += power_gained
-        valid = [e for e in enemy_characters if e.is_alive()]
-        if valid:
-            target = random.choice(valid)
-            target.effects.append(Effect(EffectType.BURN, 2, power_gained, character))
-            message = f"｢{character.name}｣ rages in the heat! +{power_gained} damage/armor, burns {target.name}!"
-        else:
-            message = f"｢{character.name}｣ rages in the heat! +{power_gained} damage and armor!"
-    else:
-        power_gained = max(1, int(damage_taken * 0.1))
-        character.current_damage += power_gained
-        character.current_armor += power_gained
-        message = f"｢{character.name}｣ feeds on hatred! +{power_gained} damage and armor!"
-    return payload, message
-
 
-def yellow_temperance(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def ozon_baby(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ !"
-    if valid_characters:
-        target = max(valid_characters, key=lambda c: c.current_speed)
-        target.effects.append(Effect(EffectType.SLOW, 2, 5, character))
-        message = f"｢{character.name}｣ slows {target.name}!"
-    return payload, message
+    total = 0
+    for enemy in _alive(enemy_characters):
+        total += enemy.take(enemy.current_hp * 0.16)
+        _debuff(enemy, "speed", 0.15, 2, character)
+    return payload, f"｢{character.name}｣ raises the air pressure! {total} damage, every enemy slowed!"
 
 
-def wheel_of_fortune(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def doctor_wu(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    speed_gain = 15
-    for ally in [s for s in allied_characters if s.is_alive()]:
-        ally.current_speed += speed_gain
-    message = f"｢{character.name}｣ accelerates the whole team by {speed_gain} speed!"
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ scatters its particles..."
+    damage = _hit(character, target, 0.8)
+    _dot(target, EffectType.POISON, 3, 0.4 * character.current_damage, character)
+    _debuff(target, "armor", 0.20, 3, character)
+    return payload, f"｢{character.name}｣ infiltrates {target.name}'s body: {damage} damage, poison and -20% armor for 3 turns!"
 
 
-def the_lovers(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def awaking_iii_leaves(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ links souls!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        target.current_hp = character.current_hp
-        message = f"｢{character.name}｣ links with {target.name}, setting their HP to {int(character.current_hp)}!"
-    return payload, message
-
-
-def the_sun(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    terrain = _terrain(character)
-    if terrain == Terrain.DESERT:
-        # Desert: scorching heat — slow + burn everyone
-        for target in enemy_characters:
-            target.effects.append(Effect(EffectType.SLOW, 2, 4, character))
-            target.effects.append(Effect(EffectType.BURN, 2, character.current_damage * 0.25, character))
-        message = f"｢{character.name}｣ scorches the desert! All enemies slowed and burning!"
-    else:
-        for target in enemy_characters:
-            target.effects.append(Effect(EffectType.SLOW, 2, 2, character))
-        message = f"｢{character.name}｣ shines brightly, slowing all enemies!"
-    return payload, message
-
-
-def judgement(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    dead_allies = [i for i in allied_characters if not i.is_alive() and i != character]
-    if dead_allies:
-        revived = random.choice(dead_allies)
-        revived.current_hp = 1
-        message = f"｢{character.name}｣ creates a clay replica of {revived.name} with 1 HP!"
-    else:
-        message = f"｢{character.name}｣ waits for an ally to fall..."
-        character.special_meter = 2
-    return payload, message
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣ builds pressure..."
+    _stun(target, character)
+    _debuff(target, "speed", 0.25, 2, character)
+    return payload, f"｢{character.name}｣ pins {target.name} with arrows! Stunned and slowed!"
 
 
-def khnum(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ takes on a disguise!"
-    if valid_characters:
-        target = random.choice(valid_characters)
-        character.current_damage = max(character.current_damage, target.current_damage)
-        character.current_speed = max(character.current_speed, target.current_speed)
-        message = f"｢{character.name}｣ copies {target.name}'s power!"
-    return payload, message
-
-
-def tohth(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    crit_gain = 5
-    for ally in [s for s in allied_characters if s.is_alive()]:
-        ally.current_critical += crit_gain
-    message = f"｢{character.name}｣ predicts victory! All allies gain {crit_gain} critical!"
-    return payload, message
+    total = 0
+    for enemy in _alive(enemy_characters):
+        share = 0.16 if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else 0.08
+        total += enemy.take(enemy.start_hp * share)
+    return payload, f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
 
 
-def anubis(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ possesses the enemy!"
-    if valid_characters:
-        controlled = random.choice(valid_characters)
-        other_targets = [i for i in enemy_characters if i.is_alive() and i != controlled]
-        target = random.choice(other_targets) if other_targets else controlled
-        damage = controlled.attack(target)["damage"]
-        message = f"｢{character.name}｣ forces {controlled.name} to attack {target.name} for {damage}!"
-    return payload, message
+def space_trucking(character, allied_characters, enemy_characters) -> tuple:
+    payload = get_payload()
+    total = _aoe(character, enemy_characters, 0.7)
+    _buff(character, "speed", 0.20, 2, character)
+    return payload, f"｢{character.name}｣ stretches its arms! {total} damage to all, +20% speed!"
 
 
-def bastet(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
-    payload = get_payload()
-    valid_characters = [i for i in enemy_characters if i.is_alive()]
-    message = f"｢{character.name}｣ magnetizes the enemy!"
-    if valid_characters:
-        target = min(valid_characters, key=lambda c: c.current_speed)
-        target.effects.append(Effect(EffectType.STUN, 2, 0, character))
-        message = f"｢{character.name}｣ stuns {target.name}!"
-    return payload, message
+def victorious_star_platinum(character, allied_characters, enemy_characters) -> tuple:
+    return _time_stop(character, enemy_characters)
 
 
-def not_implemented(
-    character: "Character", allied_characters: List["Character"], enemy_characters: List["Character"]
-) -> tuple:
+def not_implemented(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     message = f"｢{character.name}｣ has no power yet"
     payload["is_a_special"] = False

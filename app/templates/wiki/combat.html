@@ -7,20 +7,23 @@
 </header>
 
 <h2 class="wiki-h2">Turn order</h2>
-<p>Each round, every stand acts in <strong>speed order</strong>, fastest first. A stand either attacks or, when its special meter is full, fires its special instead. Status effects resolve at the end of each stand's turn, and <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a> is re-checked every round.</p>
+<p>Teams take turns; the faster team goes first. On your turn every stand attacks once, in team order, and <strong>you choose each target</strong>. Taunt stands must be hit first. A stand whose special is charged fires it right after its attack, and <strong>single-target specials strike the enemy you just picked</strong>, so aim your specials. <a href="{{ url_for('main.wiki', topic='terrains') }}">Terrain</a> is re-checked at the start of every turn.</p>
 
 <h2 class="wiki-h2">Stats</h2>
 <ul class="wiki-defs">
-  <li><span class="def-icon" aria-hidden="true">❤️</span><strong>Health</strong><span>At 0 the stand is out.</span></li>
-  <li><span class="def-icon" aria-hidden="true">⚔️</span><strong>Damage</strong><span>Base power of attacks and most specials.</span></li>
-  <li><span class="def-icon" aria-hidden="true">💨</span><strong>Speed</strong><span>Turn order and dodging. A faster defender dodges with a chance equal to the speed gap, capped at {{ facts.dodge_cap }}%.</span></li>
-  <li><span class="def-icon" aria-hidden="true">🛡️</span><strong>Armor</strong><span>Damage taken is multiplied by (armor + 100) ÷ (2 × armor), at most ×10. At 100 armor hits land normally; more armor takes less, down toward half.</span></li>
-  <li><span class="def-icon" aria-hidden="true">🎯</span><strong>Critical</strong><span>Percent chance to crit. Several specials scale with it.</span></li>
-  <li><span class="def-icon" aria-hidden="true">🪧</span><strong>Taunt</strong><span>Tank stands draw basic attacks and get +100 health and armor.</span></li>
+  <li><span class="def-icon" aria-hidden="true">❤️</span><strong>Health</strong><span>At 0 the stand is out. Nothing heals past max health.</span></li>
+  <li><span class="def-icon" aria-hidden="true">⚔️</span><strong>Damage</strong><span>Base power of attacks and most specials. Health and damage grow at the same rate with levels, so fights take about as long at level 1 as at level {{ facts.max_level }}.</span></li>
+  <li><span class="def-icon" aria-hidden="true">💨</span><strong>Speed</strong><span>Dodging and terrain control. A faster defender dodges with a chance equal to the speed gap, capped at {{ facts.dodge_cap }}%.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🛡️</span><strong>Armor</strong><span>Damage taken is multiplied by 200 ÷ (100 + armor): 100 armor is neutral, 0 takes double, and the cap of {{ facts.armor_cap }} takes {{ facts.armor_floor }}%.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🎯</span><strong>Critical</strong><span>Percent chance to crit, up to {{ facts.crit_cap }}%. A crit deals ×{{ facts.crit_multiplier }}.</span></li>
+  <li><span class="def-icon" aria-hidden="true">🪧</span><strong>Taunt</strong><span>Tank stands draw basic attacks and get +{{ facts.taunt_armor }} armor.</span></li>
 </ul>
 
 <h2 class="wiki-h2">Specials</h2>
-<p>Every stand has a unique special. Its meter fills by 1 each turn and fires automatically when it reaches the stand's charge time, shown on its <a href="{{ url_for('main.stands') }}">stand page</a>. Some specials change with <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a> or <a href="{{ url_for('main.wiki', topic='synergies') }}">synergies</a>.</p>
+<p>Every stand has a unique special. Its meter fills by 1 at the end of each of <strong>its own</strong> turns and fires when it reaches the stand's charge time, shown on its <a href="{{ url_for('main.stands') }}">stand page</a>: a charge of 2 fires every other turn. Buffs and debuffs are a share of the stat and last a set number of the affected stand's turns. Permanent growth from specials stops at +{{ facts.growth_cap }}% of the starting stat. Some specials change with <a href="{{ url_for('main.wiki', topic='terrains') }}">terrain</a> or <a href="{{ url_for('main.wiki', topic='synergies') }}">synergies</a>.</p>
+
+<h2 class="wiki-h2">Sudden death</h2>
+<p>From round {{ facts.sudden_death_round }}, every stand loses {{ facts.sudden_death_step }}% of its max health at the end of its turn, {{ facts.sudden_death_step }}% more each round, and heals only {{ facts.sudden_death_heal }}% as much. If both teams still stand after round {{ facts.max_rounds }}, the team with the larger share of its health left wins.</p>
 
 <h2 class="wiki-h2">Status effects</h2>
 <ul class="wiki-defs effects">

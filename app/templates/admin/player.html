@@ -57,7 +57,7 @@
       {% if banned %}{{ act('ban', 'Lift web ban', 'btn small', anchor='#account') }}
       {% else %}{% call act('ban', 'Ban from website', 'btn small danger', confirm='Ban this player from the website?', anchor='#account') %}<input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
     </div>
-    <p class="muted">Story: chapter {{ t.story_progress.current_chapter if t.story_progress.current_chapter != -1 else 'complete' }}, {{ t.story_progress.completed_steps|length }} steps done. Achievements: {{ t.achievement_data.get('unlocked', [])|length }}.</p>
+    <p class="muted">Story: {{ t.data.get('web_story', {}).get('cleared', 0) }}/{{ story_total }} stages cleared. Achievements: {{ t.achievement_data.get('unlocked', [])|length }}.</p>
   </section>
 </div>
 

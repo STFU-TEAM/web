@@ -1,0 +1,1 @@
+{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% else %}<p class="toast ok" role="status">{{ message }} <a href="{{ url_for('play.team') }}#storage">See storage</a></p>{% endif %}

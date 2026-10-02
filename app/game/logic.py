@@ -179,10 +179,32 @@ def _banner(banner_id: int) -> dict:
 
 
 # Web drop rates (kinder than the bot's 80 / 19 / 0.9 / 0.1 with pity at 100).
-BANNER_ODDS = {"R": 0.70, "SR": 0.255, "SSR": 0.04, "UR": 0.005}
-ARROW_ODDS = {"SR": 0.65, "SSR": 0.27, "UR": 0.08}
-PITY_LIMIT = 80          # pulls without an SSR+ before one is guaranteed
+BANNER_ODDS = {"R": 0.55, "SR": 0.33, "SSR": 0.10, "UR": 0.02}
+ARROW_ODDS = {"SR": 0.55, "SSR": 0.33, "UR": 0.12}
+PITY_LIMIT = 50          # pulls without an SSR+ before one is guaranteed
 HIGH_RARITIES = ("SSR", "UR", "LR")
+SPARK_COST = 20  # every 10-pull earns a spark; this many buy any SSR from a banner
+
+
+def sparks(user: User) -> int:
+    return int(user.data.get("web_sparks", 0))
+
+
+def spark_exchange(user: User, banner_id: int, stand_id: int) -> Character:
+    banner = _banner(banner_id)
+    template = next((c for c in CHARACTER_FILE if c["id"] == stand_id), None)
+    if template is None or stand_id not in banner["cards"] or template["rarity"] != "SSR":
+        raise GameError("Pick an SSR from this banner.")
+    if sparks(user) < SPARK_COST:
+        raise GameError(f"You need {SPARK_COST} sparks. You have {sparks(user)}.")
+    if free_slots(user) < 1:
+        raise GameError("Storage is full. Auto-fuse or release a few stands first.")
+    user.data["web_sparks"] = sparks(user) - SPARK_COST
+    types, qualities = roll_types_qualities()
+    char = get_character_from_template(template, types, qualities)
+    where = add_to_available_storage(user, char, skip_main=True)
+    _fill_team(user, [(char, where)])
+    return char
 
 
 def _template_of(banner: dict, rarity: str) -> dict:
@@ -216,6 +238,24 @@ def _arrow_draw(banner: dict) -> Character:
     return get_character_from_template(_template_of(banner, rarity), types, qualities)
 
 
+RARITY_ORDER = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+
+
+def _fill_team(user: User, drawn: list) -> list:
+    """Empty team slots take the best stands of this pull, so a new player can fight right away."""
+    free = 3 - len(user.main_characters)
+    if free <= 0:
+        return drawn
+    best = sorted((c for c, _ in drawn), key=lambda c: (RARITY_ORDER.get(c.rarity, 0), c.current_damage + c.current_hp / 5),
+                  reverse=True)[:free]
+    for c in best:
+        if c in user.storage_characters:
+            user.storage_characters.remove(c)
+            user.main_characters.append(c)
+    picked = {id(c) for c in best}
+    return [(c, "Team" if id(c) in picked else where) for c, where in drawn]
+
+
 def _record_pull(user: User, banner: dict, drawn: list, mode: str):
     """Mark first-time stands and keep a short web-only pull history in the save."""
     owned_before = {c.id for c in user.main_characters + user.storage_characters} - {c.id for c, _ in drawn}
@@ -238,6 +278,42 @@ def begin(user: User):
     check_achievements(user, "register")
 
 
+# Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over.
+STREAK_REWARDS = [
+    {"fragments": 100}, {"fragments": 150}, {"items": [13]}, {"fragments": 250},
+    {"items": [2]}, {"fragments": 400}, {"super": 1},
+]
+
+
+def streak(user: User) -> dict:
+    """{"count": days in a row, "day": position in the 7-day ladder (1-7), "alive": not broken yet}."""
+    data = user.data.get("web_streak") or {}
+    last = data.get("last")
+    today = now().date()
+    alive = bool(last) and (today - datetime.date.fromisoformat(last)).days <= 1
+    count = data.get("count", 0) if alive else 0
+    claimed_today = alive and last == today.isoformat()
+    upcoming = count if claimed_today else count + 1
+    return {"count": count, "claimed_today": claimed_today, "next_day": (upcoming - 1) % 7 + 1}
+
+
+def _claim_streak(user: User) -> Optional[dict]:
+    """Once per calendar day (the daily itself can be claimed more often)."""
+    s = streak(user)
+    if s["claimed_today"]:
+        return None
+    count = s["count"] + 1
+    user.data["web_streak"] = {"count": count, "last": now().date().isoformat()}
+    day = (count - 1) % 7 + 1
+    bonus = STREAK_REWARDS[day - 1]
+    user.fragments += bonus.get("fragments", 0)
+    user.super_fragements += bonus.get("super", 0)
+    items = [item_from_dict({"id": i}) for i in bonus.get("items", [])]
+    user.items.extend(items)
+    return {"count": count, "day": day, "fragments": bonus.get("fragments", 0), "super": bonus.get("super", 0),
+            "items": [i.name for i in items]}
+
+
 def daily(user: User) -> dict:
     wait = DONOR_ADV_WAIT_TIME + (not user.is_donator()) * NORMAL_ADV_WAIT_TIME
     left = cooldown_left(user.last_adventure, wait)
@@ -248,13 +324,14 @@ def daily(user: User) -> dict:
     res = {"fragments": 100, "item": None, "super": 0}
     user.fragments += 100
     if roll < 60:
-        item_id = random.choices([13, 1, 4, 2, 15], weights=[0.40, 0.25, 0.15, 0.15, 0.05], k=1)[0]
+        item_id = random.choices([13, 1, 4, 2, 15, 40, 38], weights=[0.34, 0.20, 0.12, 0.12, 0.05, 0.12, 0.05], k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
         res["item"] = item
     if roll < 2:
         user.super_fragements += 1
         res["super"] = 1
+    res["streak"] = _claim_streak(user)
     track_quest_progress(user, "daily_claim")
     track_quest_progress(user, "reach_level", user.level)
     check_achievements(user, "daily_claim")
@@ -270,7 +347,7 @@ def banner_pull(user: User, banner_id: int) -> dict:
     if banner["cost"] > user.super_fragements:
         raise GameError(f"A 10-pull costs {banner['cost']} super fragment. You have {user.super_fragements}.")
     if free_slots(user) < 10:
-        raise GameError("You need 10 free storage slots. Release a few stands first.")
+        raise GameError("You need 10 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
     user.super_fragements -= banner["cost"]
     drawn = []
     for i in range(10):
@@ -280,6 +357,8 @@ def banner_pull(user: User, banner_id: int) -> dict:
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
+    drawn = _fill_team(user, drawn)
+    user.data["web_sparks"] = sparks(user) + 1
     return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "pull")}
 
 
@@ -289,7 +368,7 @@ def arrow_pull(user: User, banner_id: int) -> dict:
     if arrow is None:
         raise GameError("You don't have any Stand Arrow.")
     if free_slots(user) < 5:
-        raise GameError("You need 5 free storage slots. Release a few stands first.")
+        raise GameError("You need 5 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
     user.items.remove(arrow)
     drawn = []
     for _ in range(5):
@@ -297,6 +376,7 @@ def arrow_pull(user: User, banner_id: int) -> dict:
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
+    drawn = _fill_team(user, drawn)
     return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "arrow")}
 
 
@@ -350,17 +430,36 @@ def toggle_lock(user: User, uuid: str) -> bool:
     return now_locked
 
 
+def set_locks(user: User, uuids: List[str], lock: bool) -> int:
+    """Lock or unlock many stands at once. Returns how many changed."""
+    owned = {c.uuid for c in user.main_characters + user.storage_characters}
+    current = locked(user)
+    wanted = set(uuids) & owned
+    changed = len(wanted - current) if lock else len(wanted & current)
+    current = (current | wanted) if lock else (current - wanted)
+    user.data["web_locked"] = sorted(current & owned)
+    return changed
+
+
 def release(user: User, uuids: List[str]) -> List[Character]:
+    """Release stands. A single pick must be releasable; a bulk pick skips locked and team stands."""
     gone = []
     protected = locked(user)
+    bulk = len(uuids) > 1
     for u in uuids:
         char, lst, idx = locate(user, u)
         if lst is user.main_characters:
+            if bulk:
+                continue
             raise GameError("Move a stand to storage before releasing it.")
         if u in protected:
+            if bulk:
+                continue
             raise GameError(f"{char.name} is locked. Unlock it first.")
         lst.pop(idx)
         gone.append(char)
+    if not gone:
+        raise GameError("Every selected stand is locked or in your team.")
     for team in user.teams.values():  # keep presets tidy
         for c in gone:
             if c.uuid in team:
@@ -379,6 +478,23 @@ def ascend(user: User, uuid: str) -> Character:
     raise GameError("A stand must be level 100 and below 3 awakenings to ascend.")
 
 
+def _absorb(user: User, keeper: Character, fodder: Character) -> Character:
+    """Fold fodder into keeper: its XP plus 50 levels, one awakening (max 3), its items back to the bag."""
+    user.items.extend(fodder.items)
+    keeper.xp += fodder.xp + 50 * STXPTOLEVEL
+    if keeper.awaken < 3:
+        keeper.awaken += 1
+    return keeper
+
+
+def _refresh(user: User, char: Character) -> Character:
+    """Recompute stats like the bot's next load, in place in whichever list holds it."""
+    _, lst, idx = locate(user, char.uuid)
+    fresh = Character(char.to_dict())
+    lst[idx] = fresh
+    return fresh
+
+
 def fuse(user: User, uuid: str, fodder_uuid: str) -> Character:
     if uuid == fodder_uuid:
         raise GameError("Pick two different copies.")
@@ -391,15 +507,105 @@ def fuse(user: User, uuid: str, fodder_uuid: str) -> Character:
     if fodder_uuid in locked(user):
         raise GameError(f"The copy you'd consume is locked. Unlock it first.")
     lst2.pop(idx2)
-    user.items.extend(other.items)
-    char.xp += other.xp
-    char.xp += 50 * STXPTOLEVEL
-    if char.awaken < 3:
-        char.awaken += 1
-    # recompute stats like the bot's next load
-    fresh = Character(char.to_dict())
-    lst[lst.index(char)] = fresh
-    return fresh
+    return _refresh(user, _absorb(user, char, other))
+
+
+AUTO_FUSE_RARITIES = ("R", "SR")
+
+
+def auto_fuse_plan(user: User, rarities=AUTO_FUSE_RARITIES) -> List[tuple]:
+    """[(keeper, [fodder...])] for every R/SR stand owned more than once.
+    The keeper is the team copy if there is one, else the most advanced copy.
+    Only unlocked storage copies are consumed; nothing is fused past what it can use."""
+    protected = locked(user)
+    by_id = {}
+    for c in user.main_characters + user.storage_characters:
+        if c.rarity in rarities:
+            by_id.setdefault(c.id, []).append(c)
+    plan = []
+    for copies in by_id.values():
+        if len(copies) < 2:
+            continue
+        team = [c for c in copies if c in user.main_characters]
+        keeper = team[0] if team else max(copies, key=lambda c: (c.uuid in protected, c.awaken, c.xp))
+        fodder = [c for c in copies if c is not keeper and c not in user.main_characters and c.uuid not in protected]
+        if fodder:
+            plan.append((keeper, fodder))
+    return plan
+
+
+def auto_fuse(user: User, rarities=AUTO_FUSE_RARITIES) -> dict:
+    plan = auto_fuse_plan(user, rarities)
+    if not plan:
+        raise GameError("No R or SR duplicates to fuse.")
+    fused, copies = [], 0
+    gone = set()
+    for keeper, fodder in plan:
+        for f in fodder:
+            _absorb(user, keeper, f)
+            gone.add(f.uuid)
+        copies += len(fodder)
+        fused.append(keeper.uuid)
+    user.storage_characters[:] = [c for c in user.storage_characters if c.uuid not in gone]
+    for team in user.teams.values():
+        team[:] = [u for u in team if u not in gone]
+    stands = [_refresh(user, locate(user, u)[0]) for u in fused]
+    return {"stands": stands, "copies": copies}
+
+
+def _power(c: Character) -> float:
+    """Same weights as the collection's power score."""
+    return (c.start_hp / 3 + c.start_damage * 2 + c.start_armor / 2 + c.start_speed * 6 + c.start_critical * 3)
+
+
+def best_team(user: User) -> dict:
+    """Strongest 3 among the owned stands: raw power, +8% for each member of an active synergy,
+    +5% for each native of a terrain the team itself sets. Tries every trio of the top 14."""
+    from itertools import combinations
+    from app.game.characterabilities import SYNERGIES
+    from app.game.effects import TERRAIN_BENEFITS, TERRAIN_SETTERS
+    owned = user.main_characters + user.storage_characters
+    pool = sorted(owned, key=_power, reverse=True)[:14]
+    best, best_score, best_why = [], -1, []
+    for trio in combinations(pool, min(3, len(pool))):
+        ids = {c.id for c in trio}
+        if len(ids) < len(trio):
+            continue  # two copies of one stand: keep the slot for something else
+        bonus, why = 0.0, []
+        for name, members in SYNERGIES.items():
+            active = ids & members
+            if len(active) >= 2:
+                bonus += 0.08 * len(active)
+                why.append(name.replace("_", " + ").title() + " synergy")
+        for c in trio:
+            terrain = TERRAIN_SETTERS.get(c.id)
+            natives = [o for o in trio if terrain in TERRAIN_BENEFITS.get(o.id, {})] if terrain else []
+            if natives:
+                bonus += 0.05 * len(natives)
+                why.append(f"{terrain.display_name} terrain")
+        score = sum(_power(c) for c in trio) * (1 + bonus)
+        if score > best_score:
+            best, best_score, best_why = list(trio), score, sorted(set(why))
+    current = sum(_power(c) for c in user.main_characters)
+    return {"team": best, "why": best_why, "same": {c.uuid for c in best} == {c.uuid for c in user.main_characters},
+            "gain": int(round(100 * (sum(_power(c) for c in best) / current - 1))) if current else None}
+
+
+def use_team(user: User, uuids: List[str]) -> List[Character]:
+    """Make exactly these stands the team; the current members go back to storage."""
+    if not 1 <= len(uuids) <= 3 or len(set(uuids)) != len(uuids):
+        raise GameError("Pick one to three different stands.")
+    chosen = [locate(user, u)[0] for u in uuids]
+    leaving = [c for c in user.main_characters if c.uuid not in uuids]
+    if len(user.storage_characters) - sum(c in user.storage_characters for c in chosen) + len(leaving) > STORAGE_CAPACITY:
+        raise GameError("Storage is full. Release a few stands first.")
+    for c in chosen:
+        if c in user.storage_characters:
+            user.storage_characters.remove(c)
+    for c in leaving:
+        user.storage_characters.append(c)
+    user.main_characters[:] = chosen
+    return chosen
 
 
 def reforge(user: User, uuid: str) -> Character:
@@ -626,7 +832,8 @@ def wormhole_enemy(user: User):
         rarity, n, multi = "UR", 3, 3
     else:
         rarity, n, multi = "LR", 3, 4
-    pool = [c for c in CHARACTER_FILE if c["rarity"] == rarity]
+    # no training dummy (1M HP) or The World Over Heaven (100k damage) in the wild
+    pool = [c for c in CHARACTER_FILE if c["rarity"] == rarity and c["universe"] != "Dummy" and c["id"] != 110]
     chars = [get_character_from_template(t, [], []) for t in random.choices(pool, k=n)]
     return f"{random.choice(WORMHOLE_NAMES)}'s Soul", chars, multi
 
@@ -660,7 +867,8 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
         c.xp += CHARACTER_XPGAINS * multi
     item = None
     if random.randint(1, 100) <= CHANCEITEM:
-        item_id = random.choices([13, 1, 4, 15, 2, 3], weights=[0.30, 0.20, 0.20, 0.15, 0.10, 0.05], k=1)[0]
+        item_id = random.choices([13, 1, 4, 15, 2, 3, 38, 39, 40],
+                                 weights=[0.24, 0.16, 0.14, 0.12, 0.08, 0.04, 0.08, 0.06, 0.08], k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
     return {"won": True, "fragments": FRAGMENTSGAIN * multi, "xp": PLAYER_XPGAINS,

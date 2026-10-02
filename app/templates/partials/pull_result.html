@@ -1,6 +1,24 @@
 {% from "macros.html" import owned_card %}
+{% macro pull_again(banner) %}
+  {% if banner %}
+  <div class="pull-again">
+    {% set ten = u.super_fragements >= banner.cost %}
+    <button class="btn {{ 'gold' if mode == 'pull' else '' }}" hx-post="{{ url_for('play.pull', banner_id=banner.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
+            {% if not ten %}disabled{% endif %}>↻ Pull 10 again <small>{{ u.super_fragements }} super fragment{{ 's' if u.super_fragements != 1 }} left</small></button>
+    <button class="btn {{ 'gold' if mode == 'arrow' else '' }}" hx-post="{{ url_for('play.pull', banner_id=banner.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
+            {% if not arrows %}disabled{% endif %}>↻ Pull 5 with an arrow <small>{{ arrows }} left</small></button>
+    {% if fusable %}
+      <button class="btn ghost" hx-post="{{ url_for('play.autofuse', view='toast') }}" hx-target="#autofuse-result" hx-disabled-elt="this"
+              title="Fuse every unlocked R and SR duplicate into its best copy">Auto-fuse R &amp; SR · {{ fusable }}</button>
+    {% endif %}
+    <span class="muted pull-free{% if free < 10 %} low{% endif %}">{{ free }} free slot{{ 's' if free != 1 }}</span>
+  </div>
+  <div id="autofuse-result"></div>
+  {% endif %}
+{% endmacro %}
 {% if error %}
   <p class="toast error" role="alert">{{ error }}</p>
+  {{ pull_again(banner) }}
 {% else %}
   {% set order = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}
   <section class="pull-batch" data-pull>
@@ -17,6 +35,7 @@
       <button type="button" class="btn gold" data-reveal-all>Reveal all</button>
       <span class="muted">Pity is now {{ u.pity }}/{{ PITY_LIMIT }}</span>
     </div>
+    {{ pull_again(banner) }}
     <div class="grid pull-grid">
       {% for e in res.cards %}
         {% set rar = e.stand.rarity|rarity %}

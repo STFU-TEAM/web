@@ -310,7 +310,17 @@ def test_tower_victory_unlocks_next_floor(client):
     assert saved["fragments"] > 500
 
 
+def test_dungeon_is_closed_by_default(client):
+    player = create_user("555")
+    player["main_characters"] = [char(1)]
+    put(client, player)
+    login(client, "555")
+    r = client.get("/adventure/dungeon")
+    assert r.status_code == 302 and r.headers["Location"].startswith("/battles")
+
+
 def test_adventure_dungeon_starts_and_blocks_walls(client):
+    client.application.config["DUNGEON_ENABLED"] = True
     user = create_user("444")
     user["energy"] = 8
     user["main_characters"] = [char(1, xp=10000)]
@@ -333,6 +343,7 @@ def test_adventure_dungeon_starts_and_blocks_walls(client):
 
 
 def test_adventure_dungeon_fight_and_chest_events(client):
+    client.application.config["DUNGEON_ENABLED"] = True
     user = create_user("555")
     user["energy"] = 20
     user["main_characters"] = [char(1, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
@@ -387,7 +398,7 @@ def test_battle_modes_dummy_friend_and_ranked_share_fight_state(client):
     assert first_fight.meta["players"] == ["111", "222"]
     friend_page = client.get("/battles?mode=friends")
     assert friend_page.status_code == 200 and b"Friendly Duel" in friend_page.data
-    assert b"Waiting for" in friend_page.data or b"choose who" in friend_page.data
+    assert b"is choosing a target" in friend_page.data or b"Pick a target" in friend_page.data
 
     dbmod.clear_fight("111")
     dbmod.clear_fight("222")
@@ -429,13 +440,22 @@ def test_begin_pull_and_team(client):
     assert b"media.tenor.com" not in r.data
     assert b"/opening/" in r.data
     d = doc(client, "111")
-    assert d["super_fragements"] == 0 and len(d["storage_characters"]) == 10
+    # an empty team takes the three rarest stands of the pull; the rest go to storage
+    assert d["super_fragements"] == 0 and len(d["main_characters"]) == 3 and len(d["storage_characters"]) == 7
+    rank = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+    team_rank = sorted(rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["main_characters"])
+    rest_rank = [rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["storage_characters"]]
+    assert team_rank[0] >= max(rest_rank)
     # pity counts pulls since the last SSR or better (a natural SSR+ resets it)
-    rarities = [CHARACTER_FILE[c["id"] - 1]["rarity"] for c in d["storage_characters"]]
+    rarities = [CHARACTER_FILE[i - 1]["rarity"] for i in d["web_pull_history"][0]["ids"]]
     since = next((i for i, r in enumerate(reversed(rarities)) if r in ("SSR", "UR", "LR")), len(rarities))
     assert d["pity"] == since
     # second pull refused
     assert b"costs 1 super fragment" in client.post("/banners/0/pull", headers=h).data
+    for c in d["main_characters"]:  # empty the team to test moving stands in by hand
+        client.post("/team/store", data={"uuid": c["uuid"]}, headers=h)
+    d = doc(client, "111")
+    assert d["main_characters"] == [] and len(d["storage_characters"]) == 10
 
     # move 3 into the team, swap a 4th in
     ids = [c["uuid"] for c in d["storage_characters"]]

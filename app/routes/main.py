@@ -1,7 +1,7 @@
 """Public pages: home, stand encyclopedia, leaderboard, public profiles."""
 import random
 
-from flask import Blueprint, abort, jsonify, render_template, request, session, url_for
+from flask import Blueprint, Response, abort, jsonify, render_template, request, session, url_for
 
 from app.db import get_db, identity, leaderboard as lb
 from app.filters import PLAYABLE
@@ -11,7 +11,7 @@ from app.game.user import STORAGE_CAPACITY, User
 from app.routes.play import TOWER_COST
 from app.game.gangs import GANG_COST
 from app.routes.social import SHOP_COST
-from app import wiki as wiki_data
+from app import news, wiki as wiki_data
 
 bp = Blueprint("main", __name__)
 RARITY_ORDER = ["R", "SR", "SSR", "UR", "LR"]
@@ -24,7 +24,33 @@ def home():
     )
     random.shuffle(hand)
     registered = bool(session.get("uid")) and get_db().user_exists(session["uid"])
-    return render_template("home.html", hand=hand, registered=registered)
+    return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(3))
+
+
+@bp.get("/news")
+def news_list():
+    page = max(0, request.args.get("page", 0, type=int))
+    posts = news.list_posts(11, page * 10)
+    return render_template("news.html", posts=posts[:10], page=page, more=len(posts) > 10)
+
+
+@bp.get("/news/<post_id>")
+def news_post(post_id):
+    post = news.get_post(post_id)
+    if not post:
+        abort(404)
+    return render_template("news_post.html", post=post, others=[p for p in news.list_posts(4) if p["id"] != post_id][:3])
+
+
+@bp.get("/news/cover/<post_id>")
+def news_cover(post_id):
+    data, mime = news.cover(post_id)
+    if not data:
+        abort(404)
+    resp = Response(data, mimetype=mime)
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp
 
 
 @bp.get("/manifest.webmanifest")
