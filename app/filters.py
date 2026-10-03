@@ -13,9 +13,12 @@ CUSTOM_EMOJI = re.compile(r"&lt;(a?):(\w+):(\d+)&gt;")  # matched after escaping
 
 
 def power_score(char) -> int:
-    """HP counts less (it's scaled x3 in the engine); speed and crit matter a lot per point."""
-    return int(char.start_hp / 3 + char.start_damage * 2 + char.start_armor / 2
-               + char.start_speed * 6 + char.start_critical * 3)
+    """HP counts less (it's scaled x3 in the engine); speed and crit matter a lot per point.
+    A special built up by its stat and type adds 40% of its extra power."""
+    from app.game.characterabilities import special_power
+    raw = (char.start_hp / 3 + char.start_damage * 2 + char.start_armor / 2
+           + char.start_speed * 6 + char.start_critical * 3)
+    return int(raw * (1 + 0.4 * (special_power(char)["power"] - 1)))
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
 TAROT = [
     "0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
@@ -42,6 +45,9 @@ def register(app):
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
+    from app.game import characterabilities as abilities
+    app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
+                                 STAT_INFO=abilities.STAT_INFO)
     app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
     app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
     app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")

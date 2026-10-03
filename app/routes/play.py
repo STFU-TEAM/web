@@ -504,6 +504,7 @@ def _sync_social_quests(u):
     from app import social
     ensure_quests_assigned(u)
     logic.track_quest_progress(u, "reach_friends", len(social.friends(str(u.id))))
+    logic.check_achievements(u, "reach_friends", len(social.friends(str(u.id))))
     invited = social.take_referrals(str(u.id))
     if invited:
         logic.track_quest_progress(u, "invite_friend", invited)

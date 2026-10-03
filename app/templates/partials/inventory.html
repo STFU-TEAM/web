@@ -31,7 +31,7 @@
 <section class="shelf" data-item-section="use">
   <header class="shelf-head">
     <h2 class="h2">To use</h2>
-    <p class="muted">Devil's Palms also work on <a href="{{ url_for('play.banners') }}">banners</a>, where they draw 5 stands at SR or better.</p>
+    <p class="muted">Devil's Palms are spent on <a href="{{ url_for('play.banners') }}">banners</a>: 5 stands at SR or better each.</p>
   </header>
   {% if usable %}
   <ul class="inventory">
@@ -40,7 +40,7 @@
       <span class="item-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
       <div class="item-info">
         <h3>{{ it.name }} <span class="count">×{{ g.count }}</span></h3>
-        <p class="muted">{% if it.id == 2 %}Draws one stand of any rarity here, or 5 at SR+ on a banner.{% elif it.id == 3 %}Awakens a team stand, up to ★5. At level 100 it evolves Killer Queen and Silver Chariot (★2) and Gold Experience (★3) into their Requiem forms.{% elif it.id == 12 %}Draws a random Part 3 stand.{% elif it.id == 13 %}A bag of Meteor Dust.{% elif 8 <= it.id <= 32 %}Unlocks {{ it.name|replace(' Stand Chip', '')|replace('  ', ' ') }} as a stand.{% elif 34 <= it.id <= 36 %}Raid drop. Collect all three corpse parts to craft the Holy Corpse.{% elif it.id in (38, 39, 40) %}Crafting material from raids, the boss rush, the wormhole and dailies. See Crafting below.{% else %}Collectible.{% endif %}</p>
+        <p class="muted">{% if it.id == 2 %}Draws 5 stands at SR or better on the banner of your choice.{% elif it.id == 3 %}Awakens a team stand, up to ★5. At level 100 it evolves Killer Queen and Silver Chariot (★2) and Gold Experience (★3) into their Requiem forms.{% elif it.id == 12 %}Draws a random Part 3 stand.{% elif it.id == 13 %}A bag of Meteor Dust.{% elif 8 <= it.id <= 32 %}Unlocks {{ it.name|replace(' Stand Chip', '')|replace('  ', ' ') }} as a stand.{% elif 34 <= it.id <= 36 %}Raid drop. Collect all three corpse parts to craft the Holy Corpse.{% elif it.id in (38, 39, 40) %}Crafting material from raids, the boss rush, the wormhole and dailies. See Crafting below.{% else %}Collectible.{% endif %}</p>
       </div>
       <div class="item-actions">
         {% if it.id == 3 %}
@@ -51,8 +51,10 @@
             <button class="btn small gold">Pierce</button>
           </form>
           {% else %}<span class="muted">Needs a team stand.</span>{% endif %}
-        {% elif it.id in (2, 12, 13) or (8 <= it.id <= 32 and it.id not in (15, 16)) %}
-          <button class="btn small {% if it.id in (2, 12) %}gold{% endif %}" hx-post="{{ url_for('play.use') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result" hx-disabled-elt="this">
+        {% elif it.id == 2 %}
+          <a class="btn small gold" href="{{ url_for('play.banners') }}">Pick a banner</a>
+        {% elif it.id in (12, 13) or (8 <= it.id <= 32 and it.id not in (15, 16)) %}
+          <button class="btn small {% if it.id == 12 %}gold{% endif %}" hx-post="{{ url_for('play.use') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result" hx-disabled-elt="this">
             {% if it.id == 13 %}Open{% else %}Use{% endif %}</button>
         {% endif %}
         {{ sell_buttons(it, g.count) }}

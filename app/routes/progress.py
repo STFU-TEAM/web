@@ -199,6 +199,6 @@ def tour_done():
 def achievements():
     user = get_db().get_user(session["uid"])
     rows = get_all_achievements_status(user)
-    rows.sort(key=lambda a: (a["unlocked"], -a["progress"] / max(1, a["target"])))
+    rows.sort(key=lambda a: (a["unlocked"], a["secret"] and not a["unlocked"], -a["progress"] / max(1, a["target"])))
     return render_template("achievements.html", u=user, rows=rows,
                            unlocked=sum(a["unlocked"] for a in rows))

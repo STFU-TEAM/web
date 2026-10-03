@@ -32,6 +32,11 @@ TAUNT_ARMOR = 20  # permanent self-buffs stop at +100% of the starting stat
 STXPTOLEVEL = 100
 MAX_LEVEL = 100
 LEVEL_TO_STAT_INCREASE = 1
+# Flat points the SPEED and LUCK types give, by quality (BALANCE gives a quarter)
+SPEED_TYPE_POINTS = {"UNIVERSAL": 20, "SUPREME": 15, "GREAT": 10, "GOOD": 4, "SUB_PAR": 2, "BAD": 0}
+LUCK_TYPE_POINTS = {"UNIVERSAL": 40, "SUPREME": 30, "GREAT": 20, "GOOD": 8, "SUB_PAR": 4, "BAD": 0}
+# LUCK also makes crits hit harder: added to CRITMULTIPLIER
+LUCK_CRIT_DAMAGE = {"UNIVERSAL": 0.4, "SUPREME": 0.3, "GREAT": 0.2, "GOOD": 0.1, "SUB_PAR": 0.0, "BAD": 0.0}
 
 import os
 _DATA = os.path.join(os.path.dirname(__file__), "data")
@@ -120,6 +125,9 @@ class Character:
         
         #TYPE and qualities final multiplier
         
+        # Base speed and crit are tiny (median 2 and 1), so SPEED and LUCK add flat points rather
+        # than multiplying almost nothing. Each type also powers the specials that scale with its stat.
+        self.crit_multiplier = CRITMULTIPLIER
         for type_,quality in zip(self.types,self.qualities):
             type_ = Types.from_string(type_)
             quality = Qualities.from_string(quality)
@@ -128,14 +136,19 @@ class Character:
             elif type_ == Types.BALANCE:
                 self.current_armor *= (quality.coef ** 0.25)
                 self.current_damage *= (quality.coef ** 0.25)
-                self.current_speed *= (quality.coef ** 0.25)
-                self.current_critical *= (quality.coef ** 0.25)
+                self.current_speed += SPEED_TYPE_POINTS[quality.name] / 4
+                self.current_critical += LUCK_TYPE_POINTS[quality.name] / 4
+                self.crit_multiplier += LUCK_CRIT_DAMAGE[quality.name] / 4
             elif type_ == Types.DEFENSE:
                 self.current_armor *= quality.coef
+                self.current_hp *= quality.coef ** 0.5
             elif type_ == Types.SPEED:
-                self.current_speed *= quality.coef
+                self.current_speed += SPEED_TYPE_POINTS[quality.name]
             elif type_ == Types.LUCK:
-                self.current_critical *= quality.coef
+                self.current_critical += LUCK_TYPE_POINTS[quality.name]
+                self.crit_multiplier += LUCK_CRIT_DAMAGE[quality.name]
+        self.current_hp = int(self.current_hp)
+        self.current_speed = int(round(self.current_speed))
         
         self.start_hp = self.current_hp
         self.start_damage = self.current_damage
@@ -171,7 +184,8 @@ class Character:
         terrain = self.terrain
         multi = multiplier * TERRAIN_DAMAGE_MULT.get(terrain, 1)
         if min(self.current_critical, CRIT_CHANCE_CAP) >= random.randint(0, 100):
-            multi *= TERRAIN_CRIT_MULT.get(terrain, CRITMULTIPLIER)
+            crit_mult = getattr(self, "crit_multiplier", CRITMULTIPLIER)  # fights pickled before LUCK crit damage
+            multi *= max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0))
             atck["critical"] = True
             pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
         # Armor: 100 is neutral, 0 doubles damage, 400 (the cap) takes 40%.
@@ -298,7 +312,12 @@ class Character:
         # reset the meter
         self.special_meter = 0
         special_func = specials.get(str(self.id), not_implemented)
-        return special_func(self, allies, ennemies)
+        from app.game import characterabilities as abilities
+        abilities.begin_special(self)  # its stat and type set how strong it is
+        try:
+            return special_func(self, allies, ennemies)
+        finally:
+            abilities.end_special()
 
     def to_dict(self) -> dict:
         """Update the data of the character
@@ -413,3 +432,17 @@ def get_qualities_from_string(quality:str):
         return Qualities.BAD
     else:
         raise ValueError(f"No quality found with name '{quality}'")
+
+
+_NATURAL = {}
+
+
+def natural_stats(char) -> dict:
+    """The stand's stats with no items, types or effects: its level and awakening only."""
+    key = (char.id, min(MAX_LEVEL, char.xp // STXPTOLEVEL), char.awaken)
+    if key not in _NATURAL:
+        bare = Character({"id": char.id, "xp": char.xp, "awaken": char.awaken, "items": [], "types": [],
+                          "qualities": []})
+        _NATURAL[key] = {"hp": bare.start_hp, "damage": bare.start_damage, "armor": bare.start_armor,
+                         "speed": bare.start_speed, "critical": bare.start_critical}
+    return _NATURAL[key]

@@ -2775,7 +2775,7 @@
             "id": 164,
             "name": "dummy",
             "rarity": "UR",
-            "special_description": "Restores all of its health.",
+            "special_description": "Shrugs it off: heals `3%` of its max health. Sudden death still wears it down, if your team lasts long enough.",
             "special_url": "",
             "base_hp": 1000000,
             "base_damage": 0,

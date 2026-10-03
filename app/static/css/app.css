@@ -474,7 +474,7 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 @media (max-width: 900px) { .hand-slot { transform: translateX(calc(-50% + var(--n) * 38px)) rotate(calc(var(--n) * 8deg)) translateY(calc(var(--n) * var(--n) * 5px)); } }
 @media (max-width: 900px) {
   .hero { grid-template-columns: 1fr; margin-top: 1.5rem; }
-  .hand { height: 540px; overflow-x: clip; }
+  .hand { height: 620px; overflow-x: clip; }  /* the fanned cards reach ~600px: keep them off the next heading */
   .hero-art { width: min(300px, 80%); }
   .hand-slot { width: 130px; top: 250px; }
 }
@@ -640,6 +640,7 @@ table.stats td { font-weight: 700; font-variant-numeric: tabular-nums; }
 .quest-tabs button { position: relative; font: 700 var(--step--1)/1 var(--body); color: var(--muted); background: none; border: 0; border-radius: 999px;
   padding: .6rem 1rem; cursor: pointer; display: flex; align-items: center; gap: .35rem; }
 .quest-tabs button[aria-selected=true] { background: var(--gold); color: var(--ink); }
+@media (pointer: coarse) { .quest-tabs button { min-height: 44px; } }
 .tab-badge { min-width: 1.3rem; height: 1.3rem; border-radius: 999px; background: var(--magenta); color: #fff; font-size: .7rem; display: grid; place-items: center; padding: 0 .3rem; }
 .claim-all { animation: claim-glow 1.6s ease-in-out infinite; }
 @keyframes claim-glow { 50% { box-shadow: 0 0 0 4px rgb(244 197 66 / .25), 0 0 24px rgb(244 197 66 / .35); } }
@@ -720,6 +721,16 @@ table.stats td { font-weight: 700; font-variant-numeric: tabular-nums; }
 .feed-item time { font-size: .72rem; white-space: nowrap; }
 .join-page .cta { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; }
 
+/* Special scaling line (stand panel, stand page, forge) */
+.scaling { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; margin: .3rem 0 .6rem; font-size: var(--step--1); }
+.scaling-stat { padding: .15rem .6rem; border-radius: 999px; font-weight: 700; background: var(--night-3); }
+.scaling-stat.stat-damage { background: rgb(214 36 110 / .2); color: #FF8DB9; }
+.scaling-stat.stat-armor { background: rgb(122 63 184 / .3); color: #D7B8FF; }
+.scaling-stat.stat-health { background: rgb(91 227 142 / .15); color: #7DF0A8; }
+.scaling-stat.stat-speed { background: rgb(43 179 168 / .2); color: #7FE3DA; }
+.scaling-stat.stat-critical { background: rgb(244 197 66 / .18); color: var(--gold); }
+.scaling-power { font-family: var(--display); font-size: var(--step-0); color: var(--gold); }
+
 /* Inbox bell and pop-up toasts */
 .account { display: flex; align-items: center; gap: .4rem; }
 .bell { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; text-decoration: none; font-size: 1.15rem; }
@@ -738,6 +749,12 @@ table.stats td { font-weight: 700; font-variant-numeric: tabular-nums; }
 .toast-pop.fight::before { content: "⚔"; }
 .toast-pop.trade::before { content: "⇄"; }
 .toast-pop.gang::before { content: "⚑"; }
+.toast-pop.achievement::before { content: "🏆"; }
+.achievements li.secret { border-style: dashed; }
+.achievements li[hidden] { display: none; }
+.ach-filter { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+@media (pointer: coarse) { .ach-filter .filter-chip { min-height: 44px; } }
+.achievements li.secret h2 { letter-spacing: .2em; }
 .toast-pop span { flex: 1; }
 .toast-pop.leaving { opacity: 0; transform: translateX(20px); }
 .toast-x { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: .8rem; padding: 0 .2rem; }

@@ -1,3 +1,4 @@
+{% from "macros.html" import special_scaling %}
 {% macro pairs(types, qualities, old_types=none, old_qualities=none, spin=false, lockable=false) %}
   {% set RANK = {'UNIVERSAL': 'A', 'SUPREME': 'B', 'GREAT': 'C', 'GOOD': 'D', 'SUB_PAR': 'E', 'BAD': 'F'} %}
   {% set EMO = {'ATTACK': '⚔️', 'DEFENSE': '🛡️', 'SPEED': '💨', 'LUCK': '🍀', 'BALANCE': '⚖️'} %}
@@ -29,7 +30,8 @@
       <div>
         <p class="kicker"><span class="rar-tag {{ char.rarity|rarity }}">{{ char.rarity }}</span> Lv {{ char.level }}{% if char.awaken %} ★{{ char.awaken }}{% endif %}</p>
         <h2 class="h2">{{ char.name }}</h2>
-        <p class="muted">Power {{ power[char.uuid]|num }} · base price {{ price.get(char.rarity, 3000)|dust }}</p>
+        <p class="muted">Power {{ power[char.uuid]|num }} · base price {{ price.get(char.rarity, 600)|dust }}</p>
+        {{ special_scaling(char) }}
       </div>
     </header>
 
@@ -41,6 +43,7 @@
         </section>
         <section class="forge-new">
           <h3 class="h3">New roll <small class="{{ 'up' if new_power > old_power else ('down' if new_power < old_power else 'muted') }}">power {{ new_power|num }} ({{ '+' if new_power >= old_power }}{{ new_power - old_power }})</small></h3>
+          <p class="muted small-print">Special ×{{ '%.2f'|format(special_power(char).power) }} → <strong>×{{ '%.2f'|format(special_power(new).power) }}</strong></p>
           {{ pairs(pending.types, pending.qualities, pending.old_types, pending.old_qualities, spin=rolled) }}
         </section>
       </div>

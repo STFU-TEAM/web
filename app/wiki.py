@@ -11,7 +11,7 @@ import re
 from app.game import character as character_mod
 from app.game import logic
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
-from app.game.characterabilities import SYNERGIES
+from app.game.characterabilities import AFFINITY, POWER_RANGE, SYNERGIES
 from app.game import fight as fight_mod
 from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain
 
@@ -116,11 +116,14 @@ EFFECT_INFO = {
 }
 
 TYPE_INFO = {
-    "ATTACK": "Multiplies damage by the quality.",
-    "DEFENSE": "Multiplies armor by the quality.",
-    "SPEED": "Multiplies speed by the quality.",
-    "LUCK": "Multiplies critical chance by the quality.",
-    "BALANCE": "Applies a gentler boost (quality ^ 0.25) to damage, armor, speed and critical.",
+    "ATTACK": "Multiplies damage by the quality. Powers specials that scale with ⚔️ damage.",
+    "DEFENSE": "Multiplies armor by the quality, and health by its square root. Powers ❤️ health "
+               "specials (half as much) and 🛡️ armor specials.",
+    "SPEED": "Adds speed: +20 Universal, +15 Supreme, +10 Great, +4 Good, +2 Sub par. Powers 💨 speed specials.",
+    "LUCK": "Adds critical chance (+40 / +30 / +20 / +8 / +4) and critical damage (+0.4 / +0.3 / +0.2 / +0.1). "
+            "Powers 🍀 luck specials.",
+    "BALANCE": "A bit of everything: quality ^ 0.25 to damage and armor, a quarter of the Speed and Luck "
+               "bonuses, and half the type affinity for any special.",
 }
 
 
@@ -238,6 +241,7 @@ def facts():
         "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),
         "sudden_death_round": fight_mod.SUDDEN_DEATH_ROUND, "sudden_death_step": round(fight_mod.SUDDEN_DEATH_STEP * 100),
         "sudden_death_heal": round(fight_mod.SUDDEN_DEATH_HEAL * 100), "max_rounds": fight_mod.MAX_ROUNDS,
+        "affinity": AFFINITY, "power_range": POWER_RANGE,
         "reforge_prices": logic.REFORGE_PRICE, "reforge_lock_mult": logic.REFORGE_LOCK_MULT, "max_presets": logic.MAX_TEAMS,
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,

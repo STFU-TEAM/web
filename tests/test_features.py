@@ -362,6 +362,12 @@ def _win_story_fight(client, h):
     client.post("/story/leave", headers=h)
 
 
+def _ach_dust(d):
+    """Meteor Dust paid by achievements this save unlocked (forced test wins land in round 1: ZA WARUDO)."""
+    from app.game.achievements import ACHIEVEMENT_BY_ID
+    return sum(ACHIEVEMENT_BY_ID[a]["reward"]["fragments"] for a in d.get("achievement_data", {}).get("unlocked", []))
+
+
 def test_story_journey_gates_pays_once_and_rewards_bosses(client):
     from app.game import story
     player(client, "111", fragments=0, super_fragments=0)
@@ -376,7 +382,7 @@ def test_story_journey_gates_pays_once_and_rewards_bosses(client):
     put(client, d)
     _win_story_fight(client, h)
     d = doc(client, "111")
-    assert d["web_story"]["cleared"] == 1 and d["fragments"] == story.reward_for(0)["fragments"]
+    assert d["web_story"]["cleared"] == 1 and d["fragments"] == story.reward_for(0)["fragments"] + _ach_dust(d)
     assert "Ambush at Sea" in client.get("/story").data.decode()
 
     # a loss doesn't move the journey
@@ -666,7 +672,7 @@ def test_boss_rush_carries_health_pays_weekly_and_ranks(client):
     _end_rush_fight(client, h, win=True)
     d = doc(client, "111")
     run = d["web_rush"]["run"]
-    assert run["index"] == 1 and d["fragments"] == rush.REWARDS[0]["fragments"]
+    assert run["index"] == 1 and d["fragments"] == rush.REWARDS[0]["fragments"] + _ach_dust(d)
     from app.game.user import User
     lead = User(d).main_characters[0]
     assert run["hp"][lead.uuid] < lead.start_hp  # the beating carries over (half health + the patch-up)
@@ -906,3 +912,74 @@ def test_balance_stats_count_finished_fights_once(client):
     player(client, admin)
     login(client, admin)
     assert b"Balance stats" in client.get("/admin/stats?weeks=12").data
+
+
+def test_specials_scale_with_their_stat_and_matching_type():
+    import random as rnd
+    from app.game import characterabilities as ab
+    from app.game.character import LUCK_TYPE_POINTS, SPEED_TYPE_POINTS, Character, natural_stats
+
+    def mk(cid, types=(), quals=(), items=()):
+        return Character({"id": cid, "xp": 6000, "awaken": 1, "items": [{"id": i} for i in items],
+                          "types": list(types), "qualities": list(quals)})
+    bare = mk(1)
+    assert ab.special_power(bare)["power"] == 1 and ab.scaling_of(1) == "speed"
+    # SPEED and LUCK now add real points; a speed build powers Star Platinum's rush
+    fast = mk(1, ["SPEED"], ["UNIVERSAL"], [44])
+    assert fast.start_speed - natural_stats(fast)["speed"] >= SPEED_TYPE_POINTS["UNIVERSAL"]
+    sp = ab.special_power(fast)
+    assert sp["power"] > 1.6 and sp["affinity"] == ab.AFFINITY["UNIVERSAL"] and sp["type"] == "Speed Universal"
+    lucky = mk(14, ["LUCK"], ["GREAT"])
+    assert lucky.start_critical >= LUCK_TYPE_POINTS["GREAT"] and lucky.crit_multiplier > 1.5
+    # damage specials only take the affinity (their hits already use damage)
+    kq = ab.special_power(mk(49, ["ATTACK"], ["UNIVERSAL"], [1]))
+    assert kq["invest"] == 0 and kq["power"] == 1 + ab.AFFINITY["UNIVERSAL"]
+    # off-type rolls give nothing, BALANCE half
+    assert ab.special_power(mk(1, ["DEFENSE"], ["UNIVERSAL"]))["affinity"] == 0
+    assert ab.special_power(mk(1, ["BALANCE"], ["UNIVERSAL"]))["affinity"] == ab.AFFINITY["UNIVERSAL"] / 2
+
+    # the same special, the same enemy: the built copy hits harder
+    def rush(attacker):
+        rnd.seed(3)
+        foe = mk(10)
+        foe.current_hp = 10 ** 6
+        attacker.special([attacker], [foe])
+        return 10 ** 6 - foe.current_hp
+    assert rush(fast) > rush(mk(1)) * 1.4
+    # health specials scale their heals; the power is gone once the special ends
+    healer, hurt = mk(92, ["DEFENSE"], ["UNIVERSAL"], [43]), mk(1)
+    hurt.current_hp = 1
+    healer.special([healer, hurt], [mk(10)])
+    assert hurt.current_hp - 1 > hurt.start_hp * 0.25
+    assert ab._CTX["caster"] is None and ab._power() == 1.0
+
+
+def test_funny_achievements_secrets_and_palms(client):
+    from app.game import logic
+    from app.game.achievements import check_achievements, get_all_achievements_status
+    from app.game.user import User
+    from app.routes.battles import _settle
+    from app.game.character import character_from_dict
+    from app.game.fight import Fight, Side
+    player(client, "111", main_characters=[char(1)], items=[{"id": 2}], fragments=10_000)
+    h = login(client, "111")
+    # Devil's Palms only work on banners now
+    r = client.post("/items/use", data={"item": 2}, headers=h)
+    assert b"on a banner" in r.data and doc(client, "111")["items"] == [{"id": 2}]
+    assert b"Pick a banner" in client.get("/items").data
+    # secrets stay hidden until unlocked
+    u = User(doc(client, "111"))
+    rows = {a["id"]: a for a in get_all_achievements_status(u)}
+    assert rows[24]["name"] == "???" and "Outlast" in rows[24]["description"]
+    # defeating the dummy unlocks it (and a surrender is not a dummy loss)
+    with client.application.app_context():
+        dummy = character_from_dict({"id": 164, "xp": 100, "types": [], "qualities": [], "awaken": 0, "items": []})
+        f = Fight(Side("A", [character_from_dict(char(1))], True), Side("D", [dummy], False), kind="dummy",
+                  meta={"players": ["111"]})
+        f.finished, f.winner = True, 0
+        _settle(f)
+    d = doc(client, "111")
+    assert 24 in d["achievement_data"]["unlocked"]
+    assert get_all_achievements_status(User(d))[23]["name"] == "Dummy Thicc"
+    # reforging is a cheap service now
+    assert logic.REFORGE_PRICE["LR"] <= 1500

@@ -25,9 +25,9 @@ def check_achievements(user, action: str, count: int = 1) -> List[dict]:
     unlocked = set(ach_data.get("unlocked", []))
     counters = ach_data.get("counters", {})
 
-    # Update counter for this action
-    if action == "reach_level":
-        counters[action] = count
+    # Update counter for this action (reach_* record the best value)
+    if action.startswith("reach_"):
+        counters[action] = max(counters.get(action, 0), count)
     else:
         counters[action] = counters.get(action, 0) + count
 
@@ -52,9 +52,19 @@ def check_achievements(user, action: str, count: int = 1) -> List[dict]:
             # Also add to the legacy achievements list
             if ach["id"] not in user.achievements:
                 user.achievements.append(ach["id"])
+            _notify(user, ach)
 
     ach_data["unlocked"] = list(unlocked)
     return newly_unlocked
+
+
+def _notify(user, ach: dict):
+    """A pop-up on the website; skipped outside it (simulations, scripts)."""
+    try:
+        from app.social import notify
+        notify(str(user.id), "achievement", f"{ach['emoji']} Achievement unlocked: {ach['name']}!", "/achievements")
+    except Exception:
+        pass
 
 
 def get_all_achievements_status(user) -> List[dict]:
@@ -67,11 +77,13 @@ def get_all_achievements_status(user) -> List[dict]:
         progress = counters.get(ach["action"], 0)
         if ach["action"] == "reach_level":
             progress = counters.get("reach_level", 0)
+        hidden = ach.get("secret") and ach["id"] not in unlocked
         result.append({
             "id": ach["id"],
-            "name": ach["name"],
-            "description": ach["description"],
-            "emoji": ach["emoji"],
+            "name": "???" if hidden else ach["name"],
+            "description": ("Secret. Hint: " + ach.get("hint", "keep playing")) if hidden else ach["description"],
+            "emoji": "❔" if hidden else ach["emoji"],
+            "secret": bool(ach.get("secret")),
             "target": ach["target"],
             "progress": min(progress, ach["target"]),
             "unlocked": ach["id"] in unlocked,

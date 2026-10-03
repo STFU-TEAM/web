@@ -1,4 +1,4 @@
-{% from "macros.html" import owned_card %}
+{% from "macros.html" import owned_card, special_scaling %}
 {% set acts = 'hx-target="#collection" hx-swap="innerHTML" data-close-panel' %}
 <div class="panel-grid">
   <div class="panel-card">
@@ -15,6 +15,7 @@
 
     <h3 class="h3">Special</h3>
     <p>{{ template.special_description|replace('`', '')|trim('. ') }}. <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
+    {{ special_scaling(c) }}
 
     <h3 class="h3">Stats</h3>
     <table class="panel-stats">

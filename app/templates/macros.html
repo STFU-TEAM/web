@@ -1,5 +1,23 @@
 {# A stand drawn as a tarot card. s: Character object or template dict.
    badges: optional extras for owned cards, e.g. {'team': True, 'locked': True, 'copies': 2}. #}
+{% macro special_scaling(c=none, stand_id=none) -%}
+  {%- set stat = scaling_of(c.id if c else stand_id) -%}
+  {%- set icon, label, type_name = STAT_INFO[stat] -%}
+  <p class="scaling"><span class="scaling-stat stat-{{ stat }}">{{ icon }} Scales with {{ label }}</span>
+  {%- if c -%}
+    {%- set sp = special_power(c) -%}
+    <span class="scaling-power" title="How strong this copy's special is">×{{ '%.2f'|format(sp.power) }}</span>
+    <span class="muted">
+      {%- set parts = [] -%}
+      {%- if sp.invest|abs >= 0.005 %}{% set _ = parts.append(('+' if sp.invest > 0 else '') ~ (sp.invest * 100)|round|int ~ '% build') %}{% endif -%}
+      {%- if sp.type %}{% set _ = parts.append(('+' if sp.affinity >= 0 else '') ~ (sp.affinity * 100)|round|int ~ '% ' ~ sp.type) %}{% endif -%}
+      {{ ' (' ~ parts|join(', ') ~ ')' if parts else ' · a ' ~ type_name|title ~ ' type would power it up' }}</span>
+  {%- else -%}
+    <span class="muted"> · a {{ type_name|title }} type{{ ' and ' ~ ('critical' if stat == 'critical' else label|lower) ~ ' items' if stat != 'damage' }} power it up</span>
+  {%- endif -%}
+  </p>
+{%- endmacro %}
+
 {% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None) %}
 {% set rar = s.rarity|rarity %}
 {% set b = badges or {} %}

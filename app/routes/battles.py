@@ -215,11 +215,17 @@ def ranked_cancel():
 def _settle(fight):
     """Quest/achievement counters (and ranked elo) once a battle ends, like the bot's /fight."""
     players = fight.meta.get("players", [])
+    from app.routes.fightturn import fun_achievements
     if fight.kind == "dummy":
-        if fight.winner == 0 and players:
+        if players:
             user = get_db().get_user(players[0])
-            logic.track_quest_progress(user, "fight_win")
-            logic.check_achievements(user, "fight_win")
+            if fight.winner == 0:
+                logic.track_quest_progress(user, "fight_win")
+                logic.check_achievements(user, "fight_win")
+                logic.check_achievements(user, "dummy_kill")
+            elif not getattr(fight, "forfeited", False):
+                logic.check_achievements(user, "dummy_loss")
+            fun_achievements(user, fight)
             user.update()
         return
     if len(players) != 2:
@@ -229,6 +235,10 @@ def _settle(fight):
     for user in users:
         logic.track_quest_progress(user, played)
         logic.check_achievements(user, played)
+    for side, user in enumerate(users):
+        fun_achievements(user, fight, side)
+        if fight.winner is None and not getattr(fight, "forfeited", False):
+            logic.check_achievements(user, "draw")
     if fight.winner is not None:
         winner, loser = users[fight.winner], users[1 - fight.winner]
         actions = ["fight_win"]

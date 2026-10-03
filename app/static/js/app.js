@@ -446,6 +446,17 @@ function timeAgo(root) {
 timeAgo(document);
 document.addEventListener("htmx:load", (e) => timeAgo(e.detail.elt));
 
+// Achievements: filter chips (all / to do / done / secret).
+document.addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-ach-filter]");
+  if (!chip) return;
+  const key = chip.dataset.achFilter;
+  document.querySelectorAll("[data-ach-filter]").forEach((c) => c.setAttribute("aria-pressed", String(c === chip)));
+  document.querySelectorAll(".achievements li[data-ach]").forEach((li) => {
+    li.hidden = key !== "all" && !li.dataset.ach.split(" ").includes(key);
+  });
+});
+
 // "Copy link" buttons (profiles): clipboard with a short confirmation.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-copy]");

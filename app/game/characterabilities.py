@@ -74,6 +74,78 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
     return len(group & ids) >= 2
 
 
+# ── Special power: what a special scales with ────────────────────────────
+# Every special scales with one stat. Its power multiplies the special's hits, damage over time,
+# buffs, debuffs, true damage and growth (and heals, for health and armor specials):
+#   power = (1 + investment) x (1 + type affinity), kept within POWER_RANGE
+# investment: how far the build lifts the stat above the stand's natural value (no items, no types).
+#   It reads the starting stats, so a special that buffs its own stat can't snowball. Damage specials
+#   skip it: their hits already use the damage stat.
+# affinity: the stand has the type that matches the stat (ATTACK damage, DEFENSE armor and health,
+#   SPEED speed, LUCK crit); the better its quality, the bigger. BALANCE gives half, for any stat.
+STAT_INFO = {"damage": ("⚔️", "Damage", "ATTACK"), "armor": ("🛡️", "Armor", "DEFENSE"),
+             "health": ("❤️", "Health", "DEFENSE"), "speed": ("💨", "Speed", "SPEED"),
+             "critical": ("🍀", "Luck", "LUCK")}
+AFFINITY = {"UNIVERSAL": 0.25, "SUPREME": 0.18, "GREAT": 0.12, "GOOD": 0.06, "SUB_PAR": 0.0, "BAD": -0.06}
+POWER_RANGE = (0.6, 2.5)
+DEBUFF_CAP = 0.75
+HEALING_STATS = ("health",)
+ARMOR_BASE = 100
+AFFINITY_SHARE = {"health": 0.5}  # DEFENSE is mostly an armor type: half its affinity reaches healers
+
+
+def _invest(stat: str, char, natural: dict) -> float:
+    if stat == "armor":
+        return 0.0  # armor buffs are a share of starting armor: DEFENSE already grows them
+    if stat == "health":
+        return 1.0 * (char.start_hp / max(1, natural["hp"]) - 1)
+    if stat == "speed":
+        return 0.02 * (char.start_speed - natural["speed"])
+    if stat == "critical":
+        return 0.012 * (char.start_critical - natural["critical"])
+    return 0.0
+
+
+def scaling_of(char_id) -> str:
+    return SCALING.get(int(char_id), "damage")
+
+
+def special_power(char) -> dict:
+    """{"stat", "power", "invest", "affinity", "type"} for the stand as it is right now."""
+    from app.game.character import natural_stats
+    stat = scaling_of(char.id)
+    invest = _invest(stat, char, natural_stats(char))
+    wanted = STAT_INFO[stat][2]
+    affinity, via = 0.0, None
+    for type_, quality in zip(char.types, char.qualities):
+        bonus = (AFFINITY.get(quality, 0.0) * AFFINITY_SHARE.get(stat, 1)
+                 * (1 if type_ == wanted else 0.5 if type_ == "BALANCE" else 0))
+        if (type_ == wanted or type_ == "BALANCE") and (via is None or bonus > affinity):
+            affinity, via = bonus, f"{type_.title()} {quality.replace('_', ' ').title()}"
+    lo, hi = POWER_RANGE
+    power = max(lo, min(hi, (1 + invest) * (1 + affinity)))
+    return {"stat": stat, "power": power, "invest": invest, "affinity": affinity, "type": via}
+
+
+_CTX = {"caster": None, "power": 1.0, "stat": "damage"}
+
+
+def begin_special(char) -> dict:
+    info = special_power(char)
+    _CTX.update(caster=char, power=info["power"], stat=info["stat"])
+    return info
+
+
+def end_special():
+    _CTX.update(caster=None, power=1.0, stat="damage")
+
+
+def _power(heal: bool = False) -> float:
+    if heal and _CTX["stat"] not in HEALING_STATS:
+        return 1.0  # a damage stand's lifesteal already grew with its hit
+    return _CTX["power"]
+
+
 # ── Helpers ─────────────────────────────────────────────────────────────
 
 def _alive(chars: list) -> list:
@@ -101,7 +173,7 @@ def _impaired(c: "Character") -> bool:
 
 
 def _hit(character, target, multiplier, pierce=False) -> int:
-    return character.attack(target, multiplier=multiplier, pierce=pierce)["damage"]
+    return character.attack(target, multiplier=multiplier * _power(), pierce=pierce)["damage"]
 
 
 def _aoe(character, enemies, multiplier) -> int:
@@ -109,7 +181,24 @@ def _aoe(character, enemies, multiplier) -> int:
 
 
 def _dot(target, kind: EffectType, turns: int, value: float, sender) -> None:
-    target.add_effect(Effect(kind, turns, max(1, int(value)), sender))
+    target.add_effect(Effect(kind, turns, max(1, int(value * _power())), sender))
+
+
+def _regen(target, turns: int, value: float, sender) -> None:
+    target.add_effect(Effect(EffectType.REGENERATION, turns, value * _power(heal=True), sender))
+
+
+def _heal(target, amount: float) -> int:
+    return target.heal(amount * _power(heal=True))
+
+
+def _take(target, amount: float) -> int:
+    """True damage from a special; what the caster pays itself is never scaled."""
+    return target.take(amount if target is _CTX["caster"] else amount * _power())
+
+
+def _grow(target, stat: str, pct: float) -> float:
+    return target.grow(stat, pct * _power())
 
 
 def _stun(target, sender, turns: int = 1) -> None:
@@ -128,7 +217,9 @@ SPEED_FLOOR = 20
 
 def _buff(target, stat: str, pct: float, turns: int, sender) -> int:
     """Temporary +pct of the starting stat (critical: pct is flat points)."""
-    value = pct if stat == "critical" else getattr(target, f"start_{stat}") * pct
+    pct *= _power()
+    # armor buffs are points of the natural 100 armor, so DEFENSE's x1.4 doesn't count twice
+    value = pct if stat == "critical" else ARMOR_BASE * pct if stat == "armor" else getattr(target, f"start_{stat}") * pct
     if stat == "speed":
         value = max(value, pct * SPEED_FLOOR)
     target.add_effect(Effect(_STAT_UP[stat], turns, value, sender))
@@ -137,6 +228,7 @@ def _buff(target, stat: str, pct: float, turns: int, sender) -> int:
 
 def _debuff(target, stat: str, pct: float, turns: int, sender) -> int:
     """Temporary -pct of the current stat."""
+    pct = min(DEBUFF_CAP, pct * _power())
     value = getattr(target, f"current_{stat}") * pct
     if stat == "speed":
         value = max(value, pct * SPEED_FLOOR)
@@ -264,10 +356,10 @@ def the_fool(character, allied_characters, enemy_characters) -> tuple:
     terrain = _terrain(character)
     target = _target(character, enemy_characters)
     if terrain == Terrain.DESERT:
-        character.grow("armor", 0.20)
+        _grow(character, "armor", 0.20)
         damage = _hit(character, target, 1.0) if target else 0
         return payload, f"｢{character.name}｣ raises a sand fortress! +20% armor and a {damage} sand blast!"
-    character.grow("armor", 0.08)
+    _grow(character, "armor", 0.08)
     damage = _hit(character, target, 0.5) if target else 0
     return payload, f"｢{character.name}｣ hardens its sand: +8% armor, {damage} damage!"
 
@@ -309,7 +401,7 @@ def tower_of_grey(character, allied_characters, enemy_characters) -> tuple:
 
 def strength(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = character.heal(character.start_hp * 0.08)
+    healed = _heal(character, character.start_hp * 0.08)
     _buff(character, "armor", 0.20, 2, character)
     return payload, f"｢{character.name}｣ braces the ship: heals {healed} and gains +20% armor!"
 
@@ -323,8 +415,8 @@ def ebony_devil(character, allied_characters, enemy_characters) -> tuple:
     terrain = _terrain(character)
     lost = 1 - character.current_hp / max(1, character.start_hp)
     rate = 0.6 if terrain == Terrain.DESERT else 0.4
-    dmg = character.grow("damage", rate * lost)
-    arm = character.grow("armor", rate * lost)
+    dmg = _grow(character, "damage", rate * lost)
+    arm = _grow(character, "armor", rate * lost)
     target = _target(character, enemy_characters)
     hit = _hit(character, target, 0.8) if target else 0
     message = f"｢{character.name}｣ feeds on hatred and slashes for {hit}! +{round(dmg)} damage, +{round(arm)} armor"
@@ -338,7 +430,7 @@ def ebony_devil(character, allied_characters, enemy_characters) -> tuple:
 def yellow_temperance(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     _buff(character, "armor", 0.50, 2, character)
-    healed = character.heal(character.start_hp * 0.08)
+    healed = _heal(character, character.start_hp * 0.08)
     target = _target(character, enemy_characters)
     if target:
         _dot(target, EffectType.POISON, 2, 0.3 * character.current_damage, character)
@@ -393,7 +485,7 @@ def the_lovers(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ links souls!"
     pain = character.start_hp * 0.10 + (character.start_hp - character.current_hp) * 0.25
-    dealt = target.take(pain)
+    dealt = _take(target, pain)
     return payload, f"｢{character.name}｣ links souls with {target.name} and shares its pain: {dealt} damage!"
 
 
@@ -437,7 +529,7 @@ def judgement(character, allied_characters, enemy_characters) -> tuple:
 
 def high_pristess(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.grow("armor", 0.12)
+    _grow(character, "armor", 0.12)
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 1.0) if target else 0
     return payload, f"｢{character.name}｣ becomes the floor and bites for {damage}! +12% armor!"
@@ -534,7 +626,7 @@ def osiris(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ rolls the dice"
     roll = random.randint(1, 6)
     damage = _hit(character, target, 0.35 * roll)
-    healed = character.heal(damage * 0.5)
+    healed = _heal(character, damage * 0.5)
     return payload, f"｢{character.name}｣ wagers {target.name}'s soul on a {roll}: {damage} damage, heals {healed}!"
 
 
@@ -555,7 +647,7 @@ def crazy_diamond(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     ally = _weakest(allied_characters)
     if ally and ally.current_hp < ally.start_hp:
-        healed = ally.heal(ally.start_hp * 0.25)
+        healed = _heal(ally, ally.start_hp * 0.25)
         _cleanse(ally)
         return payload, f"｢{character.name}｣ restores {ally.name}: +{healed} health, debuffs cleared!"
     target = _target(character, enemy_characters)
@@ -626,15 +718,19 @@ def echoes_act_3(character, allied_characters, enemy_characters) -> tuple:
     return payload, f"｢{character.name}｣ 3 FREEZE! {target.name} is pinned down for {damage}, the others slowed!"
 
 
+DUMMY_HEAL = 0.03  # 2-8% all play the same: only a team that outlasts sudden death wins
+
+
 def dummy(character, allied_characters, enemy_characters) -> tuple:
+    """The practice dummy shrugs a little off each turn: sudden death can wear it down (an achievement)."""
     payload = get_payload()
-    character.current_hp = character.start_hp
-    return payload, f"｢{character.name}｣ restores all of its health to full!"
+    healed = character.heal(character.start_hp * DUMMY_HEAL)
+    return payload, f"｢{character.name}｣ shrugs it off and patches {healed:,} health."
 
 
 def killer_queen_bite_the_dust(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = sum(a.heal((a.start_hp - a.current_hp) * 0.3) for a in _alive(allied_characters))
+    healed = sum(_heal(a, (a.start_hp - a.current_hp) * 0.3) for a in _alive(allied_characters))
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 1.5) if target else 0
     return payload, f"｢{character.name}｣ Bites the Dust: rewinds {healed} health for the team and blows up {target.name if target else 'nothing'} for {damage}!"
@@ -652,8 +748,8 @@ def bad_company(character, allied_characters, enemy_characters) -> tuple:
 
 def echoes_act_0(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = character.heal(character.start_hp * 0.10)
-    grown = character.grow("damage", 0.10)
+    healed = _heal(character, character.start_hp * 0.10)
+    grown = _grow(character, "damage", 0.10)
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 0.5) if target else 0
     return payload, f"｢{character.name}｣ is about to hatch... heals {healed}, +{round(grown)} damage, pecks for {damage}!"
@@ -734,10 +830,10 @@ def pearl_jam(character, allied_characters, enemy_characters) -> tuple:
     fresh = terrain == Terrain.NATURE
     healed = 0
     for ally in _alive(allied_characters):
-        healed += ally.heal(ally.start_hp * (0.12 if fresh else 0.08))
+        healed += _heal(ally, ally.start_hp * (0.12 if fresh else 0.08))
         _cleanse(ally)
         if fresh:
-            ally.add_effect(Effect(EffectType.REGENERATION, 2, ally.start_hp * 0.03, character))
+            _regen(ally, 2, ally.start_hp * 0.03, character)
     if fresh:
         return payload, f"｢{character.name}｣ cooks with fresh ingredients! Team heals {healed} + regen, debuffs cleared!"
     return payload, f"｢{character.name}｣ cooks a healing meal! Team heals {healed}, debuffs cleared!"
@@ -775,7 +871,7 @@ def harvest(character, allied_characters, enemy_characters) -> tuple:
     collected = []
     for ally in _alive(allied_characters):
         stat = random.choice(["damage", "speed", "armor", "critical"])
-        amount = random.randint(10, 20) if stat == "critical" else random.uniform(0.15, 0.25)
+        amount = random.randint(15, 25) if stat == "critical" else random.uniform(0.20, 0.30)
         if rich:
             amount *= 1.6
         _buff(ally, stat, amount, 3, character)
@@ -790,7 +886,7 @@ def cinderella(character, allied_characters, enemy_characters) -> tuple:
     for ally in _alive(allied_characters):
         _buff(ally, "critical", 12, 2, character)
         _buff(ally, "damage", 0.15, 2, character)
-        healed += ally.heal(ally.start_hp * 0.08)
+        healed += _heal(ally, ally.start_hp * 0.08)
     return payload, f"｢{character.name}｣ gives everyone a lucky makeover! Team +12 crit, +15% damage, heals {healed}!"
 
 
@@ -819,7 +915,7 @@ def boy_ii_man(character, allied_characters, enemy_characters) -> tuple:
         character.add_effect(Effect(EffectType.DAMAGEUP, 3, stolen, character))
         return payload, f"｢{character.name}｣ throws Rock and wins! Steals {stolen} damage from {target.name}!"
     if roll == "paper":
-        dealt = target.take(min(character.start_hp - character.current_hp, character.start_hp * 0.4) * 0.6)
+        dealt = _take(target, min(character.start_hp - character.current_hp, character.start_hp * 0.4) * 0.6)
         return payload, f"｢{character.name}｣ throws Paper! Reflects {dealt} damage at {target.name}!"
     damage = _hit(character, target, 2.0)
     return payload, f"｢{character.name}｣ throws Scissors! Cuts {target.name} for {damage}!"
@@ -831,7 +927,7 @@ def highway_star(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ searches for nutrients"
     damage = _hit(character, target, 0.7)
-    healed = character.heal(damage * 0.4)
+    healed = _heal(character, damage * 0.4)
     return payload, f"｢{character.name}｣ drains {target.name} for {damage} and heals {healed}!"
 
 
@@ -863,7 +959,7 @@ def super_fly(character, allied_characters, enemy_characters) -> tuple:
     valid = _alive(enemy_characters)
     reflect = (character.start_hp - character.current_hp) * 0.12
     if valid and reflect > 0:
-        dealt = sum(e.take(reflect / len(valid)) for e in valid)
+        dealt = sum(_take(e, reflect / len(valid)) for e in valid)
         return payload, f"｢{character.name}｣ sends {dealt} damage back down the tower! +20% armor!"
     return payload, f"｢{character.name}｣ stands firm like a tower! +20% armor!"
 
@@ -889,8 +985,8 @@ def cheap_trick(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ whispers to nobody."
     if dead_allies:
-        dealt = target.take(target.current_hp * 0.5)
-        lost = character.take(character.current_hp * 0.3)
+        dealt = _take(target, target.current_hp * 0.5)
+        lost = _take(character, character.current_hp * 0.3)
         return payload, f"｢{character.name}｣ drags {target.name} toward hell: {dealt} damage, for {lost} of its own health!"
     damage = _hit(character, target, 1.0)
     _debuff(target, "speed", 0.25, 2, character)
@@ -902,7 +998,7 @@ def gold_experience(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "passione")
     share = 0.16 if synergy else 0.12
-    healed = sum(a.heal(a.start_hp * share) for a in _alive(allied_characters))
+    healed = sum(_heal(a, a.start_hp * share) for a in _alive(allied_characters))
     message = f"｢{character.name}｣ gives life: the team heals {healed}!"
     if synergy:
         for ally in _alive(allied_characters):
@@ -945,7 +1041,7 @@ def king_crimson(character, allied_characters, enemy_characters) -> tuple:
 
 def notorious_big(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.add_effect(Effect(EffectType.REGENERATION, 2, character.start_hp * 0.08, character))
+    _regen(character, 2, character.start_hp * 0.08, character)
     alone = len(_alive(allied_characters)) == 1
     if alone:
         _buff(character, "damage", 0.40, 2, character)
@@ -976,7 +1072,7 @@ def chariot_requiem(character, allied_characters, enemy_characters) -> tuple:
         damage = _hit(character, target, 0.6)
         _payload, message = specials[str(target.id)](character, allied_characters, enemy_characters)
         return payload, f"｢{character.name}｣ swaps souls with {target.name} ({damage} damage) and borrows its power: {message}"
-    grown = character.grow("damage", 0.10)
+    grown = _grow(character, "damage", 0.10)
     return payload, f"｢{character.name}｣'s soul searches for the arrow... +{round(grown)} damage."
 
 
@@ -1033,7 +1129,7 @@ def bohemian_rhapsody(character, allied_characters, enemy_characters) -> tuple:
         gap = getattr(best, f"current_{stat}") - getattr(character, f"current_{stat}")
         if gap > 0:
             character.add_effect(Effect(kind, 2, gap, character))
-    healed = character.heal(character.start_hp * 0.10)
+    healed = _heal(character, character.start_hp * 0.10)
     return payload, f"｢{character.name}｣ becomes a perfect version of {best.name} and heals {healed}!"
 
 
@@ -1067,8 +1163,8 @@ def c_moon(character, allied_characters, enemy_characters) -> tuple:
 def made_in_heaven(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "pucci")
-    character.grow("speed", 0.20)
-    character.grow("damage", 0.15)
+    _grow(character, "speed", 0.20)
+    _grow(character, "damage", 0.15)
     _buff(character, "critical", 10, 2, character)
     if synergy:
         for ally in [a for a in _alive(allied_characters) if a.id in SYNERGIES["pucci"] and a != character]:
@@ -1208,7 +1304,7 @@ def mr_president(character, allied_characters, enemy_characters) -> tuple:
     allies = [a for a in _alive(allied_characters) if a != character]
     target = _weakest(allies) if allies else character
     share = 0.10 if has_terrain else 0.07
-    target.add_effect(Effect(EffectType.REGENERATION, 2, target.start_hp * share, character))
+    _regen(target, 2, target.start_hp * share, character)
     _buff(target, "armor", 0.40 if has_terrain else 0.25, 2, character)
     if has_terrain:
         _cleanse(target)
@@ -1347,7 +1443,7 @@ def rolling_stones(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ rolls aimlessly..."
     if target.current_hp / max(target.start_hp, 1) < 0.3:
-        dealt = target.take(target.current_hp * 0.8)
+        dealt = _take(target, target.current_hp * 0.8)
         return payload, f"｢{character.name}｣ reveals {target.name}'s fate... inevitable! {dealt} execution damage!"
     damage = _hit(character, target, 0.8)
     _dot(target, EffectType.BLEED, 3, 0.3 * character.current_damage, character)
@@ -1392,14 +1488,14 @@ def highway_to_hell(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ has no target to bind!"
-    dealt = target.take(character.current_hp * 0.4)
-    lost = character.take(character.current_hp * 0.15)
+    dealt = _take(target, character.current_hp * 0.4)
+    lost = _take(character, character.current_hp * 0.15)
     return payload, f"｢{character.name}｣ shares its fate with {target.name}: {dealt} damage for {lost} of its own health!"
 
 
 def burning_down_the_house(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = sum(a.heal(a.start_hp * 0.10) for a in _alive(allied_characters))
+    healed = sum(_heal(a, a.start_hp * 0.10) for a in _alive(allied_characters))
     for ally in _alive(allied_characters):
         _buff(ally, "armor", 0.15, 2, character)
     return payload, f"｢{character.name}｣ opens the ghost room! Team heals {healed}, +15% armor!"
@@ -1410,7 +1506,7 @@ def foo_fighters(character, allied_characters, enemy_characters) -> tuple:
     target = _weakest(allied_characters)
     if not target:
         return payload, f"｢{character.name}｣ has no ally to heal!"
-    healed = target.heal(target.start_hp * 0.25)
+    healed = _heal(target, target.start_hp * 0.25)
     return payload, f"｢{character.name}｣ patches {target.name} with plankton! +{healed} health!"
 
 
@@ -1429,8 +1525,8 @@ def marilyn_manson(character, allied_characters, enemy_characters) -> tuple:
 
 def limp_bizkit(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    grown = character.grow("damage", 0.20)
-    healed = character.heal(character.start_hp * 0.15)
+    grown = _grow(character, "damage", 0.20)
+    healed = _heal(character, character.start_hp * 0.15)
     return payload, f"｢{character.name}｣ summons invisible zombies! +{round(grown)} damage, heals {healed}!"
 
 
@@ -1439,7 +1535,7 @@ def diver_down(character, allied_characters, enemy_characters) -> tuple:
     allies = [a for a in _alive(allied_characters) if a != character]
     target = _weakest(allies) if allies else character
     _buff(target, "armor", 0.40, 2, character)
-    target.add_effect(Effect(EffectType.REGENERATION, 2, target.start_hp * 0.07, character))
+    _regen(target, 2, target.start_hp * 0.07, character)
     return payload, f"｢{character.name}｣ dives into {target.name}! +40% armor and regen!"
 
 
@@ -1492,8 +1588,8 @@ def jail_house_lock(character, allied_characters, enemy_characters) -> tuple:
 
 def sky_high(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    drained = sum(e.take(e.current_hp * 0.13) for e in _alive(enemy_characters))
-    healed = character.heal(drained * 0.5)
+    drained = sum(_take(e, e.current_hp * 0.13) for e in _alive(enemy_characters))
+    healed = _heal(character, drained * 0.5)
     return payload, f"｢{character.name}｣ sends the Rods! Drains {drained} from enemies, heals {healed}!"
 
 
@@ -1615,7 +1711,7 @@ def oh_lonesome_me(character, allied_characters, enemy_characters) -> tuple:
 
 def scary_monsters(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    character.grow("damage", 0.20)
+    _grow(character, "damage", 0.20)
     _buff(character, "speed", 0.20, 2, character)
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 1.3) if target else 0
@@ -1627,7 +1723,7 @@ def cream_starter(character, allied_characters, enemy_characters) -> tuple:
     target = _weakest(allied_characters)
     if not target:
         return payload, f"｢{character.name}｣ has no one to heal!"
-    healed = target.heal(target.start_hp * 0.20)
+    healed = _heal(target, target.start_hp * 0.20)
     _buff(target, "damage", 0.15, 2, character)
     return payload, f"｢{character.name}｣ sprays flesh onto {target.name}! +{healed} health, +15% damage!"
 
@@ -1635,7 +1731,7 @@ def cream_starter(character, allied_characters, enemy_characters) -> tuple:
 def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     for ally in _alive(allied_characters):
-        ally.add_effect(Effect(EffectType.REGENERATION, 2, ally.start_hp * 0.06, character))
+        _regen(ally, 2, ally.start_hp * 0.06, character)
     for enemy in _alive(enemy_characters):
         _debuff(enemy, "damage", 0.20, 2, character)
     return payload, f"｢{character.name}｣ shines a holy light! Allies regenerate, enemies -20% damage!"
@@ -1644,7 +1740,7 @@ def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
 def dirty_deed_done_dirt_cheap(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     _cleanse(character)
-    healed = character.heal(character.start_hp * 0.20)
+    healed = _heal(character, character.start_hp * 0.20)
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 1.6) if target else 0
     return payload, f"｢{character.name}｣ swaps in a fresh self from another world: heals {healed}, cleansed, and strikes for {damage}!"
@@ -1665,7 +1761,7 @@ def hey_ya(character, allied_characters, enemy_characters) -> tuple:
         _buff(ally, "critical", 15, 2, character)
         _buff(ally, "speed", 0.20, 2, character)
         _buff(ally, "damage", 0.25, 2, character)
-    healed = sum(a.heal(a.start_hp * 0.08) for a in _alive(allied_characters))
+    healed = sum(_heal(a, a.start_hp * 0.08) for a in _alive(allied_characters))
     return payload, f"｢{character.name}｣ cheers everyone on! Team +15 crit, +20% speed, +25% damage, heals {healed}!"
 
 
@@ -1701,7 +1797,7 @@ def mandom(character, allied_characters, enemy_characters) -> tuple:
     healed = 0
     for ally in _alive(allied_characters):
         _cleanse(ally)
-        healed += ally.heal(ally.start_hp * 0.08)
+        healed += _heal(ally, ally.start_hp * 0.08)
     target = _target(character, enemy_characters)
     if target:
         target.special_meter = max(0, target.special_meter - 1)
@@ -1721,7 +1817,7 @@ def sugar_mountain(character, allied_characters, enemy_characters) -> tuple:
     healed = 0
     for ally in _alive(allied_characters):
         _buff(ally, "damage", 0.15, 2, character)
-        healed += ally.heal(ally.start_hp * 0.08)
+        healed += _heal(ally, ally.start_hp * 0.08)
     return payload, f"｢{character.name}｣ offers gifts from the spring! Team +15% damage, heals {healed}!"
 
 
@@ -1747,7 +1843,7 @@ def tubular_bells(character, allied_characters, enemy_characters) -> tuple:
 def twentieth_century_boy(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     _buff(character, "armor", 0.4, 1, character)
-    character.add_effect(Effect(EffectType.REGENERATION, 2, character.start_hp * 0.04, character))
+    _regen(character, 2, character.start_hp * 0.04, character)
     return payload, f"｢{character.name}｣ kneels and becomes nearly invincible! +40% armor for a turn and regen!"
 
 
@@ -1949,7 +2045,7 @@ def milagro_man(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ scatters cursed money..."
-    curse = target.take(target.current_damage * 0.6)
+    curse = _take(target, target.current_damage * 0.6)
     _dot(target, EffectType.POISON, 2, curse * 0.4, character)
     return payload, f"｢{character.name}｣ curses {target.name} with endless money! {curse} damage and poison!"
 
@@ -1977,7 +2073,7 @@ def ozon_baby(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     total = 0
     for enemy in _alive(enemy_characters):
-        total += enemy.take(enemy.current_hp * 0.16)
+        total += _take(enemy, enemy.current_hp * 0.16)
         _debuff(enemy, "speed", 0.15, 2, character)
     return payload, f"｢{character.name}｣ raises the air pressure! {total} damage, every enemy slowed!"
 
@@ -2008,7 +2104,7 @@ def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     total = 0
     for enemy in _alive(enemy_characters):
         share = 0.16 if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else 0.08
-        total += enemy.take(enemy.start_hp * share)
+        total += _take(enemy, enemy.start_hp * share)
     return payload, f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
 
 
@@ -2028,6 +2124,31 @@ def not_implemented(character, allied_characters, enemy_characters) -> tuple:
     message = f"｢{character.name}｣ has no power yet"
     payload["is_a_special"] = False
     return payload, message
+
+
+SCALING = {
+    # 💨 speed: rushes, multi-hits, time stops and chasers
+    1: "speed", 4: "speed", 6: "speed", 8: "speed", 10: "speed", 15: "speed", 22: "speed", 26: "speed",
+    31: "speed", 37: "speed", 40: "speed", 44: "speed", 53: "speed", 61: "speed", 62: "speed", 67: "speed",
+    75: "speed", 76: "speed", 82: "speed", 103: "speed", 107: "speed", 109: "speed", 116: "speed",
+    117: "speed", 134: "speed", 139: "speed", 143: "speed", 146: "speed", 149: "speed", 154: "speed",
+    160: "speed", 162: "speed", 163: "speed",
+    # 🛡️ armor: shields, walls and bindings
+    5: "armor", 9: "armor", 12: "armor", 21: "armor", 55: "armor", 65: "armor", 70: "armor", 74: "armor",
+    79: "armor", 86: "armor", 97: "armor", 101: "armor", 105: "armor", 127: "armor", 129: "armor",
+    131: "armor", 148: "armor", 153: "armor",
+    # ❤️ health: healers, sacrifices and stands that feed on their wounds
+    11: "health", 17: "health", 32: "health", 36: "health", 38: "health", 43: "health", 48: "health",
+    57: "health", 58: "health", 59: "health", 78: "health", 90: "health", 91: "health", 92: "health",
+    96: "health", 118: "health", 119: "health", 120: "health", 126: "health", 128: "health", 164: "health",
+    # 🍀 luck (crit): snipers, gamblers, fortune tellers and controllers
+    13: "critical", 14: "critical", 20: "critical", 24: "critical", 28: "critical", 29: "critical",
+    35: "critical", 45: "critical", 47: "critical", 51: "critical", 52: "critical", 56: "critical",
+    60: "critical", 64: "critical", 68: "critical", 71: "critical", 77: "critical", 85: "critical",
+    88: "critical", 93: "critical", 98: "critical", 99: "critical", 102: "critical", 122: "critical",
+    133: "critical", 138: "critical", 141: "critical", 144: "critical", 145: "critical", 155: "critical",
+    161: "critical",
+}
 
 
 specials = {

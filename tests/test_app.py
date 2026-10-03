@@ -7,6 +7,7 @@ import fakeredis
 import pytest
 
 import app.db as dbmod
+from app.game import logic
 from app.game.character import CHARACTER_FILE, get_character_from_template
 from app.game.user import create_user
 
@@ -551,7 +552,7 @@ def test_legacy_bytes_key_user_items_shop(client):
     assert client.get("/reforge?uuid=" + uid0).status_code == 200
     r = client.post("/reforge/roll", data={"uuid": uid0}, headers=h)
     assert b"Keep the new roll" in r.data and b"forge-pairs spin" in r.data
-    assert doc(client, "b'333'")["fragments"] == frag - 5000  # Chariot Requiem is UR
+    assert doc(client, "b'333'")["fragments"] == frag - logic.REFORGE_PRICE["UR"]  # Chariot Requiem is UR
     assert b"keeps its old roll" in client.post("/reforge/keep", data={"keep": "old"}, headers=h).data
     # energy refilled on page load (last_full_energy was long ago)
     client.get("/wormhole")

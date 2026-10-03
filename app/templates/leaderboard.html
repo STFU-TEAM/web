@@ -4,7 +4,7 @@
 <section class="page narrow">
   <p class="kicker">Global Elo ladder</p>
   <h1 class="display sm">Ranked</h1>
-  {% set tabs = [('global_elo','Ranked'),('xp','Level'),('tower_level','Tower'),('missions_level','Dungeon'),('prestige','Prestige')] %}
+  {% set tabs = [('global_elo','Ranked'),('xp','Level'),('tower_level','Tower')] + ([('missions_level','Dungeon')] if config.DUNGEON_ENABLED else []) + [('prestige','Prestige')] %}
   <nav class="tabs" aria-label="Rank by">
     {% for key, label in tabs %}
       <a href="?by={{ key }}" hx-get="?by={{ key }}" hx-target="#board" hx-push-url="true"

@@ -49,7 +49,7 @@ DEFAULT_SHOP = {
 }
 
 # /item use
-GACHA_ITEMS = [2, 12]
+GACHA_ITEMS = [12]  # Devil's Palms (2) are only spent on banners: 5 stands at SR or better
 CHIP_IDS = [8, 9, 10, 11, 14, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
 CHIP_TEMPLATE_INDEX = [9, 0, 5, 29, 162, 30, 57, 31, 33, 44, 48, 49, 58, 59, 68, 74, 77, 79, 80, 82, 83]
 REQUIEMABLE = [49, 6, 59]
@@ -359,6 +359,8 @@ def banner_pull(user: User, banner_id: int) -> dict:
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
+    if sum(c.rarity == "R" for c, _ in drawn) >= 9:
+        check_achievements(user, "unlucky_pull")
     drawn = _fill_team(user, drawn)
     user.data["web_sparks"] = sparks(user) + 1
     return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "pull")}
@@ -460,6 +462,8 @@ def release(user: User, uuids: List[str]) -> List[Character]:
             raise GameError(f"{char.name} is locked. Unlock it first.")
         lst.pop(idx)
         gone.append(char)
+        if char.rarity in ("SSR", "UR", "LR"):
+            check_achievements(user, "release_rare")
     if not gone:
         raise GameError("Every selected stand is locked or in your team.")
     for team in user.teams.values():  # keep presets tidy
@@ -582,8 +586,9 @@ def auto_fuse(user: User, rarities=AUTO_FUSE_RARITIES) -> dict:
 
 
 def _power(c: Character) -> float:
-    """Same weights as the collection's power score."""
-    return (c.start_hp / 3 + c.start_damage * 2 + c.start_armor / 2 + c.start_speed * 6 + c.start_critical * 3)
+    """Same as the collection's power score."""
+    from app.filters import power_score
+    return power_score(c)
 
 
 def best_team(user: User) -> dict:
@@ -638,12 +643,12 @@ def use_team(user: User, uuids: List[str]) -> List[Character]:
 
 # Reforge: reroll a stand's type/quality pairs. Price depends on rarity; each locked pair
 # costs 50% more. The new roll waits next to the old one until the player keeps one of them.
-REFORGE_PRICE = {"R": 800, "SR": 1500, "SSR": 3000, "UR": 5000, "LR": 7000}
+REFORGE_PRICE = {"R": 200, "SR": 350, "SSR": 600, "UR": 900, "LR": 1200}  # a service, not an endgame sink
 REFORGE_LOCK_MULT = 1.5
 
 
 def reforge_cost(char: Character, locks: int = 0) -> int:
-    return int(round(REFORGE_PRICE.get(char.rarity, 3000) * REFORGE_LOCK_MULT ** locks, -1))
+    return int(round(REFORGE_PRICE.get(char.rarity, 600) * REFORGE_LOCK_MULT ** locks, -1))
 
 
 def _reroll(types: List[str], qualities: List[str], locked: List[int]):
@@ -676,6 +681,8 @@ def reforge_roll(user: User, uuid: str, locked: List[int]) -> dict:
     user.data["web_reforge_pending"] = {"uuid": uuid, "types": types, "qualities": qualities,
                                         "old_types": list(char.types), "old_qualities": list(char.qualities)}
     track_quest_progress(user, "reforge")
+    check_achievements(user, "reforge")
+    _check_broke(user)
     return {"char": char, "cost": cost, "types": types, "qualities": qualities}
 
 
@@ -698,8 +705,12 @@ def reforge_keep(user: User, keep_new: bool) -> Character:
     char, lst, idx = locate(user, pending["uuid"])
     user.data.pop("web_reforge_pending", None)
     if keep_new:
+        from app.filters import power_score
+        before = power_score(char)
         char.types, char.qualities = list(pending["types"]), list(pending["qualities"])
         lst[idx] = Character(char.to_dict())
+        if power_score(lst[idx]) < before:
+            check_achievements(user, "reforge_downgrade")
         return lst[idx]
     return char
 
@@ -730,6 +741,8 @@ def equip(user: User, uuid: str, item_id: int):
     char.items.append(item)
     track_quest_progress(user, "item_equip")
     check_achievements(user, "item_equip")
+    if len(char.items) >= 3:
+        check_achievements(user, "full_kit")
     return char, item
 
 
@@ -752,6 +765,8 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
         user.items.append(item)
         raise GameError(msg)
 
+    if item.id == 2:
+        refund("Spend Devil's Palms on a banner: each one draws 5 stands at SR or better.")
     if item.id in GACHA_ITEMS:
         pool = [
             get_character_from_template(c, [], [])
@@ -773,6 +788,7 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
     elif item.id == 13:
         amount = random.randint(75, 125)
         user.fragments += amount
+        check_achievements(user, "bag_open")
         res = {"kind": "fragments", "fragments": amount}
     elif item.id == 3:
         if not uuid:
@@ -828,6 +844,11 @@ def shop_heads_left(user: User) -> int:
     return SHOP_HEADS_PER_WEEK - (bought.get("n", 0) if bought.get("week") == now().strftime("%G-W%V") else 0)
 
 
+def _check_broke(user: User):
+    if user.fragments < 100:
+        check_achievements(user, "broke")
+
+
 def shop_buy(user: User, key: str) -> str:
     entry = DEFAULT_SHOP.get(key)
     if not entry:
@@ -840,6 +861,7 @@ def shop_buy(user: User, key: str) -> str:
     if user.fragments < entry["price"]:
         raise GameError(f"You need {entry['price']:,} Meteor Dust. You have {user.fragments:,}.")
     user.fragments -= entry["price"]
+    _check_broke(user)
     track_quest_progress(user, "shop_buy")
     check_achievements(user, "shop_buy")
     if entry["type"] == "currency":
@@ -956,6 +978,7 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
     track_quest_progress(user, "wormhole_complete")
     check_achievements(user, "wormhole_complete")
     if not won:
+        check_achievements(user, "wormhole_loss")
         return {"won": False}
     user.last_wormhole = now()
     for a in ("wormhole_win", "fight_win"):

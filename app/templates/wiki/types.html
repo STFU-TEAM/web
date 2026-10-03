@@ -20,6 +20,15 @@
   </tbody>
 </table></div>
 
+<h2 class="wiki-h2">Specials scale with a stat</h2>
+<p>Every special scales with one stat, shown on its stand page: <strong>⚔️ damage</strong>, <strong>🛡️ armor</strong>, <strong>❤️ health</strong>, <strong>💨 speed</strong> or <strong>🍀 luck</strong> (critical). Its <strong>power</strong> multiplies the special's hits, damage over time, buffs, debuffs and true damage (and heals, for health specials):</p>
+<ul class="wiki-list">
+  <li><strong>Build:</strong> how far your items and types raise that stat above the stand's natural value. +1 speed is +2% power, +1 critical +1.2%, +10% health +10%. Damage specials don't need it: their hits already use damage. Armor specials grow through their armor buffs instead.</li>
+  <li><strong>Type affinity:</strong> the matching type adds {% for q, v in facts.affinity.items() %}{{ '+' if v >= 0 }}{{ (v * 100)|round|int }}% ({{ q|replace('_', ' ')|title }}){{ ', ' if not loop.last }}{% endfor %}. BALANCE gives half, for any stat.</li>
+  <li>Power stays between ×{{ facts.power_range[0] }} and ×{{ facts.power_range[1] }}. A speed stand with Speed Universal and Speedwagon's Hat fires its special around ×2; the same stand on Attack Universal hits harder with basic attacks but its special stays at ×1.</li>
+</ul>
+<p>So the best roll depends on the stand: a damage stand wants Attack, a healer wants Defense and health items, a sniper wants Luck and critical items. Each stand page tells you which.</p>
+
 <h2 class="wiki-h2">Tips</h2>
 <ul class="wiki-list">
   <li>A bad first roll guarantees a second type roll.</li>

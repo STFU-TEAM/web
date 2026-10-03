@@ -7,19 +7,25 @@
       <p class="muted">{{ unlocked }} of {{ rows|length }} unlocked. Rewards are paid the moment you unlock one.</p></div>
     <div class="meter wide" role="meter" aria-label="Achievements unlocked" aria-valuemin="0" aria-valuemax="{{ rows|length }}" aria-valuenow="{{ unlocked }}"><i style="width: {{ (100 * unlocked / ([rows|length, 1]|max))|round }}%"></i></div>
   </header>
+  {% set n_secret = rows|selectattr('secret')|rejectattr('unlocked')|list|length %}
+  <div class="filter-chips ach-filter" role="group" aria-label="Show">
+    {% for key, label in [('all', 'All ' ~ rows|length), ('todo', 'To do ' ~ (rows|length - unlocked)), ('done', 'Done ' ~ unlocked), ('secret', 'Secret ' ~ n_secret)] %}
+      <button type="button" class="filter-chip" data-ach-filter="{{ key }}" aria-pressed="{{ 'true' if key == 'all' else 'false' }}">{{ label }}</button>
+    {% endfor %}
+  </div>
   <ul class="achievements">
     {% for a in rows %}
-      <li class="{{ 'unlocked' if a.unlocked }}">
+      <li class="{{ 'unlocked' if a.unlocked }}{{ ' secret' if a.secret and not a.unlocked }}" data-ach="{{ 'done' if a.unlocked else 'todo' }}{{ ' secret' if a.secret and not a.unlocked }}">
         <span class="ach-emoji" aria-hidden="true">{{ a.emoji }}</span>
         <div>
           <h2>{{ a.name }}{% if a.unlocked %} <span class="syn-on">done</span>{% endif %}</h2>
           <p class="muted">{{ a.description }}</p>
-          {% if not a.unlocked %}
+          {% if not a.unlocked and not a.secret %}
             <div class="meter"><i style="width: {{ (100 * a.progress / ([a.target, 1]|max))|round }}%"></i></div>
             <small class="muted">{{ a.progress|num }} / {{ a.target|num }}</small>
           {% endif %}
-          {% set rw = a.reward %}
-          <p class="ach-reward">🎁 {% if rw.fragments %}{{ rw.fragments|num }} Meteor Dust{% endif %}{% if rw.super_fragments %}{{ ', ' if rw.fragments }}{{ rw.super_fragments }} Arrowhead{{ 's' if rw.super_fragments > 1 }}{% endif %}{% if rw['items'] %}{{ ', ' if rw.fragments or rw.super_fragments }}{{ rw['items']|length }} item{{ 's' if rw['items']|length > 1 }}{% endif %}</p>
+          {% set rw = a.reward %}{% if a.secret and not a.unlocked %}{% set rw = {} %}{% endif %}
+          {% if rw %}<p class="ach-reward">🎁 {% if rw.fragments %}{{ rw.fragments|num }} Meteor Dust{% endif %}{% if rw.super_fragments %}{{ ', ' if rw.fragments }}{{ rw.super_fragments }} Arrowhead{{ 's' if rw.super_fragments > 1 }}{% endif %}{% if rw['items'] %}{{ ', ' if rw.fragments or rw.super_fragments }}{{ rw['items']|length }} item{{ 's' if rw['items']|length > 1 }}{% endif %}</p>{% else %}<p class="ach-reward muted">🎁 A surprise</p>{% endif %}
         </div>
       </li>
     {% endfor %}

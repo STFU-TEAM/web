@@ -10,6 +10,20 @@ from flask import render_template, request, session, url_for
 from app.db import Busy, get_db, load_fight, save_fight, user_lock
 
 
+def fun_achievements(user, fight, side: int = 0):
+    """The silly ones: surrendering, a first-round win, and the Arrow's test failed."""
+    from app.game import logic
+    if getattr(fight, "forfeited", False):
+        if fight.winner != side:
+            logic.check_achievements(user, "surrender")
+        return
+    if fight.winner == side and getattr(fight, "round", 99) <= 1:
+        logic.check_achievements(user, "one_round_win")
+    meta = getattr(fight, "meta", None) or {}
+    if getattr(fight, "kind", "") == "story" and fight.winner != side and int(meta.get("stage", -1)) == 0:
+        logic.check_achievements(user, "story_first_loss")
+
+
 def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
               settle: Optional[Callable] = None):
     """settle(user, fight) -> rewards dict; called once, under the save lock, then saved."""
@@ -28,6 +42,7 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
             if fight.finished and fight.rewards is None and settle:
                 user = get_db().get_user(uid)
                 fight.rewards = settle(user, fight)
+                fun_achievements(user, fight)
                 user.update()
             save_fight(uid, fight)
     except Busy:
