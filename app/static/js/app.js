@@ -390,6 +390,62 @@ document.addEventListener("htmx:load", (e) => {
   });
 });
 
+// Pop-up toasts: rendered on full pages, or sent with an HTMX response as HX-Trigger {"toast": [...]}.
+(() => {
+  const box = () => document.getElementById("toasts");
+  const arm = (el) => {
+    if (el.dataset.armed) return;
+    el.dataset.armed = "1";
+    setTimeout(() => el.classList.add("leaving"), 7000);
+    setTimeout(() => el.remove(), 7600);
+  };
+  document.querySelectorAll("[data-toast]").forEach(arm);
+  document.body.addEventListener("toast", (e) => {
+    const list = Array.isArray(e.detail?.value) ? e.detail.value : Array.isArray(e.detail) ? e.detail : [];
+    for (const t of list) {
+      const a = document.createElement("a");
+      a.className = `toast-pop ${t.kind || ""}`;
+      a.href = t.url || "#";
+      a.dataset.toast = "";
+      const span = document.createElement("span");
+      span.textContent = t.text;
+      const x = document.createElement("button");
+      x.type = "button";
+      x.className = "toast-x";
+      x.setAttribute("aria-label", "Dismiss");
+      x.dataset.toastX = "";
+      x.textContent = "✕";
+      a.append(span, x);
+      box()?.append(a);
+      arm(a);
+    }
+    const bell = document.querySelector(".bell");
+    if (bell && list.length) bell.classList.add("has-news", "ring");
+  });
+  document.addEventListener("click", (e) => {
+    const x = e.target.closest("[data-toast-x]");
+    if (x) { e.preventDefault(); x.closest("[data-toast]").remove(); }
+  });
+})();
+
+// Quest tabs (Daily / Weekly / Journey), and "3 h ago" times in the inbox.
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest("[data-quest-tab]");
+  if (!tab) return;
+  const root = tab.closest("#quests");
+  root.querySelectorAll("[data-quest-tab]").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+  root.querySelectorAll(".quest-panel").forEach((p) => { p.hidden = p.id !== `qp-${tab.dataset.questTab}`; });
+});
+function timeAgo(root) {
+  root.querySelectorAll?.("[data-ago]").forEach((el) => {
+    const s = Math.max(0, Date.now() / 1000 - Number(el.dataset.ago));
+    el.textContent = s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : `${Math.floor(s / 86400)} d ago`;
+    el.title = new Date(Number(el.dataset.ago) * 1000).toLocaleString();
+  });
+}
+timeAgo(document);
+document.addEventListener("htmx:load", (e) => timeAgo(e.detail.elt));
+
 // "Copy link" buttons (profiles): clipboard with a short confirmation.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-copy]");
@@ -607,19 +663,27 @@ document.addEventListener("keydown", (e) => {
     place();
     (last ? $("[data-tour-cta2]") : $("[data-tour-next]")).focus({ preventScroll: true });
   };
+  // Returns the "done" request so a link can wait for it: navigating at once used to cancel it,
+  // and the next page started the tour all over again.
   const finish = () => {
     tour.hidden = true;
     document.body.classList.remove("touring");
-    const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"];
-    fetch(tour.dataset.done, { method: "POST", headers: { "X-CSRF-Token": token || "" } }).catch(() => {});
+    try { sessionStorage.setItem("tour-done", "1"); } catch (err) { /* storage blocked */ }
     if (location.search.includes("tour=1")) history.replaceState(null, "", location.pathname);
+    const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"];
+    return fetch(tour.dataset.done, { method: "POST", keepalive: true, headers: { "X-CSRF-Token": token || "" } }).catch(() => {});
   };
   const start = () => { i = 0; tour.hidden = false; document.body.classList.add("touring"); show(); };
 
   tour.addEventListener("click", (e) => {
     if (e.target.closest("[data-tour-next]")) { i = Math.min(steps.length - 1, i + 1); show(); }
     else if (e.target.closest("[data-tour-back]")) { i = Math.max(0, i - 1); show(); }
-    else if (e.target.closest("[data-tour-skip]") || e.target.closest("[data-tour-cta], [data-tour-cta2]")) finish();
+    else if (e.target.closest("[data-tour-skip]")) finish();
+    else if (e.target.closest("[data-tour-cta], [data-tour-cta2]")) {
+      e.preventDefault();
+      const href = e.target.closest("a").href;
+      finish().finally(() => { location.href = href; });
+    }
   });
   document.addEventListener("keydown", (e) => {
     if (tour.hidden) return;
@@ -631,5 +695,11 @@ document.addEventListener("keydown", (e) => {
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-tour-start]")) { e.preventDefault(); document.getElementById("nav-sheet")?.close(); closeNavDrops(); start(); }
   });
-  if (tour.dataset.autostart === "1" || new URLSearchParams(location.search).get("tour") === "1") start();
+  let doneThisSession = false;
+  try { doneThisSession = sessionStorage.getItem("tour-done") === "1"; } catch (err) { /* storage blocked */ }
+  if (new URLSearchParams(location.search).get("tour") === "1") start();
+  else if (tour.dataset.autostart === "1") {
+    if (doneThisSession) finish();  // the server missed the last "done": tell it again, quietly
+    else start();
+  }
 })();

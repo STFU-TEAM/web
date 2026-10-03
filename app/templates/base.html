@@ -39,6 +39,9 @@
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
   'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),
   'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑', 'Join a clan: shared vault, wars and raids.'),
+  'players': ('Find players', url_for('community.players'), ep == 'community.players', '⌕', 'Search anyone by name: add them, challenge them, trade.'),
+  'friends': ('Friends', url_for('community.friends'), ep == 'community.friends', '♥', 'Your friends, requests, and your invite link (a Devil’s Palm per friend).'),
+  'inbox': ('Inbox', url_for('community.inbox'), ep == 'community.inbox', '🔔', 'Duel challenges, trade offers, friend and gang invites, quest news.'),
   'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and Meteor Dust with players.'),
   'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖', 'Buy items other players listed, or sell yours.'),
   'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛', 'The top players by Elo, level and collection.'),
@@ -49,7 +52,7 @@
 } -%}
 {%- set battle_keys = ['story', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) -%}
 {%- set progress_keys = ['quests', 'achievements'] -%}
-{%- set community_keys = ['gangs', 'trades', 'shops', 'ladder'] -%}
+{%- set community_keys = ['friends', 'players', 'inbox', 'gangs', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
   {%- set sheet = [('Collection', ['team', 'items', 'reforge', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
@@ -95,6 +98,8 @@
 
     <div class="account">
       {% if me.id %}
+        <a class="bell{% if inbox_count %} has-news{% endif %}" href="{{ url_for('community.inbox') }}" {% if ep == 'community.inbox' %}aria-current="page"{% endif %}
+           aria-label="Inbox{% if inbox_count %}, {{ inbox_count }} new{% endif %}"><span aria-hidden="true">🔔</span>{% if inbox_count %}<b>{{ inbox_count if inbox_count < 100 else '99+' }}</b>{% endif %}</a>
         <details class="nav-drop account-drop">
           <summary aria-label="Account menu">
             {% if me.avatar %}<img src="{{ me.avatar }}" alt="" width="32" height="32">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}</span>{% endif %}
@@ -167,6 +172,12 @@
       </form>
     {% endif %}
   </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite">
+    {% for t in toasts %}
+      <a class="toast-pop {{ t.kind }}" href="{{ t.url or '#' }}" data-toast><span>{{ t.text }}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></a>
+    {% endfor %}
+  </div>
 
   {% with msgs = get_flashed_messages(with_categories=true) %}
     {% for cat, m in msgs %}<p class="flash {{ cat }}" role="status">{{ m }}</p>{% endfor %}

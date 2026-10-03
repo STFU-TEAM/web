@@ -1,44 +1,82 @@
 {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
 {% if claimed %}
-  <p class="toast ok" role="status">Claimed:
-    {% for c in claimed %}{{ c.name }}{% if c.fragments %} (+{{ c.fragments }} Meteor Dust){% endif %}{% if c.super_fragments %} (+{{ c.super_fragments }} Arrowhead){% endif %}{% if c.xp %} (+{{ c.xp }} XP){% endif %}{{ ', ' if not loop.last }}{% endfor %}.
-  </p>
+  <div class="quest-claimed" role="status">
+    <strong>Claimed!</strong>
+    {% for c in claimed %}<span>{{ c.name }}{% if c.fragments %} · +{{ c.fragments|dust }}{% endif %}{% if c.super_fragments %} · +{{ c.super_fragments|heads }}{% endif %}{% if c['items'] %} · {{ c['items']|map(attribute='name')|join(', ') }}{% endif %}</span>{% endfor %}
+  </div>
+  {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}
 {% endif %}
-{% set ready = [] %}{% for label, rows in groups.items() %}{% for q in rows if q.ready %}{% set _ = ready.append(q) %}{% endfor %}{% endfor %}
-{% if ready|length > 1 %}
-  <p><button class="btn gold" hx-post="{{ url_for('play.quest_claim') }}" hx-target="#quests">Claim all {{ ready|length }} rewards</button></p>
-{% endif %}
+
+
+<div class="quest-bar">
+  <div class="quest-tabs" role="tablist" aria-label="Quest lists">
+    {% for label, rows in groups.items() %}
+      {% set n_ready = rows|selectattr('ready')|list|length %}
+      <button type="button" role="tab" id="qt-{{ label|lower }}" aria-controls="qp-{{ label|lower }}" data-quest-tab="{{ label|lower }}"
+              aria-selected="{{ 'true' if open_tab == label else 'false' }}">
+        {{ {'Daily': '☀', 'Weekly': '📅', 'Journey': '🧭'}[label] }} {{ label }}
+        {% if n_ready %}<b class="tab-badge" aria-label="{{ n_ready }} ready">{{ n_ready }}</b>{% endif %}
+      </button>
+    {% endfor %}
+  </div>
+  {% if ready_total %}
+    <button class="btn gold claim-all" hx-post="{{ url_for('play.quest_claim') }}" hx-target="#quests" hx-disabled-elt="this">Claim all · {{ ready_total }}</button>
+  {% endif %}
+</div>
+
 {% for label, rows in groups.items() %}
-<section class="shelf">
-  <header class="shelf-head"><h2 class="h2">{{ label }}</h2></header>
+<section class="quest-panel" role="tabpanel" id="qp-{{ label|lower }}" aria-labelledby="qt-{{ label|lower }}" {% if open_tab != label %}hidden{% endif %}>
+  <p class="quest-panel-head muted">
+    {% if label in resets %}Resets in <strong>{{ resets[label]|delta }}</strong> · {% endif %}
+    {{ rows|selectattr('claimed')|list|length }}/{{ rows|length }} done
+  </p>
   {% if rows %}
-  <ul class="quests">
-    {% for row in rows %}{% set q = row.q %}
-    <li class="{% if row.claimed %}done{% elif row.ready %}ready{% endif %}">
-      <div>
+  <ul class="quest-list">
+    {% for row in rows %}{% set q = row.q %}{% set pct = (100 * row.progress / q.target)|round|int %}
+    <li class="quest-card {% if row.claimed %}done{% elif row.ready %}ready{% endif %}">
+      <span class="quest-icon" aria-hidden="true">{{ '✓' if row.claimed else row.icon }}</span>
+      <div class="quest-main">
         <h3>{{ q.name }}</h3>
-        <p class="muted">{{ q.description }}. Reward:
-          {%- set r = q.rewards -%}
-          {%- set parts = [] -%}
-          {%- if r.fragments %}{% set _ = parts.append(r.fragments ~ ' Meteor Dust') %}{% endif -%}
-          {%- if r.super_fragments %}{% set _ = parts.append(r.super_fragments ~ ' Arrowhead') %}{% endif -%}
-          {%- if r.xp %}{% set _ = parts.append(r.xp ~ ' XP') %}{% endif -%}
-          {%- if r['items'] %}{% set _ = parts.append(r['items']|length ~ ' item' ~ ('s' if r['items']|length > 1 else '')) %}{% endif %}
-          {{ parts|join(', ') }}.</p>
-        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ q.target }}" aria-valuenow="{{ row.progress }}" aria-label="{{ row.progress }} of {{ q.target }}"><i style="width: {{ (100 * row.progress / q.target)|round }}%"></i></div>
+        <p class="muted">{{ q.description }}</p>
+        <div class="quest-progress">
+          <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{ q.target }}" aria-valuenow="{{ row.progress }}" aria-label="{{ row.progress }} of {{ q.target }}"><i style="width: {{ pct }}%"></i></div>
+          <span class="quest-count">{{ row.progress }}/{{ q.target }}</span>
+        </div>
+        <ul class="reward-chips" aria-label="Reward">
+          {% for kind, v in row.chips %}
+            <li class="chip-{{ kind }}">{% if kind == 'dust' %}{{ v|dust }}{% elif kind == 'head' %}{{ v|heads }}{% elif kind == 'palm' %}{{ v|palms }}{% elif kind == 'xp' %}+{{ v|num }} XP{% else %}◈ {{ v }}{% endif %}</li>
+          {% endfor %}
+        </ul>
       </div>
-      {% if row.claimed %}
-        <span class="muted">Claimed</span>
-      {% elif row.ready %}
-        <button class="btn small gold" hx-post="{{ url_for('play.quest_claim') }}" hx-vals='{"quest": {{ q.id }}}' hx-target="#quests">Claim</button>
-      {% else %}
-        <span class="muted">{{ row.progress }}/{{ q.target }}</span>
-      {% endif %}
+      <div class="quest-act">
+        {% if row.claimed %}<span class="muted">Claimed</span>
+        {% elif row.ready %}<button class="btn gold" hx-post="{{ url_for('play.quest_claim') }}" hx-vals='{"quest": {{ q.id }}, "tab": "{{ label }}"}' hx-target="#quests" hx-disabled-elt="this">Claim</button>
+        {% else %}<span class="quest-pct">{{ pct }}%</span>{% endif %}
+      </div>
     </li>
     {% endfor %}
   </ul>
   {% else %}
     <p class="notice">No {{ label|lower }} quest right now.</p>
+  {% endif %}
+
+  {% if label == 'Journey' %}
+    {% if locked %}
+      <div class="quest-locked">
+        <span class="quest-icon" aria-hidden="true">🔒</span>
+        <p><strong>{{ locked.count }} more quest{{ 's' if locked.count != 1 }} unlock{{ 's' if locked.count == 1 }} after story stage {{ locked.stage }}</strong>
+          <span class="muted">You've cleared {{ story_done }} stage{{ 's' if story_done != 1 }}. {{ locked.total }} quests are still waiting further on the journey.</span></p>
+        <a class="btn small" href="{{ url_for('progress.story_page') }}">Continue the story</a>
+      </div>
+    {% endif %}
+    <div class="quest-invite">
+      <p><strong>♥ Bring a friend:</strong> anyone who signs up with your link becomes your friend, and you get a Devil's Palm once they clear 3 story stages.</p>
+      <div class="invite-link">
+        <label class="sr" for="quest-invite-url">Your invite link</label>
+        <input id="quest-invite-url" type="text" readonly value="{{ invite_url }}" onclick="this.select()">
+        <button type="button" class="btn small gold" data-copy="{{ invite_url }}">Copy link</button>
+      </div>
+    </div>
   {% endif %}
 </section>
 {% endfor %}

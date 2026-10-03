@@ -114,6 +114,9 @@ def invite_friend():
     challenge = {"from": uid, "to": target_id, "created": int(time.time())}
     r().set(CHALLENGE_KEY.format(challenge_id), json.dumps(challenge), ex=300)
     r().sadd(CHALLENGE_INBOX.format(target_id), challenge_id)
+    from app import social
+    social.notify(target_id, "fight", f"{identity(uid)['name']} challenged you to a friendly duel (5 minutes to accept).",
+                  url_for("community.inbox"))
     flash(f"Friendly duel invitation sent to {identity(target_id)['name']}.", "ok")
     return redirect(url_for("battles.index", mode="friends"))
 

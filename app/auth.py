@@ -72,8 +72,11 @@ def _safe_next(nxt) -> str:
 
 
 def _start_session(uid: str, name: str, avatar, method: str):
+    ref = session.get("ref")  # an invite link survives the fresh session; the welcome page uses it
     session.clear()
     session.permanent = True
+    if ref:
+        session["ref"] = ref
     session["uid"], session["name"], session["avatar"], session["auth"] = uid, name, avatar, method
 
 
@@ -254,6 +257,8 @@ def welcome():
                 begin(user)
                 user.update()
                 r().set(f"web:tour:{session['uid']}", 1)  # show the new-player tour once
+                from app import social
+                social.record_referral(session["uid"], session.pop("ref", None))
         except Busy:
             return redirect(url_for("auth.welcome"))
         return redirect(url_for("play.banners", welcome=1))

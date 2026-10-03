@@ -446,25 +446,86 @@ def shop_buy():
 # --------------------------------------------------------------------------- #
 # Quests
 # --------------------------------------------------------------------------- #
+QUEST_ICONS = {"wormhole": "◎", "tower": "▲", "rush": "♛", "story": "📜", "raid": "⚑", "banner": "✦", "reforge": "⚒",
+               "fuse": "♟", "item": "◈", "shop": "⚖", "daily": "🎁", "ranked": "⚔", "fight": "⚔", "invite": "♥",
+               "friends": "♥", "level": "★", "requiem": "✧"}
+
+
+def _quest_icon(action: str) -> str:
+    return next((icon for key, icon in QUEST_ICONS.items() if key in action), "☑")
+
+
+def _reward_chips(rewards: dict) -> list:
+    """[(kind, text)] for the reward line: dust / head / palm get currency icons, other items their name."""
+    chips = []
+    if rewards.get("fragments"):
+        chips.append(("dust", rewards["fragments"]))
+    if rewards.get("super_fragments"):
+        chips.append(("head", rewards["super_fragments"]))
+    palms = sum(1 for i in rewards.get("items", []) if i["id"] == 2)
+    if palms:
+        chips.append(("palm", palms))
+    for i in rewards.get("items", []):
+        if i["id"] != 2:
+            chips.append(("item", item_file[i["id"] - 1]["name"]))
+    if rewards.get("xp"):
+        chips.append(("xp", rewards["xp"]))
+    return chips
+
+
 def _quest_rows(user):
     ensure_quests_assigned(user)
     out = {}
-    for key, label in (("active_daily", "Daily"), ("active_weekly", "Weekly"), ("active_permanent", "Permanent")):
+    for key, label in (("active_daily", "Daily"), ("active_weekly", "Weekly"), ("active_permanent", "Journey")):
         rows = []
         for e in user.quests.get(key, []):
             q = QUEST_BY_ID.get(e["quest_id"])
             if q:
                 rows.append({"q": q, "progress": min(e["progress"], q["target"]), "claimed": e["claimed"],
-                             "ready": e["progress"] >= q["target"] and not e["claimed"]})
+                             "ready": e["progress"] >= q["target"] and not e["claimed"],
+                             "icon": _quest_icon(q["action"]), "chips": _reward_chips(q["rewards"])})
+        # ready first, then closest to done, claimed last
+        rows.sort(key=lambda r: (r["claimed"], not r["ready"], -r["progress"] / max(1, r["q"]["target"])))
         out[label] = rows
     return out
+
+
+def _resets():
+    """Time left until the daily and weekly quest resets (quests run on server time + 2h, like the bot did)."""
+    import datetime
+    now = datetime.datetime.now() + datetime.timedelta(hours=2)
+    midnight = datetime.datetime.combine(now.date() + datetime.timedelta(days=1), datetime.time())
+    monday = datetime.datetime.combine(now.date() + datetime.timedelta(days=7 - now.weekday()), datetime.time())
+    return {"Daily": midnight - now, "Weekly": monday - now}
+
+
+def _sync_social_quests(u):
+    """Quests fed by other players' actions: friends made and invited friends who got going."""
+    from app import social
+    ensure_quests_assigned(u)
+    logic.track_quest_progress(u, "reach_friends", len(social.friends(str(u.id))))
+    invited = social.take_referrals(str(u.id))
+    if invited:
+        logic.track_quest_progress(u, "invite_friend", invited)
+
+
+def _quests_ctx(user, **extra):
+    from app.game.quests import locked_preview, story_progress
+    groups = _quest_rows(user)
+    ready = {label: sum(r["ready"] for r in rows) for label, rows in groups.items()}
+    tab = request.values.get("tab", "")
+    if tab not in groups:  # open the first list with something to claim
+        tab = next((label for label, n in ready.items() if n), "Daily")
+    return {"u": user, "groups": groups, "locked": locked_preview(user), "story_done": story_progress(user),
+            "resets": _resets(), "open_tab": tab, "ready_total": sum(ready.values()),
+            "invite_url": url_for("community.join", ref=user.id, _external=True), **extra}
 
 
 @bp.get("/quests")
 @player_required
 def quests():
-    user, _, _ = action(lambda u: ensure_quests_assigned(u))  # assignment is saved, like /quest view
-    return render_template("quests.html", u=user, groups=_quest_rows(user))
+    user, _, _ = action(_sync_social_quests)  # assignment is saved, like /quest view
+    return render_template("quests.html", **_quests_ctx(user))
 
 
 @bp.post("/quests/claim")
@@ -475,7 +536,7 @@ def quest_claim():
         user, res, err = action(logic.quest_claim_all)
     else:
         user, res, err = action(lambda u: [logic.quest_claim(u, qid)])
-    return render_template("partials/quests_body.html", u=user, groups=_quest_rows(user), claimed=res, error=err)
+    return render_template("partials/quests_body.html", **_quests_ctx(user, claimed=res, error=err))
 
 
 # --------------------------------------------------------------------------- #

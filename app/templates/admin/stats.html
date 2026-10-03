@@ -1,0 +1,82 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Balance stats{% endblock %}
+{% macro pct(v) %}{% if v is none %}<span class="muted">–</span>{% else %}{{ (v * 100)|round(1) }}%{% endif %}{% endmacro %}
+{% macro rate(cell) %}
+  {% if cell and cell.games %}
+    <td class="{{ 'thin' if cell.games < data.min_games }} {{ 'hot' if cell.rate >= 0.6 and cell.games >= data.min_games }} {{ 'cold' if cell.rate <= 0.4 and cell.games >= data.min_games }}"
+        data-v="{{ cell.rate }}">{{ pct(cell.rate) }}</td>
+    <td data-v="{{ cell.games }}">{{ cell.games|num }}</td>
+  {% else %}<td data-v="-1"><span class="muted">–</span></td><td data-v="0">0</td>{% endif %}
+{% endmacro %}
+{% macro delta(cell) %}
+  {% if cell and cell.delta is not none %}
+    <td class="{{ 'thin' if cell.delta_games < data.min_games }} {{ 'hot' if cell.delta >= 0.05 }} {{ 'cold' if cell.delta <= -0.05 }}" data-v="{{ cell.delta }}"
+        title="Compared on {{ cell.delta_games }} games with the same stands without it">{{ '+' if cell.delta > 0 }}{{ (cell.delta * 100)|round(1) }} pts</td>
+  {% else %}<td data-v="-9"><span class="muted">–</span></td>{% endif %}
+{% endmacro %}
+{% block admin %}
+<header class="stats-head">
+  <h1 class="display sm">Balance stats</h1>
+  <nav class="filter-chips" aria-label="Period">
+    {% for n, label in [(1, 'This week'), (4, '4 weeks'), (12, '12 weeks')] %}
+      <a class="filter-chip" href="{{ url_for('admin.stats', weeks=n) }}" {% if weeks == n %}aria-pressed="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+<p class="muted">Win rate of every fight a stand or item took part in since {{ data.weeks[0] }}. PvE counts the player's side in wormholes, story, boss rush and tower; PvP counts both sides of ranked, friend and gang-war fights. Surrenders, the training dummy and raids are left out; a draw counts half. Greyed rows have fewer than {{ data.min_games }} games. Click a header to sort.</p>
+
+<h2 class="h2">Stands <small class="muted">{{ data.stands|length }}</small></h2>
+<label class="sr" for="stat-filter">Filter stands</label>
+<input id="stat-filter" class="stats-filter" type="search" placeholder="Filter by name or rarity" data-stats-filter="#stand-stats">
+<div class="admin-table-wrap">
+<table class="admin-table stats-table" id="stand-stats" data-sortable>
+  <thead><tr><th>Stand</th><th>Rarity</th><th>PvE win</th><th>PvE games</th><th>PvP win</th><th>PvP games</th></tr></thead>
+  <tbody>
+    {% for s in data.stands %}
+      <tr data-name="{{ s.name|lower }} {{ s.rarity|lower }}">
+        <td data-v="{{ s.name }}"><a href="{{ url_for('main.stand', stand_id=s.id) }}">{{ s.name }}</a></td>
+        <td data-v="{{ s.rarity }}"><span class="rar-tag {{ s.rarity|rarity }}">{{ s.rarity }}</span></td>
+        {{ rate(s.pve) }}{{ rate(s.pvp) }}
+      </tr>
+    {% else %}<tr><td colspan="6" class="muted">No finished fights recorded yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2 class="h2">Items <small class="muted">{{ data["items"]|length }}</small></h2>
+<p class="muted">Delta: how many points better the stands holding the item win than the same stands without it. It corrects for strong stands carrying strong items.</p>
+<div class="admin-table-wrap">
+<table class="admin-table stats-table" data-sortable>
+  <thead><tr><th>Item</th><th>PvE win</th><th>PvE games</th><th>PvE delta</th><th>PvP win</th><th>PvP games</th><th>PvP delta</th></tr></thead>
+  <tbody>
+    {% for i in data["items"] %}
+      <tr>
+        <td data-v="{{ i.name }}">{{ i.name }}</td>
+        {{ rate(i.pve) }}{{ delta(i.pve) }}{{ rate(i.pvp) }}{{ delta(i.pvp) }}
+      </tr>
+    {% else %}<tr><td colspan="7" class="muted">No fights with equipped items yet.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<script>
+// sort by clicking a header (numbers by data-v), and filter the stand table
+document.querySelectorAll("table[data-sortable] th").forEach((th, col) => {
+  th.tabIndex = 0;
+  th.setAttribute("role", "button");
+  const sort = () => {
+    const tbody = th.closest("table").tBodies[0];
+    const dir = th.dataset.dir === "desc" ? 1 : -1;
+    th.closest("tr").querySelectorAll("th").forEach((h) => delete h.dataset.dir);
+    th.dataset.dir = dir === 1 ? "asc" : "desc";
+    const val = (tr) => { const v = tr.children[col]?.dataset.v ?? ""; const n = parseFloat(v); return isNaN(n) ? v.toLowerCase() : n; };
+    [...tbody.rows].sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * dir).forEach((tr) => tbody.append(tr));
+  };
+  th.addEventListener("click", sort);
+  th.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sort(); } });
+});
+document.querySelectorAll("[data-stats-filter]").forEach((input) => input.addEventListener("input", () => {
+  const q = input.value.trim().toLowerCase();
+  document.querySelectorAll(input.dataset.statsFilter + " tbody tr[data-name]").forEach((tr) => { tr.hidden = !tr.dataset.name.includes(q); });
+}));
+</script>
+{% endblock %}

@@ -40,6 +40,8 @@ def register(app):
                                  PALM=branding.PALM, PALMS=branding.PALMS)
     from app.game import logic
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left)
+    from app.game import status
+    app.jinja_env.globals.update(fighter_status=status.view)
     app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
     app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
     app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")
@@ -154,18 +156,39 @@ def register(app):
                 out.append(it)
         return out
 
+    @app.after_request
+    def toast_htmx(resp):
+        """Pop-ups (quest complete, friend request...) ride on HTMX responses as an HX-Trigger event."""
+        uid = session.get("uid")
+        if uid and request.headers.get("HX-Request") and resp.status_code < 400 and "HX-Trigger" not in resp.headers:
+            from app import social
+            try:
+                toasts = social.take_toasts(uid)
+            except Exception:
+                toasts = []
+            if toasts:
+                import json
+                resp.headers["HX-Trigger"] = json.dumps({"toast": toasts})
+        return resp
+
     @app.context_processor
     def inject():
         if "csrf" not in session:
             session["csrf"] = secrets.token_urlsafe(24)
         uid = session.get("uid")
         story_hot = tour_pending = False
+        inbox_count, toasts = 0, []
         if uid and request.endpoint != "static":
             from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
+            from app import social
+            from app.routes.community import pending_count
             story_hot = not r().exists(f"web:story_done:{uid}")
             tour_pending = bool(r().exists(f"web:tour:{uid}"))
+            inbox_count = pending_count(uid)
+            if not request.headers.get("HX-Request"):  # HTMX responses get theirs through HX-Trigger
+                toasts = social.take_toasts(uid)
         return {
-            "story_hot": story_hot, "tour_pending": tour_pending,
+            "story_hot": story_hot, "tour_pending": tour_pending, "inbox_count": inbox_count, "toasts": toasts,
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),

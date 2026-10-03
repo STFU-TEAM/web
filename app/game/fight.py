@@ -154,6 +154,7 @@ class Fight:
         return self.round >= self.sudden_death_round
 
     def forfeit(self, side: int = 0):
+        self.forfeited = True  # left out of the balance stats
         for c in self.sides[side].chars:
             c.current_hp = 0
         self._log(f"{self.sides[side].name} surrendered.", "info", side=side)

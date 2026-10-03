@@ -12,13 +12,28 @@
     {% if c.taunt %}<span class="fighter-badge" title="Taunt">🎯</span>{% endif %}
   </div>
   <h3>{{ c.name }}</h3>
+  {% set st = fighter_status(c) %}
+  {% set maxhp = [c.start_hp, 1]|max %}
   <div class="hp" role="meter" aria-label="{{ c.name }} health" aria-valuemin="0" aria-valuemax="{{ c.start_hp|int }}" aria-valuenow="{{ hp|int }}">
-    <i style="width: {{ ([100 * hp / ([c.start_hp, 1]|max), 100]|min)|round }}%"></i>
+    <i style="width: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%"></i>
+    {% if st.dot %}<b class="hp-dot" style="left: {{ (100 * (hp - st.dot) / maxhp)|round(1) }}%; width: {{ (100 * st.dot / maxhp)|round(1) }}%"></b>{% endif %}
+    {% if st.regen %}<b class="hp-regen" style="left: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%; width: {{ (100 * st.regen / maxhp)|round(1) }}%"></b>{% endif %}
   </div>
   <p class="fighter-meta">
-    <span class="hp-num">{{ hp|int }}</span> / {{ c.start_hp|int }}
-    {% for e in c.effects if e.emoji %}<span class="fx" title="{{ e.type.name|lower|replace('up', ' up') }}{% if e.value %} {{ e.value|int }}{% endif %} · {{ e.duration }} turn{{ 's' if e.duration != 1 }} left">{{ e.emoji }}<sup>{{ e.duration }}</sup></span>{% endfor %}
+    <span><span class="hp-num">{{ hp|int }}</span> / {{ c.start_hp|int }}</span>
+    {% if st.dot and c.is_alive() %}<span class="hp-forecast bad" title="Damage over time at the end of its next turn">−{{ st.dot }}{{ ' · KO' if st.dot >= hp }}</span>{% endif %}
+    {% if st.regen and c.is_alive() %}<span class="hp-forecast good" title="Healing at the end of its next turn">+{{ st.regen }}</span>{% endif %}
   </p>
+  {% if st.chips and c.is_alive() %}
+    <ul class="fx-list" aria-label="{{ c.name }} statuses">
+      {% for ch in st.chips %}
+        <li class="fx {{ 'bad' if ch.bad else 'good' }}" title="{{ ch.title }}" tabindex="0">
+          <span aria-hidden="true">{{ ch.emoji }}</span><span class="fx-name">{{ ch.name }}</span>{% if ch.short %} <b>{{ ch.short }}</b>{% endif %}<small>{{ ch.turns }}</small>
+          <span class="sr">{{ ch.title }}</span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
   {% if c.is_alive() %}
     {% set left = c.turn_for_ability - c.special_meter %}
     <p class="charge {% if left <= 0 %}ready{% endif %}">{{ 'Special ready' if left <= 0 else 'Special in ' ~ left ~ (' turn' if left == 1 else ' turns') }}</p>

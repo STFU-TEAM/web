@@ -3,6 +3,7 @@ import random
 
 from flask import Blueprint, Response, abort, jsonify, render_template, request, session, url_for
 
+from app import social
 from app.db import get_db, identity, leaderboard as lb
 from app.filters import PLAYABLE
 from app.game.character import CHARACTER_FILE
@@ -246,4 +247,5 @@ def profile(uid: str):
         story_cleared=story.cleared(user), story_total=story.TOTAL,
         tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSS_STAGES),
         achievements_done=len(recent), achievements_total=len(achievements), recent=recent[:4],
-        is_me=session.get("uid") == uid)
+        is_me=session.get("uid") == uid,
+        relation=social.relation(session["uid"], uid) if session.get("uid") else None)

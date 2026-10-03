@@ -208,6 +208,13 @@ FIGHT_TTL = 15 * 60
 
 
 def save_fight(user_id: str, fight):
+    if fight.finished and not getattr(fight, "stats_recorded", False):
+        from app.game import stats
+        from app.game.logic import now
+        try:
+            stats.record(_redis, fight, now())
+        except Exception:  # telemetry must never break a fight
+            current_app.logger.exception("fight stats")
     _redis.set(f"web:fight:{user_id}", pickle.dumps(fight), ex=FIGHT_TTL)
 
 

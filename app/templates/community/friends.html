@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% from "community/_macros.html" import player_row, form_btn, challenge_button with context %}
+{% block title %}Friends | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow community">
+  <p class="kicker">Community</p>
+  <h1 class="display sm">Friends <small class="muted">{{ friends|length }}</small></h1>
+
+  <section class="invite-card">
+    <div>
+      <h2 class="h3">Invite a friend, get a Devil's Palm</h2>
+      <p class="muted">Anyone who signs up with your link becomes your friend right away. Once they clear {{ ref_stage }} story stages, your <a href="{{ url_for('play.quests') }}">Bring a Friend</a> quest pays out (and Squad Goals at 3 friends).</p>
+      {% if pending_refs %}<p class="muted small-print">On their way: {{ pending_refs|join(', ') }}.</p>{% endif %}
+    </div>
+    <div class="invite-link">
+      <label class="sr" for="invite-url">Your invite link</label>
+      <input id="invite-url" type="text" readonly value="{{ invite_url }}" onclick="this.select()">
+      <button type="button" class="btn small gold" data-copy="{{ invite_url }}">Copy link</button>
+    </div>
+  </section>
+
+  {% if incoming %}
+    <h2 class="h2">Requests <span class="count">{{ incoming|length }}</span></h2>
+    <ul class="player-list">
+      {% for p in incoming %}
+        {% set acts %}{{ form_btn('accept', p.id, '✓ Accept', 'btn small gold') }}{{ form_btn('decline', p.id, 'Decline', 'btn small ghost') }}{% endset %}
+        {{ player_row(p, extra=acts) }}
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2 class="h2">Your friends</h2>
+  {% if friends %}
+    <ul class="player-list">
+      {% for p in friends %}
+        {% set acts %}{{ challenge_button(p.id) }}<a class="btn small ghost" href="{{ url_for('trades.new', **{'with': p.id}) }}">⇄ Trade</a>{{ form_btn('remove', p.id, 'Remove', 'btn small ghost danger-text') }}{% endset %}
+        {{ player_row(p, extra=acts) }}
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="notice">No friends yet. <a href="{{ url_for('community.players') }}">Find players</a> or share your invite link above.</p>
+  {% endif %}
+
+  {% if outgoing %}
+    <h2 class="h3">Sent requests</h2>
+    <ul class="player-list compact">
+      {% for p in outgoing %}
+        {% set acts %}{{ form_btn('cancel', p.id, 'Cancel', 'btn small ghost') }}{% endset %}
+        {{ player_row(p, extra=acts) }}
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+{% endblock %}

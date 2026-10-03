@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Join STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow join-page">
+  <p class="kicker">You're invited</p>
+  <h1 class="display sm">{% if inviter %}{{ inviter.name }} wants you in their crew{% else %}Join STFU Requiem{% endif %}</h1>
+  <p class="lede">Pull JoJo stands, build a team of three and fight through Parts 3 to 8. You start with an Arrowhead, enough for a 10-pull{% if inviter %}, and you'll be friends with {{ inviter.name }} from the start{% endif %}.</p>
+  <p class="cta">
+    <a class="btn gold big" href="{{ url_for('auth.register') }}">Create my account</a>
+    <a class="btn ghost" href="{{ url_for('auth.login') }}">I already play</a>
+  </p>
+</section>
+{% endblock %}

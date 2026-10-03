@@ -1,9 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Quests | STFU Requiem{% endblock %}
 {% block main %}
-<section class="page narrow">
-  <h1 class="display sm">Quests</h1>
-  <p class="muted">Daily quests refresh every day, weekly quests every Monday.</p>
+<section class="page quests-page">
+  <header class="quests-head">
+    <div>
+      <p class="kicker">Progress</p>
+      <h1 class="display sm">Quests</h1>
+      <p class="muted">Dailies refresh at midnight, weeklies on Monday. Journey quests stay until you finish them, and new ones unlock as the story goes on.</p>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
   <div id="quests">{% include "partials/quests_body.html" %}</div>
 </section>
 {% endblock %}

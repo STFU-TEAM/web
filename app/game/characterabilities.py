@@ -1638,7 +1638,7 @@ def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
         ally.add_effect(Effect(EffectType.REGENERATION, 2, ally.start_hp * 0.06, character))
     for enemy in _alive(enemy_characters):
         _debuff(enemy, "damage", 0.20, 2, character)
-    return payload, f"｢{character.name}｣ shines a holy light! Allies regenerate, enemies -15% damage!"
+    return payload, f"｢{character.name}｣ shines a holy light! Allies regenerate, enemies -20% damage!"
 
 
 def dirty_deed_done_dirt_cheap(character, allied_characters, enemy_characters) -> tuple:

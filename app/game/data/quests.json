@@ -14,7 +14,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 2,
@@ -30,7 +31,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 3,
@@ -46,7 +48,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 4,
@@ -62,7 +65,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 5,
@@ -78,7 +82,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": false
+            "enabled": false,
+            "story_requirement": 0
         },
         {
             "id": 6,
@@ -94,7 +99,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 7,
@@ -110,7 +116,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 8,
@@ -126,7 +133,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 101,
@@ -146,7 +154,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 102,
@@ -166,7 +175,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 11
         },
         {
             "id": 103,
@@ -182,7 +192,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 104,
@@ -198,7 +209,8 @@
                 "items": []
             },
             "level_requirement": 5,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 11
         },
         {
             "id": 105,
@@ -214,7 +226,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 106,
@@ -234,7 +247,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": false
+            "enabled": false,
+            "story_requirement": 0
         },
         {
             "id": 1001,
@@ -254,7 +268,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 1002,
@@ -270,7 +285,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 11
         },
         {
             "id": 1003,
@@ -286,7 +302,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 1004,
@@ -302,7 +319,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 9,
@@ -318,7 +336,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 10,
@@ -334,7 +353,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 11,
@@ -350,7 +370,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 12,
@@ -370,7 +391,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 3
         },
         {
             "id": 13,
@@ -386,7 +408,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 14,
@@ -402,7 +425,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 107,
@@ -422,7 +446,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 108,
@@ -438,7 +463,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 109,
@@ -461,7 +487,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 110,
@@ -481,7 +508,8 @@
                 ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 6
         },
         {
             "id": 111,
@@ -497,7 +525,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 11
         },
         {
             "id": 1005,
@@ -513,7 +542,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 1006,
@@ -529,7 +559,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 0
         },
         {
             "id": 1007,
@@ -545,7 +576,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 11
         },
         {
             "id": 1008,
@@ -561,7 +593,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 16
         },
         {
             "id": 1009,
@@ -577,7 +610,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 21
         },
         {
             "id": 1010,
@@ -593,7 +627,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 26
         },
         {
             "id": 1011,
@@ -609,7 +644,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 16
         },
         {
             "id": 1012,
@@ -625,7 +661,8 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 21
         },
         {
             "id": 1013,
@@ -641,7 +678,395 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": true,
+            "story_requirement": 21
+        },
+        {
+            "id": 15,
+            "name": "Gauntlet Runner",
+            "description": "Beat 2 bosses in the boss rush",
+            "category": "daily",
+            "action": "rush_boss",
+            "target": 2,
+            "rewards": {
+                "fragments": 350,
+                "super_fragments": 0,
+                "xp": 120,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 16,
+            "name": "Wormhole Regular",
+            "description": "Win 3 wormhole fights",
+            "category": "daily",
+            "action": "wormhole_win",
+            "target": 3,
+            "rewards": {
+                "fragments": 350,
+                "super_fragments": 0,
+                "xp": 120,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 3
+        },
+        {
+            "id": 17,
+            "name": "Tower Sprint",
+            "description": "Clear 6 tower floors",
+            "category": "daily",
+            "action": "tower_floor",
+            "target": 6,
+            "rewards": {
+                "fragments": 400,
+                "super_fragments": 0,
+                "xp": 150,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 18,
+            "name": "Second Look",
+            "description": "Win 2 story fights (replays count)",
+            "category": "daily",
+            "action": "story_win",
+            "target": 2,
+            "rewards": {
+                "fragments": 350,
+                "super_fragments": 0,
+                "xp": 120,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 19,
+            "name": "Duplicate Duty",
+            "description": "Fuse 2 stands",
+            "category": "daily",
+            "action": "fuse",
+            "target": 2,
+            "rewards": {
+                "fragments": 300,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 6
+        },
+        {
+            "id": 20,
+            "name": "Hands Full",
+            "description": "Use 2 items",
+            "category": "daily",
+            "action": "item_use",
+            "target": 2,
+            "rewards": {
+                "fragments": 250,
+                "super_fragments": 0,
+                "xp": 80,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 3
+        },
+        {
+            "id": 21,
+            "name": "Ranked Regular",
+            "description": "Win a ranked duel",
+            "category": "daily",
+            "action": "fight_ranked_win",
+            "target": 1,
+            "rewards": {
+                "fragments": 450,
+                "super_fragments": 0,
+                "xp": 150,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 16
+        },
+        {
+            "id": 112,
+            "name": "Tower Marathon",
+            "description": "Clear 40 tower floors",
+            "category": "weekly",
+            "action": "tower_floor",
+            "target": 40,
+            "rewards": {
+                "fragments": 2000,
+                "super_fragments": 0,
+                "xp": 600,
+                "items": [
+                    {
+                        "id": 39
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 16
+        },
+        {
+            "id": 113,
+            "name": "Boss Slayer",
+            "description": "Beat 15 bosses in the boss rush",
+            "category": "weekly",
+            "action": "rush_boss",
+            "target": 15,
+            "rewards": {
+                "fragments": 1500,
+                "super_fragments": 1,
+                "xp": 600,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 16
+        },
+        {
+            "id": 114,
+            "name": "Wormhole Hunter",
+            "description": "Win 20 wormhole fights",
+            "category": "weekly",
+            "action": "wormhole_win",
+            "target": 20,
+            "rewards": {
+                "fragments": 1500,
+                "super_fragments": 0,
+                "xp": 500,
+                "items": [
+                    {
+                        "id": 40
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 6
+        },
+        {
+            "id": 115,
+            "name": "Collector",
+            "description": "Summon 5 times",
+            "category": "weekly",
+            "action": "banner_pull",
+            "target": 5,
+            "rewards": {
+                "fragments": 1200,
+                "super_fragments": 0,
+                "xp": 400,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 116,
+            "name": "Craftsman",
+            "description": "Craft 3 items",
+            "category": "weekly",
+            "action": "item_craft",
+            "target": 3,
+            "rewards": {
+                "fragments": 1200,
+                "super_fragments": 0,
+                "xp": 400,
+                "items": [
+                    {
+                        "id": 38
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 117,
+            "name": "Social Butterfly",
+            "description": "Win 5 fights against other players",
+            "category": "weekly",
+            "action": "fight_ranked_win",
+            "target": 5,
+            "rewards": {
+                "fragments": 1500,
+                "super_fragments": 1,
+                "xp": 600,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 16
+        },
+        {
+            "id": 1014,
+            "name": "Bring a Friend",
+            "description": "Invite a friend with your link; it counts once they clear 3 story stages",
+            "category": "permanent",
+            "action": "invite_friend",
+            "target": 1,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": [
+                    {
+                        "id": 2
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 0
+        },
+        {
+            "id": 1015,
+            "name": "Squad Goals",
+            "description": "Invite 3 friends who clear 3 story stages",
+            "category": "permanent",
+            "action": "invite_friend",
+            "target": 3,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 600,
+                "items": [
+                    {
+                        "id": 2
+                    },
+                    {
+                        "id": 2
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 6
+        },
+        {
+            "id": 1016,
+            "name": "Not Alone",
+            "description": "Add a friend",
+            "category": "permanent",
+            "action": "reach_friends",
+            "target": 1,
+            "rewards": {
+                "fragments": 500,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 0
+        },
+        {
+            "id": 1017,
+            "name": "Tower Climber",
+            "description": "Reach floor 20 of the tower",
+            "category": "permanent",
+            "action": "reach_tower",
+            "target": 20,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 400,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 1018,
+            "name": "Sky Piercer",
+            "description": "Reach floor 40 of the tower",
+            "category": "permanent",
+            "action": "reach_tower",
+            "target": 40,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 3,
+                "xp": 800,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 21
+        },
+        {
+            "id": 1019,
+            "name": "Rush Veteran",
+            "description": "Beat 4 bosses in one boss rush",
+            "category": "permanent",
+            "action": "reach_rush",
+            "target": 4,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 500,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 1020,
+            "name": "Living Legend",
+            "description": "Reach player level 30",
+            "category": "permanent",
+            "action": "reach_level",
+            "target": 30,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 0,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 11
+        },
+        {
+            "id": 1021,
+            "name": "Stand Master",
+            "description": "Fuse 25 stands",
+            "category": "permanent",
+            "action": "fuse",
+            "target": 25,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 400,
+                "items": [
+                    {
+                        "id": 40
+                    },
+                    {
+                        "id": 40
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true,
+            "story_requirement": 6
         }
     ]
 }

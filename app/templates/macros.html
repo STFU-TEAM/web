@@ -31,7 +31,7 @@
       <div class="xp" title="{{ pct }}% to level {{ level + 1 }}"><i style="width: {{ pct }}%"></i></div>
     {% endif %}
     <h3 class="card-name">{{ s.name }}</h3>
-    {% if not owned or size == 'big' %}<p class="card-flavor">{{ s.special_description|replace('`', '') }}</p>{% endif %}
+    {% if not owned or size == 'big' %}<p class="card-flavor" title="{{ s.special_description|replace('`', '') }}">{{ s.special_description|replace('`', '') }}</p>{% endif %}
     <dl class="card-stats five">
       <div title="Health"><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
       <div title="Damage"><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>

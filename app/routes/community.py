@@ -1,0 +1,146 @@
+"""Community hub: find players, friends (with invite links) and the inbox of everything waiting on you."""
+import json
+
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+
+from app import social
+from app.accounts import resolve_player
+from app.auth import player_required
+from app.db import get_db, identity, r
+from app.game import story
+from app.game import trades as T
+from app.routes.battles import CHALLENGE_INBOX, CHALLENGE_KEY
+
+bp = Blueprint("community", __name__, url_prefix="/community")
+
+
+def _card(uid: str, me: str, db=None) -> dict:
+    """What a player row shows: name, avatar, level, story, collection and how they relate to me."""
+    db = db or get_db()
+    user = db.get_user(uid)
+    who = identity(uid)
+    return {"id": uid, "name": who["name"], "avatar": who.get("avatar"),
+            "level": user.level if user else 0, "story": story.cleared(user) if user else 0,
+            "stands": len(user.main_characters) + len(user.storage_characters) if user else 0,
+            "elo": int(getattr(user, "global_elo", 0) or 0) if user else 0,
+            "gang": bool(user and user.gang_id), "relation": social.relation(me, uid)}
+
+
+def _back(default="community.friends"):
+    target = request.form.get("back") or request.referrer
+    return redirect(target if target and target.startswith(request.host_url) else url_for(default))
+
+
+# ── Find players ─────────────────────────────────────────────────────────────
+
+@bp.get("/players")
+@player_required
+def players():
+    me = session["uid"]
+    q = request.args.get("q", "").strip()
+    found = []
+    if q:
+        exact = resolve_player(q)
+        ids = ([exact] if exact else []) + [u for u in social.search(q) if u != exact]
+        db = get_db()
+        found = [_card(u, me, db) for u in ids if u != me][:20]
+    return render_template("community/players.html", q=q, found=found)
+
+
+# ── Friends ──────────────────────────────────────────────────────────────────
+
+@bp.get("/friends")
+@player_required
+def friends():
+    me = session["uid"]
+    db = get_db()
+    return render_template(
+        "community/friends.html",
+        friends=sorted((_card(u, me, db) for u in social.friends(me)), key=lambda c: c["name"].lower()),
+        incoming=[_card(u, me, db) for u in social.incoming(me)],
+        outgoing=[_card(u, me, db) for u in social.outgoing(me)],
+        invite_url=url_for("community.join", ref=me, _external=True),
+        pending_refs=[identity(u)["name"] for u in social.referral_stats(me)["pending"]],
+        ref_stage=social.REFERRAL_STAGE)
+
+
+@bp.post("/friends/<verb>")
+@player_required
+def friend_action(verb):
+    me = session["uid"]
+    other = resolve_player(request.form.get("user_id", ""))
+    if not other:
+        flash("That player doesn't exist.", "error")
+        return _back()
+    name = identity(other)["name"]
+    try:
+        if verb == "add":
+            result = social.request_friend(me, other)
+            flash(f"You and {name} are now friends." if result == "friends" else f"Friend request sent to {name}.", "ok")
+        elif verb == "accept":
+            social.accept_friend(me, other)
+            flash(f"You and {name} are now friends.", "ok")
+        elif verb == "decline":
+            social.decline_friend(me, other)
+            flash(f"Request from {name} declined.", "ok")
+        elif verb == "cancel":
+            social.cancel_request(me, other)
+            flash(f"Request to {name} cancelled.", "ok")
+        elif verb == "remove":
+            social.remove_friend(me, other)
+            flash(f"{name} was removed from your friends.", "ok")
+    except social.SocialError as e:
+        flash(str(e), "error")
+    return _back()
+
+
+@bp.get("/join")
+def join():
+    """An invite link: remember who sent it, then sign up (the save's creation records the referral)."""
+    ref = request.args.get("ref", "")
+    if ref and get_db().user_exists(ref):
+        session["ref"] = ref
+    if session.get("uid"):
+        return redirect(url_for("auth.welcome") if not get_db().user_exists(session["uid"]) else url_for("main.home"))
+    return render_template("community/join.html", inviter=identity(ref) if session.get("ref") else None)
+
+
+# ── Inbox ────────────────────────────────────────────────────────────────────
+
+def _challenges(uid: str) -> list:
+    out = []
+    for cid in r().smembers(CHALLENGE_INBOX.format(uid)):
+        cid = cid.decode() if isinstance(cid, bytes) else str(cid)
+        raw = r().get(CHALLENGE_KEY.format(cid))
+        if not raw:
+            r().srem(CHALLENGE_INBOX.format(uid), cid)
+            continue
+        c = json.loads(raw)
+        out.append({"id": cid, "from": c["from"], "name": identity(c["from"])["name"]})
+    return out
+
+
+def pending_count(uid: str) -> int:
+    """Things waiting on the player (the bell badge): unread news plus open requests."""
+    return (social.unread(uid) + r().scard(f"web:friendreq:in:{uid}") + r().scard(CHALLENGE_INBOX.format(uid))
+            + r().scard(f"web:trades:in:{uid}"))
+
+
+@bp.get("/inbox")
+@player_required
+def inbox():
+    me = session["uid"]
+    db = get_db()
+    user = db.get_user(me)
+    seen_before = int(r().get(f"web:notif:seen:{me}") or 0)
+    gang_invites = [g for g in (db.get_gang(gid) for gid in (user.gang_invites if user else [])) if g]
+    ctx = {
+        "challenges": _challenges(me),
+        "trades": [{"id": o["id"], "name": identity(o["from"])["name"]} for o in T.listing(r(), me, "in")],
+        "friend_requests": [_card(u, me, db) for u in social.incoming(me)],
+        "gang_invites": gang_invites,
+        "feed": social.feed(me),
+        "seen_before": seen_before,
+    }
+    social.mark_seen(me)
+    return render_template("community/inbox.html", **ctx)

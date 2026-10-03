@@ -419,6 +419,15 @@ def shop_unlist(shop_id, index):
     return redirect(url_for("admin.shops"))
 
 
+@bp.get("/stats")
+@admin_required
+def stats():
+    from app.game import stats as balance
+    weeks = request.args.get("weeks", 4, type=int)
+    weeks = weeks if weeks in (1, 4, 12) else 4
+    return render_template("admin/stats.html", data=balance.report(r(), logic.now(), weeks), weeks=weeks, section="stats")
+
+
 @bp.route("/banners", methods=["GET", "POST"])
 @admin_required
 def banners():

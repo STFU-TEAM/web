@@ -10,6 +10,7 @@
     <h2 class="h3">Ability</h2>
     <p class="lede">{{ s.special_description|replace('`', '') }}</p>
     <p>Charges in {{ s.turn_for_ability }} turn{{ 's' if s.turn_for_ability != 1 }}.</p>
+    <p class="muted small-print">How to read it: “120% damage” is a hit worth 120% of this stand's damage, reduced by armor and able to crit or be dodged, unless it ignores armor. True damage skips armor and dodges. “Its target” is the enemy it attacked this turn. Effects last the affected stand's own turns; damage over time ticks once per turn. “For good” lasts the whole fight, up to +100% of the starting stat.</p>
     {% if s.taunt %}<p>🎯 Taunt: enemies must hit this stand first with basic attacks. It gets extra health and armor.</p>{% endif %}
     {% if wiki.sets or wiki.boosts or wiki.reacts or wiki.synergies %}
       <h2 class="h3">Terrain & synergy</h2>

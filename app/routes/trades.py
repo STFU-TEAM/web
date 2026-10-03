@@ -70,6 +70,8 @@ def create():
     try:
         me = get_db().get_user(session["uid"])
         T.create(r(), me, other_id, give, want)
+        from app import social
+        social.notify(other_id, "trade", f"{identity(me.id)['name']} sent you a trade offer.", url_for("trades.index"))
         flash(f"Offer sent to {identity(other_id)['name']}. Nothing moves until they accept.", "ok")
         return redirect(url_for("trades.index"))
     except GameError as e:

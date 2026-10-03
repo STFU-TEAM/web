@@ -27,14 +27,31 @@ def get_quest_data(user) -> dict:
     return user.quests
 
 
-def _pick_quests(category: str, count: int, user_level: int, exclude_ids: list = None) -> list:
-    """Pick random quests from a category."""
+def story_progress(user) -> int:
+    """Story stages cleared (read straight from the save: story.py imports this module's users)."""
+    return int(user.data.get("web_story", {}).get("cleared", 0))
+
+
+def unlocked(q: dict, user) -> bool:
+    return (q["enabled"] and q["level_requirement"] <= user.level
+            and q.get("story_requirement", 0) <= story_progress(user))
+
+
+def daily_count(user) -> int:
+    return 4
+
+
+def weekly_count(user) -> int:
+    return 3 if story_progress(user) < 11 else 4
+
+
+def _pick_quests(category: str, count: int, user, exclude_ids: list = None) -> list:
+    """Pick random quests from a category among those this player has unlocked."""
     exclude_ids = exclude_ids or []
     pool = [
         q for q in ALL_QUESTS
         if q["category"] == category
-        and q["enabled"]
-        and q["level_requirement"] <= user_level
+        and unlocked(q, user)
         and q["id"] not in exclude_ids
     ]
     picked = random.sample(pool, min(count, len(pool)))
@@ -66,11 +83,11 @@ def ensure_quests_assigned(user) -> None:
     now = datetime.datetime.now() + datetime.timedelta(hours=2)
 
     if _needs_daily_reset(qd):
-        qd["active_daily"] = _pick_quests("daily", 4, user.level)
+        qd["active_daily"] = _pick_quests("daily", daily_count(user), user)
         qd["last_daily_reset"] = now
 
     if _needs_weekly_reset(qd):
-        qd["active_weekly"] = _pick_quests("weekly", 3, user.level)
+        qd["active_weekly"] = _pick_quests("weekly", weekly_count(user), user)
         qd["last_weekly_reset"] = now
 
     # Permanent quests: assign all that aren't completed yet
@@ -78,16 +95,36 @@ def ensure_quests_assigned(user) -> None:
     permanent_pool = [
         q for q in ALL_QUESTS
         if q["category"] == "permanent"
-        and q["enabled"]
-        and q["level_requirement"] <= user.level
+        and unlocked(q, user)
         and q["id"] not in completed
     ]
     active_perm_ids = {p["quest_id"] for p in qd["active_permanent"]}
-    for q in permanent_pool:
-        if q["id"] not in active_perm_ids:
-            qd["active_permanent"].append(
-                {"quest_id": q["id"], "progress": 0, "claimed": False}
-            )
+    fresh = [q for q in permanent_pool if q["id"] not in active_perm_ids]
+    for q in fresh:
+        qd["active_permanent"].append({"quest_id": q["id"], "progress": 0, "claimed": False})
+    if fresh and active_perm_ids:  # not on a brand-new save
+        _notify(user, f"New journey quest{'s' if len(fresh) > 1 else ''} unlocked: "
+                      + ", ".join(q["name"] for q in fresh) + ".")
+
+
+def locked_preview(user) -> Optional[dict]:
+    """The next story stage that unlocks quests, and how many: {"stage", "count"}."""
+    done = story_progress(user)
+    later = [q.get("story_requirement", 0) for q in ALL_QUESTS
+             if q["enabled"] and q.get("story_requirement", 0) > done]
+    if not later:
+        return None
+    stage = min(later)
+    return {"stage": stage, "count": sum(1 for s in later if s == stage), "total": len(later)}
+
+
+def _notify(user, text: str):
+    """Pop-up + inbox entry on the website; silently skipped outside it (simulations, scripts)."""
+    try:
+        from app.social import notify
+        notify(str(user.id), "quest", text, "/quests")
+    except Exception:
+        pass
 
 
 def track_quest_progress(user, action: str, count: int = 1) -> List[str]:
@@ -115,6 +152,8 @@ def track_quest_progress(user, action: str, count: int = 1) -> List[str]:
             if is_complete and not was_complete:
                 newly_completed.append(quest_def["name"])
 
+    for name in newly_completed:
+        _notify(user, f"Quest complete: {name}. Claim your reward!")
     return newly_completed
 
 

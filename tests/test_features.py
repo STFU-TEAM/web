@@ -871,3 +871,38 @@ def test_fusing_stars_wait_for_the_level_and_shop_heads_are_capped(client):
         client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)
     r = client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)
     assert b"Arrowheads a week" in r.data and doc(client, "111")["super_fragments"] == SHOP_HEADS_PER_WEEK
+
+
+def test_balance_stats_count_finished_fights_once(client):
+    import datetime
+    from app.game import stats
+    from app.game.character import character_from_dict
+    from app.game.fight import Fight, Side
+    redis = client.fake
+    when = datetime.datetime(2026, 10, 5)
+    knife = character_from_dict(char(1, xp=5000, items=[{"id": 1}]))
+    bare = character_from_dict(char(1, xp=5000))
+    foes = [character_from_dict(char(4))]
+    win = Fight(Side("A", [knife, bare], True), Side("B", foes, False), kind="story")
+    win.finished, win.winner = True, 0
+    assert stats.record(redis, win, when) and not stats.record(redis, win, when)  # once only
+    lost = Fight(Side("A", [character_from_dict(char(1, xp=5000))], True), Side("B", foes, False), kind="tower")
+    lost.finished, lost.winner = True, 1
+    stats.record(redis, lost, when)
+    duel = Fight(Side("A", [character_from_dict(char(2))], True), Side("B", [character_from_dict(char(3))], True), kind="ranked")
+    duel.finished, duel.winner = True, None  # a draw: half a win each
+    stats.record(redis, duel, when)
+    quit_ = Fight(Side("A", [character_from_dict(char(2))], True), Side("B", foes, False), kind="story")
+    quit_.forfeit()
+    assert not stats.record(redis, quit_, when)
+    rep = stats.report(redis, when, 1)
+    sp = next(s for s in rep["stands"] if s["id"] == 1)
+    assert sp["pve"] == {"games": 3, "rate": 2 / 3} and "pvp" not in sp
+    assert next(s for s in rep["stands"] if s["id"] == 2)["pvp"]["rate"] == .5
+    assert all(s["id"] != 4 for s in rep["stands"])  # scripted PvE enemies aren't counted
+    knife_row = next(i for i in rep["items"] if i["id"] == 1)["pve"]
+    assert knife_row["rate"] == 1 and round(knife_row["delta"], 3) == .5  # 100% with it vs 50% without
+    admin = sorted(client.application.config["DISCORD_ADMIN_IDS"])[0]
+    player(client, admin)
+    login(client, admin)
+    assert b"Balance stats" in client.get("/admin/stats?weeks=12").data

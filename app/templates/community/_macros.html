@@ -1,0 +1,42 @@
+{% macro form_btn(verb, uid, label, cls='btn small') %}
+  <form class="inline" method="post" action="{{ url_for('community.friend_action', verb=verb) }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="user_id" value="{{ uid }}">
+    <input type="hidden" name="back" value="{{ request.url }}">
+    <button class="{{ cls }}">{{ label }}</button>
+  </form>
+{% endmacro %}
+
+{% macro friend_button(relation, uid) %}
+  {% if relation == 'none' %}{{ form_btn('add', uid, '+ Add friend', 'btn small gold') }}
+  {% elif relation == 'received' %}{{ form_btn('accept', uid, '✓ Accept request', 'btn small gold') }}
+  {% elif relation == 'sent' %}{{ form_btn('cancel', uid, 'Request sent · cancel', 'btn small ghost') }}
+  {% elif relation == 'friends' %}<span class="pill friends">♥ Friends</span>{% endif %}
+{% endmacro %}
+
+{% macro challenge_button(uid) %}
+  <form class="inline" method="post" action="{{ url_for('battles.invite_friend') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="user_id" value="{{ uid }}">
+    <button class="btn small ghost" title="A friendly duel, no Elo at stake">⚔ Challenge</button>
+  </form>
+{% endmacro %}
+
+{% macro player_row(p, actions=true, extra=none) %}
+  <li class="player-row">
+    <a class="player-id" href="{{ url_for('main.profile', uid=p.id) }}">
+      {% if p.avatar %}<img src="{{ p.avatar }}" alt="" width="44" height="44">{% else %}<span class="avatar-initial big" aria-hidden="true">{{ (p.name or '?')[:1]|upper }}</span>{% endif %}
+      <span><strong>{{ p.name }}</strong>
+        <small>Lv {{ p.level }} · story {{ p.story }}/31 · {{ p.stands }} stands · {{ p.elo|num }} Elo{% if p.gang %} · ⚑ in a gang{% endif %}</small></span>
+    </a>
+    {% if actions %}
+      <div class="player-actions">
+        {% if extra %}{{ extra }}{% else %}
+          {{ friend_button(p.relation, p.id) }}
+          {{ challenge_button(p.id) }}
+          <a class="btn small ghost" href="{{ url_for('trades.new', **{'with': p.id}) }}">⇄ Trade</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </li>
+{% endmacro %}

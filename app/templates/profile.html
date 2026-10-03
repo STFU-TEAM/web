@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import owned_card %}
+{% from "community/_macros.html" import friend_button, challenge_button with context %}
 {% block title %}{{ ident.name }} | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page profile">
@@ -15,7 +16,14 @@
         <div class="meter" role="meter" aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ level_pct }}"><i style="width: {{ level_pct }}%"></i></div>
       </div>
     </div>
-    <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
+    <div class="profile-actions">
+      {% if relation and relation != 'self' %}
+        {{ friend_button(relation, uid) }}
+        {{ challenge_button(uid) }}
+        <a class="btn small ghost" href="{{ url_for('trades.new', **{'with': uid}) }}">⇄ Trade</a>
+      {% endif %}
+      <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
+    </div>
   </header>
 
   <ul class="profile-stats" aria-label="Records">

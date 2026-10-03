@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% from "community/_macros.html" import player_row, form_btn with context %}
+{% block title %}Inbox | STFU Requiem{% endblock %}
+{% block main %}
+{% set waiting = challenges|length + trades|length + friend_requests|length + gang_invites|length %}
+<section class="page narrow community">
+  <p class="kicker">Community</p>
+  <h1 class="display sm">Inbox</h1>
+
+  <h2 class="h2">Waiting on you {% if waiting %}<span class="count">{{ waiting }}</span>{% endif %}</h2>
+  {% if not waiting %}<p class="notice">Nothing waiting. Duel challenges, trade offers, friend requests and gang invites land here.</p>{% endif %}
+
+  {% if challenges %}
+    <h3 class="h3 inbox-h">⚔ Duel challenges</h3>
+    <ul class="inbox-list">
+      {% for c in challenges %}
+        <li><span><strong>{{ c.name }}</strong> challenged you to a friendly duel.</span>
+          <form class="inline" method="post" action="{{ url_for('battles.accept_friend', challenge_id=c.id) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">Fight</button>
+          </form></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if trades %}
+    <h3 class="h3 inbox-h">⇄ Trade offers</h3>
+    <ul class="inbox-list">
+      {% for t in trades %}
+        <li><span><strong>{{ t.name }}</strong> sent you an offer.</span><a class="btn small gold" href="{{ url_for('trades.index') }}">Review</a></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if friend_requests %}
+    <h3 class="h3 inbox-h">♥ Friend requests</h3>
+    <ul class="player-list">
+      {% for p in friend_requests %}
+        {% set acts %}{{ form_btn('accept', p.id, '✓ Accept', 'btn small gold') }}{{ form_btn('decline', p.id, 'Decline', 'btn small ghost') }}{% endset %}
+        {{ player_row(p, extra=acts) }}
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if gang_invites %}
+    <h3 class="h3 inbox-h">⚑ Gang invites</h3>
+    <ul class="inbox-list">
+      {% for g in gang_invites %}
+        <li><span>Join <strong>{{ g.name }}</strong>{% if g.motto %} <small class="muted">“{{ g.motto }}”</small>{% endif %} · {{ g.users|length }} members</span>
+          <span class="inline-forms">
+            <form class="inline" method="post" action="{{ url_for('gangs.join', gang_id=g._id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">Join</button></form>
+            <form class="inline" method="post" action="{{ url_for('gangs.decline', gang_id=g._id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Decline</button></form>
+          </span></li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <h2 class="h2">Recent</h2>
+  {% if feed %}
+    <ol class="feed">
+      {% for n in feed %}
+        <li class="feed-item {{ n.kind }}{% if n.at > seen_before %} new{% endif %}">
+          <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑'}.get(n.kind, '🔔') }}</span>
+          <span class="feed-text">{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</span>
+          <time class="muted" datetime="{{ n.at }}" data-ago="{{ n.at }}"></time>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}<p class="muted">No notifications yet.</p>{% endif %}
+</section>
+{% endblock %}

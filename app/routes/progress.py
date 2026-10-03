@@ -90,6 +90,8 @@ def _story_settle(user, fight):
     logic.track_quest_progress(user, "story_win")
     rewards = story.win(user, int(fight.meta["stage"]))
     logic.track_quest_progress(user, "reach_story", story.cleared(user))
+    from app import social
+    social.referral_progress(str(user.id), story.cleared(user))
     return rewards
 
 

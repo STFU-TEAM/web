@@ -162,6 +162,9 @@ def invite():
         if gang["_id"] in [str(g) for g in other.gang_invites]:
             raise GameError("That player already has an invitation.")
         other.gang_invites.append(gang["_id"])
+        from app import social
+        social.notify(other.id, "gang", f"{identity(user.id)['name']} invited you to join the gang {gang['name']}.",
+                      url_for("community.inbox"))
 
     gang_action(run, target, ok=f"Invitation sent to {identity(target)['name']}.")
     return _back()
