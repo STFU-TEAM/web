@@ -45,20 +45,27 @@
   <div class="banners">
     {% for b in banners %}
     <article class="banner{{ ' themed' if b.theme }}" id="banner-{{ b.id }}">
-      {% if b.theme %}
-        <div class="banner-art theme-art" aria-hidden="true"><span>{{ b.emoji }}</span><small>Themed banner</small></div>
-      {% else %}
-        <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
-      {% endif %}
+      <a class="banner-art-link" href="{{ url_for('play.banner_details', banner_id=b.id) }}" data-open-banner
+         hx-get="{{ url_for('play.banner_details', banner_id=b.id) }}" hx-target="#banner-panel-body" title="Odds and every stand">
+        {% if b.theme %}
+          <div class="banner-art theme-art" aria-hidden="true"><span>{{ b.emoji }}</span><small>Themed banner</small></div>
+        {% else %}
+          <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+        {% endif %}
+        <span class="banner-art-hint">🔍 Odds & stands</span>
+      </a>
       <div class="banner-body">
         <h2 class="h2">{{ b.name }}{% if b.theme %} <span class="theme-tag">Theme of the day</span>{% endif %}</h2>
+        {% set counts = b|banner_stands|groupby('rarity') %}
+        <p class="banner-counts">{% for r in ['LR', 'UR', 'SSR', 'SR', 'R'] %}{% for grp in counts if grp.grouper == r %}<span class="rar-tag {{ r|rarity }}">{{ grp.list|length }} {{ r }}</span> {% endfor %}{% endfor %}
+          <button type="button" class="link bd-open" data-open-banner hx-get="{{ url_for('play.banner_details', banner_id=b.id) }}" hx-target="#banner-panel-body">Details & odds →</button></p>
         {% if b.tagline %}<p class="muted">{{ b.tagline }}</p>{% endif %}
         {% set pool = b|banner_stands %}
         <ul class="banner-pool" aria-label="Top stands">
           {% for c in pool[:6] %}<li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}" title="{{ c.name }} ({{ c.rarity }})"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"><span>{{ c.rarity }}</span></a></li>{% endfor %}
           {% if pool|length > 6 %}<li class="more">+{{ pool|length - 6 }}</li>{% endif %}
         </ul>
-        <details class="odds-box">
+        <details class="odds-box" hidden>
           <summary>Drop rates</summary>
           <table class="odds">
             <tr><th scope="col"></th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<th scope="col">{{ r }}</th>{% endfor %}</tr>
@@ -101,7 +108,8 @@
           <ul class="cal-banners">
             {% for b in w.banners %}
               {% set pool = b|banner_stands %}
-              <li class="{{ 'theme' if b.theme }}">
+              <li class="{{ 'theme' if b.theme }}" data-open-banner role="button" tabindex="0"
+                  hx-get="{{ url_for('play.banner_details', banner_id=b.id) }}" hx-target="#banner-panel-body" title="Odds and stands">
                 <span class="cal-face">{% if b.theme %}{{ b.emoji }}{% elif pool %}<img src="{{ pool[0].id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">{% endif %}</span>
                 <span><strong>{{ b.name }}</strong><small class="muted">{% if pool %}{{ pool[0].name }}{% if pool|length > 1 %}, {{ pool[1].name }}{% endif %}{% endif %}</small></span>
               </li>
@@ -111,6 +119,11 @@
       {% endfor %}
     </ol>
   </section>
+
+  <dialog id="banner-panel" class="stand-panel banner-panel" aria-label="Banner details">
+    <button type="button" class="btn small ghost panel-close" data-banner-close aria-label="Close">✕</button>
+    <div id="banner-panel-body"><p class="muted">Loading…</p></div>
+  </dialog>
 
   {% if history %}
     <section class="shelf pull-history">

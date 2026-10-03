@@ -1127,6 +1127,36 @@ details.menu[open] summary::before { content: "− "; }
 .banner { display: grid; grid-template-columns: minmax(200px, 320px) 1fr; gap: 1.5rem; background: var(--night-2); border: 2px solid var(--night-3); border-radius: var(--radius-card); padding: 1rem; }
 .banner-art { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-ui); background: var(--night-3); }
 .banner-body p { margin: .3rem 0 .8rem; }
+.banner-art-link { position: relative; display: block; border-radius: var(--radius-ui); overflow: hidden; color: inherit; text-decoration: none; }
+.banner-art-hint { position: absolute; right: .5rem; bottom: .5rem; padding: .2rem .55rem; border-radius: 999px; background: rgb(11 5 20 / .75);
+  font-size: .75rem; font-weight: 700; color: var(--paper); opacity: .85; transition: opacity .2s; }
+.banner-art-link:hover .banner-art-hint, .banner-art-link:focus-visible .banner-art-hint { opacity: 1; background: var(--gold); color: var(--ink); }
+.banner-counts { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin: .4rem 0 .2rem; }
+.bd-open { margin-left: .3rem; font-weight: 700; }
+.calendar li[data-open-banner] { cursor: pointer; border-radius: 10px; padding: .2rem; }
+.calendar li[data-open-banner]:hover, .calendar li[data-open-banner]:focus-visible { background: var(--night-3); outline: none; }
+.banner-panel { width: min(900px, calc(100vw - 1.5rem)); }
+.bd-head { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 1.2rem; align-items: center; margin-bottom: 1rem; }
+.bd-art { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-ui); background: var(--night-3); }
+.bd-head .display { margin: .1rem 0 .3rem; }
+.bd-when { font-weight: 700; color: var(--muted); margin: .4rem 0 0; }
+.bd-when.on { color: var(--teal); }
+.bd-odds { width: 100%; }
+.bd-odds td, .bd-odds th { text-align: center; }
+.bd-rules { margin: .6rem 0 0; padding-left: 1.1rem; font-size: var(--step--1); display: grid; gap: .25rem; }
+.bd-group { display: flex; align-items: center; gap: .4rem; margin: 1rem 0 .4rem; font-size: var(--step-0); }
+.bd-stands { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: .5rem; }
+.bd-stands a { display: grid; gap: .25rem; padding: .4rem; border-radius: 10px; background: var(--night); border: 2px solid var(--night-3); color: var(--paper);
+  text-decoration: none; height: 100%; }
+.bd-stands a:hover { border-color: var(--gold); }
+.bd-stands img { width: 100%; aspect-ratio: 1; object-fit: cover; object-position: center top; border-radius: 6px; background: var(--paper-2); }
+.bd-stands .rar-epic a { border-color: rgb(244 197 66 / .5); } .bd-stands .rar-legend a { border-color: rgb(214 36 110 / .6); }
+.bd-stands .rar-mythic a { border-color: var(--teal); box-shadow: 0 0 10px rgb(43 179 168 / .4); }
+.bd-stands .owned img { opacity: .8; }
+.bd-name { font-size: .78rem; font-weight: 700; line-height: 1.2; }
+.bd-tags { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; }
+.bd-owned { color: var(--teal); }
+@media (max-width: 640px) { .bd-head { grid-template-columns: 1fr; } .bd-stands { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .banner.themed { border-color: var(--gold); background: linear-gradient(120deg, rgb(244 197 66 / .1), var(--night-2) 55%); }
 .theme-art { display: grid; place-items: center; align-content: center; gap: .3rem; aspect-ratio: 16 / 9;
   background: radial-gradient(circle at 50% 40%, rgb(244 197 66 / .35), transparent 60%), linear-gradient(135deg, var(--violet), var(--magenta)); }

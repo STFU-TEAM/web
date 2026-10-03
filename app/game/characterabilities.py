@@ -81,24 +81,24 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
 # investment: how far the build lifts the stat above the stand's natural value (no items, no types).
 #   It reads the starting stats, so a special that buffs its own stat can't snowball. Damage specials
 #   skip it: their hits already use the damage stat.
-# affinity: the stand has the type that matches the stat (ATTACK damage, DEFENSE armor and health,
+# affinity: the stand has the type that matches the stat (ATTACK damage, DEFENSE armor, HEALTH health,
 #   SPEED speed, LUCK crit); the better its quality, the bigger. BALANCE gives half, for any stat.
 STAT_INFO = {"damage": ("⚔️", "Damage", "ATTACK"), "armor": ("🛡️", "Armor", "DEFENSE"),
-             "health": ("❤️", "Health", "DEFENSE"), "speed": ("💨", "Speed", "SPEED"),
+             "health": ("❤️", "Health", "HEALTH"), "speed": ("💨", "Speed", "SPEED"),
              "critical": ("🍀", "Luck", "LUCK")}
 AFFINITY = {"UNIVERSAL": 0.25, "SUPREME": 0.18, "GREAT": 0.12, "GOOD": 0.06, "SUB_PAR": 0.0, "BAD": -0.06}
 POWER_RANGE = (0.6, 2.5)
 DEBUFF_CAP = 0.75
 HEALING_STATS = ("health",)
 ARMOR_BASE = 100
-AFFINITY_SHARE = {"health": 0.5}  # DEFENSE is mostly an armor type: half its affinity reaches healers
+AFFINITY_SHARE = {}  # every stat has its own type now (HEALTH powers health specials)
 
 
 def _invest(stat: str, char, natural: dict) -> float:
     if stat == "armor":
         return 0.0  # armor buffs are a share of starting armor: DEFENSE already grows them
     if stat == "health":
-        return 1.0 * (char.start_hp / max(1, natural["hp"]) - 1)
+        return 0.5 * (char.start_hp / max(1, natural["hp"]) - 1)
     if stat == "speed":
         return 0.02 * (char.start_speed - natural["speed"])
     if stat == "critical":

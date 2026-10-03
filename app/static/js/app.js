@@ -57,6 +57,24 @@ document.addEventListener("DOMContentLoaded", () => {
   if (chip) chip.click();
 });
 
+// Banner details: a tap on a banner's art, its "Details" link or a calendar day opens the dialog; htmx fills it.
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("banner-panel");
+  if (!panel) return;
+  const opener = e.target.closest("[data-open-banner]");
+  if (opener) {
+    e.preventDefault();  // the link is the no-JS fallback page
+    document.getElementById("banner-panel-body").innerHTML = '<p class="muted">Loading…</p>';
+    if (!panel.open) panel.showModal();
+    return;
+  }
+  if (e.target.closest("[data-banner-close]") || e.target === panel) panel.close();
+});
+document.addEventListener("keydown", (e) => {
+  const opener = (e.key === "Enter" || e.key === " ") && e.target.matches?.("li[data-open-banner]") && e.target;
+  if (opener) { e.preventDefault(); opener.click(); }
+});
+
 // Stand panel: a tap on a stand opens the dialog; htmx fills it.
 const standPanel = () => document.getElementById("stand-panel");
 document.addEventListener("click", (e) => {
@@ -528,7 +546,7 @@ document.addEventListener("htmx:load", (e) => {
   const reels = e.detail.elt.querySelectorAll ? e.detail.elt.querySelectorAll(".forge-pairs.spin .reel") : [];
   if (!reels.length) return;
   const fast = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const TYPES = ["\u2694\uFE0F Attack", "\u{1F6E1}\uFE0F Defense", "\u{1F4A8} Speed", "\u{1F340} Luck", "\u2696\uFE0F Balance"];
+  const TYPES = ["\u2694\uFE0F Attack", "\u{1F6E1}\uFE0F Defense", "\u{1F4A8} Speed", "\u{1F340} Luck", "\u2696\uFE0F Balance", "\u2764\uFE0F Health"];
   const QUALS = [["A", "Universal"], ["B", "Supreme"], ["C", "Great"], ["D", "Good"], ["E", "Sub Par"], ["F", "Bad"]];
   const show = (reel, type, rank, name) => {
     reel.querySelector(".reel-type").textContent = type;

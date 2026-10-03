@@ -331,6 +331,40 @@ def banners():
                            forced=_forced_rarity(), FORCE_RARITIES=FORCE_RARITIES, PITY_ODDS=logic.PITY_ODDS)
 
 
+def banner_odds(banner: dict) -> dict:
+    """Per-rarity and per-stand chances for a banner, as the draw code applies them."""
+    order = ["LR", "UR", "SSR", "SR", "R"]
+    pools = {r: [CHARACTER_FILE[i - 1] for i in banner["cards"] if CHARACTER_FILE[i - 1]["rarity"] == r] for r in order}
+    rows = []
+    for r in order:
+        n = len(pools[r])
+        pull, palm = logic.BANNER_ODDS.get(r, 0), logic.ARROW_ODDS.get(r, 0)
+        if n or pull or palm:
+            rows.append({"rarity": r, "count": n, "pull": pull if n else 0, "palm": palm if n else 0,
+                         "pull_each": pull / n if n else 0, "palm_each": palm / n if n else 0})
+    groups = [{"rarity": r, "stands": pools[r],
+               "each": (logic.BANNER_ODDS.get(r) or logic.PITY_ODDS.get(r, 0)) / len(pools[r])} for r in order if pools[r]]
+    missing = [r for r in ("R", "SR", "SSR", "UR") if not pools[r]]
+    return {"rows": rows, "groups": groups, "missing": missing, "has_lr": bool(pools["LR"])}
+
+
+@bp.get("/banners/<int:banner_id>/details")
+@player_required
+def banner_details(banner_id: int):
+    """Odds and the full stand list of any banner (today's or a later one from the calendar)."""
+    b = next((x for x in BANNERS if x["id"] == banner_id), None)
+    if b is None:
+        abort(404)
+    user = _user()
+    owned = {c.id for c in user.main_characters + user.storage_characters}
+    ctx = {"u": user, "b": b, "owned": owned, "owned_here": len(owned & set(b["cards"])),
+           "active": logic.banner_enabled(b), "next": logic.next_appearance(b["id"]),
+           "rotates_in": logic.rotation_ends() - logic.now(), "PITY_ODDS": logic.PITY_ODDS, **banner_odds(b)}
+    if request.headers.get("HX-Request"):
+        return render_template("partials/banner_details.html", **ctx)
+    return render_template("banner_page.html", **ctx)
+
+
 @bp.post("/banners/<int:banner_id>/spark")
 @player_required
 def spark(banner_id: int):

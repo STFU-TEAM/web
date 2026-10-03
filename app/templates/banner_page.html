@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ b.name }} banner | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <p><a href="{{ url_for('play.banners') }}">← All banners</a></p>
+  {% include "partials/banner_details.html" %}
+</section>
+{% endblock %}

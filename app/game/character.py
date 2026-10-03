@@ -140,8 +140,9 @@ class Character:
                 self.current_critical += LUCK_TYPE_POINTS[quality.name] / 4
                 self.crit_multiplier += LUCK_CRIT_DAMAGE[quality.name] / 4
             elif type_ == Types.DEFENSE:
-                self.current_armor *= quality.coef
-                self.current_hp *= quality.coef ** 0.5
+                self.current_armor *= quality.coef ** 1.75  # armor has diminishing returns: a stronger curve keeps it level with ATTACK
+            elif type_ == Types.HEALTH:
+                self.current_hp *= quality.coef
             elif type_ == Types.SPEED:
                 self.current_speed += SPEED_TYPE_POINTS[quality.name]
             elif type_ == Types.LUCK:
@@ -357,6 +358,7 @@ class Types(enum.Enum):
     SPEED = ("SPEED", "💨", 3)
     LUCK = ("LUCK", "🍀", 4)
     BALANCE = ("BALANCE", "⚖️", 5)
+    HEALTH = ("HEALTH", "❤️", 6)
 
     def __new__(cls, string, emoji, number):
         obj = object.__new__(cls)
@@ -414,6 +416,8 @@ def get_type_from_string(typ:str):
         return Types.LUCK
     elif typ == "BALANCE":
         return Types.BALANCE
+    elif typ == "HEALTH":
+        return Types.HEALTH
     else:
         raise ValueError(f"No quality found with name '{typ}'")
 

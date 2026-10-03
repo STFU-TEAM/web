@@ -462,8 +462,11 @@ def test_begin_pull_and_team(client):
     rarities = [CHARACTER_FILE[i - 1]["rarity"] for i in d["web_pull_history"][0]["ids"]]
     since = next((i for i, r in enumerate(reversed(rarities)) if r in ("SSR", "UR", "LR")), len(rarities))
     assert d["pity"] == since
-    # second pull refused
+    # second pull refused (spend any Arrowhead Bad Luck Brian paid first)
+    d["super_fragments"] = 0
+    put(client, d)
     assert b"costs 1 Arrowhead" in client.post("/banners/0/pull", headers=h).data
+    d = doc(client, "111")
     for c in d["main_characters"]:  # empty the team to test moving stands in by hand
         client.post("/team/store", data={"uuid": c["uuid"]}, headers=h)
     d = doc(client, "111")

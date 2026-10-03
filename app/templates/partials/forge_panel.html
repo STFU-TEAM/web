@@ -1,7 +1,7 @@
 {% from "macros.html" import special_scaling %}
 {% macro pairs(types, qualities, old_types=none, old_qualities=none, spin=false, lockable=false) %}
   {% set RANK = {'UNIVERSAL': 'A', 'SUPREME': 'B', 'GREAT': 'C', 'GOOD': 'D', 'SUB_PAR': 'E', 'BAD': 'F'} %}
-  {% set EMO = {'ATTACK': '⚔️', 'DEFENSE': '🛡️', 'SPEED': '💨', 'LUCK': '🍀', 'BALANCE': '⚖️'} %}
+  {% set EMO = {'ATTACK': '⚔️', 'DEFENSE': '🛡️', 'SPEED': '💨', 'LUCK': '🍀', 'BALANCE': '⚖️', 'HEALTH': '❤️'} %}
   <ol class="forge-pairs{% if spin %} spin{% endif %}">
     {% for t in types %}
       {% set q = qualities[loop.index0] %}

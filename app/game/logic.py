@@ -132,7 +132,7 @@ def get_drop_from_list(char_list: List[Character], number_of_drop: int = 1) -> l
 # Types & qualities roll (identical in pull, arrow and reforge)
 # --------------------------------------------------------------------------- #
 def roll_types_qualities():
-    _types = [Types.ATTACK, Types.DEFENSE, Types.BALANCE, Types.LUCK, Types.SPEED]
+    _types = [Types.ATTACK, Types.DEFENSE, Types.BALANCE, Types.LUCK, Types.SPEED, Types.HEALTH]
     _qualities = [Qualities.UNIVERSAL, Qualities.SUPREME, Qualities.GREAT, Qualities.GOOD, Qualities.SUB_PAR, Qualities.BAD]
     _bad_qualities = [Qualities.SUB_PAR, Qualities.BAD]
     standard_probabilities = [0.05, 0.10, 0.20, 0.50, 0.10, 0.05]

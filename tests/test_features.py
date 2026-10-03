@@ -951,7 +951,7 @@ def test_specials_scale_with_their_stat_and_matching_type():
         return 10 ** 6 - foe.current_hp
     assert rush(fast) > rush(mk(1)) * 1.4
     # health specials scale their heals; the power is gone once the special ends
-    healer, hurt = mk(92, ["DEFENSE"], ["UNIVERSAL"], [43]), mk(1)
+    healer, hurt = mk(92, ["HEALTH"], ["UNIVERSAL"], [43]), mk(1)
     hurt.current_hp = 1
     healer.special([healer, hurt], [mk(10)])
     assert hurt.current_hp - 1 > hurt.start_hp * 0.25
@@ -1115,3 +1115,32 @@ def test_friend_challenge_sender_waits_and_hears_the_accept(client):
     h1 = login(client, "111")
     assert client.get("/battles/ping", headers=h1).headers.get("HX-Redirect", "").endswith("/battles")
     assert b"accepted your duel" in client.get("/community/inbox").data
+
+
+def test_banner_details_show_odds_and_every_stand(client):
+    from app.game import logic
+    player(client, "111", storage_characters=[char(1)])
+    h = login(client, "111")
+    r = client.get("/banners/0/details", headers={**h, "HX-Request": "true"})
+    page = r.data.decode()
+    assert r.status_code == 200 and "Odds" in page and "Star platinum" in page and "TheWorld" in page
+    assert "You own 1 of these" in page and "One given stand" in page
+    assert "this banner has no LR" in page  # Part 3: pity gives a UR
+    assert "<html" in client.get("/banners/0/details").data.decode().lower()  # full page without JS
+    b = next(x for x in logic.BANNERS if x["id"] == 0)
+    from app.routes.play import banner_odds
+    rows = {row["rarity"]: row for row in banner_odds(b)["rows"]}
+    assert abs(sum(r["pull"] for r in rows.values()) - 1) < 1e-9
+    assert abs(rows["R"]["pull_each"] * rows["R"]["count"] - logic.BANNER_ODDS["R"]) < 1e-9
+    assert client.get("/banners/999/details", headers=h).status_code == 404
+
+
+def test_health_type_boosts_health_and_powers_healers():
+    from app.game import characterabilities as ab
+    from app.game.character import Character, natural_stats
+    mk = lambda t: Character({"id": 92, "xp": 6000, "awaken": 1, "items": [], "types": [t], "qualities": ["UNIVERSAL"]})
+    healer = mk("HEALTH")
+    assert healer.start_hp > natural_stats(healer)["hp"] * 1.3
+    assert ab.special_power(healer)["type"] == "Health Universal"
+    assert ab.special_power(mk("DEFENSE"))["affinity"] == 0  # DEFENSE is armor only now
+    assert mk("DEFENSE").start_hp == natural_stats(healer)["hp"]

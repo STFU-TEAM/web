@@ -1,0 +1,59 @@
+{% macro pct(v) %}{% if v >= 0.1 %}{{ ('%.1f'|format(v * 100)).rstrip('0').rstrip('.') }}{% else %}{{ ('%.2f'|format(v * 100)).rstrip('0').rstrip('.') }}{% endif %}%{% endmacro %}
+<article class="banner-details">
+  <header class="bd-head{{ ' themed' if b.theme }}">
+    {% if b.theme %}<div class="bd-art theme-art" aria-hidden="true"><span>{{ b.emoji }}</span></div>
+    {% else %}<img class="bd-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" onerror="this.classList.add('missing')">{% endif %}
+    <div>
+      <p class="kicker">{{ 'Themed banner' if b.theme else 'Part banner' }} · {{ b.cards|length }} stands</p>
+      <h2 class="display sm">{{ b.name }}</h2>
+      {% if b.tagline %}<p class="muted">{{ b.tagline }}</p>{% endif %}
+      <p class="bd-when {{ 'on' if active }}">{% if active %}● On today: rotates out in {{ rotates_in|delta }}{% elif next %}Back on {{ next.strftime('%A %b %d') }}{% else %}Not in the rotation right now{% endif %}</p>
+      <p class="muted small-print">You own {{ owned_here }} of these {{ b.cards|length }} stands.</p>
+    </div>
+  </header>
+
+  <section>
+    <h3 class="h3">Odds</h3>
+    <div class="admin-table-wrap">
+      <table class="odds bd-odds">
+        <thead><tr><th scope="col">Rarity</th><th scope="col">Stands</th><th scope="col">10-pull, per card</th><th scope="col">One given stand</th><th scope="col">{{ PALM }}, per card</th><th scope="col">One given stand</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr class="rar-row-{{ row.rarity|rarity }}">
+              <th scope="row"><span class="rar-tag {{ row.rarity|rarity }}">{{ row.rarity }}</span></th>
+              <td>{{ row.count }}</td>
+              <td>{{ pct(row.pull) if row.pull else '–' }}</td>
+              <td>{{ pct(row.pull_each) if row.pull_each else '–' }}</td>
+              <td>{{ pct(row.palm) if row.palm else '–' }}</td>
+              <td>{{ pct(row.palm_each) if row.palm_each else '–' }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <ul class="bd-rules muted">
+      <li>Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain.</li>
+      <li>After {{ PITY_LIMIT }} pulls without an SSR or better, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR{% if not has_lr %} (this banner has no LR: you get a UR){% endif %}. Your pity: {{ u.pity }}/{{ PITY_LIMIT }}.</li>
+      {% if missing %}<li>No {{ missing|join(' or ') }} on this banner: those draws give the nearest rarity it has.</li>{% endif %}
+    </ul>
+  </section>
+
+  <section>
+    <h3 class="h3">Stands</h3>
+    {% for group in groups %}
+      <h4 class="bd-group"><span class="rar-tag {{ group.rarity|rarity }}">{{ group.rarity }}</span> {{ group.stands|length }} stand{{ 's' if group.stands|length != 1 }}
+        <small class="muted">· {{ pct(group.each) }} each per card</small></h4>
+      <ul class="bd-stands">
+        {% for s in group.stands %}
+          <li class="rar-{{ s.rarity|rarity }}{{ ' owned' if s.id in owned }}">
+            <a href="{{ url_for('main.stand', stand_id=s.id) }}">
+              <img src="{{ s.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span class="bd-name">{{ s.name }}</span>
+              <span class="bd-tags">{{ STAT_INFO[scaling_of(s.id)][0] }}{% if s.id in owned %}<b class="bd-owned" title="You own it">✓</b>{% else %}<b class="new-tag">NEW</b>{% endif %}</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+  </section>
+</article>

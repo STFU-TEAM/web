@@ -117,8 +117,8 @@ EFFECT_INFO = {
 
 TYPE_INFO = {
     "ATTACK": "Multiplies damage by the quality. Powers specials that scale with ⚔️ damage.",
-    "DEFENSE": "Multiplies armor by the quality, and health by its square root. Powers ❤️ health "
-               "specials (half as much) and 🛡️ armor specials.",
+    "DEFENSE": "Multiplies armor by the quality. Powers 🛡️ armor specials.",
+    "HEALTH": "Multiplies max health by the quality. Powers ❤️ health specials: heals, regeneration, sacrifices.",
     "SPEED": "Adds speed: +20 Universal, +15 Supreme, +10 Great, +4 Good, +2 Sub par. Powers 💨 speed specials.",
     "LUCK": "Adds critical chance (+40 / +30 / +20 / +8 / +4) and critical damage (+0.4 / +0.3 / +0.2 / +0.1). "
             "Powers 🍀 luck specials.",
