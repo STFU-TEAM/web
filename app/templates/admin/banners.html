@@ -2,7 +2,8 @@
 {% block admin_title %}Banners{% endblock %}
 {% block admin %}
 <h1 class="display sm">Banners</h1>
-<p class="muted">Turn banners on or off.</p>
+<p class="muted">Banners follow the weekly rotation (two Parts and one theme, every Monday). Force one on or off here; "Follow rotation" removes the override.</p>
+<p><strong>Next weeks:</strong> {% for w in schedule %}{{ w.start.strftime('%b %d') }}: {{ w.banners|map(attribute='name')|join(', ') }}{{ ' · ' if not loop.last }}{% endfor %}</p>
 <div class="admin-table-wrap">
 <table class="admin-table">
   <thead><tr><th>Banner</th><th>Stands</th><th>Cost</th><th>On the web</th><th></th></tr></thead>
@@ -12,12 +13,12 @@
         <td><strong>{{ b.name }}</strong> <small class="muted">#{{ b.id }}</small></td>
         <td>{{ b.cards|length }}</td>
         <td>{{ b.cost }} super</td>
-        <td>{{ '✅ On' if row.on else '⛔ Off' }} <small class="muted">{{ '(admin override)' if row.override is not none else '(file default)' }}</small></td>
+        <td>{{ '✅ On' if row.on else '⛔ Off' }} <small class="muted">{% if row.override is not none %}(admin override){% elif row.rotation %}(this week's rotation){% elif row.next %}(back {{ row.next.strftime('%b %d') }}){% else %}(off rotation){% endif %}</small></td>
         <td>
           <form class="inline" method="post">
             <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ b.id }}">
             {% if row.on %}<button class="btn small ghost" name="state" value="0">Turn off</button>{% else %}<button class="btn small" name="state" value="1">Turn on</button>{% endif %}
-            {% if row.override is not none %}<button class="btn small ghost" name="state" value="">Use file default</button>{% endif %}
+            {% if row.override is not none %}<button class="btn small ghost" name="state" value="">Follow rotation</button>{% endif %}
           </form>
         </td>
       </tr>

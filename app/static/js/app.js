@@ -193,6 +193,9 @@ function flip(card) {
   if (batch && !batch.querySelector("[data-flip]:not(.flipped)")) {
     batch.querySelector("[data-pull-summary]").hidden = false;
     batch.querySelector("[data-reveal-all]").hidden = true;
+    batch.querySelectorAll("[data-after-reveal]").forEach((x) => { x.hidden = false; });
+    batch.querySelector("[data-cinematic]")?.setAttribute("hidden", "");
+    document.dispatchEvent(new CustomEvent("pull:revealed"));
   }
 }
 document.addEventListener("click", (e) => {
@@ -206,6 +209,157 @@ document.addEventListener("click", (e) => {
   }
 });
 document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.matches?.("[data-flip]")) flip(e.target); });
+
+// Cinematic pull: one card at a time, full screen. SSR, UR and LR each get a bigger show.
+// The grid stays the source of truth: every card shown here is flipped there too.
+(() => {
+  const PREF = "pull-cinematic";
+  const pref = () => { try { return localStorage.getItem(PREF) !== "0"; } catch (e) { return true; } };
+  const setPref = (on) => { try { localStorage.setItem(PREF, on ? "1" : "0"); } catch (e) { /* storage blocked */ } };
+  const BEAT = { R: 700, SR: 900, SSR: 1900, UR: 2800, LR: 4200 };  // ms before the card turns
+  const TITLE = { SSR: "SSR!", UR: "ULTRA RARE!!", LR: "LEGENDARY" };
+  const MENACE = { SSR: "ゴゴゴ", UR: "ゴゴゴゴゴ", LR: "ドドドドドド" };
+  let state = null;
+
+  function overlay() {
+    const el = document.createElement("div");
+    el.className = "cine";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-label", "Cinematic pull");
+    el.innerHTML = `
+      <div class="cine-bg"></div><div class="cine-rays"></div><div class="cine-flash"></div>
+      <p class="cine-menace" aria-hidden="true"></p>
+      <p class="cine-title" aria-hidden="true"></p>
+      <div class="cine-stage"><div class="cine-card"><div class="cine-face"></div><div class="cine-back"><span>？</span></div></div></div>
+      <div class="cine-caption" aria-live="polite"></div>
+      <div class="cine-bar">
+        <span class="cine-count"></span>
+        <span class="cine-hint">Tap or press Space</span>
+        <button type="button" class="btn small ghost" data-cine-skip>Skip ⏭</button>
+      </div>`;
+    document.body.append(el);
+    document.body.classList.add("cine-open");
+    return el;
+  }
+
+  function start(batch) {
+    if (state || !batch || batch.dataset.cineDone) return;  // one show at a time, once per pull
+    const cards = [...batch.querySelectorAll("[data-flip]:not(.flipped)")];
+    if (!cards.length) return;
+    batch.dataset.cineDone = "1";
+    state = { batch, cards, i: -1, busy: false, pending: null, el: overlay(), timers: [],
+              fast: matchMedia("(prefers-reduced-motion: reduce)").matches };
+    state.el.querySelector("[data-cine-skip]").focus({ preventScroll: true });
+    next();
+  }
+
+  function later(fn, ms) { state.timers.push(setTimeout(fn, state.fast ? Math.min(ms, 150) : ms)); }
+
+  function tap() {
+    if (!state) return;
+    if (state.pending) {  // still building up: skip straight to the reveal
+      state.timers.forEach(clearTimeout);
+      state.timers = [];
+      const [src, r] = state.pending;
+      state.el.classList.add("charge");
+      return reveal(src, r);
+    }
+    next();
+  }
+
+  function next() {
+    if (!state || state.busy) return;
+    state.i += 1;
+    if (state.i >= state.cards.length) return close();
+    state.busy = true;
+    const src = state.cards[state.i];
+    const r = src.dataset.rarity;
+    const el = state.el;
+    el.className = `cine show r-${r}`;
+    el.querySelector(".cine-count").textContent = `${state.i + 1} / ${state.cards.length}`;
+    el.querySelector(".cine-caption").innerHTML = "";
+    el.querySelector(".cine-gif")?.remove();
+    el.querySelector(".cine-title").textContent = "";
+    el.querySelector(".cine-menace").textContent = MENACE[r] || "";
+    const face = el.querySelector(".cine-face");
+    face.innerHTML = src.querySelector(".flip-front").innerHTML;
+    face.querySelectorAll("a, button").forEach((x) => x.setAttribute("tabindex", "-1"));
+    const card = el.querySelector(".cine-card");
+    card.className = "cine-card";
+    void card.offsetWidth;  // restart the entrance animation
+    card.classList.add("enter");
+    if (BEAT[r] > 1000) later(() => el.classList.add("charge"), 350);  // the build-up for SSR and above
+    state.pending = [src, r];
+    later(() => reveal(src, r), BEAT[r] || 700);
+  }
+
+  function reveal(src, r) {
+    state.pending = null;
+    const el = state.el;
+    el.classList.add("revealed");
+    el.querySelector(".cine-card").classList.add("turned");
+    el.querySelector(".cine-title").textContent = TITLE[r] || "";
+    if (["SSR", "UR", "LR"].includes(r) && src.dataset.gif) {  // the special's animation fills the background
+      const gif = document.createElement("img");
+      gif.className = "cine-gif";
+      gif.alt = "";
+      gif.src = src.dataset.gif;
+      gif.onerror = () => gif.remove();
+      el.querySelector(".cine-bg").after(gif);
+    }
+    el.querySelector(".cine-caption").innerHTML = `
+      <strong>${src.dataset.name}</strong>
+      <span class="cine-rar r-${r}">${r}</span>${src.dataset.new === "1" ? '<span class="new-tag">NEW</span>' : ""}
+      ${["SSR", "UR", "LR"].includes(r) ? `<small>${src.dataset.special}</small>` : ""}`;
+    flip(src);
+    later(() => { state.busy = false; }, r === "LR" ? 900 : 350);
+  }
+
+  function close() {
+    if (!state) return;
+    state.timers.forEach(clearTimeout);
+    state.cards.forEach((c) => flip(c));
+    state.el.remove();
+    document.body.classList.remove("cine-open");
+    const batch = state.batch;
+    state = null;
+    delete batch.dataset.cineWait;
+    batch.scrollIntoView({ block: "start", behavior: "smooth" });
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-cinematic]");
+    if (btn) { setPref(true); syncBox(btn.closest("[data-pull]")); return start(btn.closest("[data-pull]")); }
+    if (e.target.closest("[data-reveal-all]")) setPref(false);
+    if (!state) return;
+    if (e.target.closest("[data-cine-skip]")) return close();
+    if (e.target.closest(".cine")) tap();
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.matches("[data-cinematic-auto]")) setPref(e.target.checked);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (!state) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === " " || e.key === "Enter" || e.key === "ArrowRight") { e.preventDefault(); tap(); }
+  });
+  function syncBox(batch) {
+    const box = batch?.querySelector("[data-cinematic-auto]");
+    if (box) box.checked = pref();
+  }
+  // a fresh pull opens straight into the cinematic when the player chose it
+  document.addEventListener("htmx:afterSwap", (e) => {
+    if (e.detail.target.id !== "pull-result") return;
+    const batch = e.detail.target.querySelector("[data-pull]");
+    if (!batch) return document.dispatchEvent(new CustomEvent("pull:revealed"));  // an error: let held toasts out
+    if (batch.dataset.cineSeen) return;  // htmx fires this once per out-of-band swap too
+    batch.dataset.cineSeen = "1";
+    syncBox(batch);
+    if (pref()) start(batch);  // at once, before the grid ever paints
+    else delete batch.dataset.cineWait;
+  });
+})();
 
 // Scroll a fresh pull result into view.
 document.addEventListener("htmx:afterSwap", (e) => {
@@ -400,8 +554,14 @@ document.addEventListener("htmx:load", (e) => {
     setTimeout(() => el.remove(), 7600);
   };
   document.querySelectorAll("[data-toast]").forEach(arm);
+  let held = [];
+  document.addEventListener("pull:revealed", () => { const list = held; held = []; if (list.length) show(list); });
   document.body.addEventListener("toast", (e) => {
     const list = Array.isArray(e.detail?.value) ? e.detail.value : Array.isArray(e.detail) ? e.detail : [];
+    if (e.target?.closest?.("#pull-result, .banner")) { held = held.concat(list); return; }  // no spoilers mid-pull
+    show(list);
+  });
+  function show(list) {
     for (const t of list) {
       const a = document.createElement("a");
       a.className = `toast-pop ${t.kind || ""}`;
@@ -421,7 +581,7 @@ document.addEventListener("htmx:load", (e) => {
     }
     const bell = document.querySelector(".bell");
     if (bell && list.length) bell.classList.add("has-news", "ring");
-  });
+  }
   document.addEventListener("click", (e) => {
     const x = e.target.closest("[data-toast-x]");
     if (x) { e.preventDefault(); x.closest("[data-toast]").remove(); }

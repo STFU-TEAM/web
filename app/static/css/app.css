@@ -1121,6 +1121,35 @@ details.menu[open] summary::before { content: "− "; }
 .banner { display: grid; grid-template-columns: minmax(200px, 320px) 1fr; gap: 1.5rem; background: var(--night-2); border: 2px solid var(--night-3); border-radius: var(--radius-card); padding: 1rem; }
 .banner-art { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-ui); background: var(--night-3); }
 .banner-body p { margin: .3rem 0 .8rem; }
+.banner.themed { border-color: var(--gold); background: linear-gradient(120deg, rgb(244 197 66 / .1), var(--night-2) 55%); }
+.theme-art { display: grid; place-items: center; align-content: center; gap: .3rem; aspect-ratio: 16 / 9;
+  background: radial-gradient(circle at 50% 40%, rgb(244 197 66 / .35), transparent 60%), linear-gradient(135deg, var(--violet), var(--magenta)); }
+.theme-art span { font-size: 4.2rem; line-height: 1; filter: drop-shadow(0 6px 12px rgb(0 0 0 / .45)); }
+.theme-art small { font: 700 .75rem/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--paper); opacity: .85; }
+.theme-tag { display: inline-block; vertical-align: middle; padding: .15rem .55rem; border-radius: 999px; background: var(--gold); color: var(--ink);
+  font: 700 .7rem/1.4 var(--body); text-transform: uppercase; letter-spacing: .06em; }
+.admin-force { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; margin: 1rem 0 0; padding: .6rem .9rem;
+  border-radius: var(--radius-ui); border: 2px dashed var(--magenta); background: rgb(214 36 110 / .08); font-size: var(--step--1); }
+.admin-force label { display: inline-flex; align-items: center; gap: .35rem; }
+.admin-force select { font: inherit; color: var(--paper); background: var(--night-2); border: 1px solid var(--night-3); border-radius: 6px; padding: .3rem .4rem; }
+.admin-force-tag { font-weight: 700; color: #FF8DB9; }
+.rotation-note { margin: 1rem 0; padding: .7rem .9rem; border-radius: var(--radius-ui); background: var(--night-2); border-left: 4px solid var(--gold); }
+.calendar { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.calendar > li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 1rem; align-items: center; padding: .8rem 1rem;
+  border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3); }
+.calendar > li.now { border-color: var(--gold); }
+.cal-when strong { display: block; }
+.cal-banners { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+.cal-banners li { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.cal-banners li strong, .cal-banners li small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-banners li small { font-size: .72rem; }
+.cal-face { flex: none; width: 40px; height: 40px; border-radius: 10px; overflow: hidden; display: grid; place-items: center; background: var(--night-3); font-size: 1.3rem; }
+.cal-face img { width: 100%; height: 100%; object-fit: cover; object-position: center top; }
+.cal-banners li.theme .cal-face { background: linear-gradient(135deg, var(--violet), var(--magenta)); }
+@media (max-width: 720px) {
+  .calendar > li { grid-template-columns: 1fr; gap: .5rem; }
+  .cal-banners { grid-template-columns: 1fr; }
+}
 .banner-actions { display: flex; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
 table.odds { border-collapse: collapse; font-size: var(--step--1); }
@@ -1696,8 +1725,11 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .odds-box summary { cursor: pointer; color: var(--muted); font-weight: 700; font-size: var(--step--1); }
 .odds-box p { font-size: var(--step--1); margin: .4rem 0 0; }
 .pull-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin: 0 0 1rem; }
-.flip { position: relative; perspective: 1000px; cursor: pointer; border-radius: var(--radius-card); --glow: var(--night-3); }
-.flip.rar-rare { --glow: var(--violet); } .flip.rar-epic { --glow: var(--gold); } .flip.rar-legend { --glow: var(--magenta); } .flip.rar-mythic { --glow: var(--teal); }
+.flip { position: relative; perspective: 1000px; cursor: pointer; border-radius: var(--radius-card); --glow: #8F7DB3; }  /* one neutral back for every rarity */
+.flip.flipped.rar-rare { --glow: var(--violet); } .flip.flipped.rar-epic { --glow: var(--gold); } .flip.flipped.rar-legend { --glow: var(--magenta); } .flip.flipped.rar-mythic { --glow: var(--teal); }
+/* no spoilers: an unturned card shows a plain back, no NEW tag, no destination */
+.slot:has(.flip:not(.flipped)) [data-where] { visibility: hidden; }
+.pull-batch[data-cine-wait] .pull-grid { visibility: hidden; }
 .flip-inner { position: relative; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.2, .9, .3, 1.15); transform: rotateY(180deg); }
 .flip.flipped .flip-inner { transform: rotateY(0); }
 .flip-front, .flip-back { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
@@ -1790,3 +1822,105 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
   .pick-box { width: 24px; height: 24px; }
 }
 @media (pointer: coarse) { .bonus-rows a, .stand-chips a { min-width: 44px; } }
+
+/* Cinematic pull (app.js): one card at a time, a bigger show for SSR, UR and LR */
+body.cine-open { overflow: hidden; }
+.cine-auto { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--step--1); color: var(--muted); cursor: pointer; }
+.cine { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; overflow: hidden; cursor: pointer; color: var(--paper);
+  --c: #B3A3CF; --c2: #7A3FB8; user-select: none; -webkit-tap-highlight-color: transparent; }
+.cine.r-SR { --c: #A77BFF; --c2: #5B2CA0; }
+.cine.show:not(.charge):not(.revealed) { --c: #B3A3CF; --c2: #7A3FB8; }
+.cine.r-SSR { --c: #F4C542; --c2: #C8931B; }
+.cine.r-UR { --c: #FF4DA0; --c2: #9B1457; }
+.cine.r-LR { --c: #5FF2E4; --c2: #F4C542; }
+.cine-bg { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--c2) 35%, #120821) 0%, #0B0514 70%);
+  transition: background .6s; }
+.cine-rays { position: absolute; inset: -50%; opacity: 0; transition: opacity .5s;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 30%, transparent) 0 6deg, transparent 6deg 18deg);
+  animation: cine-spin 18s linear infinite; }
+.cine-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.cine-stage { position: relative; z-index: 2; perspective: 1400px; margin-bottom: 90px; }  /* room for the caption below */
+.cine-card { position: relative; width: min(280px, 64vw, calc((100vh - 340px) / 1.68)); aspect-ratio: 5 / 8.4; transform-style: preserve-3d; transform: rotateY(180deg);
+  transition: transform .7s cubic-bezier(.2, .9, .3, 1.15); }
+.cine-card.enter { animation: cine-in .55s cubic-bezier(.2, .9, .3, 1.2) both; }
+.cine-card.turned { transform: rotateY(0deg); }
+.cine-face, .cine-back { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+/* the cloned card has 3D transforms of its own, which defeat backface-visibility: swap sides halfway through the turn */
+.cine-face { opacity: 0; }
+.cine-card.turned .cine-face { opacity: 1; transition: opacity 0s .3s; }
+.cine-card.turned .cine-back { opacity: 0; transition: opacity 0s .3s; }
+.cine-face { display: grid; pointer-events: none; }  /* the card's own link would leave the page: a tap means "next" */
+.cine-face .card { width: 100%; height: 100%; }
+.cine-back { transform: rotateY(180deg); border-radius: 22px; display: grid; place-items: center; border: 4px solid var(--c);
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 25%, #1C0F2E), #1C0F2E 70%); box-shadow: 0 0 40px color-mix(in srgb, var(--c) 60%, transparent); }
+.cine-back span { font: 400 6rem/1 var(--display); color: var(--c); text-shadow: 0 0 24px var(--c); }
+.cine-menace, .cine-title { position: absolute; z-index: 3; margin: 0; pointer-events: none; font-family: var(--display); }
+.cine-menace { top: 9%; right: 6%; font-size: clamp(1.6rem, 6vw, 3.2rem); color: var(--c); writing-mode: vertical-rl; opacity: 0;
+  text-shadow: 3px 3px 0 #000; }
+.cine-title { top: 3%; left: 50%; transform: translateX(-50%); font-size: clamp(2rem, 9vw, 5rem); color: var(--c); white-space: nowrap;
+  -webkit-text-stroke: 2px #000; text-shadow: 5px 5px 0 #000, 0 0 30px var(--c); }
+.cine-caption { position: absolute; z-index: 3; bottom: calc(64px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(560px, 92vw); text-align: center;
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .4rem .6rem; }
+.cine.revealed .cine-caption { animation: cine-rise .5s ease-out both; }
+.cine-caption strong { font: 400 clamp(1.4rem, 5vw, 2.2rem)/1.1 var(--display); text-shadow: 3px 3px 0 #000; }
+.cine-caption small { flex-basis: 100%; color: var(--paper-2); font-size: var(--step--1); padding: .4rem .7rem; border-radius: 10px;
+  background: rgb(11 5 20 / .72); text-shadow: 0 1px 2px #000; }
+.cine-gif { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: .2; z-index: 1; pointer-events: none; mix-blend-mode: screen; }
+.cine-rar { padding: .15rem .6rem; border-radius: 999px; font: 700 .85rem/1.4 var(--body); background: var(--c); color: #120821; }
+.cine-bar { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: center;
+  gap: .6rem; padding: .8rem 1rem calc(.8rem + env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgb(0 0 0 / .6)); }
+.cine-count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cine-hint { color: var(--muted); font-size: var(--step--1); }
+
+/* SSR: gold rays, a shaking card, ゴゴゴ */
+.cine.charge.r-SSR .cine-rays, .cine.charge.r-UR .cine-rays, .cine.charge.r-LR .cine-rays { opacity: 1; }
+.cine.charge.r-SSR .cine-card { animation: cine-shake .12s linear infinite; }
+.cine.charge .cine-menace { opacity: 1; animation: cine-menace 1s ease-in-out infinite; }
+.cine.revealed.r-SSR .cine-flash { animation: cine-flash .5s ease-out; }
+.cine.revealed.r-SSR .cine-title { animation: cine-stamp .45s cubic-bezier(.2, .9, .3, 1.6) both; }
+/* UR: the screen shakes, the card lifts, magenta rings */
+.cine.charge.r-UR { animation: cine-quake .1s linear infinite; }
+.cine.charge.r-UR .cine-card { animation: cine-lift 2.2s ease-in both; }
+.cine.charge.r-UR .cine-stage::before, .cine.charge.r-LR .cine-stage::before { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+  border-radius: 50%; border: 3px solid var(--c); transform: translate(-50%, -50%); animation: cine-ring .9s ease-out infinite; }
+.cine.revealed.r-UR .cine-flash { background: var(--c); animation: cine-flash .7s ease-out; }
+.cine.revealed.r-UR .cine-title { animation: cine-stamp .5s cubic-bezier(.2, .9, .3, 1.8) both, cine-pulse 1.2s .5s ease-in-out infinite; }
+.cine.revealed.r-UR .cine-card { animation: cine-pop .6s ease-out; }
+/* LR: time stops (the world goes negative), rainbow rays, a slow descent, LEGENDARY sweeping in */
+.cine.charge.r-LR .cine-bg { animation: cine-timestop 1.4s steps(2) 2; }
+.cine.charge.r-LR .cine-rays { background: repeating-conic-gradient(from 0deg, #FF4DA0 0 5deg, #F4C542 5deg 10deg, #5FF2E4 10deg 15deg, transparent 15deg 22deg);
+  animation-duration: 6s; }
+.cine.charge.r-LR .cine-card { animation: cine-descend 3.6s cubic-bezier(.3, 0, .2, 1) both; }
+.cine.charge.r-LR .cine-menace { font-size: clamp(2.4rem, 9vw, 4.6rem); }
+.cine.revealed.r-LR .cine-flash { animation: cine-flash 1.2s ease-out; }
+.cine.revealed.r-LR .cine-title { font-size: clamp(2.4rem, 11vw, 6.5rem); animation: cine-sweep .9s cubic-bezier(.2, .9, .3, 1.2) both;
+  background: linear-gradient(90deg, #FF4DA0, #F4C542, #5FF2E4, #FF4DA0); background-size: 300% 100%; -webkit-background-clip: text; background-clip: text;
+  color: transparent; -webkit-text-stroke: 2px #000; text-shadow: none; filter: drop-shadow(5px 5px 0 #000); }
+.cine.revealed.r-LR .cine-title { animation: cine-sweep .9s cubic-bezier(.2, .9, .3, 1.2) both, cine-rainbow 3s linear infinite; }
+.cine.revealed.r-LR .cine-card { animation: cine-pop 1s ease-out; box-shadow: 0 0 80px #5FF2E4, 0 0 160px #FF4DA0; border-radius: 22px; }
+.cine.revealed.r-LR .cine-bg::after { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(circle at 20% 30%, #F4C542 0 3px, transparent 4px), radial-gradient(circle at 70% 20%, #5FF2E4 0 3px, transparent 4px),
+              radial-gradient(circle at 40% 80%, #FF4DA0 0 3px, transparent 4px), radial-gradient(circle at 85% 70%, #F4C542 0 3px, transparent 4px);
+  background-size: 180px 180px; animation: cine-confetti 2.5s linear infinite; }
+
+@keyframes cine-spin { to { transform: rotate(360deg); } }
+@keyframes cine-in { from { transform: rotateY(180deg) translateY(60vh) scale(.6); opacity: 0; } }
+@keyframes cine-shake { 25% { translate: -3px 1px; } 75% { translate: 3px -1px; } }
+@keyframes cine-quake { 25% { translate: -4px 2px; } 50% { translate: 3px -3px; } 75% { translate: 2px 3px; } }
+@keyframes cine-lift { to { transform: rotateY(180deg) translateY(-24px) scale(1.08); } }
+@keyframes cine-ring { from { width: 10px; height: 10px; opacity: 1; } to { width: 140vmin; height: 140vmin; opacity: 0; } }
+@keyframes cine-descend { from { transform: rotateY(180deg) translateY(-70vh) scale(.5) rotateZ(-8deg); } to { transform: rotateY(180deg); } }
+@keyframes cine-timestop { 50% { filter: invert(1) hue-rotate(180deg); } }
+@keyframes cine-flash { from { opacity: .9; } to { opacity: 0; } }
+@keyframes cine-stamp { from { transform: translateX(-50%) scale(3) rotate(-8deg); opacity: 0; } to { transform: translateX(-50%) scale(1) rotate(-4deg); opacity: 1; } }
+@keyframes cine-pulse { 50% { transform: translateX(-50%) scale(1.08) rotate(-4deg); } }
+@keyframes cine-sweep { from { transform: translateX(-160%) skewX(-20deg); } to { transform: translateX(-50%) skewX(0); } }
+@keyframes cine-rainbow { to { background-position: 300% 0; } }
+@keyframes cine-pop { 40% { transform: scale(1.12); } }
+@keyframes cine-rise { from { opacity: 0; transform: translate(-50%, 20px); } }
+@keyframes cine-menace { 50% { transform: translateY(-6px) scale(1.06); } }
+@keyframes cine-confetti { to { background-position: 0 180px; } }
+@media (prefers-reduced-motion: reduce) {
+  .cine *, .cine { animation: none !important; }
+  .cine-card { transition: transform .2s; }
+}

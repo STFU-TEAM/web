@@ -1,4 +1,5 @@
 """Public pages: home, stand encyclopedia, leaderboard, public profiles."""
+import datetime
 import random
 
 from flask import Blueprint, Response, abort, jsonify, render_template, request, session, url_for
@@ -194,7 +195,10 @@ def stand(stand_id: int):
     if not (1 <= stand_id <= len(CHARACTER_FILE)):
         abort(404)
     s = CHARACTER_FILE[stand_id - 1]
-    banners = [b for b in BANNERS if banner_enabled(b) and stand_id in b["cards"]]
+    from app.game.logic import next_appearance
+    banners = [{"b": b, "on": banner_enabled(b), "next": next_appearance(b["id"])}
+               for b in BANNERS if stand_id in b["cards"]]
+    banners.sort(key=lambda x: (not x["on"], x["next"] or datetime.date.max))
     return render_template("stand.html", s=s, banners=banners, wiki=wiki_data.stand_links(stand_id))
 
 

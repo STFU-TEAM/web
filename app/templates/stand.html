@@ -34,7 +34,12 @@
       <tr><th scope="row">Critical chance</th><td>{{ s.base_critical }} %</td></tr>
     </table>
     <p class="muted">Levels, awakenings, items, types and qualities all raise these numbers.</p>
-    {% if banners %}<p>Found on the {% for b in banners %}<a href="{{ url_for('play.banners') }}#banner-{{ b.id }}">{{ b.name }}</a>{{ ', ' if not loop.last }}{% endfor %} banner.</p>{% endif %}
+    {% if banners %}
+      <p>Found on:
+        {% for x in banners %}<a href="{{ url_for('play.banners') }}#{{ 'banner-' ~ x.b.id if x.on else 'banner-calendar' }}">{{ x.b.name }}</a>
+          <small class="muted">({{ 'on now' if x.on else ('back ' ~ x.next.strftime('%b %d') if x.next else 'not scheduled') }})</small>{{ ', ' if not loop.last }}{% endfor %}
+      </p>
+    {% endif %}
     <p class="cta">
       {% if s.id > 1 %}<a class="btn ghost" href="{{ url_for('main.stand', stand_id=s.id-1) }}">Previous stand</a>{% endif %}
       {% if s.id < STAND_COUNT %}<a class="btn ghost" href="{{ url_for('main.stand', stand_id=s.id+1) }}">Next stand</a>{% endif %}

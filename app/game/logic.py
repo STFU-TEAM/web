@@ -163,14 +163,72 @@ def roll_types_qualities():
     return [t.name for t in pulled_types], [q.name for q in pulled_qualities]
 
 
-def banner_enabled(banner: dict) -> bool:
-    """banners_data.json's flag, unless an admin overrode it on the web (web:banner_state)."""
+# Weekly rotation: two Part banners (an early Part with a late one) plus one themed banner.
+# Weeks start on Monday, like every other weekly reset.
+ROTATION_START = datetime.date(2026, 1, 5)  # a Monday: week 0 of the rotation
+PART_PAIRS = [(0, 3), (1, 4), (2, 5)]       # Part 3 + 6, Part 4 + 7, Part 5 + 8
+THEME_ORDER = [10, 11, 12, 13, 14, 15]      # JoJo Legacy, Adversaries, JoBros, Evolution, Hitmen, Lifeline
+
+
+def rotation_week(when: Optional[datetime.date] = None) -> int:
+    day = when or now().date()
+    if isinstance(day, datetime.datetime):
+        day = day.date()
+    return ((day - datetime.timedelta(days=day.weekday())) - ROTATION_START).days // 7
+
+
+def rotation_ids(week: int) -> List[int]:
+    """The three banners of a rotation week: two Parts, then the theme."""
+    return [*PART_PAIRS[week % len(PART_PAIRS)], THEME_ORDER[week % len(THEME_ORDER)]]
+
+
+def week_bounds(week: int):
+    start = ROTATION_START + datetime.timedelta(weeks=week)
+    return start, start + datetime.timedelta(days=6)
+
+
+def banner_schedule(weeks: int = 6, when=None) -> List[dict]:
+    """This week and the next ones: [{"week", "start", "end", "current", "banners": [banner...]}]."""
+    first = rotation_week(when)
+    by_id = {b["id"]: b for b in BANNERS}
+    out = []
+    for w in range(first, first + weeks):
+        start, end = week_bounds(w)
+        out.append({"week": w, "start": start, "end": end, "current": w == first,
+                    "banners": [by_id[i] for i in rotation_ids(w) if i in by_id]})
+    return out
+
+
+def next_appearance(banner_id: int, horizon: int = 12, when=None) -> Optional[datetime.date]:
+    """The Monday a banner next comes back (None if it's on now or not within the horizon)."""
+    first = rotation_week(when)
+    for w in range(first + 1, first + horizon):
+        if banner_id in rotation_ids(w):
+            return week_bounds(w)[0]
+    return None
+
+
+def rotation_ends(when=None) -> datetime.datetime:
+    start, _ = week_bounds(rotation_week(when) + 1)
+    return datetime.datetime.combine(start, datetime.time())
+
+
+def banner_override(banner: dict):
+    """An admin's on/off switch for a banner (web:banner_state), or None to follow the rotation."""
     try:
         from app.db import r
         state = r().hget("web:banner_state", str(banner["id"]))
     except Exception:
-        state = None
-    return banner["enabled"] if state is None else state in (b"1", "1")
+        return None
+    return None if state is None else state in (b"1", "1")
+
+
+def banner_enabled(banner: dict) -> bool:
+    """On while it's in this week's rotation; an admin can force any banner on or off."""
+    forced = banner_override(banner)
+    if forced is not None:
+        return forced
+    return banner["enabled"] and banner["id"] in rotation_ids(rotation_week())
 
 
 def _banner(banner_id: int) -> dict:
@@ -184,6 +242,7 @@ def _banner(banner_id: int) -> dict:
 BANNER_ODDS = {"R": 0.55, "SR": 0.33, "SSR": 0.10, "UR": 0.02}
 ARROW_ODDS = {"SR": 0.55, "SSR": 0.33, "UR": 0.12}
 PITY_LIMIT = 50          # pulls without an SSR+ before one is guaranteed
+PITY_ODDS = {"SSR": 0.50, "UR": 0.44, "LR": 0.06}  # the guaranteed pull; banners without an LR give their best UR
 HIGH_RARITIES = ("SSR", "UR", "LR")
 SPARK_COST = 20  # every 10-pull earns a spark; this many buy any SSR from a banner
 
@@ -209,35 +268,50 @@ def spark_exchange(user: User, banner_id: int, stand_id: int) -> Character:
     return char
 
 
-def _template_of(banner: dict, rarity: str) -> dict:
-    """A banner stand of that rarity, stepping down if the banner has none."""
+def _template_of(banner: dict, rarity: str, exclude=()) -> dict:
+    """A banner stand of that rarity; if the banner has none, the nearest rarity below, then above.
+    Stands already drawn in this pull (exclude) are skipped while others of the rarity remain:
+    small pools otherwise repeat the same stand in most 10-pulls."""
     order = ["R", "SR", "SSR", "UR", "LR"]
-    for r in order[order.index(rarity)::-1]:
+    i = order.index(rarity)
+    for r in order[i::-1] + order[i + 1:]:
         pool = [CHARACTER_FILE[c - 1] for c in banner["cards"] if CHARACTER_FILE[c - 1]["rarity"] == r]
         if pool:
-            return random.choice(pool)
+            fresh = [t for t in pool if t["id"] not in exclude]
+            return random.choice(fresh or pool)
     return CHARACTER_FILE[random.choice(banner["cards"]) - 1]
 
 
-def _banner_draw(banner: dict, user: User, floor: Optional[str] = None) -> Character:
-    """One banner stand. Pity: PITY_LIMIT pulls without SSR+ guarantee a 50/50 SSR or UR."""
+def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=(),
+                 forced: Optional[str] = None) -> Character:
+    """One banner stand. Pity: PITY_LIMIT pulls without SSR+ guarantee an SSR, UR or (rarely) LR.
+    forced: an admin's test rarity."""
     types, qualities = roll_types_qualities()
-    if user.pity >= PITY_LIMIT - 1:
-        rarity = random.choice(["UR", "SSR"])
+    if forced:
+        rarity = forced
+    elif user.pity >= PITY_LIMIT - 1:
+        rarity = random.choices(list(PITY_ODDS), weights=list(PITY_ODDS.values()), k=1)[0]
     else:
         rarity = random.choices(list(BANNER_ODDS), weights=list(BANNER_ODDS.values()), k=1)[0]
     if floor == "SR" and rarity == "R":
         rarity = "SR"
-    template = _template_of(banner, rarity)
+    template = _template_of(banner, rarity, exclude)
     user.pity = 0 if template["rarity"] in HIGH_RARITIES else user.pity + 1
     return get_character_from_template(template, types, qualities)
 
 
-def _arrow_draw(banner: dict) -> Character:
+def _arrow_draw(banner: dict, exclude=(), forced: Optional[str] = None) -> Character:
     """Arrow: no pity, SR floor."""
     types, qualities = roll_types_qualities()
-    rarity = random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
-    return get_character_from_template(_template_of(banner, rarity), types, qualities)
+    rarity = forced or random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
+    return get_character_from_template(_template_of(banner, rarity, exclude), types, qualities)
+
+
+def _forced_at(force: Optional[dict], i: int, n: int) -> Optional[str]:
+    """An admin's forced rarity for card i of n: {"rarity", "scope": "last" | "all"}."""
+    if not force:
+        return None
+    return force["rarity"] if force.get("scope") == "all" or i == n - 1 else None
 
 
 RARITY_ORDER = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
@@ -344,7 +418,7 @@ def daily(user: User) -> dict:
 # --------------------------------------------------------------------------- #
 # /banner pull, /banner arrow
 # --------------------------------------------------------------------------- #
-def banner_pull(user: User, banner_id: int) -> dict:
+def banner_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dict:
     banner = _banner(banner_id)
     if banner["cost"] > user.super_fragments:
         raise GameError(f"A 10-pull costs {banner['cost']} Arrowhead. You have {user.super_fragments}.")
@@ -355,7 +429,7 @@ def banner_pull(user: User, banner_id: int) -> dict:
     for i in range(10):
         # 10-pull floor: the last stand is at least SR if the first nine were all R
         floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
-        c = _banner_draw(banner, user, floor)
+        c = _banner_draw(banner, user, floor, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 10))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
@@ -366,7 +440,7 @@ def banner_pull(user: User, banner_id: int) -> dict:
     return {"banner": banner, "drawn": drawn, "cards": _record_pull(user, banner, drawn, "pull")}
 
 
-def arrow_pull(user: User, banner_id: int) -> dict:
+def arrow_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dict:
     banner = _banner(banner_id)
     arrow = next((i for i in user.items if i.id == 2), None)
     if arrow is None:
@@ -375,8 +449,8 @@ def arrow_pull(user: User, banner_id: int) -> dict:
         raise GameError("You need 5 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
     user.items.remove(arrow)
     drawn = []
-    for _ in range(5):
-        c = _arrow_draw(banner)
+    for i in range(5):
+        c = _arrow_draw(banner, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 5))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")

@@ -16,6 +16,8 @@ from app.game.user import create_user
 def client(monkeypatch):
     fake = fakeredis.FakeRedis()
     monkeypatch.setattr(dbmod.redis.Redis, "from_url", staticmethod(lambda *a, **k: fake))
+    # every banner open, whatever the week: tests shouldn't depend on today's rotation
+    monkeypatch.setattr(logic, "rotation_ids", lambda week: [b["id"] for b in logic.BANNERS])
     from app import create_app
     app = create_app()
     app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)
@@ -449,7 +451,9 @@ def test_begin_pull_and_team(client):
     assert b"/opening/" in r.data
     d = doc(client, "111")
     # an empty team takes the three rarest stands of the pull; the rest go to storage
-    assert d["super_fragments"] == 0 and len(d["main_characters"]) == 3 and len(d["storage_characters"]) == 7
+    from app.game.achievements import ACHIEVEMENT_BY_ID  # a 9-R pull pays Bad Luck Brian's Arrowhead
+    heads = sum(ACHIEVEMENT_BY_ID[a]["reward"]["super_fragments"] for a in d["achievement_data"]["unlocked"])
+    assert d["super_fragments"] == heads and len(d["main_characters"]) == 3 and len(d["storage_characters"]) == 7
     rank = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     team_rank = sorted(rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["main_characters"])
     rest_rank = [rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["storage_characters"]]

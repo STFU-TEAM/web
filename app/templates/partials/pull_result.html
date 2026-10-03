@@ -21,32 +21,36 @@
   {{ pull_again(banner) }}
 {% else %}
   {% set order = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}
-  <section class="pull-batch" data-pull>
+  <section class="pull-batch" data-pull data-cine-wait>
     <div class="pull-showcase">
       <img class="pull-avatar" src="{{ 'randomAsset/avatar.png'|asset }}" alt="STFU Requiem" width="220" height="220" loading="eager">
       <div class="pull-announcement">
         <p class="menace small" aria-hidden="true">ドドドド</p>
         <h2 class="display sm">{{ res.banner.name }}: {{ res.cards|length }} stands</h2>
-        <p class="muted">Tap a card to reveal it, or reveal them all. The glow hints at the rarity.</p>
+        <p class="muted">Open them one by one in cinematic mode, tap a card to reveal it, or reveal them all.</p>
       </div>
-      <img class="pull-tier" src="{{ ('opening/' ~ opening_id ~ '.gif')|asset }}" alt="{{ top_rarity }} pull animation" width="96" height="96" loading="eager" onerror="this.hidden=true">
+      <img class="pull-tier" src="{{ ('opening/' ~ opening_id ~ '.gif')|asset }}" alt="{{ top_rarity }} pull animation" width="96" height="96" loading="eager" hidden data-after-reveal onerror="this.remove()">
     </div>
     <div class="pull-controls">
-      <button type="button" class="btn gold" data-reveal-all>Reveal all</button>
-      <span class="muted">Pity is now {{ u.pity }}/{{ PITY_LIMIT }}</span>
+      <button type="button" class="btn gold" data-cinematic title="One card at a time, with a show for every SSR, UR and LR">🎬 Cinematic</button>
+      <button type="button" class="btn" data-reveal-all>Reveal all</button>
+      <label class="cine-auto"><input type="checkbox" data-cinematic-auto checked> Open cinematic automatically</label>
+      <span class="muted" hidden data-after-reveal>Pity is now {{ u.pity }}/{{ PITY_LIMIT }}</span>
     </div>
     {{ pull_again(banner) }}
     <div class="grid pull-grid">
       {% for e in res.cards %}
         {% set rar = e.stand.rarity|rarity %}
         <div class="slot">
-          <div class="flip rar-{{ rar }}" role="button" tabindex="0" aria-label="Reveal card {{ loop.index }}" data-flip data-rank="{{ order[e.stand.rarity] }}">
+          <div class="flip rar-{{ rar }}" role="button" tabindex="0" aria-label="Reveal card {{ loop.index }}" data-flip data-rank="{{ order[e.stand.rarity] }}"
+               data-rarity="{{ e.stand.rarity }}" data-name="{{ e.stand.name }}" data-new="{{ 1 if e.new else 0 }}"
+               data-gif="{{ ('special/' ~ e.stand.id ~ '.gif')|asset }}" data-special="{{ e.stand.special_description|replace('`', '') }}">
             <div class="flip-inner">
               <div class="flip-front">{{ owned_card(e.stand, size='small') }}</div>
               <div class="flip-back" aria-hidden="true"><span>？</span></div>
             </div>
           </div>
-          <p class="where">{% if e.new %}<span class="new-tag">NEW</span>{% endif %}<span class="muted">{{ e.where }}</span></p>
+          <p class="where" data-where>{% if e.new %}<span class="new-tag">NEW</span>{% endif %}<span class="muted">{{ e.where }}</span></p>
         </div>
       {% endfor %}
     </div>
@@ -58,4 +62,4 @@
   </section>
 {% endif %}
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}
-{% for b in [0,1,2,3,4,5,6,7] %}<span id="arrows-{{ b }}" class="arrows" hx-swap-oob="true">({{ arrows }} left)</span>{% endfor %}
+{% for b in banner_ids %}<span id="arrows-{{ b }}" class="arrows" hx-swap-oob="true">({{ arrows }} left)</span>{% endfor %}

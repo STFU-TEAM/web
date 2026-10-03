@@ -490,7 +490,8 @@ def test_pull_result_offers_the_same_banner_again(client):
     player(client, "111", super_fragments=3, items=[{"id": 2}])
     h = login(client, "111")
     r = client.post("/banners/0/pull", headers=h)
-    assert b"Pull 10 again" in r.data and b'2<span class="cur cur-head"' in r.data
+    left = doc(client, "111")["super_fragments"]  # 2, or 3 if the pull earned Bad Luck Brian's Arrowhead
+    assert b"Pull 10 again" in r.data and f'{left}<span class="cur cur-head"'.encode() in r.data
     assert b'/banners/0/pull' in r.data and b'/banners/0/arrow' in r.data
 
 
@@ -983,3 +984,70 @@ def test_funny_achievements_secrets_and_palms(client):
     assert get_all_achievements_status(User(d))[23]["name"] == "Dummy Thicc"
     # reforging is a cheap service now
     assert logic.REFORGE_PRICE["LR"] <= 1500
+
+
+def test_banner_rotation_two_parts_and_a_theme_each_week(client, monkeypatch):
+    import datetime
+    monkeypatch.undo()  # back to the real rotation (the fixture opens every banner)
+    from app.game import logic as L
+    themes = {b["id"] for b in L.BANNERS if b.get("theme")}
+    parts = {b["id"] for b in L.BANNERS if not b.get("theme")}
+    seen_parts, seen_themes = set(), set()
+    for week in range(12):
+        ids = L.rotation_ids(week)
+        assert len(ids) == 3 and len(set(ids) & parts) == 2 and len(set(ids) & themes) == 1
+        seen_parts |= set(ids) & parts
+        seen_themes |= set(ids) & themes
+    assert seen_parts == parts and seen_themes == themes  # everything comes around
+    monday = L.ROTATION_START + datetime.timedelta(weeks=5)
+    assert L.rotation_week(monday) == L.rotation_week(monday + datetime.timedelta(days=6)) == 5
+    sched = L.banner_schedule(3, when=monday)
+    assert sched[0]["current"] and [b["id"] for b in sched[1]["banners"]] == L.rotation_ids(6)
+    off = next(i for i in parts if i not in L.rotation_ids(5))
+    assert L.next_appearance(off, when=monday) is not None
+    # themed banners never turn an R draw into a rare: the nearest rarity fills in
+    theme = next(b for b in L.BANNERS if b["id"] == 10)
+    assert all(L._template_of(theme, "R")["rarity"] in ("R",) for _ in range(30))
+    only_rare = {"cards": [10, 84]}
+    assert L._template_of(only_rare, "R")["rarity"] == "UR"
+
+
+def test_pulls_vary_pity_can_give_lr_and_admins_can_force_a_rarity(client):
+    import random as rnd
+    from app.game import logic
+    from app.game.user import User
+    # no stand twice in one 10-pull while its rarity has others left (JoJo Legacy used to repeat in every pull)
+    legacy = next(b for b in logic.BANNERS if b["id"] == 10)
+    u = User(create_user("1"))
+    rnd.seed(4)
+    for _ in range(200):
+        drawn = []
+        for _ in range(10):
+            drawn.append(logic._banner_draw(legacy, u, exclude={c.id for c in drawn}))
+        by_rarity = {}
+        for c in drawn:
+            by_rarity.setdefault(c.rarity, []).append(c.id)
+        pool = {r: sum(1 for i in legacy["cards"] if CHARACTER_FILE[i - 1]["rarity"] == r) for r in by_rarity}
+        for r, ids in by_rarity.items():
+            assert len(set(ids)) == min(len(ids), pool[r]), (r, ids)
+    # the pity roll can land an LR on a banner that has one
+    rnd.seed(0)
+    seen = set()
+    for _ in range(400):
+        u.pity = logic.PITY_LIMIT  # every draw is a pity draw
+        seen.add(logic._banner_draw(legacy, u).rarity)
+    assert "LR" in seen and "R" not in seen
+    # admins can force a rarity on their own pulls; players can't
+    admin = sorted(client.application.config["DISCORD_ADMIN_IDS"])[0]
+    player(client, admin, super_fragments=5)
+    h = login(client, admin)
+    client.post("/banners/force", data={"rarity": "UR", "scope": "all"}, headers=h)
+    r = client.post("/banners/0/pull", headers=h)
+    assert r.status_code == 200
+    got = doc(client, admin)["main_characters"] + doc(client, admin)["storage_characters"]
+    assert {CHARACTER_FILE[c["id"] - 1]["rarity"] for c in got} == {"UR"}
+    client.post("/banners/force", data={"rarity": ""}, headers=h)
+    assert client.fake.get(f"web:admin:force_rarity:{admin}") is None
+    player(client, "222")
+    h2 = login(client, "222")
+    assert client.post("/banners/force", data={"rarity": "LR"}, headers=h2).status_code == 403

@@ -1,6 +1,8 @@
 """Logged-in game pages. Every mutation goes through `action()`: take the
 per-user lock, reload fresh data from Redis, apply the rule, save."""
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+import json
+
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
@@ -321,9 +323,12 @@ def banners():
     rank = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     history = [{**h, "rarities": sorted(h["rarities"], key=lambda x: -rank.get(x, 0))}
                for h in user.data.get("web_pull_history", [])[:10]]
+    active.sort(key=lambda b: (bool(b.get("theme")), b["id"]))  # the Parts, then the theme
     return render_template("banners.html", u=user, banners=active, arrows=arrows, st=status(user),
                            sparks=logic.sparks(user), SPARK_COST=logic.SPARK_COST,
-                           welcome=request.args.get("welcome"), history=history)
+                           welcome=request.args.get("welcome"), history=history,
+                           schedule=logic.banner_schedule(6), rotates_in=logic.rotation_ends() - logic.now(),
+                           forced=_forced_rarity(), FORCE_RARITIES=FORCE_RARITIES, PITY_ODDS=logic.PITY_ODDS)
 
 
 @bp.post("/banners/<int:banner_id>/spark")
@@ -338,11 +343,47 @@ def spark(banner_id: int):
     return redirect(url_for("play.banners") + f"#banner-{banner_id}")
 
 
+FORCE_KEY = "web:admin:force_rarity:{}"
+FORCE_RARITIES = ("R", "SR", "SSR", "UR", "LR")
+
+
+def _is_admin() -> bool:
+    return session.get("uid") in current_app.config["DISCORD_ADMIN_IDS"]
+
+
+def _forced_rarity():
+    """An admin's test setting for their own pulls: {"rarity", "scope"} or None."""
+    if not _is_admin():
+        return None
+    raw = r().get(FORCE_KEY.format(session["uid"]))
+    return json.loads(raw) if raw else None
+
+
+@bp.post("/banners/force")
+@player_required
+def force_rarity():
+    """Admins only: make their own next pulls land a chosen rarity (to test reveals and drops)."""
+    if not _is_admin():
+        abort(403)
+    from app.routes.admin import audit
+    rarity, scope = request.form.get("rarity", ""), request.form.get("scope", "last")
+    key = FORCE_KEY.format(session["uid"])
+    if rarity in FORCE_RARITIES:
+        r().set(key, json.dumps({"rarity": rarity, "scope": "all" if scope == "all" else "last"}), ex=3600)
+        audit("force_rarity", session["uid"], rarity=rarity, scope=scope)
+        flash(f"Your pulls now force {rarity} on {'every card' if scope == 'all' else 'the last card'} (for an hour).", "ok")
+    else:
+        r().delete(key)
+        flash("Forced rarity cleared: your pulls use the normal odds again.", "ok")
+    return redirect(url_for("play.banners"))
+
+
 @bp.post("/banners/<int:banner_id>/<mode>")
 @player_required
 def pull(banner_id: int, mode: str):
     fn = logic.banner_pull if mode == "pull" else logic.arrow_pull
-    user, res, err = action(lambda u: fn(u, banner_id))
+    force = _forced_rarity()
+    user, res, err = action(lambda u: fn(u, banner_id, force))
     arrows = sum(1 for i in user.items if i.id == 2)
     rarity_score = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     top_rarity = max((char.rarity for char, _ in res["drawn"]), key=rarity_score.get) if res else "R"
@@ -353,7 +394,8 @@ def pull(banner_id: int, mode: str):
     fusable = sum(len(f) for _, f in logic.auto_fuse_plan(user))
     return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows,
                            mode=mode, top_rarity=top_rarity, opening_id=opening_id, banner=banner,
-                           fusable=fusable, free=logic.free_slots(user))
+                           fusable=fusable, free=logic.free_slots(user),
+                           banner_ids=[b["id"] for b in BANNERS if logic.banner_enabled(b)])
 
 
 # --------------------------------------------------------------------------- #

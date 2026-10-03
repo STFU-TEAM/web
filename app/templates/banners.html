@@ -21,14 +21,38 @@
   </header>
   {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your Arrowhead on any banner below.</p>{% endif %}
 
+  {% if me.id in config.DISCORD_ADMIN_IDS %}
+    <form class="admin-force" method="post" action="{{ url_for('play.force_rarity') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <span class="admin-force-tag">🛠 Admin</span>
+      <label>Force <select name="rarity">
+        <option value="">normal odds</option>
+        {% for r in FORCE_RARITIES %}<option value="{{ r }}" {% if forced and forced.rarity == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select></label>
+      <label>on <select name="scope">
+        <option value="last" {% if not forced or forced.scope == 'last' %}selected{% endif %}>the last card</option>
+        <option value="all" {% if forced and forced.scope == 'all' %}selected{% endif %}>every card</option>
+      </select></label>
+      <button class="btn small gold">Apply</button>
+      {% if forced %}<span class="muted">Active: {{ forced.rarity }} on {{ 'every card' if forced.scope == 'all' else 'the last card' }} of your own pulls · logged in the audit</span>
+      {% else %}<span class="muted">Only your own pulls; it lasts an hour and is logged in the audit.</span>{% endif %}
+    </form>
+  {% endif %}
+  <p class="rotation-note">🔄 This week: {{ banners|map(attribute='name')|join(' · ') }}. <strong>New banners in {{ rotates_in|delta }}</strong> · <a href="#banner-calendar">See the calendar</a></p>
+
   <div id="pull-result" class="use-result" aria-live="polite"></div>
 
   <div class="banners">
     {% for b in banners %}
-    <article class="banner" id="banner-{{ b.id }}">
-      <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+    <article class="banner{{ ' themed' if b.theme }}" id="banner-{{ b.id }}">
+      {% if b.theme %}
+        <div class="banner-art theme-art" aria-hidden="true"><span>{{ b.emoji }}</span><small>Themed banner</small></div>
+      {% else %}
+        <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
+      {% endif %}
       <div class="banner-body">
-        <h2 class="h2">{{ b.name }}</h2>
+        <h2 class="h2">{{ b.name }}{% if b.theme %} <span class="theme-tag">Theme of the week</span>{% endif %}</h2>
+        {% if b.tagline %}<p class="muted">{{ b.tagline }}</p>{% endif %}
         {% set pool = b|banner_stands %}
         <ul class="banner-pool" aria-label="Top stands">
           {% for c in pool[:6] %}<li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}" title="{{ c.name }} ({{ c.rarity }})"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"><span>{{ c.rarity }}</span></a></li>{% endfor %}
@@ -41,7 +65,7 @@
             <tr><th scope="row">10-pull</th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<td>{{ pct(BANNER_ODDS[r]) }}</td>{% endfor %}</tr>
             <tr><th scope="row">Arrow</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
           </table>
-          <p class="muted">Every 10-pull holds at least one SR. Pity guarantees an SSR or UR after {{ PITY_LIMIT }} pulls without one, and any SSR+ resets it.</p>
+          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. Pity guarantees an SSR or better after {{ PITY_LIMIT }} pulls without one ({% for r, v in PITY_ODDS.items() %}{{ pct(v) }} {{ r }}{{ ', ' if not loop.last }}{% endfor %}; a banner without an LR gives its UR), and any SSR+ resets it.</p>
         </details>
         {% set ssrs = pool|selectattr('rarity', 'equalto', 'SSR')|list %}
         {% if sparks >= SPARK_COST and ssrs %}
@@ -61,6 +85,32 @@
     </article>
     {% endfor %}
   </div>
+
+  <section class="shelf banner-calendar" id="banner-calendar">
+    <header class="shelf-head">
+      <h2 class="h2">Banner calendar</h2>
+      <p class="muted">Every Monday, two Part banners and one themed banner rotate in. Pity and sparks carry over between banners.</p>
+    </header>
+    <ol class="calendar">
+      {% for w in schedule %}
+        <li class="{{ 'now' if w.current }}">
+          <div class="cal-when">
+            <strong>{{ 'This week' if w.current else ('Next week' if loop.index == 2 else w.start.strftime('%b %d')) }}</strong>
+            <small class="muted">{{ w.start.strftime('%a %b %d') }} – {{ w.end.strftime('%a %b %d') }}</small>
+          </div>
+          <ul class="cal-banners">
+            {% for b in w.banners %}
+              {% set pool = b|banner_stands %}
+              <li class="{{ 'theme' if b.theme }}">
+                <span class="cal-face">{% if b.theme %}{{ b.emoji }}{% elif pool %}<img src="{{ pool[0].id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">{% endif %}</span>
+                <span><strong>{{ b.name }}</strong><small class="muted">{% if pool %}{{ pool[0].name }}{% if pool|length > 1 %}, {{ pool[1].name }}{% endif %}{% endif %}</small></span>
+              </li>
+            {% endfor %}
+          </ul>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
 
   {% if history %}
     <section class="shelf pull-history">
