@@ -441,10 +441,10 @@ def banners():
         audit("banner", banner_id, state=state or "default")
         flash("Banner updated.", "ok")
         return redirect(url_for("admin.banners"))
-    week = logic.rotation_ids(logic.rotation_week())
+    week = logic.rotation_ids(logic.rotation_day())
     rows = [{"b": b, "on": logic.banner_enabled(b), "override": r().hget("web:banner_state", str(b["id"])),
              "rotation": b["id"] in week, "next": logic.next_appearance(b["id"])} for b in BANNERS]
-    return render_template("admin/banners.html", rows=rows, section="banners", schedule=logic.banner_schedule(6))
+    return render_template("admin/banners.html", rows=rows, section="banners", schedule=logic.banner_schedule(7))
 
 
 @bp.route("/news", methods=["GET", "POST"])

@@ -39,9 +39,8 @@
       <section class="battle-panel">
         <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2><p>Queue against another web player. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
         {% if waiting %}
-          <p class="notice">Searching the ranked queue. Refresh or check again for a match.</p>
+          <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Searching the ranked queue… The duel opens by itself as soon as an opponent is found.</p>
           <form method="post" action="{{ url_for('battles.ranked_cancel') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn danger">Leave queue</button></form>
-          <form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn">Check for match</button></form>
         {% elif not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
         {% else %}<form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Join ranked queue</button></form>{% endif %}
       </section>
@@ -54,6 +53,9 @@
           <button class="btn gold">Send challenge</button>
         </form>
       </section>
+      {% if challenge_to %}
+        <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Waiting for {{ challenge_to }} to accept your challenge (5 minutes). The duel opens by itself when they do.</p>
+      {% endif %}
       {% if pending %}
         <section class="battle-panel"><h2 class="h2">Incoming challenges</h2>
           <ul class="social-list">{% for challenge in pending %}<li><strong>{{ challenge.challenger_name }}</strong>

@@ -17,7 +17,7 @@ def client(monkeypatch):
     fake = fakeredis.FakeRedis()
     monkeypatch.setattr(dbmod.redis.Redis, "from_url", staticmethod(lambda *a, **k: fake))
     # every banner open, whatever the week: tests shouldn't depend on today's rotation
-    monkeypatch.setattr(logic, "rotation_ids", lambda week: [b["id"] for b in logic.BANNERS])
+    monkeypatch.setattr(logic, "rotation_ids", lambda day: [b["id"] for b in logic.BANNERS])
     from app import create_app
     app = create_app()
     app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

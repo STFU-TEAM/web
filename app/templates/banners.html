@@ -38,7 +38,7 @@
       {% else %}<span class="muted">Only your own pulls; it lasts an hour and is logged in the audit.</span>{% endif %}
     </form>
   {% endif %}
-  <p class="rotation-note">🔄 This week: {{ banners|map(attribute='name')|join(' · ') }}. <strong>New banners in {{ rotates_in|delta }}</strong> · <a href="#banner-calendar">See the calendar</a></p>
+  <p class="rotation-note">🔄 Today: {{ banners|map(attribute='name')|join(' · ') }}. <strong>New banners in {{ rotates_in|delta }}</strong> · <a href="#banner-calendar">See the calendar</a></p>
 
   <div id="pull-result" class="use-result" aria-live="polite"></div>
 
@@ -51,7 +51,7 @@
         <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
       {% endif %}
       <div class="banner-body">
-        <h2 class="h2">{{ b.name }}{% if b.theme %} <span class="theme-tag">Theme of the week</span>{% endif %}</h2>
+        <h2 class="h2">{{ b.name }}{% if b.theme %} <span class="theme-tag">Theme of the day</span>{% endif %}</h2>
         {% if b.tagline %}<p class="muted">{{ b.tagline }}</p>{% endif %}
         {% set pool = b|banner_stands %}
         <ul class="banner-pool" aria-label="Top stands">
@@ -63,9 +63,9 @@
           <table class="odds">
             <tr><th scope="col"></th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<th scope="col">{{ r }}</th>{% endfor %}</tr>
             <tr><th scope="row">10-pull</th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<td>{{ pct(BANNER_ODDS[r]) }}</td>{% endfor %}</tr>
-            <tr><th scope="row">Arrow</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
+            <tr><th scope="row">{{ PALM }}</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
           </table>
-          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. Pity guarantees an SSR or better after {{ PITY_LIMIT }} pulls without one ({% for r, v in PITY_ODDS.items() %}{{ pct(v) }} {{ r }}{{ ', ' if not loop.last }}{% endfor %}; a banner without an LR gives its UR), and any SSR+ resets it.</p>
+          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. After {{ PITY_LIMIT }} pulls without an SSR or better, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR instead (a banner without an LR gives a UR). Any SSR+ resets it.</p>
         </details>
         {% set ssrs = pool|selectattr('rarity', 'equalto', 'SSR')|list %}
         {% if sparks >= SPARK_COST and ssrs %}
@@ -89,14 +89,14 @@
   <section class="shelf banner-calendar" id="banner-calendar">
     <header class="shelf-head">
       <h2 class="h2">Banner calendar</h2>
-      <p class="muted">Every Monday, two Part banners and one themed banner rotate in. Pity and sparks carry over between banners.</p>
+      <p class="muted">Every midnight, two Part banners and one themed banner rotate in: each Part comes back every 3 days, each theme every 6. Pity and sparks carry over between banners.</p>
     </header>
     <ol class="calendar">
       {% for w in schedule %}
         <li class="{{ 'now' if w.current }}">
           <div class="cal-when">
-            <strong>{{ 'This week' if w.current else ('Next week' if loop.index == 2 else w.start.strftime('%b %d')) }}</strong>
-            <small class="muted">{{ w.start.strftime('%a %b %d') }} – {{ w.end.strftime('%a %b %d') }}</small>
+            <strong>{{ 'Today' if w.current else ('Tomorrow' if loop.index == 2 else w.date.strftime('%A')) }}</strong>
+            <small class="muted">{{ w.date.strftime('%a %b %d') }}</small>
           </div>
           <ul class="cal-banners">
             {% for b in w.banners %}

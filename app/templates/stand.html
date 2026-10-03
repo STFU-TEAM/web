@@ -37,7 +37,7 @@
     {% if banners %}
       <p>Found on:
         {% for x in banners %}<a href="{{ url_for('play.banners') }}#{{ 'banner-' ~ x.b.id if x.on else 'banner-calendar' }}">{{ x.b.name }}</a>
-          <small class="muted">({{ 'on now' if x.on else ('back ' ~ x.next.strftime('%b %d') if x.next else 'not scheduled') }})</small>{{ ', ' if not loop.last }}{% endfor %}
+          <small class="muted">({{ 'on now' if x.on else ('back ' ~ x.next.strftime('%a %b %d') if x.next else 'not scheduled') }})</small>{{ ', ' if not loop.last }}{% endfor %}
       </p>
     {% endif %}
     <p class="cta">

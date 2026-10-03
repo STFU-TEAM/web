@@ -43,7 +43,7 @@ RARITIES = ["R", "SR", "SSR", "UR", "LR"]
 DEFAULT_SHOP = {
     "super_fragment": {"name": "Arrowhead", "price": 5000, "type": "currency"},
     "1": {"name": "Dio's Knife", "price": 2500, "type": "item", "id": 1},
-    "2": {"name": "Devil's Palm", "price": 2500, "type": "item", "id": 2},
+    "2": {"name": "Devil's Palm", "price": 5000, "type": "item", "id": 2, "summon": True},
     "3": {"name": "Requiem Arrow", "price": 10000, "type": "item", "id": 3},
     "4": {"name": "Giorno's ladybug", "price": 5000, "type": "item", "id": 4},
 }
@@ -163,54 +163,48 @@ def roll_types_qualities():
     return [t.name for t in pulled_types], [q.name for q in pulled_qualities]
 
 
-# Weekly rotation: two Part banners (an early Part with a late one) plus one themed banner.
-# Weeks start on Monday, like every other weekly reset.
-ROTATION_START = datetime.date(2026, 1, 5)  # a Monday: week 0 of the rotation
+# Daily rotation: two Part banners (an early Part with a late one) plus one themed banner,
+# changing at midnight (server time + 2h, like the dailies). Parts come back every 3 days, themes every 6.
+ROTATION_START = datetime.date(2026, 1, 5)  # day 0 of the rotation
 PART_PAIRS = [(0, 3), (1, 4), (2, 5)]       # Part 3 + 6, Part 4 + 7, Part 5 + 8
 THEME_ORDER = [10, 11, 12, 13, 14, 15]      # JoJo Legacy, Adversaries, JoBros, Evolution, Hitmen, Lifeline
 
 
-def rotation_week(when: Optional[datetime.date] = None) -> int:
+def rotation_day(when: Optional[datetime.date] = None) -> int:
     day = when or now().date()
     if isinstance(day, datetime.datetime):
         day = day.date()
-    return ((day - datetime.timedelta(days=day.weekday())) - ROTATION_START).days // 7
+    return (day - ROTATION_START).days
 
 
-def rotation_ids(week: int) -> List[int]:
-    """The three banners of a rotation week: two Parts, then the theme."""
-    return [*PART_PAIRS[week % len(PART_PAIRS)], THEME_ORDER[week % len(THEME_ORDER)]]
+def rotation_ids(day: int) -> List[int]:
+    """The three banners of a rotation day: two Parts, then the theme."""
+    return [*PART_PAIRS[day % len(PART_PAIRS)], THEME_ORDER[day % len(THEME_ORDER)]]
 
 
-def week_bounds(week: int):
-    start = ROTATION_START + datetime.timedelta(weeks=week)
-    return start, start + datetime.timedelta(days=6)
+def day_date(day: int) -> datetime.date:
+    return ROTATION_START + datetime.timedelta(days=day)
 
 
-def banner_schedule(weeks: int = 6, when=None) -> List[dict]:
-    """This week and the next ones: [{"week", "start", "end", "current", "banners": [banner...]}]."""
-    first = rotation_week(when)
+def banner_schedule(days: int = 7, when=None) -> List[dict]:
+    """Today and the next days: [{"day", "date", "current", "banners": [banner...]}]."""
+    first = rotation_day(when)
     by_id = {b["id"]: b for b in BANNERS}
-    out = []
-    for w in range(first, first + weeks):
-        start, end = week_bounds(w)
-        out.append({"week": w, "start": start, "end": end, "current": w == first,
-                    "banners": [by_id[i] for i in rotation_ids(w) if i in by_id]})
-    return out
+    return [{"day": d, "date": day_date(d), "current": d == first,
+             "banners": [by_id[i] for i in rotation_ids(d) if i in by_id]} for d in range(first, first + days)]
 
 
-def next_appearance(banner_id: int, horizon: int = 12, when=None) -> Optional[datetime.date]:
-    """The Monday a banner next comes back (None if it's on now or not within the horizon)."""
-    first = rotation_week(when)
-    for w in range(first + 1, first + horizon):
-        if banner_id in rotation_ids(w):
-            return week_bounds(w)[0]
+def next_appearance(banner_id: int, horizon: int = 14, when=None) -> Optional[datetime.date]:
+    """The day a banner next comes back (None if it's on today or not within the horizon)."""
+    first = rotation_day(when)
+    for d in range(first + 1, first + horizon):
+        if banner_id in rotation_ids(d):
+            return day_date(d)
     return None
 
 
 def rotation_ends(when=None) -> datetime.datetime:
-    start, _ = week_bounds(rotation_week(when) + 1)
-    return datetime.datetime.combine(start, datetime.time())
+    return datetime.datetime.combine(day_date(rotation_day(when) + 1), datetime.time())
 
 
 def banner_override(banner: dict):
@@ -228,7 +222,7 @@ def banner_enabled(banner: dict) -> bool:
     forced = banner_override(banner)
     if forced is not None:
         return forced
-    return banner["enabled"] and banner["id"] in rotation_ids(rotation_week())
+    return banner["enabled"] and banner["id"] in rotation_ids(rotation_day())
 
 
 def _banner(banner_id: int) -> dict:
@@ -240,9 +234,9 @@ def _banner(banner_id: int) -> dict:
 
 # Web drop rates (kinder than the bot's 80 / 19 / 0.9 / 0.1 with pity at 100).
 BANNER_ODDS = {"R": 0.55, "SR": 0.33, "SSR": 0.10, "UR": 0.02}
-ARROW_ODDS = {"SR": 0.55, "SSR": 0.33, "UR": 0.12}
+ARROW_ODDS = {"SR": 0.70, "SSR": 0.25, "UR": 0.05}  # 5 cards: ~1.25 SSR and 0.25 UR, about a 10-pull's worth
 PITY_LIMIT = 50          # pulls without an SSR+ before one is guaranteed
-PITY_ODDS = {"SSR": 0.50, "UR": 0.44, "LR": 0.06}  # the guaranteed pull; banners without an LR give their best UR
+PITY_ODDS = {"UR": 0.94, "LR": 0.06}  # the guaranteed pull; banners without an LR give a UR
 HIGH_RARITIES = ("SSR", "UR", "LR")
 SPARK_COST = 20  # every 10-pull earns a spark; this many buy any SSR from a banner
 
@@ -910,7 +904,7 @@ def craft(user: User, recipe_name: str) -> Item:
     return crafted
 
 
-SHOP_HEADS_PER_WEEK = 3  # Arrowheads the shop sells each player per week
+SHOP_HEADS_PER_WEEK = 3  # summons (Arrowheads and Devil's Palms together) the shop sells each player per week
 
 
 def shop_heads_left(user: User) -> int:
@@ -927,10 +921,11 @@ def shop_buy(user: User, key: str) -> str:
     entry = DEFAULT_SHOP.get(key)
     if not entry:
         raise GameError("That isn't sold here.")
-    if entry["type"] == "currency":
+    if entry["type"] == "currency" or entry.get("summon"):
         left = shop_heads_left(user)
         if left <= 0:
-            raise GameError(f"The shop sells {SHOP_HEADS_PER_WEEK} Arrowheads a week. More arrive on Monday.")
+            raise GameError(f"The shop sells {SHOP_HEADS_PER_WEEK} summons a week (Arrowheads and Devil's Palms). "
+                            "More arrive on Monday.")
         user.data["web_shop_heads"] = {"week": now().strftime("%G-W%V"), "n": SHOP_HEADS_PER_WEEK - left + 1}
     if user.fragments < entry["price"]:
         raise GameError(f"You need {entry['price']:,} Meteor Dust. You have {user.fragments:,}.")

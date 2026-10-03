@@ -877,7 +877,10 @@ def test_fusing_stars_wait_for_the_level_and_shop_heads_are_capped(client):
     for _ in range(SHOP_HEADS_PER_WEEK):
         client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)
     r = client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)
-    assert b"Arrowheads a week" in r.data and doc(client, "111")["super_fragments"] == SHOP_HEADS_PER_WEEK
+    assert b"summons a week" in r.data and doc(client, "111")["super_fragments"] == SHOP_HEADS_PER_WEEK
+    palms = sum(1 for i in doc(client, "111")["items"] if i["id"] == 2)
+    r = client.post("/shop/buy", data={"key": "2"}, headers=h)  # Devil's Palms share the same weekly cap
+    assert b"summons a week" in r.data and sum(1 for i in doc(client, "111")["items"] if i["id"] == 2) == palms
 
 
 def test_balance_stats_count_finished_fights_once(client):
@@ -986,25 +989,26 @@ def test_funny_achievements_secrets_and_palms(client):
     assert logic.REFORGE_PRICE["LR"] <= 1500
 
 
-def test_banner_rotation_two_parts_and_a_theme_each_week(client, monkeypatch):
+def test_banner_rotation_two_parts_and_a_theme_each_day(client, monkeypatch):
     import datetime
     monkeypatch.undo()  # back to the real rotation (the fixture opens every banner)
     from app.game import logic as L
     themes = {b["id"] for b in L.BANNERS if b.get("theme")}
     parts = {b["id"] for b in L.BANNERS if not b.get("theme")}
     seen_parts, seen_themes = set(), set()
-    for week in range(12):
-        ids = L.rotation_ids(week)
+    for day in range(6):  # one full cycle shows everything
+        ids = L.rotation_ids(day)
         assert len(ids) == 3 and len(set(ids) & parts) == 2 and len(set(ids) & themes) == 1
         seen_parts |= set(ids) & parts
         seen_themes |= set(ids) & themes
     assert seen_parts == parts and seen_themes == themes  # everything comes around
-    monday = L.ROTATION_START + datetime.timedelta(weeks=5)
-    assert L.rotation_week(monday) == L.rotation_week(monday + datetime.timedelta(days=6)) == 5
-    sched = L.banner_schedule(3, when=monday)
+    day5 = L.ROTATION_START + datetime.timedelta(days=5)
+    assert L.rotation_day(day5) == 5 and L.rotation_day(datetime.datetime.combine(day5, datetime.time(23, 59))) == 5
+    sched = L.banner_schedule(3, when=day5)
     assert sched[0]["current"] and [b["id"] for b in sched[1]["banners"]] == L.rotation_ids(6)
     off = next(i for i in parts if i not in L.rotation_ids(5))
-    assert L.next_appearance(off, when=monday) is not None
+    assert L.next_appearance(off, when=day5) <= day5 + datetime.timedelta(days=3)  # a Part is back within 3 days
+    assert L.rotation_ends(day5).date() == day5 + datetime.timedelta(days=1)
     # themed banners never turn an R draw into a rare: the nearest rarity fills in
     theme = next(b for b in L.BANNERS if b["id"] == 10)
     assert all(L._template_of(theme, "R")["rarity"] in ("R",) for _ in range(30))
@@ -1036,7 +1040,7 @@ def test_pulls_vary_pity_can_give_lr_and_admins_can_force_a_rarity(client):
     for _ in range(400):
         u.pity = logic.PITY_LIMIT  # every draw is a pity draw
         seen.add(logic._banner_draw(legacy, u).rarity)
-    assert "LR" in seen and "R" not in seen
+    assert seen == {"UR", "LR"}  # pity is a UR, sometimes an LR
     # admins can force a rarity on their own pulls; players can't
     admin = sorted(client.application.config["DISCORD_ADMIN_IDS"])[0]
     player(client, admin, super_fragments=5)
@@ -1051,3 +1055,63 @@ def test_pulls_vary_pity_can_give_lr_and_admins_can_force_a_rarity(client):
     player(client, "222")
     h2 = login(client, "222")
     assert client.post("/banners/force", data={"rarity": "LR"}, headers=h2).status_code == 403
+
+
+def test_pvp_waiting_auto_refreshes_and_the_turn_clock_stops_stalling(client, monkeypatch):
+    import time as _time
+    from app.db import load_fight
+    from app.routes import battles as B
+    player(client, "111", main_characters=[char(1, xp=3000)])
+    player(client, "222", main_characters=[char(2, xp=3000)])
+    # ranked: the first player waits; the page polls /battles/ping, which matches once someone else queues
+    h1 = login(client, "111")
+    client.post("/battles/ranked/queue", headers=h1)
+    assert b"battles/ping" in client.get("/team").data  # every page polls while waiting
+    assert client.get("/battles/ping", headers=h1).status_code == 204  # nobody yet
+    client.fake.zadd(B.RANKED_QUEUE, {"222": _time.time()})
+    client.fake.hset(B.RANKED_ELO, "222", 0)
+    r = client.get("/battles/ping", headers=h1)
+    assert r.headers.get("HX-Redirect", "").endswith("/battles")
+    fight = load_fight("111")
+    assert fight and fight.kind == "ranked" and fight.meta["deadline"] > _time.time()
+    # the clock: a miss picks for you, a second miss in a row loses the duel
+    with client.application.app_context():
+        acting = fight.meta["players"][fight.acting_side]
+        h = login(client, acting)
+        turn = fight.turn
+        fight.meta["deadline"] = _time.time() - 1
+        from app.db import save_fight
+        for uid in fight.meta["players"]:
+            save_fight(uid, fight)
+    client.post("/battles/attack", data={"log_len": 0}, headers=h)
+    fight = load_fight(acting)
+    assert fight.meta["afk"][fight.meta["players"].index(acting)] == 1 and not fight.finished
+    assert "Time's up" in " ".join(e["text"] for e in fight.log)
+    side = fight.meta["players"].index(acting)
+    if fight.acting_side == side and not fight.finished:
+        fight.meta["deadline"] = _time.time() - 1
+        with client.application.app_context():
+            for uid in fight.meta["players"]:
+                save_fight(uid, fight)
+        client.post("/battles/attack", data={"log_len": 0}, headers=h)
+        fight = load_fight(acting)
+        assert fight.finished and fight.winner == 1 - side and fight.meta["timeout"] == side
+    # nothing to wait for any more: the poll tells the page to stop (htmx 286)
+    client.post("/battles/leave", headers=h)
+    client.fake.delete("web:fight:111", "web:fight:222")
+    assert client.get("/battles/ping", headers=login(client, "222")).status_code == 286
+
+
+def test_friend_challenge_sender_waits_and_hears_the_accept(client):
+    player(client, "111", main_characters=[char(1)])
+    player(client, "222", main_characters=[char(6)])
+    h1 = login(client, "111")
+    client.post("/battles/friends/invite", data={"user_id": "222"}, headers=h1)
+    page = client.get("/battles?mode=friends").data.decode()
+    assert "Waiting for" in page and "battles/ping" in page
+    h2 = login(client, "222")
+    cid = next(iter(client.fake.smembers("web:friend:inbox:222"))).decode()
+    client.post(f"/battles/friends/accept/{cid}", headers=h2)
+    h1 = login(client, "111")
+    assert client.get("/battles/ping", headers=h1).headers.get("HX-Redirect", "").endswith("/battles")
+    assert b"accepted your duel" in client.get("/community/inbox").data

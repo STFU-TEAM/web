@@ -361,6 +361,18 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
   });
 })();
 
+// PvP turn clock: count down locally (the server holds the real deadline).
+setInterval(() => {
+  document.querySelectorAll("[data-turn-clock]").forEach((el) => {
+    if (document.querySelector("#fight.playing")) return;  // the replay of the last action comes first
+    const left = Math.max(0, Number(el.dataset.turnClock) - 1);
+    el.dataset.turnClock = left;
+    const b = el.querySelector("b");
+    if (b) b.textContent = left;
+    el.classList.toggle("urgent", left <= 3);
+  });
+}, 1000);
+
 // Scroll a fresh pull result into view.
 document.addEventListener("htmx:afterSwap", (e) => {
   if (["use-result", "pull-result"].includes(e.detail.target.id) && e.detail.target.firstElementChild) {

@@ -74,6 +74,11 @@
             <span class="turn-no">Round {{ fight.round }}</span> {{ foe.name }} is choosing a target…
           {% endif %}
         </p>
+        {% if turn_left is defined and turn_left is not none and not fight.finished and fight.awaiting_input %}
+          <p class="turn-clock{{ ' mine' if my_turn }}" data-turn-clock="{{ turn_left }}" role="timer" aria-live="off">
+            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ foe.name ~ ' to pick' }}
+          </p>
+        {% endif %}
         {% if my_turn and fight.special_ready %}
           {% set sp = special_power(fight.acting_char) %}
           <p class="special-preview"><strong>✦ {{ fight.acting_char.name }}'s special fires after this attack{% if sp.power|round(2) != 1 %} (×{{ '%.2f'|format(sp.power) }} {{ STAT_INFO[sp.stat][0] }}){% endif %}:</strong> {{ fight.acting_char.special_description|replace('`', '') }}</p>
@@ -116,6 +121,10 @@
     <form id="fight-leave" hidden method="post" action="{{ fight_leave_action }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
     </form>
+  {% elif my_turn and turn_left is defined and turn_left is not none %}
+    {# PvP: when my clock runs out, ask the server to pick for me. #}
+    <div hidden hx-post="{{ fight_action }}" hx-trigger="load delay:{{ turn_left + 1 }}s" hx-target="#fight" hx-swap="outerHTML"
+         hx-vals='{"log_len": {{ fight.log|length }}}'></div>
   {% elif foe_turn_human %}
     {# PvP: check for the opponent's move without a manual refresh. #}
     <div hidden hx-post="{{ fight_action }}" hx-trigger="every 3s [!document.querySelector('#fight.playing')]" hx-target="#fight" hx-swap="outerHTML"

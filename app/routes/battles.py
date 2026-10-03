@@ -3,14 +3,14 @@ import json
 import time
 import uuid
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, flash, redirect, render_template, request, Response, session, url_for
 
 from app.accounts import resolve_player
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
 from app.game import logic, story
 from app.game.character import character_from_dict
-from app.game.fight import Fight, Side, fighting_copy
+from app.game.fight import Fight, Side, ai_choice, fighting_copy
 from app.filters import PLAYABLE
 
 bp = Blueprint("battles", __name__, url_prefix="/battles")
@@ -19,6 +19,55 @@ RANKED_ELO = "web:ranked:elo"
 RANKED_ELO_RANGE = 300
 CHALLENGE_INBOX = "web:friend:inbox:{}"
 CHALLENGE_KEY = "web:friend:challenge:{}"
+CHALLENGE_WAIT = "web:friend:waiting:{}"   # set while a player waits for a friend to accept (auto refresh)
+CHALLENGE_TTL = 300
+
+# PvP turn clock: every pick has TURN_SECONDS (plus the time the last action takes to replay).
+# Running out picks a target automatically; running out AFK_LIMIT times in a row loses the duel.
+PVP = {"ranked", "friend"}
+TURN_SECONDS = 10
+REPLAY_ALLOWANCE = 0.8   # seconds per log line the client replays, capped like the client (8 s)
+AFK_LIMIT = 2
+
+
+def arm_timer(fight):
+    """Start the clock when a new pick is awaited (a new (turn, stand) decision)."""
+    if fight.kind not in PVP or fight.finished or not fight.awaiting_input:
+        return
+    key = [fight.turn, fight.si]
+    if fight.meta.get("timer_for") == key:
+        return
+    replay = min(8.0, REPLAY_ALLOWANCE * (len(fight.log) - fight.meta.get("timer_log", 0)))
+    fight.meta.update(timer_for=key, timer_log=len(fight.log), deadline=time.time() + TURN_SECONDS + replay)
+
+
+def enforce_timer(fight) -> bool:
+    """If the acting player let the clock run out: auto pick, or forfeit after AFK_LIMIT misses in a row."""
+    if fight.kind not in PVP or fight.finished or not fight.awaiting_input:
+        return False
+    deadline = fight.meta.get("deadline")
+    if deadline is None or time.time() < deadline:
+        return False
+    side = fight.acting_side
+    afk = fight.meta.setdefault("afk", [0, 0])
+    afk[side] += 1
+    name = fight.sides[side].name
+    if afk[side] >= AFK_LIMIT:
+        fight._log(f"⏱️ {name} ran out of time again and loses the duel.", "info", side=side)
+        fight.forfeit(side)
+        fight.meta["timeout"] = side
+    else:
+        fight._log(f"⏱️ Time's up! {name}'s stand picks a target on its own.", "info", side=side)
+        fight.advance(ai_choice(fight.sides[1 - side].chars))
+    arm_timer(fight)
+    return True
+
+
+def turn_left(fight) -> int:
+    """Seconds left on the clock (for the countdown); None outside a PvP pick."""
+    if fight.kind not in PVP or fight.finished or "deadline" not in fight.meta:
+        return None
+    return max(0, int(round(fight.meta["deadline"] - time.time())))
 
 
 def _int(name, default=None):
@@ -36,7 +85,7 @@ def _active_fight(uid):
 def _fight_view(fight, uid, fresh_from=None):
     players = fight.meta.get("players", [uid])
     my_side = players.index(uid) if uid in players else 0
-    return render_template("partials/fight.html", fight=fight, fresh_from=fresh_from, my_side=my_side,
+    return render_template("partials/fight.html", fight=fight, fresh_from=fresh_from, my_side=my_side, turn_left=turn_left(fight),
                            fight_action=url_for("battles.attack"), fight_leave_action=url_for("battles.leave"),
                            fight_label={"dummy": "Practice", "ranked": "Ranked", "friend": "Friendly duel"}.get(fight.kind, "Battle"))
 
@@ -52,6 +101,7 @@ def _create_duel(uid_a, uid_b, kind):
                   Side(identity(uid_b)["name"], fighting_copy(user_b.main_characters), True),
                   kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False})
     fight.advance()
+    arm_timer(fight)
     save_fight(uid_a, fight)
     save_fight(uid_b, fight)
     return fight
@@ -75,7 +125,10 @@ def index():
             r().srem(inbox, challenge_id)
     user = get_db().get_user(uid)
     return render_template("battles.html", u=user, mode=request.args.get("mode", "dummy"),
-                           fight=_active_fight(uid), pending=pending, waiting=bool(r().zscore(RANKED_QUEUE, uid)),
+                           fight=_active_fight(uid), pending=pending, waiting=r().zscore(RANKED_QUEUE, uid) is not None,
+                           challenge_to=(lambda t: identity(t.decode() if isinstance(t, bytes) else t)["name"] if t else None)(
+                               r().get(CHALLENGE_WAIT.format(uid))),
+                           turn_left=(lambda f: turn_left(f) if f else None)(_active_fight(uid)),
                            stands=PLAYABLE, story_stage=story.current(user), story_cleared=story.cleared(user),
                            story_total=story.TOTAL)
 
@@ -112,8 +165,9 @@ def invite_friend():
         return redirect(url_for("battles.index", mode="friends"))
     challenge_id = uuid.uuid4().hex
     challenge = {"from": uid, "to": target_id, "created": int(time.time())}
-    r().set(CHALLENGE_KEY.format(challenge_id), json.dumps(challenge), ex=300)
+    r().set(CHALLENGE_KEY.format(challenge_id), json.dumps(challenge), ex=CHALLENGE_TTL)
     r().sadd(CHALLENGE_INBOX.format(target_id), challenge_id)
+    r().set(CHALLENGE_WAIT.format(uid), target_id, ex=CHALLENGE_TTL)
     from app import social
     social.notify(target_id, "fight", f"{identity(uid)['name']} challenged you to a friendly duel (5 minutes to accept).",
                   url_for("community.inbox"))
@@ -139,6 +193,9 @@ def accept_friend(challenge_id):
                 if fight:
                     r().delete(CHALLENGE_KEY.format(challenge_id))
                     r().srem(CHALLENGE_INBOX.format(uid), challenge_id)
+                    from app import social
+                    social.notify(challenge["from"], "fight", f"{identity(uid)['name']} accepted your duel. Fight!",
+                                  url_for("battles.index"))
                     flash("Friendly duel accepted.", "ok")
                 else:
                     flash("Both players need a team before fighting.", "error")
@@ -157,13 +214,18 @@ def ranked_queue():
         return redirect(url_for("battles.index", mode="ranked"))
     if load_fight(uid):
         return redirect(url_for("battles.index", mode="ranked"))
+    _try_match(uid, user.global_elo)
+    return redirect(url_for("battles.index", mode="ranked", waiting=1))
+
+
+def _try_match(uid, elo):
+    """Queue uid (refreshing its spot) and pair it with the closest Elo in range, if anyone is there."""
     now = time.time()
-    elo = user.global_elo
     token = uuid.uuid4().hex
     if not r().set("web:ranked:matchlock", token, nx=True, ex=5):
         r().zadd(RANKED_QUEUE, {uid: now})
         r().hset(RANKED_ELO, uid, elo)
-        return redirect(url_for("battles.index", mode="ranked", waiting=1))
+        return
     try:
         candidates = r().zrangebyscore(RANKED_QUEUE, now - 120, "+inf")
         candidate_ids = [candidate.decode() if isinstance(candidate, bytes) else str(candidate)
@@ -201,7 +263,36 @@ def ranked_queue():
     finally:
         if r().get("web:ranked:matchlock") == token.encode():
             r().delete("web:ranked:matchlock")
-    return redirect(url_for("battles.index", mode="ranked", waiting=1))
+
+
+def pvp_waiting(uid) -> bool:
+    """In the ranked queue, or waiting for a friend to accept: the pages poll /battles/ping."""
+    return bool(r().zscore(RANKED_QUEUE, uid) is not None or r().exists(CHALLENGE_WAIT.format(uid)))
+
+
+@bp.get("/ping")
+@player_required
+def ping():
+    """Auto refresh while waiting: jump into the duel the moment it exists; 286 stops the polling."""
+    uid = session["uid"]
+    fight = load_fight(uid)
+    if fight and fight.kind in PVP and not fight.finished:
+        r().delete(CHALLENGE_WAIT.format(uid))
+        resp = Response(status=204)
+        resp.headers["HX-Redirect"] = url_for("battles.index")
+        return resp
+    if r().zscore(RANKED_QUEUE, uid) is not None:
+        user = get_db().get_user(uid)
+        if user and user.main_characters:
+            _try_match(uid, user.global_elo)
+            if load_fight(uid):
+                resp = Response(status=204)
+                resp.headers["HX-Redirect"] = url_for("battles.index")
+                return resp
+        return Response(status=204)
+    if r().exists(CHALLENGE_WAIT.format(uid)):
+        return Response(status=204)
+    return Response(status=286)
 
 
 @bp.post("/ranked/cancel")
@@ -268,11 +359,14 @@ def attack():
             if not fight or fight.kind not in {"dummy", "ranked", "friend"}:
                 return "<p class='notice'>This battle is not active.</p>", 409
             my_side = fight.meta.get("players", [uid]).index(uid)
+            enforce_timer(fight)  # whoever asks (the waiting player's poll included) applies a timeout
             if not fight.finished and fight.sides[fight.acting_side].is_human and fight.acting_side == my_side:
                 if request.form.get("forfeit"):
                     fight.forfeit(my_side)
-                else:
+                elif _int("target") is not None:
+                    fight.meta.setdefault("afk", [0, 0])[my_side] = 0  # a real pick clears the misses
                     fight.advance(_int("target"))
+            arm_timer(fight)
             if fight.finished and not fight.meta.get("settled"):
                 fight.meta["settled"] = True
                 _settle(fight)

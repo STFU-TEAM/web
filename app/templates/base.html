@@ -184,6 +184,7 @@
   {% endwith %}
 
   <main id="main">{% block main %}{% endblock %}</main>
+  {% if duel_waiting %}<div hidden hx-get="{{ url_for('battles.ping') }}" hx-trigger="every 3s" hx-swap="none"></div>{% endif %}
 
   {% if me.id %}{% include "partials/tour.html" %}{% endif %}
 

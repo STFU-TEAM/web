@@ -951,6 +951,12 @@ details.menu[open] summary::before { content: "− "; }
 .fx small::before { content: "· "; }
 .fx small::after { content: "t"; }
 @media (max-width: 640px) { .fx .fx-name { display: none; } }
+.turn-clock { margin: .2rem 0 0; text-align: center; font-size: var(--step--1); color: var(--muted); font-variant-numeric: tabular-nums; }
+.turn-clock.mine { color: var(--paper); }
+.turn-clock b { font-size: var(--step-1); color: var(--gold); }
+.turn-clock.urgent b { color: #FF4D6D; animation: hp-pulse .5s ease-in-out infinite; }
+.searching { display: flex; align-items: center; gap: .6rem; }
+.spinner { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--night-3); border-top-color: var(--gold); animation: cine-spin .8s linear infinite; }
 .special-preview { margin: .1rem 0 0; max-width: 60ch; text-align: center; font-size: var(--step--1); color: var(--paper-2); }
 .special-preview strong { color: var(--gold); }
 .fighter:has(.fighter-hit:hover), .fighter:has(.fighter-hit:focus-visible) { background: rgb(214 36 110 / .25); transform: translateY(-3px); animation: none; }

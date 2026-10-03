@@ -139,8 +139,8 @@
   <ul class="inventory">
     {% for key, e in shop.items() %}
     <li class="item-tile">
-      {% set heads_left = shop_heads_left(u) if e.type == 'currency' else none %}
-      <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{{ e.price|dust }}{% if heads_left is not none %} · {{ heads_left }} left this week{% endif %}</p></div>
+      {% set heads_left = shop_heads_left(u) if e.type == 'currency' or e.summon else none %}
+      <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{{ e.price|dust }}{% if heads_left is not none %} · {{ heads_left }} summon{{ 's' if heads_left != 1 }} left this week{% endif %}</p></div>
       <div class="item-actions">
         <button class="btn small {% if key == 'super_fragment' %}gold{% endif %}" hx-post="{{ url_for('play.shop_buy') }}" hx-vals='{"key": "{{ key }}"}' hx-target="#use-result"
                 {% if u.fragments < e.price or (heads_left is not none and heads_left <= 0) %}disabled{% endif %}>Buy</button>

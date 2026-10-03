@@ -183,7 +183,7 @@ def register(app):
             session["csrf"] = secrets.token_urlsafe(24)
         uid = session.get("uid")
         story_hot = tour_pending = False
-        inbox_count, toasts = 0, []
+        inbox_count, toasts, duel_waiting = 0, [], False
         if uid and request.endpoint != "static":
             from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
             from app import social
@@ -191,10 +191,12 @@ def register(app):
             story_hot = not r().exists(f"web:story_done:{uid}")
             tour_pending = bool(r().exists(f"web:tour:{uid}"))
             inbox_count = pending_count(uid)
+            from app.routes.battles import pvp_waiting
+            duel_waiting = pvp_waiting(uid)
             if not request.headers.get("HX-Request"):  # HTMX responses get theirs through HX-Trigger
                 toasts = social.take_toasts(uid)
         return {
-            "story_hot": story_hot, "tour_pending": tour_pending, "inbox_count": inbox_count, "toasts": toasts,
+            "story_hot": story_hot, "tour_pending": tour_pending, "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),

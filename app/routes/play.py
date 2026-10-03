@@ -327,7 +327,7 @@ def banners():
     return render_template("banners.html", u=user, banners=active, arrows=arrows, st=status(user),
                            sparks=logic.sparks(user), SPARK_COST=logic.SPARK_COST,
                            welcome=request.args.get("welcome"), history=history,
-                           schedule=logic.banner_schedule(6), rotates_in=logic.rotation_ends() - logic.now(),
+                           schedule=logic.banner_schedule(7), rotates_in=logic.rotation_ends() - logic.now(),
                            forced=_forced_rarity(), FORCE_RARITIES=FORCE_RARITIES, PITY_ODDS=logic.PITY_ODDS)
 
 
