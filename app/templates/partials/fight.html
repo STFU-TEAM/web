@@ -119,8 +119,8 @@
     </figure>
   </aside>
 
-  <section class="log">
-    <h2 class="log-title">Combat log</h2>
+  <section class="log" id="fight-log">
+    <h2 class="log-title">Combat log <button type="button" class="log-toggle" data-log-toggle aria-expanded="false" aria-controls="fight-log">Show full log</button></h2>
     <ol reversed>
       {% for e in fight.log|reverse %}
         {% set i = fight.log|length - 1 - loop.index0 %}

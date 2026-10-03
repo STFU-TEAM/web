@@ -10,7 +10,7 @@
 <h2 class="wiki-h2">Wormhole</h2>
 <p>The <a href="{{ url_for('play.wormhole') }}">wormhole</a> throws you at a random team scaled to your level. Win for fragments, XP and sometimes an item. It cools down for {{ facts.wormhole_hours }} h ({{ facts.wormhole_hours_donor|int }} h for supporters).</p>
 <h2 class="wiki-h2">Tower</h2>
-<p>The <a href="{{ url_for('play.tower') }}">tower</a> is a climb through fixed floors that get tougher every time you clear it. A climb costs {{ facts.tower_cost }} fragments, and your floor is saved between climbs.</p>
+<p>The <a href="{{ url_for('play.tower') }}">tower</a> never ends. A climb costs {{ facts.tower_cost }} fragments and starts at floor 1; the same three fighters climb on, so health and growth carry from floor to floor, with a small heal after each one and a rest stop every 5 floors that also revives the fallen. Enemies grow exponentially, every 10th floor has a boss, and a loss ends the climb. The floors and the leaderboard reset every Monday; each floor pays out the first time you clear it that week.</p>
 <h2 class="wiki-h2">Dungeon</h2>
 <p>The dungeon is closed for now. It will come back with new maps.</p>
 {% endblock %}

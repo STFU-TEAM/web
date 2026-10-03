@@ -251,9 +251,6 @@ class Character:
                 attr, sign = STAT_EFFECTS[effect.type]
                 setattr(self, attr, getattr(self, attr) + sign * effect.value)
                 effect.used = True
-            elif effect.type == EffectType.HEALTHBOOST and not effect.used:
-                self.current_hp += effect.value
-                effect.used = True
             if effect.fresh:
                 effect.fresh = False
             else:
@@ -272,8 +269,6 @@ class Character:
             if effect.type in STAT_EFFECTS:
                 attr, sign = STAT_EFFECTS[effect.type]
                 setattr(self, attr, getattr(self, attr) - sign * effect.value)
-            elif effect.type == EffectType.HEALTHBOOST:
-                self.current_hp = max(self.current_hp - effect.value, 1)
         self.effects = remaining_effects
 
         # A stand that just sat out a stun shrugs off stuns on its next turn (set by the fight loop).

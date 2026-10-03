@@ -153,7 +153,7 @@ def test_register_login_throttle_and_link(client, monkeypatch):
     with client.session_transaction() as s:
         tok = s["csrf"]
     client.post("/auth/welcome", data={"csrf": tok})
-    assert doc(client, uid)["super_fragements"] == 1
+    assert doc(client, uid)["super_fragments"] == 1
 
     # duplicate username, wrong password, then the right one
     client.post("/auth/logout", data={"csrf": tok})
@@ -354,7 +354,7 @@ def _win_story_fight(client, h):
 
 def test_story_journey_gates_pays_once_and_rewards_bosses(client):
     from app.game import story
-    player(client, "111", fragments=0, super_fragements=0)
+    player(client, "111", fragments=0, super_fragments=0)
     h = login(client, "111")
     page = client.get("/story").data.decode()
     assert "Arrow&#39;s Test" in page and "You need stands to fight" in page
@@ -379,7 +379,7 @@ def test_story_journey_gates_pays_once_and_rewards_bosses(client):
         _win_story_fight(client, h)
     d = doc(client, "111")
     boss = next(i for i, st in enumerate(story.STAGES) if st.get("boss"))
-    assert d["web_story"]["cleared"] == boss + 1 and d["super_fragements"] == 1
+    assert d["web_story"]["cleared"] == boss + 1 and d["super_fragments"] == 1
     assert sum(1 for it in d["items"] if it["id"] == 2) == sum(1 for k in range(boss + 1) if k % 3 == 2)
     assert client.get("/achievements").status_code == 200
 
@@ -425,7 +425,7 @@ def test_pity_floor_and_new_tags(client):
     for seed in range(40):
         random.seed(seed)
         u = User(create_user("111"))
-        u.super_fragements = 1
+        u.super_fragments = 1
         res = logic.banner_pull(u, banner["id"])
         assert any(c.rarity != "R" for c, _ in res["drawn"])
         assert any(e["new"] for e in res["cards"])
@@ -469,7 +469,7 @@ def test_bulk_lock_and_release_skip_locked(client):
 
 
 def test_pull_result_offers_the_same_banner_again(client):
-    player(client, "111", super_fragements=3, items=[{"id": 2}])
+    player(client, "111", super_fragments=3, items=[{"id": 2}])
     h = login(client, "111")
     r = client.post("/banners/0/pull", headers=h)
     assert b"Pull 10 again" in r.data and b"2 super fragments left" in r.data
@@ -542,7 +542,7 @@ def test_daily_streak_counts_once_a_day_and_pays_a_super_fragment_on_day_7(monke
     monkeypatch.setattr(logic, "now", lambda: clock[0])
     data = create_user("1")
     user = User(data)
-    supers = user.super_fragements
+    supers = user.super_fragments
     for day in range(7):
         clock[0] = datetime.datetime(2026, 3, 1 + day, 9)
         user.last_adventure = datetime.datetime.min
@@ -550,14 +550,14 @@ def test_daily_streak_counts_once_a_day_and_pays_a_super_fragment_on_day_7(monke
         assert res["streak"]["count"] == day + 1
         user.last_adventure = datetime.datetime.min           # a second claim the same day
         assert logic.daily(user)["streak"] is None
-    assert user.super_fragements >= supers + 1
+    assert user.super_fragments >= supers + 1
     clock[0] = datetime.datetime(2026, 3, 10, 9)              # skipped a day: back to 1
     user.last_adventure = datetime.datetime.min
     assert logic.daily(user)["streak"]["count"] == 1
 
 
 def test_sparks_buy_an_ssr_from_the_banner(client):
-    player(client, "111", super_fragements=2, web_sparks=19)
+    player(client, "111", super_fragments=2, web_sparks=19)
     h = login(client, "111")
     client.post("/banners/0/pull", headers=h)
     assert doc(client, "111")["web_sparks"] == 20
@@ -687,3 +687,96 @@ def test_new_recipes_and_gear_specials(client):
     holder.current_hp = holder.start_hp // 2
     assert "heals" in item_specials["43"](holder, [holder], [foe])
     assert "Ultimate Being" in item_specials["45"](holder, [holder], [foe])
+
+
+# --------------------------------------------------------------------------- #
+# Tower, PvP draws, raid carry-over, save migration
+# --------------------------------------------------------------------------- #
+def test_tower_carries_health_heals_a_little_and_is_the_same_for_everyone():
+    from app.game import tower
+    from app.game.user import User
+    import fakeredis
+    redis = fakeredis.FakeRedis()
+    user = User(create_user("1"))
+    user.fragments = 1000
+    team = [_stand(1), _stand(2)]
+    user.main_characters = list(team)
+    tower.start_climb(user, redis, team)
+    assert user.fragments == 1000 - tower.CLIMB_COST
+    fighters = tower.load_team(redis, user.id)
+    fighters[0].current_hp = fighters[0].start_hp // 2
+    fighters[1].current_hp = 0
+    fight = type("F", (), {"winner": 0, "sides": [type("S", (), {"chars": fighters})()], "round": 4})()
+    tower.finish_floor(user, fight, redis, "me")
+    carried = tower.load_team(redis, user.id)
+    assert carried[0].current_hp == int(fighters[0].start_hp // 2 + fighters[0].start_hp * tower.FLOOR_HEAL)
+    assert carried[1].current_hp == 0  # fallen stands wait for a rest stop
+    assert tower.state(user)["run"]["floor"] == 2 and tower.state(user)["best"] == 1
+    # the floors of a week are fixed; enemies grow exponentially
+    assert tower.floor_ids(7, "2026-W40") == tower.floor_ids(7, "2026-W40")
+    lv = [tower.level_for(f) for f in range(1, 40)]
+    assert lv == sorted(lv) and lv[-1] == 100 and tower.overflow_for(60) > 2
+    assert tower.is_rest(5) and tower.is_boss(10)
+    # a loss ends the climb
+    fight.winner = 1
+    tower.finish_floor(user, fight, redis, "me")
+    assert tower.state(user)["run"] is None and tower.load_team(redis, user.id) is None
+
+
+def test_pvp_mutual_ko_is_a_draw_but_pve_goes_to_the_mover():
+    from app.game.fight import Fight, Side
+    for kind, expected in (("ranked", None), ("story", 0)):
+        a, b = _stand(1), _stand(2)
+        f = Fight(Side("A", [a], True), Side("B", [b], False), kind=kind)
+        a.current_hp = b.current_hp = 0
+        f._last_actor = 0
+        f._finish()
+        assert f.winner == expected, kind
+
+
+def test_last_weeks_raid_tiers_stay_claimable(monkeypatch):
+    from app.game import gangs as G
+    from app.game.user import User
+    clock = [datetime.datetime(2026, 3, 4, 12)]  # a Wednesday
+    monkeypatch.setattr(G, "now", lambda: clock[0])
+    gang = {"_id": "g1", "name": "Crusaders"}
+    G.raid_state(gang)["hits"]["1"] = 5
+    G.raid_state(gang)["damage"] = G.RAID_TIERS[1]["damage"]
+    clock[0] = datetime.datetime(2026, 3, 10, 12)  # next week
+    user = User(create_user("1"))
+    before = user.fragments
+    assert G.claimable_tiers(gang, "1") == [] and G.claimable_previous(gang, "1") == [0, 1]
+    G.claim_raid(gang, user)
+    assert user.fragments == before + G.RAID_TIERS[0]["fragments"] + G.RAID_TIERS[1]["fragments"]
+    assert G.claimable_previous(gang, "1") == []
+    clock[0] = datetime.datetime(2026, 3, 18, 12)  # two weeks on: gone
+    assert G.previous_raid(gang) is None
+
+
+def test_old_saves_with_the_misspelled_field_still_load(client):
+    d = create_user("111")
+    d.pop("super_fragments", None)
+    d["super_fragements"] = 7
+    put(client, d)
+    h = login(client, "111")
+    assert b"7" in client.get("/banners").data
+    client.post("/daily", headers=h)
+    saved = doc(client, "111")
+    assert saved["super_fragments"] >= 7 and "super_fragements" not in saved
+
+
+def test_wiki_search_index_covers_guides_stands_and_rules(client):
+    entries = client.get("/wiki/search.json").get_json()
+    kinds = {e["k"].split(" ·")[0] for e in entries}
+    assert {"Guide", "Stand", "Item", "Terrain", "Synergy", "Status effect"} <= kinds
+    combat = next(e for e in entries if e["k"] == "Guide" and e["t"] == "Combat system")
+    assert "sudden death" in combat["x"].lower() and "<" not in combat["x"]
+    assert any(e["t"] == "Star platinum" for e in entries)
+    assert b'data-wiki-search' in client.get("/wiki").data
+
+
+def test_profile_shows_records_and_collection(client):
+    player(client, "111", main_characters=[char(1)], storage_characters=[char(10), char(4)], xp=5000)
+    page = client.get("/u/111").data.decode()
+    for text in ("Story stages", "Tower this week", "Boss rush", "Achievements", "Stands discovered", "Showcase", "Copy profile link"):
+        assert text in page, text

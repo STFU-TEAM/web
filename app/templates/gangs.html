@@ -84,8 +84,9 @@
         {% if raid_ready %}{{ post('gangs.attack_start', 'Attack ' ~ raid_villain.name, 'btn gold', mode='raid') }}
         {% else %}<p class="muted">You attacked today. Come back tomorrow.</p>{% endif %}
         {% if raid_claim %}{{ post('gangs.raid_claim', 'Claim ' ~ raid_claim|length ~ ' tier reward' ~ ('s' if raid_claim|length > 1 else ''), 'btn gold') }}{% endif %}
+        {% if raid_prev_claim %}<p class="raid-prev">🎁 {{ raid_prev_claim|length }} tier{{ 's' if raid_prev_claim|length > 1 }} from last week's raid still waiting. Claim before the next reset.</p>{% endif %}
       </div>
-      <p class="muted small-print">One attack per member per day. The boss can't fall: every point of damage counts. Everyone who attacked this week claims each tier the gang reaches.</p>
+      <p class="muted small-print">One attack per member per day. The boss can't fall: every point of damage counts. Everyone who attacked claims each tier the gang reaches, until the end of the following week.</p>
       {% if raid_hits %}
         <h3 class="h3">Top damage this week</h3>
         <ol class="raid-hits">{% for name, d in raid_hits[:8] %}<li><span>{{ name }}</span><strong>{{ d|num }}</strong></li>{% endfor %}</ol>

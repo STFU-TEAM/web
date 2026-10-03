@@ -455,7 +455,7 @@ def win(user, k: int) -> dict:
             "item": None,
         }
     user.fragments += reward["fragments"]
-    user.super_fragements += reward["super_fragments"]
+    user.super_fragments += reward["super_fragments"]
     user.xp += reward["xp"]
     for char in user.main_characters:
         char.xp += reward["stand_xp"]

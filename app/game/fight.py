@@ -71,6 +71,9 @@ def ai_choice(enemies: List[Character], attacker: Optional[Character] = None, le
     return max(legal, key=lambda i: threat(enemies[i]) / max(1, enemies[i].current_hp - hit[i]))
 
 
+PVP_KINDS = ("ranked", "friend")
+
+
 class Fight:
     sudden_death_round = SUDDEN_DEATH_ROUND
     def __init__(self, human: Side, opponent: Side, kind: str = "wormhole", meta: Optional[dict] = None,
@@ -256,7 +259,9 @@ class Fight:
         alive = [index for index, side in enumerate(self.sides) if side.alive()]
         if alive:
             self.winner = alive[0]
-        else:  # both teams fell on the same move: it goes to whoever made it
+        elif self.kind in PVP_KINDS:  # both teams fell together: a draw, so a self-damaging special can't steal Elo
+            self.winner = None
+        else:  # PvE: it goes to whoever made the move
             self.winner = getattr(self, "_last_actor", None)
 
 

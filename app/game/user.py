@@ -54,7 +54,8 @@ class User:
         self.gang_invites: List[int] = data["gang_invites"]
         self.custom_character: int = data["custom_character"]
         self.fragments: int = data["fragments"]
-        self.super_fragements : int = data["super_fragements"]
+        # older saves spell it "super_fragements" (the bot's typo); it's rewritten correctly on save
+        self.super_fragments: int = data.get("super_fragments", data.get("super_fragements", 0))
         self.xp = data["xp"]
         self.level: int = min(USRXPTOLEVEL,int(LVLSCALING*sqrt(self.xp)))  # cap xp to 100
         self.energy: int = data["energy"]
@@ -167,7 +168,8 @@ class User:
         self.data["custom_character"] = self.custom_character
         self.data["energy"] = self.energy
         self.data["fragments"] = self.fragments
-        self.data["super_fragements"] = self.super_fragements
+        self.data["super_fragments"] = self.super_fragments
+        self.data.pop("super_fragements", None)
         self.data["pity"] = self.pity
         self.data["xp"] = self.xp
         self.data["job"] = self.job
@@ -206,7 +208,7 @@ def create_user(user_id: str):
         "gang_invites": [],
         "custom_character": None,
         "fragments": 0,
-        "super_fragements":0,
+        "super_fragments": 0,
         "pity":0,
         "xp": 0,
         "energy": 10,

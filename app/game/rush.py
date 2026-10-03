@@ -102,7 +102,7 @@ def finish_fight(user, fight, redis, name: str) -> dict:
         if index not in s["claimed"]:
             reward = REWARDS[index]
             user.fragments += reward["fragments"]
-            user.super_fragements += reward.get("super", 0)
+            user.super_fragments += reward.get("super", 0)
             items = [item_from_dict({"id": i}) for i in reward["items"]]
             user.items.extend(items)
             s["claimed"].append(index)

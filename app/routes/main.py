@@ -91,11 +91,7 @@ def stands():
     return render_template(tpl, stands=result, q=q, rarity=rarity, rarities=RARITY_ORDER)
 
 
-@bp.get("/wiki")
-@bp.get("/wiki/<topic>")
-def wiki(topic: str = ""):
-    if topic and topic not in wiki_data.TOPIC_SLUGS:
-        abort(404)
+def _wiki_ctx(topic: str) -> dict:
     facts = {**wiki_data.facts(), "tower_cost": TOWER_COST, "gang_cost": GANG_COST,
              "shop_cost": SHOP_COST, "storage_capacity": STORAGE_CAPACITY}
     ctx = {"topics": wiki_data.TOPIC_GROUPS, "topic": topic, "facts": facts}
@@ -109,7 +105,53 @@ def wiki(topic: str = ""):
         ctx["types"], ctx["qualities"] = wiki_data.type_rows(), wiki_data.quality_rows()
     elif topic == "ranked":
         ctx["ranks"] = wiki_data.rank_rows()
-    return render_template(f"wiki/{topic or 'index'}.html", **ctx)
+    return ctx
+
+
+@bp.get("/wiki")
+@bp.get("/wiki/<topic>")
+def wiki(topic: str = ""):
+    if topic and topic not in wiki_data.TOPIC_SLUGS:
+        abort(404)
+    return render_template(f"wiki/{topic or 'index'}.html", **_wiki_ctx(topic))
+
+
+_SEARCH_INDEX = None
+
+
+@bp.get("/wiki/search.json")
+def wiki_search_index():
+    """Everything the wiki search box can find, built once: guide pages (full text), stands, items,
+    terrains, synergies and status effects."""
+    global _SEARCH_INDEX
+    if _SEARCH_INDEX is None:
+        import re
+        from app.game.items import item_file
+        entries = []
+        for slug, title, blurb, _group in wiki_data.TOPICS:
+            html = render_template(f"wiki/{slug}.html", **_wiki_ctx(slug))
+            body = html.split('<article class="wiki-body">', 1)[-1].split("</article>", 1)[0]
+            text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", body)).strip()
+            entries.append({"t": title, "k": "Guide", "u": url_for("main.wiki", topic=slug), "s": blurb, "x": text})
+        for c in PLAYABLE:
+            entries.append({"t": c["name"], "k": f"Stand · {c['rarity']}", "u": url_for("main.stand", stand_id=c["id"]),
+                            "s": c["special_description"].replace("`", ""), "x": c["universe"]})
+        for it in item_file:
+            if it.get("name"):
+                entries.append({"t": it["name"], "k": "Item", "u": url_for("main.wiki", topic="items"), "s": "", "x": ""})
+        for t in wiki_data.terrain_rows():
+            entries.append({"t": t["name"], "k": "Terrain", "u": url_for("main.wiki", topic="terrains") + "#" + t["key"],
+                            "s": t.get("rule") or t["blurb"], "x": " ".join(s["name"] for s in t["setters"])})
+        for g in wiki_data.synergy_rows():
+            entries.append({"t": g["name"], "k": "Synergy", "u": url_for("main.wiki", topic="synergies") + "#" + g["key"],
+                            "s": g["rule"], "x": " ".join(m["stand"]["name"] for m in g["members"])})
+        for e in wiki_data.effect_rows():
+            entries.append({"t": e["name"], "k": "Status effect", "u": url_for("main.wiki", topic="combat"),
+                            "s": e["text"], "x": ""})
+        _SEARCH_INDEX = entries
+    resp = jsonify(_SEARCH_INDEX)
+    resp.headers["Cache-Control"] = "public, max-age=3600"
+    return resp
 
 
 @bp.get("/stands/<int:stand_id>")
@@ -140,7 +182,34 @@ def profile(uid: str):
     doc = get_db().get_user_doc(uid)
     if not doc:
         abort(404)
+    from math import sqrt
+    from app.game import rush, story, tower
+    from app.game.achievements import get_all_achievements_status
+    from app.game.user import LVLSCALING, USRXPTOLEVEL
     user = User(doc)
     gang = get_db().get_gang(user.gang_id)
-    owned = len(user.main_characters) + len(user.storage_characters)
-    return render_template("profile.html", u=user, ident=identity(uid), gang=gang, uid=uid, owned=owned)
+    stands = user.main_characters + user.storage_characters
+    rank = {r: i for i, r in enumerate(RARITY_ORDER)}
+    unique = {c.id for c in stands}
+    collection = []
+    for r in RARITY_ORDER:
+        pool = {c["id"] for c in PLAYABLE if c["rarity"] == r}
+        if pool:
+            collection.append({"rarity": r, "have": len(unique & pool), "total": len(pool)})
+    showcase = sorted(stands, key=lambda c: (rank.get(c.rarity, 0), c.awaken, c.level), reverse=True)[:6]
+    # progress inside the current level (the level curve is LVLSCALING * sqrt(xp))
+    lvl = user.level
+    next_xp = ((lvl + 1) / LVLSCALING) ** 2 if lvl < USRXPTOLEVEL else None
+    this_xp = (lvl / LVLSCALING) ** 2
+    level_pct = 100 if next_xp is None else max(0, min(100, 100 * (user.xp - this_xp) / max(1, next_xp - this_xp)))
+    achievements = get_all_achievements_status(user)
+    unlocked_ids = user.achievement_data.get("unlocked", [])
+    recent = [a for a in achievements if a["unlocked"]]
+    recent.sort(key=lambda a: unlocked_ids.index(a["id"]) if a["id"] in unlocked_ids else -1, reverse=True)
+    return render_template(
+        "profile.html", u=user, ident=identity(uid), gang=gang, uid=uid, owned=len(stands), unique=len(unique),
+        playable=len(PLAYABLE), collection=collection, showcase=showcase, level_pct=round(level_pct),
+        story_cleared=story.cleared(user), story_total=story.TOTAL,
+        tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSS_STAGES),
+        achievements_done=len(recent), achievements_total=len(achievements), recent=recent[:4],
+        is_me=session.get("uid") == uid)

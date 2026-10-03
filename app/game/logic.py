@@ -274,7 +274,7 @@ def _record_pull(user: User, banner: dict, drawn: list, mode: str):
 # /adventure begin, /adventure daily
 # --------------------------------------------------------------------------- #
 def begin(user: User):
-    user.super_fragements += 1
+    user.super_fragments += 1
     check_achievements(user, "register")
 
 
@@ -307,7 +307,7 @@ def _claim_streak(user: User) -> Optional[dict]:
     day = (count - 1) % 7 + 1
     bonus = STREAK_REWARDS[day - 1]
     user.fragments += bonus.get("fragments", 0)
-    user.super_fragements += bonus.get("super", 0)
+    user.super_fragments += bonus.get("super", 0)
     items = [item_from_dict({"id": i}) for i in bonus.get("items", [])]
     user.items.extend(items)
     return {"count": count, "day": day, "fragments": bonus.get("fragments", 0), "super": bonus.get("super", 0),
@@ -329,7 +329,7 @@ def daily(user: User) -> dict:
         user.items.append(item)
         res["item"] = item
     if roll < 2:
-        user.super_fragements += 1
+        user.super_fragments += 1
         res["super"] = 1
     res["streak"] = _claim_streak(user)
     track_quest_progress(user, "daily_claim")
@@ -344,11 +344,11 @@ def daily(user: User) -> dict:
 # --------------------------------------------------------------------------- #
 def banner_pull(user: User, banner_id: int) -> dict:
     banner = _banner(banner_id)
-    if banner["cost"] > user.super_fragements:
-        raise GameError(f"A 10-pull costs {banner['cost']} super fragment. You have {user.super_fragements}.")
+    if banner["cost"] > user.super_fragments:
+        raise GameError(f"A 10-pull costs {banner['cost']} super fragment. You have {user.super_fragments}.")
     if free_slots(user) < 10:
         raise GameError("You need 10 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
-    user.super_fragements -= banner["cost"]
+    user.super_fragments -= banner["cost"]
     drawn = []
     for i in range(10):
         # 10-pull floor: the last stand is at least SR if the first nine were all R
@@ -743,7 +743,7 @@ def shop_buy(user: User, key: str) -> str:
     track_quest_progress(user, "shop_buy")
     check_achievements(user, "shop_buy")
     if entry["type"] == "currency":
-        user.super_fragements += 1
+        user.super_fragments += 1
     else:
         user.items.append(Item({"id": entry["id"]}))
     return entry["name"]

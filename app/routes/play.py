@@ -3,7 +3,7 @@ per-user lock, reload fresh data from Redis, apply the rule, save."""
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
 from app.auth import player_required
-from app.db import Busy, clear_fight, get_db, load_fight, save_fight, user_lock
+from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
 from app.game import logic
 from app.game import dungeon as dungeon_logic
 from app import wiki as wiki_data
@@ -15,6 +15,7 @@ from app.game.logic import BANNERS, DEFAULT_SHOP, RECIPES, GameError
 from app.game.quests import QUEST_BY_ID, ensure_quests_assigned
 
 from app.routes.fightturn import play_turn  # noqa: E402
+from app.game import tower as tower_logic  # noqa: E402
 
 bp = Blueprint("play", __name__)
 
@@ -490,39 +491,29 @@ def wormhole_leave():
     return redirect(url_for("play.wormhole"))
 
 
-TOWER_WAVES = (
-    ((8, "SPEED", "GOOD", 0), (11, "ATTACK", "GOOD", 0), (12, "DEFENSE", "GOOD", 0)),
-    ((7, "SPEED", "GREAT", 1), (13, "ATTACK", "GREAT", 1), (18, "ATTACK", "GOOD", 1)),
-    ((19, "LUCK", "GREAT", 2), (22, "SPEED", "GREAT", 2), (25, "ATTACK", "SUPREME", 1)),
-    ((27, "ATTACK", "SUPREME", 2), (28, "LUCK", "SUPREME", 2), (29, "ATTACK", "GREAT", 2)),
-    ((14, "ATTACK", "SUPREME", 2), (30, "ATTACK", "SUPREME", 2), (16, "DEFENSE", "SUPREME", 2)),
-    ((10, "ATTACK", "UNIVERSAL", 3), (30, "ATTACK", "SUPREME", 2), (21, "DEFENSE", "SUPREME", 2)),
-)
-TOWER_COST = 500
-
-
-def _tower_team(stage, completed_towers):
-    enemies = []
-    for char_id, type_name, quality, awaken in TOWER_WAVES[stage]:
-        data = {"id": char_id, "xp": (1000 + stage * 900) + completed_towers * 2000,
-                "awaken": min(3, awaken + completed_towers // 2), "types": [type_name],
-                "qualities": [quality], "items": [{"id": 1}]}
-        enemies.append(character_from_dict(data))
-    return enemies
+# --------------------------------------------------------------------------- #
+# Tower: endless weekly climb (app/game/tower.py)
+# --------------------------------------------------------------------------- #
+TOWER_COST = tower_logic.CLIMB_COST
 
 
 @bp.get("/tower")
 @player_required
 def tower():
     user = _user()
-    fight = load_fight(session["uid"])
-    other_fight = None
-    if fight and fight.kind != "tower":
-        other_fight = fight.kind
-        fight = None
-    stage = int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES)
-    return render_template("tower.html", u=user, fight=fight, stage=stage, other_fight=other_fight,
-                           climb_active=bool(user.data.get("web_tower_active")),
+    uid = session["uid"]
+    fight = load_fight(uid)
+    other_fight = fight.kind if fight and fight.kind != "tower" and not fight.finished else None
+    fight = fight if fight and fight.kind == "tower" else None
+    s = tower_logic.state(user)
+    floor = s["run"]["floor"] if s.get("run") else 1
+    team = tower_logic.load_team(r(), uid) if s.get("run") else None
+    shown = range(max(1, floor - 2), floor + 5)
+    return render_template("tower.html", u=user, s=s, floor=floor, team=team, fight=fight, other_fight=other_fight,
+                           floors=[tower_logic.preview(f) for f in reversed(shown)], cost=TOWER_COST,
+                           reward=tower_logic.reward_text(floor), board=tower_logic.leaderboard(r()),
+                           ends_in=tower_logic.ends_in(), rest_heal=round(tower_logic.REST_HEAL * 100),
+                           floor_heal=round(tower_logic.FLOOR_HEAL * 100), revive=round(tower_logic.REVIVE * 100),
                            fight_action=url_for("play.tower_attack"),
                            fight_leave_action=url_for("play.tower_leave"), fight_label="Tower")
 
@@ -530,61 +521,50 @@ def tower():
 @bp.post("/tower/start")
 @player_required
 def tower_start():
+    """Begin a climb (pays the entry) or fight the next floor of the climb in progress."""
     uid = session["uid"]
-    if load_fight(uid):
+    existing = load_fight(uid)
+    if existing and not existing.finished:
         return redirect(url_for("play.tower"))
 
     def start(user):
-        if not user.main_characters:
-            raise GameError("Set up a team before entering the tower.")
-        active = bool(user.data.get("web_tower_active"))
-        if not active and user.fragments < TOWER_COST:
-            raise GameError(f"A tower climb costs {TOWER_COST} fragments.")
-        if not active:
-            user.fragments -= TOWER_COST
-            user.data["web_tower_active"] = True
+        s = tower_logic.state(user)
+        if not s.get("run"):
+            tower_logic.start_climb(user, r(), fighting_copy(user.main_characters))
             logic.track_quest_progress(user, "tower_attempt")
             logic.check_achievements(user, "tower_attempt")
-        stage = int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES)
-        enemies = _tower_team(stage, user.tower_level)
-        fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True,
-                           session.get("avatar")),
-                      Side(f"Floor {stage + 1}", enemies, False), kind="tower",
-                      meta={"stage": stage, "tower_level": user.tower_level})
+        team = tower_logic.load_team(r(), uid)
+        if not team or not any(c.is_alive() for c in team):
+            tower_logic.abandon(user, r())
+            raise GameError("Your climb expired or your team is down. Start a new climb.")
+        floor = s["run"]["floor"]
+        fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
+                      Side(f"Floor {floor}", tower_logic.floor_team(floor), False), kind="tower",
+                      meta={"floor": floor})
         fight.advance()
-        return fight
+        save_fight(uid, fight)
 
-    user, fight, err = action(start)
+    _, _, err = action(start)
     if err:
-        return render_template("tower.html", u=user, fight=None,
-                               stage=int(user.data.get("web_tower_floor", 0)) % len(TOWER_WAVES),
-                               climb_active=bool(user.data.get("web_tower_active")), error=err)
-    save_fight(uid, fight)
+        flash(err, "error")
+    return redirect(url_for("play.tower"))
+
+
+@bp.post("/tower/abandon")
+@player_required
+def tower_abandon():
+    if load_fight(session["uid"]) and not load_fight(session["uid"]).finished:
+        flash("Finish the floor you're on first.", "error")
+        return redirect(url_for("play.tower"))
+    action(lambda u: tower_logic.abandon(u, r()))
+    flash("Climb ended. Your best floor this week still counts.", "ok")
     return redirect(url_for("play.tower"))
 
 
 def _tower_settle(user, fight):
-    won = fight.winner == 0
-    rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
-    if not won:
-        user.data["web_tower_active"] = False
-        return rewards
-    stage = int(fight.meta["stage"])
-    rewards.update(fragments=150 + stage * 50, xp=100 + stage * 50, stand_xp=10 + stage * 5)
-    user.fragments += rewards["fragments"]
-    user.xp += rewards["xp"]
-    for char in user.main_characters:
-        char.xp += rewards["stand_xp"]
-    item = item_from_dict({"id": (13, 1, 2, 7, 9)[stage % 5]})
-    user.items.append(item)
-    rewards["item"] = item.name
-    if stage == len(TOWER_WAVES) - 1:
-        user.tower_level = max(user.tower_level, int(fight.meta["tower_level"]) + 1)
-        user.data["web_tower_floor"] = 0
-        user.data["web_tower_active"] = False
+    rewards = tower_logic.finish_floor(user, fight, r(), session.get("name", "?"))
+    if rewards.get("tower", {}).get("floor", 0) % 10 == 0 and rewards["won"]:
         logic.track_quest_progress(user, "tower_complete")
-    else:
-        user.data["web_tower_floor"] = stage + 1
     return rewards
 
 
@@ -592,6 +572,7 @@ def _tower_settle(user, fight):
 @player_required
 def tower_attack():
     return play_turn("tower", url_for("play.tower"), "Tower", "play.tower_attack", "play.tower_leave", _tower_settle)
+
 
 @bp.post("/tower/leave")
 @player_required

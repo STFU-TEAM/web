@@ -45,7 +45,7 @@ def check_achievements(user, action: str, count: int = 1) -> List[dict]:
             # Apply rewards
             reward = ach["reward"]
             user.fragments += reward.get("fragments", 0)
-            user.super_fragements += reward.get("super_fragments", 0)
+            user.super_fragments += reward.get("super_fragments", 0)
             for item_data in reward.get("items", []):
                 item = item_from_dict({"id": item_data["id"]})
                 user.items.append(item)

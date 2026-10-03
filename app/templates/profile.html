@@ -2,26 +2,64 @@
 {% from "macros.html" import owned_card %}
 {% block title %}{{ ident.name }} | STFU Requiem{% endblock %}
 {% block main %}
-<section class="page">
-  <header class="profile-head">
-    {% if ident.avatar %}<img class="avatar" src="{{ ident.avatar }}" alt="" width="96" height="96">{% endif %}
-    <div>
+<section class="page profile">
+  <header class="profile-hero">
+    {% if ident.avatar %}<img class="avatar" src="{{ ident.avatar }}" alt="" width="104" height="104">
+    {% else %}<span class="avatar avatar-big" aria-hidden="true">{{ (ident.name or '?')[:1]|upper }}</span>{% endif %}
+    <div class="profile-id">
+      <p class="kicker">{{ u.global_elo|rank }}{% if u.is_donator() %} · <span class="supporter">★ Supporter</span>{% endif %}</p>
       <h1 class="display sm">{{ ident.name }}</h1>
-      <p class="muted">Playing since {{ u.join_date.strftime('%B %Y') }}{% if gang %}, member of {{ gang.name }}{% endif %}{% if u.is_donator() %}, supporter{% endif %}.</p>
+      <p class="muted">Playing since {{ u.join_date.strftime('%B %Y') }}{% if gang %} · <strong>⚑ {{ gang.name }}</strong>{% endif %}</p>
+      <div class="profile-level" title="{{ level_pct }}% to the next level">
+        <span>Level <strong>{{ u.level }}</strong></span>
+        <div class="meter" role="meter" aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ level_pct }}"><i style="width: {{ level_pct }}%"></i></div>
+      </div>
     </div>
+    <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
   </header>
-  <dl class="figures">
-    <div><dt>Level</dt><dd>{{ u.level }}</dd></div>
-    <div><dt>Ranked</dt><dd>{{ u.global_elo|rank }}</dd></div>
-    <div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div>
-    <div><dt>Tower floor</dt><dd>{{ u.tower_level }}</dd></div>
-    <div><dt>Stands owned</dt><dd>{{ owned }}</dd></div>
-  </dl>
-  <h2 class="h2">Team</h2>
-  {% if u.main_characters %}
-    <div class="grid team-grid">{% for c in u.main_characters %}{{ owned_card(c) }}{% endfor %}</div>
-  {% else %}
-    <p class="notice">No stand in the team right now.</p>
+
+  <ul class="profile-stats" aria-label="Records">
+    <li><span>⚔</span><strong>{{ u.global_elo|num }}</strong><small>Elo · {{ u.global_elo|rank }}</small></li>
+    <li><span>📜</span><strong>{{ story_cleared }}/{{ story_total }}</strong><small>Story stages</small></li>
+    <li><span>▲</span><strong>{{ tower_week }}</strong><small>Tower this week · best ever {{ u.tower_level }}</small></li>
+    <li><span>♛</span><strong>{{ rush_best.bosses }}/{{ rush_total }}</strong><small>Boss rush this week</small></li>
+    <li><span>🏆</span><strong>{{ achievements_done }}/{{ achievements_total }}</strong><small>Achievements</small></li>
+    <li><span>☆</span><strong>{{ unique }}/{{ playable }}</strong><small>Stands discovered · {{ owned }} owned</small></li>
+  </ul>
+
+  <div class="profile-grid">
+    <section>
+      <h2 class="h2">Team</h2>
+      {% if u.main_characters %}
+        <div class="grid team-grid">{% for c in u.main_characters %}{{ owned_card(c) }}{% endfor %}</div>
+      {% else %}<p class="notice">No stand in the team right now.</p>{% endif %}
+    </section>
+    <aside class="profile-side">
+      <section>
+        <h2 class="h3">Collection</h2>
+        <ul class="profile-collection">
+          {% for row in collection %}
+            <li><span class="rar-tag {{ row.rarity|rarity }}">{{ row.rarity }}</span>
+              <div class="meter" role="meter" aria-label="{{ row.rarity }} stands discovered" aria-valuemin="0" aria-valuemax="{{ row.total }}" aria-valuenow="{{ row.have }}"><i style="width: {{ (100 * row.have / row.total)|round }}%"></i></div>
+              <small>{{ row.have }}/{{ row.total }}</small></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% if recent %}
+        <section>
+          <h2 class="h3">Latest achievements</h2>
+          <ul class="profile-achievements">
+            {% for a in recent %}<li><span aria-hidden="true">{{ a.emoji|emoji }}</span><span><strong>{{ a.name }}</strong><small class="muted">{{ a.description }}</small></span></li>{% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+
+  {% if showcase %}
+    <h2 class="h2 profile-showcase-title">Showcase</h2>
+    <div class="grid pull-grid">{% for c in showcase %}{{ owned_card(c, size='small') }}{% endfor %}</div>
   {% endif %}
+  {% if is_me %}<p class="muted wiki-note">This is how other players see you. <a href="{{ url_for('play.team') }}">Manage your team</a></p>{% endif %}
 </section>
 {% endblock %}

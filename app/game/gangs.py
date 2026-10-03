@@ -257,9 +257,19 @@ def raid_state(gang: dict) -> dict:
     """This week's raid on the gang, reset lazily when a new week starts."""
     state = gang.get("web_raid")
     if not state or state.get("week") != week_key():
+        if state and state.get("hits"):  # last week's tiers stay claimable for one more week
+            gang["web_raid_prev"] = state
         state = {"week": week_key(), "damage": 0, "attacks": {}, "hits": {}, "claimed": {}}
         gang["web_raid"] = state
     return state
+
+
+def previous_raid(gang: dict) -> Optional[dict]:
+    """Last week's raid, if it ended in the week just before this one."""
+    raid_state(gang)
+    prev = gang.get("web_raid_prev")
+    last_week = week_key(now() - datetime.timedelta(days=7))
+    return prev if prev and prev.get("week") == last_week else None
 
 
 def can_attack(gang: dict, uid: str) -> bool:
@@ -290,20 +300,33 @@ def raid_damage(enemies) -> int:
     return int(sum(max(0, c.start_hp - max(c.current_hp, 0)) for c in enemies))
 
 
-def record_raid_damage(gang: dict, uid: str, damage: int, week: str):
+def record_raid_damage(gang: dict, uid: str, damage: int, week: str, redis=None):
     state = raid_state(gang)
     if state["week"] != week:  # the fight started last week: too late to count
         return
     state["damage"] += damage
     state["hits"][str(uid)] = state["hits"].get(str(uid), 0) + damage
+    if redis is not None:  # weekly leaderboard without scanning every gang
+        key = f"web:raid:{week}"
+        redis.zadd(key, {gang["_id"]: state["damage"]})
+        redis.hset(f"{key}:names", gang["_id"], gang.get("name", "?"))
+        redis.expire(key, 60 * 60 * 24 * 21)
+        redis.expire(f"{key}:names", 60 * 60 * 24 * 21)
 
 
-def claimable_tiers(gang: dict, uid: str) -> list:
-    state = raid_state(gang)
-    if str(uid) not in state["hits"]:
+def _tiers_for(state: Optional[dict], uid: str) -> list:
+    if not state or str(uid) not in state["hits"]:
         return []
     done = set(state["claimed"].get(str(uid), []))
     return [i for i, t in enumerate(RAID_TIERS) if state["damage"] >= t["damage"] and i not in done]
+
+
+def claimable_tiers(gang: dict, uid: str) -> list:
+    return _tiers_for(raid_state(gang), uid)
+
+
+def claimable_previous(gang: dict, uid: str) -> list:
+    return _tiers_for(previous_raid(gang), uid)
 
 
 def tier_text(tier: dict) -> str:
@@ -319,24 +342,34 @@ def tier_text(tier: dict) -> str:
 
 
 def claim_raid(gang: dict, user) -> list:
+    """Claim every reached tier of this week and of last week's raid. Returns the tiers paid."""
     import random
-    tiers = claimable_tiers(gang, user.id)
-    if not tiers:
+    paid = []
+    for state, tiers in ((raid_state(gang), claimable_tiers(gang, user.id)),
+                         (previous_raid(gang), claimable_previous(gang, user.id))):
+        for i in tiers:
+            tier = RAID_TIERS[i]
+            user.fragments += tier["fragments"]
+            user.super_fragments += tier.get("super", 0)
+            for item_id in tier["items"]:
+                user.items.append(item_from_dict({"id": random.choice([34, 35, 36]) if item_id == "corpse" else item_id}))
+            paid.append(i)
+        if tiers:
+            state["claimed"].setdefault(str(user.id), []).extend(tiers)
+    if not paid:
         raise GameError("Nothing to claim yet. Attack the boss and reach the next tier.")
-    for i in tiers:
-        tier = RAID_TIERS[i]
-        user.fragments += tier["fragments"]
-        user.super_fragements += tier.get("super", 0)
-        for item_id in tier["items"]:
-            user.items.append(item_from_dict({"id": random.choice([34, 35, 36]) if item_id == "corpse" else item_id}))
-    raid_state(gang)["claimed"].setdefault(str(user.id), []).extend(tiers)
-    return tiers
+    return paid
 
 
-def raid_board(gangs: list, limit: int = 10) -> list:
-    week = week_key()
-    rows = [(g.get("web_raid", {}).get("damage", 0), g) for g in gangs if g.get("web_raid", {}).get("week") == week]
-    return [{"name": g.get("name", "?"), "damage": d, "id": g["_id"]} for d, g in sorted(rows, key=lambda x: -x[0])[:limit] if d]
+def raid_board(redis, limit: int = 10) -> list:
+    key = f"web:raid:{week_key()}"
+    rows = redis.zrevrange(key, 0, limit - 1, withscores=True)
+    out = []
+    for gid, damage in rows:
+        gid = gid.decode() if isinstance(gid, bytes) else gid
+        name = redis.hget(f"{key}:names", gid)
+        out.append({"id": gid, "name": name.decode() if isinstance(name, bytes) else (name or "?"), "damage": int(damage)})
+    return [row for row in out if row["damage"]]
 
 
 def attack_rewards(user, won: bool) -> dict:

@@ -62,7 +62,7 @@ def seed_admin():
         return doc
 
     doc = create_user(ADMIN_UID)
-    doc.update(fragments=1_000_000, super_fragements=500, xp=250_000,
+    doc.update(fragments=1_000_000, super_fragments=500, xp=250_000,
                main_characters=[stand(1, 50), stand(2, 50, ("BALANCE",)), stand(5, 50, ("DEFENSE",))],
                storage_characters=[stand(cid, 30) for cid in (10, 59, 49, 32, 74, 71, 108, 114)],
                items=[{"id": 2}] * 5 + [{"id": 1}, {"id": 5}, {"id": 6}])

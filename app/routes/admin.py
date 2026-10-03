@@ -23,7 +23,7 @@ AUDIT_KEY = "web:admin:audit"
 STATS_KEY = "web:admin:stats"
 EDITABLE = {  # field -> (label, min, max)
     "fragments": ("Fragments", 0, 1_000_000_000),
-    "super_fragements": ("Super fragments", 0, 100_000),
+    "super_fragments": ("Super fragments", 0, 100_000),
     "energy": ("Energy", 0, 1000),
     "pity": ("Pity", 0, 1000),
     "global_elo": ("Ranked elo", 0, 100_000),
@@ -72,7 +72,7 @@ def _economy():
     now = logic.now()
     for uid, doc in get_db().all_user_docs():
         totals["fragments"] += int(doc.get("fragments", 0) or 0)
-        totals["super"] += int(doc.get("super_fragements", 0) or 0)
+        totals["super"] += int(doc.get("super_fragments", doc.get("super_fragments", 0)) or 0)
         totals["items"] += len(doc.get("items", []))
         totals["web_only"] += uid.startswith("acc")
         if doc.get("early_supporter") or (doc.get("donor_status") or datetime.datetime.min) > now:
@@ -228,7 +228,7 @@ def player_action(uid, op):
             if kind == "fragments":
                 t.fragments += amount
             elif kind == "super_fragments":
-                t.super_fragements += amount
+                t.super_fragments += amount
             else:
                 t.items.extend(item_from_dict({"id": item_id}) for _ in range(amount))
         _edit(uid, run, kind, f"Granted {amount:,} {item_file[item_id - 1]['name'] if kind == 'item' else kind.replace('_', ' ')} to {name}.",

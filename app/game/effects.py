@@ -17,11 +17,9 @@ Emoji = {
     "SLOW": "🐌",
     "BURN": "🔥",
     "BLEED": "🩸",
-    "HEALTHBOOST": "➕",
     "ARMORUP": "🛡️",
     "ARMORBREAK": "🧱",
     "CRITUP": "🎯",
-    "TERRAIN": "",
 }
 
 
@@ -35,11 +33,9 @@ class EffectType(Enum):
     SPEEDUP = "SPEEDUP"
     BURN = "BURN"
     BLEED = "BLEED"
-    HEALTHBOOST = "HEALTHBOOST"
     ARMORUP = "ARMORUP"
     ARMORBREAK = "ARMORBREAK"
     CRITUP = "CRITUP"
-    TERRAIN = "TERRAIN"
 
 
 # Stat effects change a stat once when applied and undo exactly that when they expire.
@@ -77,7 +73,7 @@ class Effect:
 NEGATIVE_EFFECTS = [EffectType.POISON, EffectType.BURN, EffectType.BLEED, EffectType.STUN, EffectType.WEAKEN,
                     EffectType.SLOW, EffectType.ARMORBREAK]
 POSITIVE_EFFECTS = [EffectType.REGENERATION, EffectType.DAMAGEUP, EffectType.SPEEDUP, EffectType.ARMORUP,
-                    EffectType.CRITUP, EffectType.HEALTHBOOST]
+                    EffectType.CRITUP]
 
 
 class Terrain(Enum):

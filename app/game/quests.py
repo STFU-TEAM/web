@@ -137,7 +137,7 @@ def claim_quest_reward(user, quest_id: int) -> Optional[dict]:
             # Apply rewards
             rewards = quest_def["rewards"]
             user.fragments += rewards.get("fragments", 0)
-            user.super_fragements += rewards.get("super_fragments", 0)
+            user.super_fragments += rewards.get("super_fragments", 0)
             user.xp += rewards.get("xp", 0)
             items_given = []
             for item_data in rewards.get("items", []):

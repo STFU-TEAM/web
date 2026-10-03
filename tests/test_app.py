@@ -270,7 +270,7 @@ def test_tower_entry_and_bot_invite(client):
     response = client.post("/tower/start", headers=headers)
     assert response.status_code == 302
     fight = dbmod.load_fight("111")
-    assert fight.kind == "tower" and len(fight.sides[1].chars) == 3
+    assert fight.kind == "tower" and len(fight.sides[1].chars) == 2  # floor 1 is a two-stand warm-up
     assert doc(client, "111")["fragments"] == 700
     assert b"Your tower fight is active" in client.get("/wormhole").data
     response = client.post("/wormhole/attack", data={"target": "0"}, headers=headers)
@@ -305,9 +305,16 @@ def test_tower_victory_unlocks_next_floor(client):
     fight = dbmod.load_fight("111")
     assert fight.finished and fight.winner == 0
     saved = doc(client, "111")
-    assert saved["web_tower_floor"] == 1
-    assert saved["web_tower_active"] is True
-    assert saved["fragments"] > 500
+    assert saved["web_tower"]["run"]["floor"] == 2 and saved["web_tower"]["best"] == 1
+    assert saved["fragments"] > 500 and saved["tower_level"] >= 1
+    # the same fighters climb on: their health carried over into the next floor
+    client.post("/tower/leave", headers=headers)
+    from app.game import tower
+    team = tower.load_team(client.fake, "111")
+    client.post("/tower/start", headers=headers)
+    nxt = dbmod.load_fight("111")
+    assert nxt.meta["floor"] == 2 and [c.uuid for c in nxt.sides[0].chars] == [c.uuid for c in team]
+    assert b"Floor 2" in client.get("/tower").data
 
 
 def test_dungeon_is_closed_by_default(client):
@@ -431,7 +438,7 @@ def test_begin_pull_and_team(client):
     r = client.post("/auth/welcome", headers=h)
     assert r.headers["Location"].startswith("/banners")
     d = doc(client, "111")
-    assert d["super_fragements"] == 1 and d["main_characters"] == []
+    assert d["super_fragments"] == 1 and d["main_characters"] == []
 
     assert client.get("/banners").status_code == 200
     r = client.post("/banners/0/pull", headers=h)
@@ -441,7 +448,7 @@ def test_begin_pull_and_team(client):
     assert b"/opening/" in r.data
     d = doc(client, "111")
     # an empty team takes the three rarest stands of the pull; the rest go to storage
-    assert d["super_fragements"] == 0 and len(d["main_characters"]) == 3 and len(d["storage_characters"]) == 7
+    assert d["super_fragments"] == 0 and len(d["main_characters"]) == 3 and len(d["storage_characters"]) == 7
     rank = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     team_rank = sorted(rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["main_characters"])
     rest_rank = [rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["storage_characters"]]

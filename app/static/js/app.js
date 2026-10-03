@@ -214,6 +214,85 @@ document.addEventListener("htmx:afterSwap", (e) => {
   }
 });
 
+// Wiki search: loads a small index once, then filters as you type (every word must match).
+(() => {
+  const box = document.querySelector("[data-wiki-search]");
+  if (!box) return;
+  const input = box.querySelector("input");
+  const list = box.querySelector("#wiki-results");
+  const count = box.querySelector("#wiki-results-count");
+  let index = null;
+  const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const load = async () => {
+    if (index) return index;
+    const data = await (await fetch(box.dataset.index)).json();
+    index = data.map((e) => ({ ...e, title: norm(e.t), hay: norm(`${e.t} ${e.k} ${e.s} ${e.x}`) }));
+    return index;
+  };
+  const snippet = (e, words) => {
+    const text = e.s || e.x || "";
+    const at = words.length ? norm(text).indexOf(words[0]) : -1;
+    const from = Math.max(0, at - 40);
+    return (from ? "…" : "") + text.slice(from, from + 140) + (text.length > from + 140 ? "…" : "");
+  };
+  const render = async () => {
+    const q = norm(input.value.trim());
+    if (q.length < 2) { list.hidden = true; list.innerHTML = ""; count.textContent = ""; return; }
+    const words = q.split(/\s+/);
+    const hits = (await load()).filter((e) => words.every((w) => e.hay.includes(w)))
+      .map((e) => ({ e, score: (e.title.startsWith(q) ? 3 : 0) + (words.every((w) => e.title.includes(w)) ? 2 : 0) + (e.k === "Guide" ? 0.5 : 0) }))
+      .sort((a, b) => b.score - a.score).slice(0, 12);
+    list.innerHTML = "";
+    for (const { e } of hits) {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = e.u;
+      const kind = document.createElement("small"); kind.textContent = e.k;
+      const title = document.createElement("strong"); title.textContent = e.t;
+      const text = document.createElement("span"); text.textContent = snippet(e, words);
+      a.append(kind, title, text);
+      li.append(a);
+      list.append(li);
+    }
+    if (!hits.length) { const li = document.createElement("li"); li.className = "muted"; li.textContent = "Nothing found. Try a stand name or a word like “stun”."; list.append(li); }
+    list.hidden = false;
+    count.textContent = `${hits.length} result${hits.length === 1 ? "" : "s"}`;
+  };
+  input.addEventListener("input", render);
+  input.addEventListener("focus", load, { once: true });
+  input.addEventListener("keydown", (e) => {
+    const links = [...list.querySelectorAll("a")];
+    if (e.key === "ArrowDown" && links.length) { e.preventDefault(); links[0].focus(); }
+    if (e.key === "Escape") { input.value = ""; render(); }
+  });
+  list.addEventListener("keydown", (e) => {
+    const links = [...list.querySelectorAll("a")];
+    const i = links.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" && i < links.length - 1) { e.preventDefault(); links[i + 1].focus(); }
+    if (e.key === "ArrowUp") { e.preventDefault(); (i > 0 ? links[i - 1] : input).focus(); }
+    if (e.key === "Escape") input.focus();
+  });
+})();
+
+// Phones: the combat log shows its latest lines; the toggle opens the whole log.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-log-toggle]");
+  if (!btn) return;
+  const open = btn.closest(".log").classList.toggle("open");
+  btn.setAttribute("aria-expanded", String(open));
+  btn.textContent = open ? "Show less" : "Show full log";
+});
+
+// "Copy link" buttons (profiles): clipboard with a short confirmation.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const label = btn.textContent;
+  try { await navigator.clipboard.writeText(btn.dataset.copy); btn.textContent = "✓ Link copied"; }
+  catch (err) { btn.textContent = "Copy failed"; }
+  setTimeout(() => { btn.textContent = label; }, 1800);
+});
+
 // Surface server errors instead of failing silently.
 document.addEventListener("htmx:responseError", (e) => {
   const p = document.createElement("p");

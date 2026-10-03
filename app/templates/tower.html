@@ -1,35 +1,86 @@
 {% extends "base.html" %}
 {% block title %}Tower | STFU Requiem{% endblock %}
 {% block main %}
-<section class="page">
+<section class="page tower-page">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Endless climb · resets in {{ ends_in|delta }}</p>
+      <h1 class="display sm">The Tower</h1>
+      <p class="muted">Floors never end and the enemies grow exponentially. Your team's health and growth carry from floor to floor:
+        a {{ floor_heal }}% patch-up after each one, and every 5th floor is a rest stop ({{ rest_heal }}% heal, fallen stands back at {{ revive }}%).</p>
+    </div>
+    <div class="rush-best"><small>Best this week</small><strong>{{ s.best }}</strong><span class="muted">all-time {{ u.tower_level }}</span></div>
+  </header>
+
   {% if fight %}
     {% include "partials/fight.html" %}
-  {% else %}
-    <div class="tower-intro narrow">
-      <p class="kicker">Part 3 | Stardust Crusaders</p>
-      <h1 class="display sm">The Tower</h1>
-      <p class="lede">Six consecutive floors. Clear each one to reach the next; a defeat sends you back to the current floor.</p>
-      <ol class="tower-floors" aria-label="Tower progress">
-        {% for floor in range(6) %}
-          <li class="{% if floor < stage %}cleared{% elif floor == stage %}current{% endif %}"><span>{{ floor + 1 }}</span></li>
-        {% endfor %}
-      </ol>
-      <p>Floor {{ stage + 1 }} of 6 · Entry {{ 500|num }} fragments{% if climb_active %} · entry paid{% endif %}</p>
+  {% endif %}
+
+  <div class="tower-layout">
+    <ol class="tower-stack" aria-label="Tower floors">
+      <li class="tower-cap" aria-hidden="true">∞</li>
+      {% for f in floors %}
+        {% set state = 'cleared' if s.run and f.floor < floor else ('current' if f.floor == floor else 'ahead') %}
+        <li class="tower-floor {{ state }}{% if f.boss %} boss{% endif %}{% if f.rest %} rest{% endif %}" {% if state == 'current' %}aria-current="step"{% endif %}>
+          <div class="tower-floor-num"><small>Floor</small><strong>{{ f.floor }}</strong>
+            {% if f.boss %}<em>♛ boss</em>{% elif f.rest %}<em>⛺ rest</em>{% endif %}</div>
+          <ul class="tower-foes" aria-label="Enemies on floor {{ f.floor }}">
+            {% for c in f.stands %}<li class="rar-{{ c.rarity|rarity }}" title="{{ c.name }} ({{ c.rarity }})"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></li>{% endfor %}
+          </ul>
+          <div class="tower-floor-meta">Lv {{ f.level }}{% if f.awaken %} ★{{ f.awaken }}{% endif %}{% if f.mult > 1 %} · ×{{ f.mult }} stats{% endif %}
+            {% if state == 'cleared' %}<span class="tower-tag done">✓ cleared</span>{% elif state == 'current' %}<span class="tower-tag here">{{ 'You are here' if s.run else 'Start here' }}</span>{% endif %}</div>
+          {% if state == 'current' and team %}
+            <ul class="tower-climbers" aria-label="Your team">
+              {% for c in team %}<li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" title="{{ c.name }} {{ c.current_hp|int }}/{{ c.start_hp|int }}" loading="lazy"></li>{% endfor %}
+            </ul>
+          {% endif %}
+        </li>
+      {% endfor %}
+      <li class="tower-base" aria-hidden="true">Ground floor</li>
+    </ol>
+
+    <aside class="tower-side">
       {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
       {% if other_fight %}
-        <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.wormhole') }}">Return to the wormhole</a>.</p>
-      {% elif not u.main_characters %}
-        <p class="notice">Set up a team before entering. <a href="{{ url_for('play.team') }}">Open your team</a>.</p>
-      {% elif u.fragments < 500 and not climb_active %}
-        <p class="notice">You need {{ 500|num }} fragments to begin a climb.</p>
-      {% else %}
-        <form method="post" action="{{ url_for('play.tower_start') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <button class="btn gold big">{{ "Continue to floor " ~ (stage + 1) if climb_active else "Begin the climb" }}</button>
-        </form>
+        <p class="notice">Your {{ other_fight }} fight is still on. Finish it first.</p>
+      {% elif not fight or fight.finished %}
+        <div class="tower-panel">
+          {% if s.run and team %}
+            <p class="kicker">Climb in progress</p>
+            <h2 class="h2">Floor {{ floor }}</h2>
+            <ul class="rush-team tower-team">
+              {% for c in team %}
+                <li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }}</span>
+                  <div class="hp"><i style="width: {{ ([100 * c.current_hp / c.start_hp, 100]|min)|round }}%"></i></div><small>{{ c.current_hp|int }}/{{ c.start_hp|int }}</small></li>
+              {% endfor %}
+            </ul>
+            <p class="story-reward">🎁 {% if floor > s.paid %}First clear this week: {{ reward }}{% else %}Already paid this week{% endif %}</p>
+            <form method="post" action="{{ url_for('play.tower_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="btn gold big">Fight floor {{ floor }} →</button></form>
+            <form method="post" action="{{ url_for('play.tower_abandon') }}" onsubmit="return confirm('End this climb? You keep your best floor.')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="btn small ghost">End the climb</button></form>
+          {% else %}
+            <p class="kicker">New climb</p>
+            <h2 class="h2">Start from floor 1</h2>
+            <p class="muted">A climb costs {{ cost|num }} fragments. Floors pay out the first time you clear them each week; every 10th floor adds a super fragment. Bring a levelled team: the tower is harder than the story.</p>
+            {% if not u.main_characters %}<p class="notice">Put stands in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+            {% elif u.fragments < cost %}<p class="notice">You need {{ cost|num }} fragments to climb.</p>
+            {% else %}
+              <form method="post" action="{{ url_for('play.tower_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <button class="btn gold big">Begin the climb · {{ cost|num }}</button></form>
+            {% endif %}
+          {% endif %}
+        </div>
       {% endif %}
-      <p class="muted">A climb costs 500 fragments once. Victories award fragments, XP and an item.</p>
-    </div>
-  {% endif %}
+      <section class="tower-panel">
+        <h2 class="h3">This week's highest climbers</h2>
+        {% if board %}
+          <ol class="social-list gang-standings">
+            {% for row in board %}<li class="{{ 'me' if row.uid == me.id }}"><span class="rank">{{ loop.index }}</span><strong>{{ row.name }}</strong><span></span><b>Floor {{ row.floor }}</b></li>{% endfor %}
+          </ol>
+        {% else %}<p class="muted">Nobody has climbed yet this week.</p>{% endif %}
+      </section>
+    </aside>
+  </div>
 </section>
 {% endblock %}

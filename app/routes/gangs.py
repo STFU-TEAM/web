@@ -70,7 +70,7 @@ def index():
     gang = db.get_gang(user.gang_id)
     ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(),
            "tiers": [{**t, "text": G.tier_text(t)} for t in G.RAID_TIERS], "week_ends": G.week_ends(),
-           "raid_board": G.raid_board(db.all_gangs())}
+           "raid_board": G.raid_board(r())}
     if gang:
         me_rank = G.rank_of(gang, user.id)
         roster = sorted(({"id": m, "identity": identity(m), "rank": G.rank_of(gang, m)} for m in G.members(gang)),
@@ -85,7 +85,8 @@ def index():
             war_attacked=user.id in [str(x) for x in gang.get("war_attacks", [])],
             last_war=G.last_war(r(), gang["_id"]),
             raid=G.raid_state(gang), raid_ready=G.can_attack(gang, user.id),
-            raid_claim=G.claimable_tiers(gang, user.id),
+            raid_claim=G.claimable_tiers(gang, user.id) + G.claimable_previous(gang, user.id),
+            raid_prev_claim=G.claimable_previous(gang, user.id),
             raid_hits=sorted(((identity(m)["name"], d) for m, d in G.raid_state(gang)["hits"].items()), key=lambda x: -x[1]),
             now=logic.now(),
         )
@@ -411,7 +412,7 @@ def _settle(fight):
             else:
                 damage = G.raid_damage(enemies)
                 if gang:
-                    G.record_raid_damage(gang, uid, damage, fight.meta.get("week", ""))
+                    G.record_raid_damage(gang, uid, damage, fight.meta.get("week", ""), r())
             if gang:
                 db.update_gang(gang)
             fight.rewards = G.attack_rewards(user, won)

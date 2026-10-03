@@ -2,6 +2,13 @@
 {% block title %}{% block wiki_title %}Wiki{% endblock %} | STFU Requiem Wiki{% endblock %}
 {% block main %}
 <div class="page wiki">
+  <div class="wiki-search" role="search" data-wiki-search data-index="{{ url_for('main.wiki_search_index') }}">
+    <label class="sr" for="wiki-q">Search the wiki</label>
+    <input id="wiki-q" type="search" placeholder="Search the wiki: a stand, a rule, a terrain…" autocomplete="off"
+           aria-controls="wiki-results" aria-describedby="wiki-results-count">
+    <p id="wiki-results-count" class="sr" aria-live="polite"></p>
+    <ul id="wiki-results" class="wiki-results" hidden></ul>
+  </div>
   <nav class="wiki-nav" aria-label="Wiki topics">
     <a class="wiki-nav-home" href="{{ url_for('main.wiki') }}" {% if not topic %}aria-current="page"{% endif %}>📖 Wiki home</a>
     {% for group, entries in topics %}
