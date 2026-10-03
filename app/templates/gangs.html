@@ -52,16 +52,16 @@
         {% if war_attacked %}<p class="muted">You already attacked in this war.</p>
         {% else %}{{ post('gangs.attack_start', 'Attack their guardians', 'btn gold', mode='war') }}{% endif %}
       {% elif queued %}
-        <p>Looking for an opponent… The war starts as soon as another gang is matched.</p>
+        <p>Looking for an opponent… The war starts as soon as another gang looks for one too.</p>
       {% else %}
-        <p class="muted">Not at war. Wars last 2 days; the gang with more damage per member wins elo and 10,000 fragments.</p>
+        <p class="muted">Not at war. Wars last 2 days; the gang with more damage per member wins elo and 10,000 Meteor Dust.</p>
         {% if capo %}
           {% if guardians %}{{ post('gangs.war_start', 'Find a war', 'btn gold') }}
           {% else %}<p class="notice">Add at least one guardian before going to war.</p>{% endif %}
         {% endif %}
       {% endif %}
       {% if last_war %}
-        <p class="muted war-last">Last war: <strong>{{ last_war.winner_name }}</strong> beat {{ last_war.loser_name }} ({{ last_war.winner_damage|round(1) }} vs {{ last_war.loser_damage|round(1) }} per member).</p>
+        <p class="muted war-last">Last war: {% if last_war.draw %}{{ last_war.winner_name }} and {{ last_war.loser_name }} drew{% else %}<strong>{{ last_war.winner_name }}</strong> beat {{ last_war.loser_name }}{% endif %} ({{ last_war.winner_damage|round(1) }} vs {{ last_war.loser_damage|round(1) }} per member).</p>
       {% endif %}
     </section>
 
@@ -150,7 +150,7 @@
     <h2 class="h2">Vault & stash</h2>
     <div class="gang-grid">
       <div>
-        <p>The vault holds <strong>{{ gang.vault|num }}</strong> fragments. Pay members from it for their raid and war work.</p>
+        <p>The vault holds <strong>{{ gang.vault|num }}</strong> Meteor Dust. Pay members from it for their raid and war work.</p>
         <form class="inline" method="post" action="{{ url_for('gangs.deposit') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token }}">
           <label><span class="sr">Amount</span><input type="number" name="amount" min="1" max="{{ u.fragments }}" placeholder="Amount" required></label>
@@ -210,7 +210,7 @@
   {% endif %}
   <section class="social-panel">
     <h2 class="h2">Found a gang</h2>
-    <p>Costs {{ R.GANG_COST|num }} fragments. You become its boss.</p>
+    <p>Costs {{ R.GANG_COST|num }} Meteor Dust. You become its boss.</p>
     <form class="social-form" method="post" action="{{ url_for('gangs.create') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <label>Gang name<input type="text" name="name" minlength="2" maxlength="32" required></label>

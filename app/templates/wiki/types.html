@@ -24,6 +24,6 @@
 <ul class="wiki-list">
   <li>A bad first roll guarantees a second type roll.</li>
   <li>Types stack: Attack Great plus Luck Supreme boosts both damage and critical.</li>
-  <li>Unhappy with a roll? Reforge a team stand on the <a href="{{ url_for('play.team') }}">team page</a> for {{ facts.reforge_cost|num }} fragments to reroll every type and quality.</li>
+  <li>Unhappy with a roll? Take any stand to <a href="{{ url_for('play.reforge_page') }}">the Forge</a>. A reroll costs {% for r, p in facts.reforge_prices.items() %}{{ p|num }} ({{ r }}){{ ', ' if not loop.last }}{% endfor %} Meteor Dust. Lock the pairs you want to keep (each lock multiplies the price by {{ facts.reforge_lock_mult }}) and compare the old and new rolls before you choose. Nothing changes until you keep the new one.</li>
 </ul>
 {% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Reforge | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page reforge">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Collection · Reforge</p>
+      <h1 class="display sm">The Forge</h1>
+      <p class="muted">Reroll a stand's types and qualities. Lock the pairs you like: only the others change. Nothing is lost: you always choose between the old roll and the new one.</p>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
+  <div class="forge-layout">
+    <aside class="forge-picker" aria-label="Choose a stand">
+      <label class="sr" for="forge-search">Find a stand</label>
+      <input id="forge-search" type="search" placeholder="Find a stand" autocomplete="off" data-forge-search>
+      <ul class="forge-list">
+        {% for c in stands %}
+          <li data-name="{{ c.name|lower }} {{ c.rarity|lower }}">
+            <a href="{{ url_for('play.reforge_page', uuid=c.uuid) }}" class="{{ 'on' if char and c.uuid == char.uuid }}"
+               hx-get="{{ url_for('play.reforge_panel', uuid=c.uuid) }}" hx-target="#forge" hx-push-url="{{ url_for('play.reforge_page', uuid=c.uuid) }}" data-forge-pick>
+              <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span><strong>{{ c.name }}</strong>
+                <small><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.uuid in team %} · team{% endif %}</small></span>
+              <span class="forge-ranks" aria-label="Qualities">{% for emo, t, q, rank, qemo in c|traits %}<b class="q-{{ rank }}">{{ rank }}</b>{% endfor %}</span>
+            </a>
+          </li>
+        {% else %}<li class="muted">You have no stands yet. <a href="{{ url_for('play.banners') }}">Summon some</a>.</li>{% endfor %}
+      </ul>
+    </aside>
+    <div id="forge" aria-live="polite">{% include "partials/forge_panel.html" %}</div>
+  </div>
+</section>
+{% endblock %}

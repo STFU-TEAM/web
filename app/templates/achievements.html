@@ -19,7 +19,7 @@
             <small class="muted">{{ a.progress|num }} / {{ a.target|num }}</small>
           {% endif %}
           {% set rw = a.reward %}
-          <p class="ach-reward">🎁 {% if rw.fragments %}{{ rw.fragments|num }} fragments{% endif %}{% if rw.super_fragments %}{{ ', ' if rw.fragments }}{{ rw.super_fragments }} super fragment{{ 's' if rw.super_fragments > 1 }}{% endif %}{% if rw['items'] %}{{ ', ' if rw.fragments or rw.super_fragments }}{{ rw['items']|length }} item{{ 's' if rw['items']|length > 1 }}{% endif %}</p>
+          <p class="ach-reward">🎁 {% if rw.fragments %}{{ rw.fragments|num }} Meteor Dust{% endif %}{% if rw.super_fragments %}{{ ', ' if rw.fragments }}{{ rw.super_fragments }} Arrowhead{{ 's' if rw.super_fragments > 1 }}{% endif %}{% if rw['items'] %}{{ ', ' if rw.fragments or rw.super_fragments }}{{ rw['items']|length }} item{{ 's' if rw['items']|length > 1 }}{% endif %}</p>
         </div>
       </li>
     {% endfor %}

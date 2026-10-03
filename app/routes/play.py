@@ -199,12 +199,56 @@ def lock_many():
     return _collection(user, msg, err)
 
 
-@bp.post("/team/reforge")
+# --------------------------------------------------------------------------- #
+# Reforge
+# --------------------------------------------------------------------------- #
+def _forge_ctx(user, uuid=None, rolled=False, error=None, message=None):
+    stands = user.main_characters + user.storage_characters
+    pending = logic.reforge_pending(user)
+    uuid = uuid or (pending["uuid"] if pending else None) or (stands[0].uuid if stands else None)
+    char = next((c for c in stands if c.uuid == uuid), None)
+    pending = logic.reforge_pending(user, uuid) if char else None
+    ctx = {"u": user, "stands": stands, "char": char, "pending": pending, "rolled": rolled, "error": error,
+           "message": message, "price": logic.REFORGE_PRICE, "lock_mult": logic.REFORGE_LOCK_MULT,
+           "power": {c.uuid: power_score(c) for c in stands}, "team": {c.uuid for c in user.main_characters}}
+    if char:
+        ctx["costs"] = [logic.reforge_cost(char, n) for n in range(max(1, len(char.types)))]
+        if pending:
+            ctx["new"] = logic.preview_with(char, pending["types"], pending["qualities"])
+            ctx["old_power"], ctx["new_power"] = power_score(char), power_score(ctx["new"])
+    return ctx
+
+
+@bp.get("/reforge")
 @player_required
-def reforge():
+def reforge_page():
+    return render_template("reforge.html", **_forge_ctx(_user(), request.args.get("uuid")))
+
+
+@bp.get("/reforge/panel")
+@player_required
+def reforge_panel():
+    return render_template("partials/forge_panel.html", **_forge_ctx(_user(), request.args.get("uuid")))
+
+
+@bp.post("/reforge/roll")
+@player_required
+def reforge_roll():
     uuid = request.form.get("uuid")
-    user, res, err = action(lambda u: logic.reforge(u, uuid))
-    return _collection(user, f"{res.name} was reforged." if res else None, err)
+    locked = [int(i) for i in request.form.getlist("lock") if i.isdigit()]
+    user, res, err = action(lambda u: logic.reforge_roll(u, uuid, locked))
+    return render_template("partials/forge_panel.html", **_forge_ctx(user, uuid, rolled=bool(res), error=err))
+
+
+@bp.post("/reforge/keep")
+@player_required
+def reforge_keep():
+    keep_new = request.form.get("keep") == "new"
+    user, res, err = action(lambda u: logic.reforge_keep(u, keep_new))
+    msg = None
+    if res:
+        msg = f"{res.name} keeps the new roll." if keep_new else f"{res.name} keeps its old roll."
+    return render_template("partials/forge_panel.html", **_forge_ctx(user, res.uuid if res else None, error=err, message=msg))
 
 
 @bp.post("/team/equip")
@@ -563,8 +607,9 @@ def tower_abandon():
 
 def _tower_settle(user, fight):
     rewards = tower_logic.finish_floor(user, fight, r(), session.get("name", "?"))
-    if rewards.get("tower", {}).get("floor", 0) % 10 == 0 and rewards["won"]:
-        logic.track_quest_progress(user, "tower_complete")
+    if rewards["won"]:
+        logic.track_quest_progress(user, "tower_floor")
+        logic.track_quest_progress(user, "reach_tower", rewards.get("tower", {}).get("floor", 0))
     return rewards
 
 

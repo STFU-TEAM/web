@@ -67,8 +67,7 @@
         {% if c.level >= 100 and c.awaken < 3 %}
           <button class="btn small gold" hx-post="{{ url_for('play.ascend') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }} hx-confirm="Ascend {{ c.name }}? Its level resets to 0.">Ascend</button>
         {% endif %}
-        <button class="btn small ghost" hx-post="{{ url_for('play.reforge') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }}
-                hx-confirm="Reroll {{ c.name }}'s types and qualities for 10,000 fragments? The new roll can be worse." {% if u.fragments < 10000 %}disabled title="Needs 10,000 fragments"{% endif %}>Reforge · 10k</button>
+        <a class="btn small ghost" href="{{ url_for('play.reforge_page', uuid=c.uuid) }}">⚒ Reforge</a>
       {% else %}
         {% if u.main_characters|length < 3 %}
           <button class="btn small gold" hx-post="{{ url_for('play.to_main') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }}>Add to team</button>
@@ -79,17 +78,17 @@
             <button class="btn small gold">Swap in</button>
           </form>
         {% endif %}
-        {% set need = 3 - c.awaken %}
-        {% if need > 0 %}
-          <p class="fuse-path {{ 'ready' if dupes|length >= need else '' }}">★{{ c.awaken }} → ★3: {{ need }} more cop{{ 'ies' if need != 1 else 'y' }} needed · you own {{ dupes|length }} spare{{ 's' if dupes|length != 1 }}{% if dupes|length >= need %} — enough to max it{% endif %}.</p>
-        {% endif %}
-        {% if dupes %}
-          <form class="inline" hx-post="{{ url_for('play.fuse') }}" {{ acts|safe }} hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
-            <input type="hidden" name="uuid" value="{{ c.uuid }}">
-            <select name="fodder" aria-label="Copy to consume">{% for d in dupes %}<option value="{{ d.uuid }}">Consume Lv {{ d.level }}{% for emo, t, q, rank, qemo in d|traits %} {{ emo }}{{ rank }}{% endfor %}</option>{% endfor %}</select>
-            <button class="btn small gold">Fuse</button>
-          </form>
-        {% endif %}
+      {% endif %}
+      {% set gate = awaken_gate(c) %}
+      {% if gate is not none %}
+        <p class="fuse-path {{ 'ready' if dupes and c.level >= gate else '' }}">Next star ★{{ c.awaken + 1 }}: fuse a copy at Lv {{ gate }}+{% if c.level < gate %} (now Lv {{ c.level }}: a copy gives XP only){% endif %} · you own {{ dupes|length }} spare{{ 's' if dupes|length != 1 }}.</p>
+      {% endif %}
+      {% if dupes %}
+        <form class="inline" hx-post="{{ url_for('play.fuse') }}" {{ acts|safe }} hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
+          <input type="hidden" name="uuid" value="{{ c.uuid }}">
+          <select name="fodder" aria-label="Copy to consume">{% for d in dupes %}<option value="{{ d.uuid }}">Consume Lv {{ d.level }}{% for emo, t, q, rank, qemo in d|traits %} {{ emo }}{{ rank }}{% endfor %}</option>{% endfor %}</select>
+          <button class="btn small gold">Fuse</button>
+        </form>
       {% endif %}
       <button class="btn small ghost" hx-post="{{ url_for('play.lock') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }}>{{ '🔓 Unlock' if is_locked else '🔒 Lock' }}</button>
       <a class="btn small ghost" href="{{ url_for('main.stand', stand_id=c.id) }}">Stand page</a>

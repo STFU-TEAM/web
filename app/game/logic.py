@@ -26,7 +26,7 @@ with open(os.path.join(_DATA, "recipes.json"), encoding="utf-8") as f:
 
 # globals/variables.py
 PLAYER_XPGAINS = 100
-CHARACTER_XPGAINS = 10
+CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = 300
 CHANCEITEM = 10
 DONOR_WH_WAIT_TIME = 1
@@ -37,14 +37,13 @@ STXPTOLEVEL = 100
 
 STORAGE_SIZE = 25
 MAX_TEAMS = 5
-REFORGE_COST = 10000
 RARITIES = ["R", "SR", "SSR", "UR", "LR"]
 
 # /shop default
 DEFAULT_SHOP = {
-    "super_fragment": {"name": "Super Fragment", "price": 5000, "type": "currency"},
+    "super_fragment": {"name": "Arrowhead", "price": 5000, "type": "currency"},
     "1": {"name": "Dio's Knife", "price": 2500, "type": "item", "id": 1},
-    "2": {"name": "Stand Arrows", "price": 2500, "type": "item", "id": 2},
+    "2": {"name": "Devil's Palm", "price": 2500, "type": "item", "id": 2},
     "3": {"name": "Requiem Arrow", "price": 10000, "type": "item", "id": 3},
     "4": {"name": "Giorno's ladybug", "price": 5000, "type": "item", "id": 4},
 }
@@ -54,6 +53,9 @@ GACHA_ITEMS = [2, 12]
 CHIP_IDS = [8, 9, 10, 11, 14, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32]
 CHIP_TEMPLATE_INDEX = [9, 0, 5, 29, 162, 30, 57, 31, 33, 44, 48, 49, 58, 59, 68, 74, 77, 79, 80, 82, 83]
 REQUIEMABLE = [49, 6, 59]
+# Stars a stand needs (at level 100) before a Requiem Arrow evolves it; Gold Experience needs ★3 for GER.
+REQUIEM_STARS = {49: 2, 6: 2, 59: 3}
+MAX_AWAKEN = 5  # ascension and fusion stop at ★3; Requiem Arrows can push to ★5, never further
 REQUIEM_TEMPLATE_INDEX = [57, 82, 83]
 SPECIAL_CHARACTERS = [163, 110, 84, 109, 161, 120, 114]
 
@@ -345,7 +347,7 @@ def daily(user: User) -> dict:
 def banner_pull(user: User, banner_id: int) -> dict:
     banner = _banner(banner_id)
     if banner["cost"] > user.super_fragments:
-        raise GameError(f"A 10-pull costs {banner['cost']} super fragment. You have {user.super_fragments}.")
+        raise GameError(f"A 10-pull costs {banner['cost']} Arrowhead. You have {user.super_fragments}.")
     if free_slots(user) < 10:
         raise GameError("You need 10 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
     user.super_fragments -= banner["cost"]
@@ -366,7 +368,7 @@ def arrow_pull(user: User, banner_id: int) -> dict:
     banner = _banner(banner_id)
     arrow = next((i for i in user.items if i.id == 2), None)
     if arrow is None:
-        raise GameError("You don't have any Stand Arrow.")
+        raise GameError("You don't have any Devil's Palm.")
     if free_slots(user) < 5:
         raise GameError("You need 5 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
     user.items.remove(arrow)
@@ -478,11 +480,35 @@ def ascend(user: User, uuid: str) -> Character:
     raise GameError("A stand must be level 100 and below 3 awakenings to ascend.")
 
 
+CATCH_UP_LEVEL = 30  # stands below this level learn twice as fast, so new pulls can join the team
+
+
+def train(char: Character, amount: int) -> int:
+    """Give a stand XP from playing (doubled below CATCH_UP_LEVEL). Returns what it got."""
+    if char.xp // STXPTOLEVEL < CATCH_UP_LEVEL:
+        amount *= 2
+    char.xp += amount
+    return amount
+
+
+# Fusing: the kept copy takes the other's XP plus a bonus by its rarity. It also gains an
+# awakening, but only once it has the level for it, so stars come with time played and a
+# lucky pull can't skip the whole climb. Below the gate a copy still pays its XP.
+FUSE_BONUS_XP = {"R": 25, "SR": 50, "SSR": 200, "UR": 400, "LR": 600}
+AWAKEN_LEVELS = (20, 50, 80)  # level needed for ★1, ★2, ★3 through fusing
+
+
+def awaken_gate(char: Character) -> Optional[int]:
+    """Level the next fusion awakening needs, or None once fusing can't add stars."""
+    return AWAKEN_LEVELS[char.awaken] if char.awaken < len(AWAKEN_LEVELS) else None
+
+
 def _absorb(user: User, keeper: Character, fodder: Character) -> Character:
-    """Fold fodder into keeper: its XP plus 50 levels, one awakening (max 3), its items back to the bag."""
+    """Fold fodder into keeper: its XP plus a rarity bonus, one gated awakening, its items back to the bag."""
     user.items.extend(fodder.items)
-    keeper.xp += fodder.xp + 50 * STXPTOLEVEL
-    if keeper.awaken < 3:
+    keeper.xp += fodder.xp + FUSE_BONUS_XP.get(fodder.rarity, 100)
+    gate = awaken_gate(keeper)
+    if gate is not None and min(100, keeper.xp // STXPTOLEVEL) >= gate:
         keeper.awaken += 1
     return keeper
 
@@ -500,13 +526,14 @@ def fuse(user: User, uuid: str, fodder_uuid: str) -> Character:
         raise GameError("Pick two different copies.")
     char, lst, _ = locate(user, uuid)
     other, lst2, idx2 = locate(user, fodder_uuid)
-    if lst is user.main_characters or lst2 is user.main_characters:
-        raise GameError("Both copies must be in storage.")
+    if lst2 is user.main_characters:
+        raise GameError("The copy you consume must be in storage.")
     if char.id != other.id:
         raise GameError("You can only fuse two copies of the same stand.")
     if fodder_uuid in locked(user):
         raise GameError(f"The copy you'd consume is locked. Unlock it first.")
     lst2.pop(idx2)
+    track_quest_progress(user, "fuse")
     return _refresh(user, _absorb(user, char, other))
 
 
@@ -550,6 +577,7 @@ def auto_fuse(user: User, rarities=AUTO_FUSE_RARITIES) -> dict:
     for team in user.teams.values():
         team[:] = [u for u in team if u not in gone]
     stands = [_refresh(user, locate(user, u)[0]) for u in fused]
+    track_quest_progress(user, "fuse", copies)
     return {"stands": stands, "copies": copies}
 
 
@@ -608,22 +636,80 @@ def use_team(user: User, uuids: List[str]) -> List[Character]:
     return chosen
 
 
-def reforge(user: User, uuid: str) -> Character:
-    if user.fragments < REFORGE_COST:
-        raise GameError(f"Reforging costs {REFORGE_COST:,} fragments. You have {user.fragments:,}.")
+# Reforge: reroll a stand's type/quality pairs. Price depends on rarity; each locked pair
+# costs 50% more. The new roll waits next to the old one until the player keeps one of them.
+REFORGE_PRICE = {"R": 800, "SR": 1500, "SSR": 3000, "UR": 5000, "LR": 7000}
+REFORGE_LOCK_MULT = 1.5
+
+
+def reforge_cost(char: Character, locks: int = 0) -> int:
+    return int(round(REFORGE_PRICE.get(char.rarity, 3000) * REFORGE_LOCK_MULT ** locks, -1))
+
+
+def _reroll(types: List[str], qualities: List[str], locked: List[int]):
+    """Keep the locked pairs; replace the rest with a fresh roll that never repeats a locked type."""
+    keep = [(types[i], qualities[i]) for i in sorted(set(locked)) if i < len(types)]
+    kept_types = {t for t, _ in keep}
+    new_types, new_quals = roll_types_qualities()
+    fresh = [(t, q) for t, q in zip(new_types, new_quals) if t not in kept_types]
+    if not fresh:  # the roll only produced locked types: draw one free pair
+        spare = [t.name for t in Types if t.name not in kept_types]
+        fresh = [(random.choice(spare), random.choices([q.name for q in Qualities], [5, 10, 20, 50, 10, 5])[0])]
+    pairs = keep + fresh
+    return [t for t, _ in pairs], [q for _, q in pairs]
+
+
+def reforge_roll(user: User, uuid: str, locked: List[int]) -> dict:
     char, lst, idx = locate(user, uuid)
-    if lst is not user.main_characters:
-        raise GameError("Only stands in your team can be reforged.")
-    user.fragments -= REFORGE_COST
-    char.types, char.qualities = roll_types_qualities()
-    fresh = Character(char.to_dict())
-    user.main_characters[idx] = fresh
-    return fresh
+    locked = sorted({i for i in locked if 0 <= i < len(char.types)})
+    if char.types and len(locked) >= len(char.types):
+        raise GameError("Leave at least one stat unlocked to reroll.")
+    waiting = reforge_pending(user)
+    if waiting and waiting["uuid"] != uuid:
+        other = locate(user, waiting["uuid"])[0]
+        raise GameError(f"{other.name} still has a new roll waiting. Keep it or drop it first.")
+    cost = reforge_cost(char, len(locked))
+    if user.fragments < cost:
+        raise GameError(f"This reforge costs {cost:,} Meteor Dust. You have {user.fragments:,}.")
+    user.fragments -= cost
+    types, qualities = _reroll(char.types, char.qualities, locked)
+    user.data["web_reforge_pending"] = {"uuid": uuid, "types": types, "qualities": qualities,
+                                        "old_types": list(char.types), "old_qualities": list(char.qualities)}
+    track_quest_progress(user, "reforge")
+    return {"char": char, "cost": cost, "types": types, "qualities": qualities}
 
 
-# --------------------------------------------------------------------------- #
-# /item equip | unequip | use | craft ; /shop default
-# --------------------------------------------------------------------------- #
+def reforge_pending(user: User, uuid: Optional[str] = None) -> Optional[dict]:
+    pending = user.data.get("web_reforge_pending")
+    if not pending or (uuid and pending["uuid"] != uuid):
+        return None
+    try:
+        locate(user, pending["uuid"])
+    except GameError:
+        user.data.pop("web_reforge_pending", None)
+        return None
+    return pending
+
+
+def reforge_keep(user: User, keep_new: bool) -> Character:
+    pending = reforge_pending(user)
+    if not pending:
+        raise GameError("There is no reforge waiting for a decision.")
+    char, lst, idx = locate(user, pending["uuid"])
+    user.data.pop("web_reforge_pending", None)
+    if keep_new:
+        char.types, char.qualities = list(pending["types"]), list(pending["qualities"])
+        lst[idx] = Character(char.to_dict())
+        return lst[idx]
+    return char
+
+
+def preview_with(char: Character, types: List[str], qualities: List[str]) -> Character:
+    """A throwaway copy of the stand with another roll, to compare stats."""
+    data = dict(char.to_dict())
+    data.update(types=list(types), qualities=list(qualities))
+    return Character(data)
+
 def _take_item(user: User, item_id: int) -> Item:
     for i, it in enumerate(user.items):
         if it.id == item_id:
@@ -694,17 +780,18 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
         char = next((c for c in user.main_characters if c.uuid == uuid), None)
         if char is None:
             refund("Pick a stand from your team.")
-        if char.awaken >= 7:
-            refund(f"{char.name} is fully awakened.")
         idx = user.main_characters.index(char)
-        if char.id in REQUIEMABLE and char.awaken >= 2 and char.level >= 100:
+        if char.id in REQUIEMABLE and char.awaken >= REQUIEM_STARS[char.id] and char.level >= 100:
             template = CHARACTER_FILE[REQUIEM_TEMPLATE_INDEX[REQUIEMABLE.index(char.id)]]
             new = get_character_from_template(template, [], [])
             new.items = char.items
             new.reset()
             user.main_characters[idx] = new
             res = {"kind": "requiem", "stand": new}
+            track_quest_progress(user, "requiem")
         else:
+            if char.awaken >= MAX_AWAKEN:
+                refund(f"{char.name} is at ★{MAX_AWAKEN}, the highest awakening.")
             char.awaken += 1
             user.main_characters[idx] = Character(char.to_dict())
             res = {"kind": "awaken", "stand": user.main_characters[idx]}
@@ -733,12 +820,25 @@ def craft(user: User, recipe_name: str) -> Item:
     return crafted
 
 
+SHOP_HEADS_PER_WEEK = 3  # Arrowheads the shop sells each player per week
+
+
+def shop_heads_left(user: User) -> int:
+    bought = user.data.get("web_shop_heads") or {}
+    return SHOP_HEADS_PER_WEEK - (bought.get("n", 0) if bought.get("week") == now().strftime("%G-W%V") else 0)
+
+
 def shop_buy(user: User, key: str) -> str:
     entry = DEFAULT_SHOP.get(key)
     if not entry:
         raise GameError("That isn't sold here.")
+    if entry["type"] == "currency":
+        left = shop_heads_left(user)
+        if left <= 0:
+            raise GameError(f"The shop sells {SHOP_HEADS_PER_WEEK} Arrowheads a week. More arrive on Monday.")
+        user.data["web_shop_heads"] = {"week": now().strftime("%G-W%V"), "n": SHOP_HEADS_PER_WEEK - left + 1}
     if user.fragments < entry["price"]:
-        raise GameError(f"You need {entry['price']:,} fragments. You have {user.fragments:,}.")
+        raise GameError(f"You need {entry['price']:,} Meteor Dust. You have {user.fragments:,}.")
     user.fragments -= entry["price"]
     track_quest_progress(user, "shop_buy")
     check_achievements(user, "shop_buy")
@@ -864,7 +964,7 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
     user.xp += PLAYER_XPGAINS
     user.fragments += FRAGMENTSGAIN * multi
     for c in user.main_characters:
-        c.xp += CHARACTER_XPGAINS * multi
+        train(c, CHARACTER_XPGAINS * multi)
     item = None
     if random.randint(1, 100) <= CHANCEITEM:
         item_id = random.choices([13, 1, 4, 15, 2, 3, 38, 39, 40],

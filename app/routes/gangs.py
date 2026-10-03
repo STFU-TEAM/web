@@ -59,6 +59,26 @@ def _back():
     return redirect(url_for("gangs.index"))
 
 
+def _settle_war(db, gang):
+    """Close a finished war on the first visit after it ends (both gangs locked)."""
+    opp_id = G.opponent_id(r(), gang["_id"]) if gang else None
+    if not opp_id or not G.war_over(gang):
+        return gang
+    try:
+        with users_lock(_gang_lock(gang["_id"]), _gang_lock(opp_id)):
+            mine, theirs = db.get_gang(gang["_id"]), db.get_gang(opp_id)
+            if mine and G.opponent_id(r(), mine["_id"]) == opp_id:
+                if theirs:
+                    G.settle_war(r(), mine, theirs)
+                    db.update_gang(theirs)
+                else:  # the other gang disbanded mid-war
+                    r().hdel("active_wars", mine["_id"])
+                db.update_gang(mine)
+            return mine
+    except Busy:
+        return gang
+
+
 # --------------------------------------------------------------------------- #
 # Page
 # --------------------------------------------------------------------------- #
@@ -67,7 +87,7 @@ def _back():
 def index():
     db = get_db()
     user = db.get_user(session["uid"])
-    gang = db.get_gang(user.gang_id)
+    gang = _settle_war(db, db.get_gang(user.gang_id))
     ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(),
            "tiers": [{**t, "text": G.tier_text(t)} for t in G.RAID_TIERS], "week_ends": G.week_ends(),
            "raid_board": G.raid_board(r())}
@@ -117,7 +137,7 @@ def create():
         if user.gang_id:
             raise GameError("Leave your current gang before founding another.")
         if user.fragments < G.GANG_COST:
-            raise GameError(f"Founding a gang costs {G.GANG_COST:,} fragments.")
+            raise GameError(f"Founding a gang costs {G.GANG_COST:,} Meteor Dust.")
         user.fragments -= G.GANG_COST
         user.gang_id = str(uuidlib.uuid4())
         db.create_gang(G.new_gang(user.gang_id, user.id, name, motto, motd))
@@ -253,7 +273,7 @@ def profile():
 def deposit():
     amount = _int("amount")
     gang_action(lambda db, user, gang: G.deposit(gang, user, amount) if gang else None,
-                ok=f"Deposited {amount or 0:,} fragments.")
+                ok=f"Deposited {amount or 0:,} Meteor Dust.")
     return _back()
 
 
@@ -262,7 +282,7 @@ def deposit():
 def pay():
     target, amount = request.form.get("member", ""), _int("amount")
     gang_action(lambda db, user, gang, other: G.pay(gang, user.id, other, amount), target,
-                ok=f"Paid {amount or 0:,} fragments to {identity(target)['name']}.")
+                ok=f"Paid {amount or 0:,} Meteor Dust to {identity(target)['name']}.")
     return _back()
 
 
@@ -299,8 +319,26 @@ def guardian_remove():
 @bp.post("/war/start")
 @player_required
 def war_start():
-    gang_action(lambda db, user, gang: G.queue_war(r(), gang, user.id),
-                ok="Your gang is looking for an opponent. The war starts when another gang is matched.")
+    def run(db, user, gang):
+        if not gang:
+            raise GameError("You are not in a gang.")
+        other_id = G.queue_war(r(), gang, user.id)
+        if not other_id:
+            return None
+        try:
+            with user_lock(_gang_lock(other_id)):
+                other = db.get_gang(other_id)
+                if not other:
+                    raise GameError("The matched gang just disbanded. Try again.")
+                G.start_war(r(), gang, other)
+                db.update_gang(other)
+                return other["name"]
+        except Busy:
+            G.requeue(r(), other_id)
+            raise
+
+    gang_action(run, ok=lambda name: f"War declared on {name}! It lasts {G.WAR_HOURS} hours." if name
+                else "Your gang is looking for an opponent. The war starts when another gang looks for one too.")
     return _back()
 
 
@@ -345,6 +383,7 @@ def attack_start(mode):
             gang.setdefault("war_attacks", []).append(user.id)  # one attempt, even if the fight is abandoned
         else:
             G.start_raid_attack(gang, user.id)  # one a day, even if the fight is abandoned
+            logic.track_quest_progress(user, "raid_attack")
             enemies, foe = G.raid_team(), G.weekly_boss()["name"]
             meta["week"] = G.week_key()
         fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),

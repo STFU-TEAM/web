@@ -23,7 +23,7 @@ AUDIT_KEY = "web:admin:audit"
 STATS_KEY = "web:admin:stats"
 EDITABLE = {  # field -> (label, min, max)
     "fragments": ("Fragments", 0, 1_000_000_000),
-    "super_fragments": ("Super fragments", 0, 100_000),
+    "super_fragments": ("Arrowheads", 0, 100_000),
     "energy": ("Energy", 0, 1000),
     "pity": ("Pity", 0, 1000),
     "global_elo": ("Ranked elo", 0, 100_000),
@@ -270,7 +270,7 @@ def player_action(uid, op):
                 raise logic.GameError("That stand is gone.")
             if level is not None and 0 <= level <= 100:
                 c.xp = level * 100
-            if awaken is not None and 0 <= awaken <= 7:
+            if awaken is not None and 0 <= awaken <= logic.MAX_AWAKEN:
                 c.awaken = awaken
             return f"{c.name} set to Lv {c.xp // 100}, ★{c.awaken}."
         _edit(uid, run, "stand_edit", "", uuid=stand_uuid, level=level, awaken=awaken)

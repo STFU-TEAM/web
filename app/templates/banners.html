@@ -19,7 +19,7 @@
     </div>
     {% include "partials/wallet.html" %}
   </header>
-  {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your super fragment on any banner below.</p>{% endif %}
+  {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your Arrowhead on any banner below.</p>{% endif %}
 
   <div id="pull-result" class="use-result" aria-live="polite"></div>
 
@@ -53,9 +53,9 @@
         {% endif %}
         <div class="banner-actions">
           <button class="btn gold" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
-                  {% if u.super_fragments < b.cost %}disabled title="You need {{ b.cost }} super fragment"{% endif %}>Pull 10 · {{ b.cost }} super fragment</button>
+                  {% if u.super_fragments < b.cost %}disabled title="You need {{ b.cost }} {{ HEAD }}"{% endif %}>Pull 10 · {{ b.cost|heads }}</button>
           <button class="btn" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
-                  {% if not arrows %}disabled title="You have no Stand Arrow"{% endif %}>Pull 5 · Stand Arrow <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
+                  {% if not arrows %}disabled title="You have no {{ PALM }}"{% endif %}>Pull 5 · 1{{ icon('palm') }} <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
         </div>
       </div>
     </article>

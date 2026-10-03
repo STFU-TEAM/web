@@ -231,14 +231,14 @@ def stand_links(stand_id):
 def facts():
     """Engine numbers quoted across the guide pages."""
     return {
-        "xp_per_level": character_mod.STXPTOLEVEL, "max_level": character_mod.MAX_LEVEL,
+        "xp_per_level": character_mod.STXPTOLEVEL, "catch_up": logic.CATCH_UP_LEVEL, "max_level": character_mod.MAX_LEVEL,
         "dodge_cap": character_mod.DODGE_CHANCE_CAP, "crit_multiplier": character_mod.CRITMULTIPLIER,
         "crit_cap": character_mod.CRIT_CHANCE_CAP, "armor_cap": character_mod.ARMOR_CAP,
         "armor_floor": round(200 / (100 + character_mod.ARMOR_CAP) * 100),
         "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),
         "sudden_death_round": fight_mod.SUDDEN_DEATH_ROUND, "sudden_death_step": round(fight_mod.SUDDEN_DEATH_STEP * 100),
         "sudden_death_heal": round(fight_mod.SUDDEN_DEATH_HEAL * 100), "max_rounds": fight_mod.MAX_ROUNDS,
-        "reforge_cost": logic.REFORGE_COST, "max_presets": logic.MAX_TEAMS,
+        "reforge_prices": logic.REFORGE_PRICE, "reforge_lock_mult": logic.REFORGE_LOCK_MULT, "max_presets": logic.MAX_TEAMS,
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,
         "wormhole_hours": logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME,

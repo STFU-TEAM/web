@@ -70,7 +70,7 @@
               {% if s.state == 'cleared' and not fight %}
                 <form method="post" action="{{ url_for('progress.story_fight') }}" class="node-replay">
                   <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="stage" value="{{ s.index }}">
-                  <button class="btn small ghost" title="Replay for stand XP and a fifth of the fragments">↻ 1⚡</button>
+                  <button class="btn small ghost" title="Replay for stand XP and a fifth of the Meteor Dust">↻ 1⚡</button>
                 </form>
               {% endif %}
             </li>
@@ -79,6 +79,6 @@
       </li>
     {% endfor %}
   </ol>
-  <p class="muted wiki-note">Cleared stages can be replayed for 1 energy: full stand XP and a fifth of the fragments, a good way to level a new team. Enemies grow stronger with every stage. When a stage is a wall, come back after levelling, fusing and pulling: first-clear rewards include Stand Arrows and a super fragment for every boss.</p>
+  <p class="muted wiki-note">Cleared stages can be replayed for 1 energy: full stand XP and a fifth of the Meteor Dust, a good way to level a new team. Enemies grow stronger with every stage. When a stage is a wall, come back after levelling, fusing and pulling: first-clear rewards include Devil's Palms and an Arrowhead for every boss.</p>
 </section>
 {% endblock %}

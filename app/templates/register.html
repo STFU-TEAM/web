@@ -5,7 +5,7 @@
   <div class="auth-card">
     <p class="kicker">No Discord needed</p>
     <h1 class="display sm">Create an account</h1>
-    <p class="muted">Play in the browser with a username and password. You can link Discord later so the bot sees the same save.</p>
+    <p class="muted">Play in the browser with a username and password. You can link Discord later to log in with it.</p>
     <form class="auth-form" method="post" action="{{ url_for('auth.register') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <input type="hidden" name="next" value="{{ next }}">

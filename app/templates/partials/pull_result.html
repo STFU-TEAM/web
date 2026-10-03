@@ -4,9 +4,9 @@
   <div class="pull-again">
     {% set ten = u.super_fragments >= banner.cost %}
     <button class="btn {{ 'gold' if mode == 'pull' else '' }}" hx-post="{{ url_for('play.pull', banner_id=banner.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
-            {% if not ten %}disabled{% endif %}>↻ Pull 10 again <small>{{ u.super_fragments }} super fragment{{ 's' if u.super_fragments != 1 }} left</small></button>
+            {% if not ten %}disabled{% endif %}>↻ Pull 10 again <small>{{ u.super_fragments|heads }} left</small></button>
     <button class="btn {{ 'gold' if mode == 'arrow' else '' }}" hx-post="{{ url_for('play.pull', banner_id=banner.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
-            {% if not arrows %}disabled{% endif %}>↻ Pull 5 with an arrow <small>{{ arrows }} left</small></button>
+            {% if not arrows %}disabled{% endif %}>↻ Pull 5 with a {{ PALM }} <small>{{ arrows|palms }} left</small></button>
     {% if fusable %}
       <button class="btn ghost" hx-post="{{ url_for('play.autofuse', view='toast') }}" hx-target="#autofuse-result" hx-disabled-elt="this"
               title="Fuse every unlocked R and SR duplicate into its best copy">Auto-fuse R &amp; SR · {{ fusable }}</button>

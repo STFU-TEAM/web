@@ -5,8 +5,8 @@
   {% from "partials/daily_tile.html" import streak_strip with context %}
   <h2 class="h3">Claimed <small class="streak-count">🔥 {{ st.streak.count }} day{{ 's' if st.streak.count != 1 }}</small></h2>
   {{ streak_strip(st) }}
-  <p class="loot">+{{ res.fragments }} fragments{% if res.item %}, {{ res.item.name }}{% endif %}{% if res.super %}, and a super fragment{% endif %}.</p>
-  {% if res.streak %}<p class="loot">Day {{ res.streak.day }} streak bonus: {% if res.streak.super %}a super fragment{% elif res.streak.fragments %}+{{ res.streak.fragments }} fragments{% else %}{{ res.streak['items']|join(', ') }}{% endif %}.</p>{% else %}<p class="muted">Today's streak bonus is already claimed. Come back tomorrow.</p>{% endif %}
+  <p class="loot">+{{ res.fragments }} Meteor Dust{% if res.item %}, {{ res.item.name }}{% endif %}{% if res.super %}, and an Arrowhead{% endif %}.</p>
+  {% if res.streak %}<p class="loot">Day {{ res.streak.day }} streak bonus: {% if res.streak.super %}an Arrowhead{% elif res.streak.fragments %}+{{ res.streak.fragments }} Meteor Dust{% else %}{{ res.streak['items']|join(', ') }}{% endif %}.</p>{% else %}<p class="muted">Today's streak bonus is already claimed. Come back tomorrow.</p>{% endif %}
   <p class="muted">Back in {{ st.daily|delta }}.</p>
 {% endif %}
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

@@ -84,10 +84,10 @@
       <div class="result {{ 'win' if fight.winner == my_side else 'loss' }}">
         {% if fight.meta.damage is defined %}
           <p class="loot">{{ fight.meta.damage|num }}{{ '% of their guardians cleared' if fight.kind == 'gang_war' else ' damage dealt to the raid boss' }} for your gang.</p>
-          {% if not fight.rewards.won %}<p class="muted">Consolation: +{{ fight.rewards.fragments }} fragments, +{{ fight.rewards.xp }} player XP.</p>{% endif %}
+          {% if not fight.rewards.won %}<p class="muted">Consolation: +{{ fight.rewards.fragments }} Meteor Dust, +{{ fight.rewards.xp }} player XP.</p>{% endif %}
         {% endif %}
         {% if fight.rewards and (fight.rewards.won if my_side == 0 else fight.winner == my_side) %}
-          <p class="loot">+{{ fight.rewards.fragments }} fragments, +{{ fight.rewards.xp }} player XP, +{{ fight.rewards.stand_xp }} XP for each stand{% if fight.rewards.item %}, and <strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
+          <p class="loot">+{{ fight.rewards.fragments }} Meteor Dust, +{{ fight.rewards.xp }} player XP, +{{ fight.rewards.stand_xp }} XP for each stand{% if fight.rewards.item %}, and <strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
         {% else %}
           <p>{{ 'The practice fight ended.' if fight.kind == 'dummy' else 'No reward was earned.' }}</p>
         {% endif %}

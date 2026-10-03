@@ -458,7 +458,7 @@ def test_begin_pull_and_team(client):
     since = next((i for i, r in enumerate(reversed(rarities)) if r in ("SSR", "UR", "LR")), len(rarities))
     assert d["pity"] == since
     # second pull refused
-    assert b"costs 1 super fragment" in client.post("/banners/0/pull", headers=h).data
+    assert b"costs 1 Arrowhead" in client.post("/banners/0/pull", headers=h).data
     for c in d["main_characters"]:  # empty the team to test moving stands in by hand
         client.post("/team/store", data={"uuid": c["uuid"]}, headers=h)
     d = doc(client, "111")
@@ -538,18 +538,21 @@ def test_legacy_bytes_key_user_items_shop(client):
     assert b"Requiem" in r.data
     assert doc(client, "b'333'")["main_characters"][0]["id"] == 83  # Chariot Requiem
     assert b"You crafted Holy Corpse" in client.post("/items/craft", data={"recipe": "Holy Corpse"}, headers=h).data
-    assert b"You bought Super Fragment" in client.post("/shop/buy", data={"key": "super_fragment"}, headers=h).data
+    assert b"You bought Arrowhead" in client.post("/shop/buy", data={"key": "super_fragment"}, headers=h).data
     # fuse the two Star Platinum copies
     s1 = doc(client, "b'333'")["storage_characters"]
     r = client.post("/team/fuse", data={"uuid": s1[0]["uuid"], "fodder": s1[1]["uuid"]}, headers=h)
     assert b"Fused" in r.data
     s1 = doc(client, "b'333'")["storage_characters"]
-    assert len(s1) == 1 and s1[0]["awaken"] == 1
-    # reforge costs 10000
+    assert len(s1) == 1 and s1[0]["awaken"] == 0 and s1[0]["xp"] == 200  # SSR bonus; ★1 waits for Lv 20
+    # reforge: priced by rarity, the player compares and picks
     frag = doc(client, "b'333'")["fragments"]
     uid0 = doc(client, "b'333'")["main_characters"][0]["uuid"]
-    assert b"reforged" in client.post("/team/reforge", data={"uuid": uid0}, headers=h).data
-    assert doc(client, "b'333'")["fragments"] == frag - 10000
+    assert client.get("/reforge?uuid=" + uid0).status_code == 200
+    r = client.post("/reforge/roll", data={"uuid": uid0}, headers=h)
+    assert b"Keep the new roll" in r.data and b"forge-pairs spin" in r.data
+    assert doc(client, "b'333'")["fragments"] == frag - 5000  # Chariot Requiem is UR
+    assert b"keeps its old roll" in client.post("/reforge/keep", data={"keep": "old"}, headers=h).data
     # energy refilled on page load (last_full_energy was long ago)
     client.get("/wormhole")
     assert doc(client, "b'333'")["energy"] == 10

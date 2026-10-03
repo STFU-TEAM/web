@@ -4,8 +4,8 @@
 <section class="hero">
   <div class="hero-copy">
     <p class="menace" aria-hidden="true">ゴゴゴゴ</p>
-    <h1 class="display">Your stands followed you here.</h1>
-    <p class="lede">STFU Requiem leaves Discord. Log in with the same account and your team, storages, items, fragments and quests are already waiting. New here? You start with a super fragment, enough for your first 10-pull.</p>
+    <h1 class="display">Your stand awakens here.</h1>
+    <p class="lede">STFU Requiem is a JoJo stand gacha you play in the browser. Pull stands, build a team of three and follow the Joestars from Part 3 to Part 8. You start with an Arrowhead, enough for your first 10-pull.</p>
     <p class="cta">
       {% if registered %}
         <a class="btn gold" href="{{ url_for('play.team') }}">Open my team</a>
@@ -15,7 +15,6 @@
         <a class="btn gold" href="{{ url_for('auth.register') }}">Start playing</a>
         <a class="btn ghost" href="{{ url_for('auth.login') }}">Log in</a>
       {% endif %}
-      {% if config.DISCORD_CLIENT_ID %}<a class="btn ghost" href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}
       <a class="btn ghost" href="{{ url_for('main.stands') }}">Browse all {{ STAND_COUNT }} stands</a>
     </p>
   </div>
@@ -48,9 +47,9 @@
 <section class="steps page">
   <h2 class="h2">How it works</h2>
   <ol>
-    <li><h3>Log in your way</h3><p>Discord players keep their bot save. No Discord? Create an account with a username and password, and link Discord whenever you like.</p></li>
-    <li><h3>Pull a banner</h3><p>A super fragment buys ten stands from one JoJo part. Each comes with its own types and qualities, every 10-pull holds an SR or better, and pity guarantees an SSR within {{ PITY_LIMIT }} pulls.</p></li>
-    <li><h3>Fall into a wormhole</h3><p>Pick targets turn by turn against a team scaled to your level. Winning pays fragments, experience and sometimes an item.</p></li>
+    <li><h3>Log in your way</h3><p>Create an account with a username and password, or continue with Discord. Install it on your phone to play like an app.</p></li>
+    <li><h3>Pull a banner</h3><p>An Arrowhead buys ten stands from one JoJo part. Each comes with its own types and qualities, every 10-pull holds an SR or better, and pity guarantees an SSR within {{ PITY_LIMIT }} pulls.</p></li>
+    <li><h3>Fall into a wormhole</h3><p>Pick targets turn by turn against a team scaled to your level. Winning pays Meteor Dust, experience and sometimes an item.</p></li>
   </ol>
   <p class="kofi-cta">STFU Requiem is free and made by one fan. If you enjoy it, <a class="btn small" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ buy me a coffee on Ko-fi</a></p>
 </section>

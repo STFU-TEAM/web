@@ -35,6 +35,15 @@ def roman(n: int) -> str:
 
 
 def register(app):
+    from app import branding
+    app.jinja_env.globals.update(icon=branding.icon, DUST=branding.DUST, HEAD=branding.HEAD, HEADS=branding.HEADS,
+                                 PALM=branding.PALM, PALMS=branding.PALMS)
+    from app.game import logic
+    app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left)
+    app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
+    app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
+    app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")
+
     @app.template_filter("stand_img")
     def stand_img(stand_id):
         cfg = current_app.config

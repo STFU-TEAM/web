@@ -67,7 +67,7 @@
     {% if fusable %}
       <button class="btn small gold autofuse" hx-post="{{ url_for('play.autofuse') }}" hx-target="#collection"
               hx-confirm="Fuse every unlocked R and SR duplicate into its best copy (your team copy first)? {{ fusable }} cards will be consumed."
-              title="Each R and SR stand you own more than once is fused into one copy: +1 awakening (up to 3) and +50 levels of XP per copy. Locked copies are never used up.">Auto-fuse R &amp; SR · {{ fusable }} cop{{ 'ies' if fusable != 1 else 'y' }}</button>
+              title="Each R and SR stand you own more than once is fused into one copy: each copy adds its XP plus a bonus, and an awakening once the kept copy has the level for it (★1 Lv 20, ★2 Lv 50, ★3 Lv 80). Locked copies are never used up.">Auto-fuse R &amp; SR · {{ fusable }} cop{{ 'ies' if fusable != 1 else 'y' }}</button>
     {% endif %}
   </header>
   {% if u.storage_characters %}

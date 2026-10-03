@@ -15,13 +15,16 @@ from typing import Optional
 
 from app.game.character import character_from_dict
 from app.game.items import item_file, item_from_dict
-from app.game.logic import CHARACTER_XPGAINS, FRAGMENTSGAIN, PLAYER_XPGAINS, GameError, now
+from app.game.logic import CHARACTER_XPGAINS, FRAGMENTSGAIN, PLAYER_XPGAINS, GameError, now, train
 
 BOSS, CAPO, SOLDIER = 0, 1, 2
 RANK_NAMES = {BOSS: "Boss", CAPO: "Capo", SOLDIER: "Soldier"}
 MAX_GUARDIANS = 3
 GANG_COST = 10000
-MATCHMAKING_CHANNEL = "war_matchmaking_requests"
+WAR_QUEUE = "web:war:queue"
+WAR_HOURS = 48
+WAR_PRIZE = 10_000  # Meteor Dust paid into the winner's vault
+WAR_ELO_K = 32
 DEFAULT_IMAGE = "https://media1.tenor.com/m/-fG6_QSIjZAAAAAC/amicreeper-galaxy.gif"
 
 
@@ -117,7 +120,7 @@ def deposit(gang: dict, user, amount: int):
     if amount is None or amount <= 0:
         raise GameError("Deposit a positive amount.")
     if amount > user.fragments:
-        raise GameError(f"You only have {user.fragments:,} fragments.")
+        raise GameError(f"You only have {user.fragments:,} Meteor Dust.")
     user.fragments -= amount
     gang["vault"] = int(gang.get("vault", 0)) + amount
 
@@ -184,16 +187,66 @@ def opponent_id(redis, gang_id: str) -> Optional[str]:
     return value.decode() if isinstance(value, bytes) else str(value)
 
 
-def queue_war(redis, gang: dict, actor: str):
+def _queued_key(gang_id: str) -> str:
+    return f"web:gang:queued:{gang_id}"
+
+
+def queue_war(redis, gang: dict, actor: str) -> Optional[str]:
+    """Look for a war. Returns the id of a waiting gang to fight now, or None after joining the queue."""
     require_rank(gang, actor, CAPO)
     if not gang.get("characters"):
         raise GameError("Your gang needs at least one guardian to go to war.")
     if opponent_id(redis, gang["_id"]):
         raise GameError("Your gang is already at war.")
-    if redis.get(f"web:gang:queued:{gang['_id']}"):
+    if redis.get(_queued_key(gang["_id"])):
         raise GameError("Your gang is already looking for an opponent.")
-    redis.publish(MATCHMAKING_CHANNEL, pickle.dumps(gang["_id"]))
-    redis.set(f"web:gang:queued:{gang['_id']}", 1, ex=30 * 60)
+    for raw in redis.lrange(WAR_QUEUE, 0, -1):
+        gid = raw.decode() if isinstance(raw, bytes) else str(raw)
+        redis.lrem(WAR_QUEUE, 0, gid)
+        if gid != gang["_id"] and redis.get(_queued_key(gid)) and not opponent_id(redis, gid):
+            return gid
+    redis.rpush(WAR_QUEUE, gang["_id"])
+    redis.set(_queued_key(gang["_id"]), 1, ex=24 * 3600)
+    return None
+
+
+def requeue(redis, gang_id: str):
+    """Put a gang back at the head of the queue (its match couldn't start)."""
+    redis.lpush(WAR_QUEUE, gang_id)
+
+
+def start_war(redis, a: dict, b: dict):
+    end = now() + datetime.timedelta(hours=WAR_HOURS)
+    for gang, other in ((a, b), (b, a)):
+        gang.update(end_of_war=end, damage_to_current_war=0, war_attacks=[])
+        redis.hset("active_wars", gang["_id"], pickle.dumps(other["_id"]))
+        redis.delete(_queued_key(gang["_id"]))
+
+
+def war_over(gang: dict) -> bool:
+    end = gang.get("end_of_war")
+    return isinstance(end, datetime.datetime) and end <= now()
+
+
+def settle_war(redis, a: dict, b: dict) -> dict:
+    """End a war: more damage per member wins Elo and WAR_PRIZE for its vault."""
+    per = {g["_id"]: int(g.get("damage_to_current_war", 0)) / max(1, len(members(g))) for g in (a, b)}
+    winner, loser = (a, b) if per[a["_id"]] >= per[b["_id"]] else (b, a)
+    decided = per[winner["_id"]] > per[loser["_id"]]
+    if decided:
+        expected = 1 / (1 + 10 ** ((int(loser.get("war_elo", 0)) - int(winner.get("war_elo", 0))) / 400))
+        delta = max(1, round(WAR_ELO_K * (1 - expected)))
+        winner["war_elo"] = int(winner.get("war_elo", 0)) + delta
+        loser["war_elo"] = max(0, int(loser.get("war_elo", 0)) - delta)
+        winner["vault"] = int(winner.get("vault", 0)) + WAR_PRIZE
+    stamp = now()
+    for gang in (a, b):
+        gang.update(last_war=stamp, war_attacks=[])
+        redis.hdel("active_wars", gang["_id"])
+    record = {"winner": winner["_id"], "loser": loser["_id"], "winner_damage": per[winner["_id"]],
+              "loser_damage": per[loser["_id"]], "draw": not decided, "timestamp": stamp.isoformat()}
+    redis.hset("war_records", f"{winner['_id']}:{loser['_id']}:{stamp.isoformat()}", pickle.dumps(record))
+    return record
 
 
 def last_war(redis, gang_id: str) -> Optional[dict]:
@@ -330,9 +383,9 @@ def claimable_previous(gang: dict, uid: str) -> list:
 
 
 def tier_text(tier: dict) -> str:
-    parts = [f"{tier['fragments']:,} fragments"]
+    parts = [f"{tier['fragments']:,} Meteor Dust"]
     if tier.get("super"):
-        parts.append(f"{tier['super']} super fragment{'s' if tier['super'] > 1 else ''}")
+        parts.append(f"{tier['super']} Arrowhead{'s' if tier['super'] > 1 else ''}")
     counts = {}
     for i in tier["items"]:
         name = "a Saint's Corpse part" if i == "corpse" else item_file[i - 1]["name"]
@@ -378,6 +431,6 @@ def attack_rewards(user, won: bool) -> dict:
     user.xp += PLAYER_XPGAINS * mult
     user.fragments += FRAGMENTSGAIN * mult
     for c in user.main_characters:
-        c.xp += CHARACTER_XPGAINS * mult
+        train(c, CHARACTER_XPGAINS * mult)
     return {"won": won, "fragments": FRAGMENTSGAIN * mult, "xp": PLAYER_XPGAINS * mult,
             "stand_xp": CHARACTER_XPGAINS * mult, "item": None}

@@ -87,7 +87,10 @@ def _story_settle(user, fight):
         return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
     logic.track_quest_progress(user, "fight_win")
     logic.check_achievements(user, "fight_win")
-    return story.win(user, int(fight.meta["stage"]))
+    logic.track_quest_progress(user, "story_win")
+    rewards = story.win(user, int(fight.meta["stage"]))
+    logic.track_quest_progress(user, "reach_story", story.cleared(user))
+    return rewards
 
 
 @bp.post("/story/attack")
@@ -159,7 +162,11 @@ def rush_fight():
 
 
 def _rush_settle(user, fight):
-    return rush.finish_fight(user, fight, r(), session.get("name", "?"))
+    rewards = rush.finish_fight(user, fight, r(), session.get("name", "?"))
+    if rewards["won"]:
+        logic.track_quest_progress(user, "rush_boss")
+        logic.track_quest_progress(user, "reach_rush", rewards.get("rush", {}).get("beaten", 0))
+    return rewards
 
 
 @bp.post("/rush/attack")

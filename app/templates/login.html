@@ -7,7 +7,6 @@
     <h1 class="display sm">Log in</h1>
     {% if config.DISCORD_CLIENT_ID %}
       <a class="btn discord big block" href="{{ url_for('auth.discord_login', next=next) }}">Continue with Discord</a>
-      <p class="muted auth-hint">Discord players keep their bot save. Same stands, same items.</p>
       <p class="auth-or"><span>or</span></p>
     {% endif %}
     <form class="auth-form" method="post" action="{{ url_for('auth.login') }}">

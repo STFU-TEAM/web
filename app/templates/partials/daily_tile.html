@@ -15,6 +15,6 @@
 {% if st.daily %}
   <p class="muted">Back in {{ st.daily|delta }}.</p>
 {% else %}
-  <p>100 fragments and often an item, plus today's streak bonus. Come back tomorrow to keep the streak.</p>
+  <p>{{ 100|dust }} and often an item, plus today's streak bonus. Come back tomorrow to keep the streak.</p>
   <button class="btn" hx-post="{{ url_for('play.daily') }}" hx-target="#daily" hx-disabled-elt="this">Claim it</button>
 {% endif %}

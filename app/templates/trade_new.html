@@ -41,14 +41,14 @@
         <h3 class="h3">Stands <small class="muted">(up to 5)</small></h3>
         {{ stand_picker(my_stands, 'give_stand') }}
         <h3 class="h3">Items</h3>{{ item_picker(my_items, 'give_item') }}
-        <label class="frag">Fragments <input type="number" name="give_fragments" min="0" max="{{ u.fragments }}" value="0"></label>
+        <label class="frag">Meteor Dust <input type="number" name="give_fragments" min="0" max="{{ u.fragments }}" value="0"></label>
       </fieldset>
       <fieldset>
         <legend>You ask from {{ other_name }}</legend>
         <h3 class="h3">Stands</h3>
         {{ stand_picker(their_stands, 'want_stand') }}
         <h3 class="h3">Items</h3>{{ item_picker(their_items, 'want_item') }}
-        <label class="frag">Fragments <input type="number" name="want_fragments" min="0" value="0"></label>
+        <label class="frag">Meteor Dust <input type="number" name="want_fragments" min="0" value="0"></label>
       </fieldset>
     </div>
     <p class="trade-submit"><button class="btn gold big">Send offer</button>

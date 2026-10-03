@@ -1,0 +1,65 @@
+{% macro pairs(types, qualities, old_types=none, old_qualities=none, spin=false, lockable=false) %}
+  {% set RANK = {'UNIVERSAL': 'A', 'SUPREME': 'B', 'GREAT': 'C', 'GOOD': 'D', 'SUB_PAR': 'E', 'BAD': 'F'} %}
+  {% set EMO = {'ATTACK': '⚔️', 'DEFENSE': '🛡️', 'SPEED': '💨', 'LUCK': '🍀', 'BALANCE': '⚖️'} %}
+  <ol class="forge-pairs{% if spin %} spin{% endif %}">
+    {% for t in types %}
+      {% set q = qualities[loop.index0] %}
+      {% set old_rank = RANK.get(old_qualities[loop.index0]) if old_qualities and loop.index0 < old_qualities|length and old_types[loop.index0] == t else none %}
+      <li class="reel q-{{ RANK[q] }}" data-type="{{ EMO[t] }} {{ t|title }}" data-quality="{{ q|replace('_', ' ')|title }}" data-rank="{{ RANK[q] }}"
+          {% if old_rank %}data-old-rank="{{ old_rank }}"{% endif %}>
+        <span class="reel-type">{{ EMO[t] }} {{ t|title }}</span>
+        <span class="reel-quality"><b>{{ RANK[q] }}</b> {{ q|replace('_', ' ')|title }}</span>
+        {% if lockable %}
+          <label class="reel-lock"><input type="checkbox" name="lock" value="{{ loop.index0 }}" data-forge-lock>
+            <span aria-hidden="true">🔓</span><span class="sr">Lock {{ t|title }}</span></label>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ol>
+{% endmacro %}
+
+{% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+{% if not char %}
+  <p class="notice">Pick a stand on the left.</p>
+{% else %}
+  <article class="forge-card">
+    <header class="forge-head">
+      <img src="{{ char.id|stand_img }}" alt="" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+      <div>
+        <p class="kicker"><span class="rar-tag {{ char.rarity|rarity }}">{{ char.rarity }}</span> Lv {{ char.level }}{% if char.awaken %} ★{{ char.awaken }}{% endif %}</p>
+        <h2 class="h2">{{ char.name }}</h2>
+        <p class="muted">Power {{ power[char.uuid]|num }} · base price {{ price.get(char.rarity, 3000)|dust }}</p>
+      </div>
+    </header>
+
+    {% if pending %}
+      <div class="forge-compare">
+        <section>
+          <h3 class="h3">Current roll <small class="muted">power {{ old_power|num }}</small></h3>
+          {{ pairs(pending.old_types, pending.old_qualities) }}
+        </section>
+        <section class="forge-new">
+          <h3 class="h3">New roll <small class="{{ 'up' if new_power > old_power else ('down' if new_power < old_power else 'muted') }}">power {{ new_power|num }} ({{ '+' if new_power >= old_power }}{{ new_power - old_power }})</small></h3>
+          {{ pairs(pending.types, pending.qualities, pending.old_types, pending.old_qualities, spin=rolled) }}
+        </section>
+      </div>
+      <div class="forge-actions">
+        <button class="btn gold" hx-post="{{ url_for('play.reforge_keep') }}" hx-vals='{"keep": "new"}' hx-target="#forge" hx-disabled-elt="this">Keep the new roll</button>
+        <button class="btn ghost" hx-post="{{ url_for('play.reforge_keep') }}" hx-vals='{"keep": "old"}' hx-target="#forge" hx-disabled-elt="this">Keep the current one</button>
+      </div>
+    {% else %}
+      <form class="forge-form" hx-post="{{ url_for('play.reforge_roll') }}" hx-target="#forge" hx-disabled-elt="find button[type=submit]" data-forge-form
+            data-costs='{{ costs|tojson }}'>
+        <input type="hidden" name="uuid" value="{{ char.uuid }}">
+        <h3 class="h3">Current roll <small class="muted">tap 🔓 to lock a pair</small></h3>
+        {{ pairs(char.types, char.qualities, lockable=char.types|length > 1) }}
+        <p class="forge-cost">Reforge for <strong data-forge-cost>{{ costs[0]|dust }}</strong>
+          <small class="muted">· each lock ×{{ lock_mult }}</small></p>
+        <button class="btn gold big" type="submit" {% if u.fragments < costs[0] %}disabled{% endif %}>⚒ Reforge</button>
+        <p class="muted small-print">Qualities roll A (Universal) 5% · B 10% · C 20% · D 50% · E 10% · F 5%; a bad first quality guarantees an extra pair. You'll compare before anything changes.</p>
+      </form>
+    {% endif %}
+  </article>
+{% endif %}
+{% if request.headers.get('HX-Request') %}{% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}{% endif %}

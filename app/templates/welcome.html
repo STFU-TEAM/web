@@ -4,7 +4,7 @@
 <section class="page narrow welcome">
   <p class="menace" aria-hidden="true">ゴゴゴ</p>
   <h1 class="display">Welcome, {{ me.name }}.</h1>
-  <p class="lede">{% if local %}Your account is ready. Beginning creates your save and gives you one super fragment, enough for a 10-pull on any banner. Link Discord later from your account page and the bot will see the same save.{% else %}This Discord account has never played STFU Requiem. Beginning creates your save and gives you one super fragment, enough for a 10-pull on any banner. The Discord bot will see the same save.{% endif %}</p>
+  <p class="lede">{% if local %}Your account is ready. Beginning creates your save and gives you one Arrowhead, enough for a 10-pull on any banner.{% else %}This Discord account has never played STFU Requiem. Beginning creates your save and gives you one Arrowhead, enough for a 10-pull on any banner.{% endif %}</p>
   <form method="post">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
     <button class="btn gold big">Begin my adventure</button>

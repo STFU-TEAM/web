@@ -65,7 +65,7 @@ def shop_create():
             if get_db().get_shop(user.shop_id):
                 flash("You already own a shop.", "error")
             elif user.fragments < SHOP_COST:
-                flash(f"Creating a shop costs {SHOP_COST:,} fragments.".replace(",", " "), "error")
+                flash(f"Creating a shop costs {SHOP_COST:,} Meteor Dust.".replace(",", " "), "error")
             else:
                 shop_id = str(uuid.uuid4())
                 shop = {"_id": shop_id, "owner": session["uid"], "name": name,
@@ -93,7 +93,7 @@ def shop_list_item(shop_id):
             if not shop or shop.get("owner") != session["uid"] or user.shop_id != shop_id:
                 flash("You cannot list items in that shop.", "error")
             elif item_id is None or not 1 <= item_id <= len(item_file) or price is None or not 1 <= price <= 10000000:
-                flash("Choose an owned item and a price from 1 to 10,000,000 fragments.", "error")
+                flash("Choose an owned item and a price from 1 to 10,000,000 Meteor Dust.", "error")
             elif len(shop.get("items", [])) >= 30:
                 flash("Your shop can hold up to 30 listings.", "error")
             else:
@@ -106,7 +106,7 @@ def shop_list_item(shop_id):
                     shop.setdefault("prices", []).append(price)
                     user.update()
                     db.update_shop(shop)
-                    flash(f"{item.name} listed for {price:,} fragments.".replace(",", " "), "ok")
+                    flash(f"{item.name} listed for {price:,} Meteor Dust.".replace(",", " "), "ok")
     except Busy:
         flash("Your last action is still running. Try again.", "error")
     return redirect(url_for("social.shop_view", shop_id=shop_id))
@@ -155,7 +155,7 @@ def shop_buy_item(shop_id, index):
             else:
                 price = int(shop["prices"][index])
                 if buyer.fragments < price:
-                    flash("You do not have enough fragments.", "error")
+                    flash("You do not have enough Meteor Dust.", "error")
                 else:
                     item = Item(shop["items"].pop(index))
                     shop["prices"].pop(index)
@@ -165,7 +165,7 @@ def shop_buy_item(shop_id, index):
                     buyer.update()
                     seller.update()
                     db.update_shop(shop)
-                    flash(f"Bought {item.name} for {price:,} fragments.".replace(",", " "), "ok")
+                    flash(f"Bought {item.name} for {price:,} Meteor Dust.".replace(",", " "), "ok")
     except Busy:
         flash("The buyer or seller is completing another action. Try again.", "error")
     return redirect(url_for("social.shop_view", shop_id=shop_id))

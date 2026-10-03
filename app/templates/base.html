@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}STFU Requiem{% endblock %}</title>
-  <meta name="description" content="Pull JoJo stands from banners, build a team of three and fight. Your Discord progress comes with you.">
+  <meta name="description" content="Pull JoJo stands from banners, build a team of three and fight through the story, the tower and the weekly boss rush.">
   <meta name="theme-color" content="#2B1747">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,18 +27,19 @@
     the menu sheet and the new-player tour all read from here. -#}
 {%- set L = {
   'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟', 'Your 3 fighters and every stand you own. Fuse, lock and equip here.'),
-  'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', 'Equipment, Stand Arrows, crafting and the shop.'),
-  'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend super fragments for 10 new stands. Pity guarantees SSR+.'),
+  'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', "Equipment, Devil's Palms, crafting and the shop."),
+  'reforge': ('Reforge', url_for('play.reforge_page'), ep.startswith('play.reforge'), '⚒', 'Reroll a stand’s types and qualities. Lock the ones you like.'),
+  'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend Arrowheads for 10 new stands. Pity guarantees SSR+.'),
   'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜', 'Travel Parts 3 to 8 beside each JoJo. The best rewards for new players.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'The six story bosses back to back, health carried over. Weekly leaderboard.'),
   'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.'), '⚔', 'Practice dummy, ranked duels and friend challenges.'),
-  'wormhole': ('Wormhole', url_for('play.wormhole'), ep.startswith('play.wormhole'), '◎', 'A random team scaled to your level, for fragments and items.'),
+  'wormhole': ('Wormhole', url_for('play.wormhole'), ep.startswith('play.wormhole'), '◎', 'A random team scaled to your level, for Meteor Dust and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'Six floors in a row. Clear them all to raise the tower.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'Wager energy, explore a map, open chests.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
   'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),
   'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑', 'Join a clan: shared vault, wars and raids.'),
-  'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and fragments with players.'),
+  'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and Meteor Dust with players.'),
   'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖', 'Buy items other players listed, or sell yours.'),
   'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛', 'The top players by Elo, level and collection.'),
   'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
@@ -51,7 +52,7 @@
 {%- set community_keys = ['gangs', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
-  {%- set sheet = [('Collection', ['team', 'items', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
+  {%- set sheet = [('Collection', ['team', 'items', 'reforge', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
                    ('Community', community_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
   {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
@@ -82,7 +83,7 @@
 
     <nav class="nav" aria-label="Main">
       {% if me.id %}
-        {{ nav_link('team') }}{{ nav_link('banners') }}{{ nav_link('items') }}
+        {{ nav_link('team') }}{{ nav_link('banners') }}{{ nav_link('items') }}{{ nav_link('reforge') }}
         {{ nav_menu('Battle', battle_keys, 'battle', hot=story_hot) }}
         {{ nav_menu('Progress', progress_keys, 'progress') }}
         {{ nav_menu('Community', community_keys, 'community') }}
@@ -175,9 +176,21 @@
 
   {% if me.id %}{% include "partials/tour.html" %}{% endif %}
 
+  <aside class="install-hint" data-install hidden aria-label="Install the app">
+    <img src="{{ url_for('static', filename='img/icon-192.png') }}" alt="" width="44" height="44">
+    <div>
+      <strong>Play it like an app</strong>
+      <p data-install-text>Install STFU Requiem on your home screen: full screen, one tap away.</p>
+    </div>
+    <div class="install-actions">
+      <button type="button" class="btn small gold" data-install-go hidden>Install</button>
+      <button type="button" class="btn small ghost" data-install-later>Not now</button>
+    </div>
+  </aside>
+
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
-    <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a>{% if config.DISCORD_CLIENT_ID %} | <a href="{{ url_for('auth.bot_invite') }}">Add bot to Discord</a>{% endif %}</p>
+    <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a></p>
   </footer>
 </body>
 </html>

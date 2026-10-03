@@ -14,12 +14,20 @@ from typing import List, Optional
 
 from app.game.character import CHARACTER_FILE, character_from_dict
 from app.game.items import item_file, item_from_dict
-from app.game.logic import GameError
+from app.game.logic import GameError, train
 
-# Difficulty: stage k fights enemies at level 2 * GROWTH**k (capped at 100). Past the cap,
-# awakenings and qualities keep the curve climbing.
-GROWTH = 1.3
-QUALITY_STEPS = ("BAD", "SUB_PAR", "GOOD", "GOOD", "GREAT", "SUPREME", "UNIVERSAL")
+# Difficulty, stage by stage: (enemy level, awakening, quality). Tuned with a 30-day simulation of
+# a good daily player (scratch month.py): Part 3 falls on day 1-2, Part 4 in the first week, Part 5
+# in week 2, Part 6 in weeks 3-4, Part 7 in the second month, and Part 8 asks for a maxed team.
+CURVE = [
+    (2, 0, "BAD"),                                                                        # prologue
+    (3, 0, "BAD"), (4, 0, "BAD"), (5, 0, "BAD"), (7, 0, "BAD"), (9, 0, "SUB_PAR"),        # Part 3
+    (10, 0, "SUB_PAR"), (12, 0, "SUB_PAR"), (14, 0, "SUB_PAR"), (16, 0, "GOOD"), (19, 0, "GOOD"),  # Part 4
+    (23, 0, "GOOD"), (26, 0, "GOOD"), (30, 1, "GOOD"), (34, 1, "GOOD"), (38, 1, "GOOD"),  # Part 5
+    (44, 1, "GOOD"), (48, 1, "GREAT"), (53, 2, "GREAT"), (58, 2, "GREAT"), (64, 2, "GREAT"),  # Part 6
+    (70, 2, "GREAT"), (76, 2, "SUPREME"), (82, 3, "SUPREME"), (88, 3, "SUPREME"), (94, 3, "SUPREME"),  # Part 7
+    (100, 3, "SUPREME"), (100, 3, "UNIVERSAL"), (100, 4, "UNIVERSAL"), (100, 4, "UNIVERSAL"), (100, 5, "UNIVERSAL"),  # Part 8
+]
 
 PARTS = [
     {
@@ -27,7 +35,7 @@ PARTS = [
         "title": "Prologue · The Arrow",
         "jojo": None,
         "color": "#B3A3CF",
-        "intro": "A Stand Arrow falls out of a clear sky and pierces your hand. The world folds. "
+        "intro": "An Arrow falls out of a clear sky and pierces your hand. The world folds. "
         "Somewhere far away, a bloodline older than you is calling for help.",
         "stages": [
             {
@@ -300,17 +308,15 @@ def cleared(user) -> int:
 
 
 def level_for(k: int) -> int:
-    return max(1, min(100, round(2 * GROWTH**k)))
+    return CURVE[min(k, len(CURVE) - 1)][0]
 
 
 def awaken_for(k: int) -> int:
-    """Once enemies hit level 100, every further stage adds an awakening (up to 3)."""
-    capped = next((i for i in range(TOTAL) if level_for(i) >= 100), TOTAL)
-    return max(0, min(3, k - capped + 1))
+    return CURVE[min(k, len(CURVE) - 1)][1]
 
 
 def quality_for(k: int) -> str:
-    return QUALITY_STEPS[min(len(QUALITY_STEPS) - 1, k * len(QUALITY_STEPS) // TOTAL)]
+    return CURVE[min(k, len(CURVE) - 1)][2]
 
 
 def enemy_team(k: int) -> list:
@@ -343,25 +349,25 @@ def ai_level(k: int) -> str:
 
 
 def reward_for(k: int) -> dict:
-    """First clear only. Fragments grow with the stage; boss stages add a super fragment."""
+    """First clear only. Meteor Dust grows with the stage; boss stages add an Arrowhead."""
     stage = STAGES[k]
     reward = {
         "fragments": int(round(150 * 1.12**k, -1)),
         "xp": 100 + 40 * k,
-        "stand_xp": 20 + 10 * k,
+        "stand_xp": 20 + 5 * k,
         "super_fragments": 1 if stage.get("boss") else 0,
         "items": [],
     }
     if k % 3 == 2:
-        reward["items"].append(2)  # a Stand Arrow every third stage
+        reward["items"].append(2)  # a Devil's Palm every third stage
     return reward
 
 
 def reward_text(k: int) -> List[str]:
     reward = reward_for(k)
-    parts = [f"{reward['fragments']:,} fragments"]
+    parts = [f"{reward['fragments']:,} Meteor Dust"]
     if reward["super_fragments"]:
-        parts.append(f"{reward['super_fragments']} super fragment")
+        parts.append(f"{reward['super_fragments']} Arrowhead")
     for item_id in reward["items"]:
         parts.append(item_file[item_id - 1]["name"])
     return parts
@@ -418,7 +424,7 @@ def current(user) -> Optional[dict]:
 
 REPLAY_ENERGY = 1
 REPLAY_SHARE = (
-    0.2  # replays pay this share of the first-clear fragments, plus full stand XP
+    0.2  # replays pay this share of the first-clear Meteor Dust, plus full stand XP
 )
 
 
@@ -446,7 +452,7 @@ def win(user, k: int) -> dict:
         fragments = int(round(reward["fragments"] * REPLAY_SHARE, -1))
         user.fragments += fragments
         for char in user.main_characters:
-            char.xp += reward["stand_xp"]
+            train(char, reward["stand_xp"])
         return {
             "won": True,
             "fragments": fragments,
@@ -458,14 +464,14 @@ def win(user, k: int) -> dict:
     user.super_fragments += reward["super_fragments"]
     user.xp += reward["xp"]
     for char in user.main_characters:
-        char.xp += reward["stand_xp"]
+        train(char, reward["stand_xp"])
     names = []
     for item_id in reward["items"]:
         item = item_from_dict({"id": item_id})
         user.items.append(item)
         names.append(item.name)
     if reward["super_fragments"]:
-        names.append(f"{reward['super_fragments']} super fragment")
+        names.append(f"{reward['super_fragments']} Arrowhead")
     user.data.setdefault("web_story", {})["cleared"] = k + 1
     return {
         "won": True,

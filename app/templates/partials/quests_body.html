@@ -1,7 +1,7 @@
 {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
 {% if claimed %}
   <p class="toast ok" role="status">Claimed:
-    {% for c in claimed %}{{ c.name }}{% if c.fragments %} (+{{ c.fragments }} fragments){% endif %}{% if c.super_fragments %} (+{{ c.super_fragments }} super fragment){% endif %}{% if c.xp %} (+{{ c.xp }} XP){% endif %}{{ ', ' if not loop.last }}{% endfor %}.
+    {% for c in claimed %}{{ c.name }}{% if c.fragments %} (+{{ c.fragments }} Meteor Dust){% endif %}{% if c.super_fragments %} (+{{ c.super_fragments }} Arrowhead){% endif %}{% if c.xp %} (+{{ c.xp }} XP){% endif %}{{ ', ' if not loop.last }}{% endfor %}.
   </p>
 {% endif %}
 {% set ready = [] %}{% for label, rows in groups.items() %}{% for q in rows if q.ready %}{% set _ = ready.append(q) %}{% endfor %}{% endfor %}
@@ -20,8 +20,8 @@
         <p class="muted">{{ q.description }}. Reward:
           {%- set r = q.rewards -%}
           {%- set parts = [] -%}
-          {%- if r.fragments %}{% set _ = parts.append(r.fragments ~ ' fragments') %}{% endif -%}
-          {%- if r.super_fragments %}{% set _ = parts.append(r.super_fragments ~ ' super fragment') %}{% endif -%}
+          {%- if r.fragments %}{% set _ = parts.append(r.fragments ~ ' Meteor Dust') %}{% endif -%}
+          {%- if r.super_fragments %}{% set _ = parts.append(r.super_fragments ~ ' Arrowhead') %}{% endif -%}
           {%- if r.xp %}{% set _ = parts.append(r.xp ~ ' XP') %}{% endif -%}
           {%- if r['items'] %}{% set _ = parts.append(r['items']|length ~ ' item' ~ ('s' if r['items']|length > 1 else '')) %}{% endif %}
           {{ parts|join(', ') }}.</p>

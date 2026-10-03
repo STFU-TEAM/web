@@ -21,8 +21,8 @@
 
 <div class="stat-tiles">
   <div><span>Level</span><strong>{{ t.level }}</strong><small>{{ t.xp|num }} XP</small></div>
-  <div><span>Fragments</span><strong>{{ t.fragments|num }}</strong></div>
-  <div><span>Super fragments</span><strong>{{ t.super_fragments|num }}</strong></div>
+  <div><span>Meteor Dust</span><strong>{{ t.fragments|num }}</strong></div>
+  <div><span>Arrowheads</span><strong>{{ t.super_fragments|num }}</strong></div>
   <div><span>Energy</span><strong>{{ t.energy }}/{{ t.total_energy }}</strong></div>
   <div><span>Pity</span><strong>{{ t.pity }}</strong></div>
   <div><span>Elo</span><strong>{{ t.global_elo|num }}</strong><small>{{ t.global_elo|rank }}</small></div>
@@ -39,7 +39,7 @@
     {% endcall %}
     <h3 class="h3">Grant</h3>
     {% call act('grant', 'Grant', 'btn small', anchor='#edit') %}
-      <select name="kind" aria-label="What"><option value="fragments">Fragments</option><option value="super_fragments">Super fragments</option><option value="item">Item</option></select>
+      <select name="kind" aria-label="What"><option value="fragments">Meteor Dust</option><option value="super_fragments">Arrowheads</option><option value="item">Item</option></select>
       <select name="item_id" aria-label="Item"><option value="">(item)</option>{% for it in catalog %}<option value="{{ it.id }}">{{ it.id }} · {{ it.name }}</option>{% endfor %}</select>
       <input type="number" name="amount" min="1" max="1000000" placeholder="Amount" required aria-label="Amount">
     {% endcall %}

@@ -28,8 +28,8 @@
       {% endif %}
     </div>
     <div class="action-tile">
-      <h2 class="h3">Banners</h2>
-      <p>{% if u.super_fragments %}You can afford {{ u.super_fragments }} 10-pull{{ 's' if u.super_fragments > 1 }}.{% else %}5,000 fragments buy a super fragment in the shop.{% endif %} Pity {{ u.pity }}/{{ PITY_LIMIT }}.</p>
+      <h2 class="h3">{{ icon('head', label=False) }} Summon</h2>
+      <p>{% if u.super_fragments %}You can afford {{ u.super_fragments }} 10-pull{{ 's' if u.super_fragments > 1 }}.{% else %}5,000 Meteor Dust buys an Arrowhead in the shop.{% endif %} Pity {{ u.pity }}/{{ PITY_LIMIT }}.</p>
       <a class="btn" href="{{ url_for('play.banners') }}">Open the banners</a>
     </div>
   </div>

@@ -560,6 +560,89 @@ table.stats td { font-weight: 700; font-variant-numeric: tabular-nums; }
 .rush-reward { color: var(--gold); font-size: .75rem; }
 .gang-standings li.me { box-shadow: inset 3px 0 0 var(--gold); }
 @media (max-width: 860px) { .rush-grid { grid-template-columns: 1fr; } }
+/* Currency icons (app/branding.py): Meteor Dust is gold sparks, Arrowheads a gold blade, Devil's Palm a palm */
+.cur { display: inline-flex; vertical-align: -.15em; margin-left: .2em; }
+.cur svg { width: 1.05em; height: 1.05em; }
+.cur-dust { color: #F4C542; filter: drop-shadow(0 0 2px rgb(244 197 66 / .45)); }
+.cur-head { color: #F4C542; filter: drop-shadow(0 0 2px rgb(214 36 110 / .5)); }
+.cur-palm { color: #5FC46A; }
+.cur-amount { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.btn.gold .cur-head, .btn.gold .cur-dust { color: var(--ink); filter: none; }
+.wallet dt { display: flex; align-items: center; gap: .3rem; }
+.wallet dt .cur { margin-left: 0; }
+
+/* The Forge (reforge tab) */
+.forge-layout { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 1.5rem; align-items: start; margin-top: 1.2rem; }
+.forge-picker { position: sticky; top: 80px; display: grid; gap: .6rem; }
+.forge-picker input { font: inherit; color: var(--paper); background: var(--night-2); border: 2px solid var(--night-3); border-radius: var(--radius-ui); padding: .5rem .7rem; }
+.forge-picker input:focus { border-color: var(--gold); outline: none; }
+.forge-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; max-height: calc(100vh - 220px); overflow-y: auto; }
+.forge-list li[hidden] { display: none; }
+.forge-list a { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: .6rem; padding: .4rem .5rem;
+  border-radius: var(--radius-ui); background: var(--night-2); border: 2px solid transparent; color: var(--paper); text-decoration: none; }
+.forge-list a:hover, .forge-list a.on { border-color: var(--gold); }
+.forge-list img { width: 42px; height: 42px; object-fit: cover; object-position: center top; border-radius: 6px; }
+.forge-list strong { display: block; font-size: var(--step--1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.forge-list small { color: var(--muted); font-size: .72rem; }
+.forge-ranks { display: flex; gap: 2px; }
+.forge-ranks b, .reel-quality b { display: inline-grid; place-items: center; min-width: 1.6em; height: 1.6em; border-radius: 4px; font-size: .75rem; background: var(--night-3); color: var(--paper); }
+.q-A b, b.q-A { background: linear-gradient(135deg, var(--gold), var(--magenta)); color: var(--ink); }
+.q-B b, b.q-B { background: var(--gold); color: var(--ink); }
+.q-C b, b.q-C { background: var(--violet); color: var(--paper); }
+.q-D b, b.q-D { background: var(--night-3); }
+.q-E b, b.q-E, .q-F b, b.q-F { background: rgb(214 36 110 / .35); color: #FF8DB9; }
+.forge-card { padding: 1.3rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3); display: grid; gap: 1rem; }
+.forge-head { display: flex; gap: 1rem; align-items: center; }
+.forge-head img { width: 96px; height: 96px; flex: none; object-fit: cover; object-position: center top; border-radius: var(--radius-ui); border: 3px solid var(--gold-deep); }
+.forge-head .h2, .forge-head p { margin: 0; }
+.forge-pairs { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .5rem; }
+.reel { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .8rem; padding: .7rem .9rem;
+  border-radius: var(--radius-ui); background: var(--night); border: 2px solid var(--night-3); font-weight: 700; overflow: hidden;
+  transition: border-color .2s, box-shadow .2s; }
+.reel-type { font-size: 1.05rem; }
+.reel-quality { display: flex; align-items: center; gap: .4rem; }
+.reel.locked { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); }
+.reel-lock { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; background: var(--night-3); }
+.reel-lock input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.reel-lock:has(input:focus-visible) { outline: 3px solid var(--gold); outline-offset: 2px; }
+.reel-lock:has(input:disabled) { opacity: .35; cursor: not-allowed; }
+.reel.rolling { border-color: var(--violet); }
+.reel.rolling .reel-type, .reel.rolling .reel-quality { filter: blur(.5px); animation: reel-shake .14s linear infinite; }
+.reel.landed { animation: reel-land .45s cubic-bezier(.2, .9, .3, 1.4); }
+.reel.better { border-color: var(--teal); box-shadow: 0 0 18px rgb(43 179 168 / .35); }
+.reel.worse { border-color: var(--magenta); }
+.reel.better::after, .reel.worse::after { position: absolute; right: .4rem; top: .2rem; font-size: .7rem; }
+.reel.better::after { content: "\25B2"; color: var(--teal); }
+.reel.worse::after { content: "\25BC"; color: var(--magenta); }
+@keyframes reel-shake { 50% { transform: translateY(-3px); } }
+@keyframes reel-land { from { transform: scale(1.06); } }
+.forge-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.forge-compare .h3, .forge-form .h3 { margin: 0; display: flex; justify-content: space-between; gap: .5rem; flex-wrap: wrap; align-items: baseline; }
+.forge-new { padding: .6rem; margin: -.6rem; border-radius: var(--radius-ui); background: rgb(244 197 66 / .06); }
+.forge-actions { display: flex; flex-wrap: wrap; gap: .6rem; }
+.forge-form { display: grid; gap: .6rem; margin: 0; }
+.forge-cost { margin: .3rem 0 0; font-size: var(--step-1); }
+.forge-card small.up { color: var(--teal); font-weight: 700; }
+.forge-card small.down { color: #FF8DB9; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .reel.landed, .reel.rolling .reel-type, .reel.rolling .reel-quality { animation: none; } }
+@media (max-width: 860px) {
+  .forge-layout, .forge-compare { grid-template-columns: 1fr; }
+  .forge-picker { position: static; }
+  .forge-list { max-height: 240px; }
+  .forge-new { margin: 0; }
+}
+
+/* Install-the-app prompt (phones only, see app.js) */
+.install-hint { position: fixed; z-index: 45; left: .6rem; right: .6rem; bottom: calc(70px + env(safe-area-inset-bottom));
+  display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: .5rem .7rem; align-items: center; padding: .8rem .9rem;
+  border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--gold); box-shadow: 0 12px 30px rgb(0 0 0 / .55);
+  animation: pull-arrive .3s ease-out; }
+.install-hint[hidden] { display: none; }
+.install-hint img { border-radius: 10px; }
+.install-hint strong { display: block; }
+.install-hint p { margin: .1rem 0 0; font-size: var(--step--1); color: var(--muted); }
+.install-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: .5rem; }
+
 /* Wiki search */
 .wiki-search { grid-column: 1 / -1; position: relative; margin-bottom: 1rem; }
 .wiki-search input { width: 100%; font: inherit; font-size: 1.05rem; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .7rem .9rem; }

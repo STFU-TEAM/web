@@ -66,7 +66,7 @@ def ensure_quests_assigned(user) -> None:
     now = datetime.datetime.now() + datetime.timedelta(hours=2)
 
     if _needs_daily_reset(qd):
-        qd["active_daily"] = _pick_quests("daily", 3, user.level)
+        qd["active_daily"] = _pick_quests("daily", 4, user.level)
         qd["last_daily_reset"] = now
 
     if _needs_weekly_reset(qd):
@@ -106,9 +106,9 @@ def track_quest_progress(user, action: str, count: int = 1) -> List[str]:
             if entry["claimed"]:
                 continue
             was_complete = entry["progress"] >= quest_def["target"]
-            # For reach_level, set progress to the count directly (user level)
-            if action == "reach_level":
-                entry["progress"] = count
+            # reach_* quests record the best value so far (level, story stage, tower floor...)
+            if action.startswith("reach_"):
+                entry["progress"] = max(entry["progress"], min(count, quest_def["target"]))
             else:
                 entry["progress"] = min(entry["progress"] + count, quest_def["target"])
             is_complete = entry["progress"] >= quest_def["target"]

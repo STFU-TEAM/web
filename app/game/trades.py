@@ -1,7 +1,7 @@
 """Player-to-player trade offers (the bot's /character trade, made asynchronous).
 
 An offer lists what each side hands over: stands (by uuid), items (id -> count)
-and fragments. Nothing moves until the receiver accepts; ownership is checked
+and Meteor Dust. Nothing moves until the receiver accepts; ownership is checked
 again at that moment under both players' locks, so an offer can't duplicate or
 steal anything that changed in the meantime.
 
@@ -63,7 +63,7 @@ def check_side(user, side, who: str):
         if have.get(int(item_id), 0) < n:
             raise GameError(f"{who} no longer {'have' if who == 'You' else 'has'} enough {item_file[int(item_id) - 1]['name']}.")
     if user.fragments < side["fragments"]:
-        raise GameError(f"{who} no longer {'have' if who == 'You' else 'has'} {side['fragments']:,} fragments.")
+        raise GameError(f"{who} no longer {'have' if who == 'You' else 'has'} {side['fragments']:,} Meteor Dust.")
 
 
 def describe(user, side) -> dict:

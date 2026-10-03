@@ -18,7 +18,7 @@
   {% if local %}
     <section class="social-panel">
       <h2 class="h2">Link Discord</h2>
-      <p>Linking moves this save to your Discord account, so the Discord bot sees the same stands and items. You'll still be able to log in with your username.</p>
+      <p>Link Discord to log in with one click. You'll still be able to log in with your username.</p>
       {% if discord_ready %}
         <a class="btn discord" href="{{ url_for('auth.discord_login', link=1) }}">Link my Discord account</a>
       {% else %}<p class="muted">Discord login isn't configured on this server.</p>{% endif %}

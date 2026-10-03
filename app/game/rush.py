@@ -42,9 +42,9 @@ def ran_today(user) -> bool:
 
 def reward_text(i: int) -> str:
     r = REWARDS[i]
-    parts = [f"{r['fragments']:,} fragments"]
+    parts = [f"{r['fragments']:,} Meteor Dust"]
     if r.get("super"):
-        parts.append(f"{r['super']} super fragment{'s' if r['super'] > 1 else ''}")
+        parts.append(f"{r['super']} Arrowhead{'s' if r['super'] > 1 else ''}")
     parts += [item_file[x - 1]["name"] for x in r["items"]]
     return ", ".join(parts)
 
@@ -107,7 +107,7 @@ def finish_fight(user, fight, redis, name: str) -> dict:
             user.items.extend(items)
             s["claimed"].append(index)
             rewards.update(fragments=reward["fragments"],
-                           item=", ".join([i.name for i in items] + ([f"{reward['super']} super fragment"] if reward.get("super") else [])) or None)
+                           item=", ".join([i.name for i in items] + ([f"{reward['super']} Arrowhead"] if reward.get("super") else [])) or None)
     beaten = run["index"]
     if fight.winner != 0 or beaten >= len(BOSS_STAGES):
         s["run"] = None

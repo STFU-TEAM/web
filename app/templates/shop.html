@@ -26,7 +26,7 @@
     <h2 class="h2">Listings</h2>
     <ul class="inventory market-inventory">
       {% for listing in items %}
-        <li class="item"><div><h3>{{ listing.item.name }}</h3><p>{{ listing.item.emoji }} | {{ listing.price|num }} fragments</p></div>
+        <li class="item"><div><h3>{{ listing.item.name }}</h3><p>{{ listing.item.emoji }} | {{ listing.price|dust }}</p></div>
           {% if shop.owner == me.id %}
             <form method="post" action="{{ url_for('social.shop_unlist_item', shop_id=shop._id, index=listing.index) }}">
               <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Return to inventory</button>

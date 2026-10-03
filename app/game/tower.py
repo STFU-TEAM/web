@@ -21,11 +21,12 @@ from app.game.character import CHARACTER_FILE, character_from_dict
 from app.game.effects import STAT_EFFECTS, remove_terrain_bonuses
 from app.game.gangs import week_ends, week_key
 from app.game.items import item_file, item_from_dict
-from app.game.logic import GameError, now
+from app.game.logic import GameError, now, train
 
 CLIMB_COST = 500
-GROWTH = 1.125         # enemy level = 2 * GROWTH**floor until 100
-OVERFLOW = 1.06        # then health and damage multiply by this per floor
+LEVEL_POWER = 1.25     # enemy level = 1 + floor**LEVEL_POWER, so level 100 around floor 40
+AWAKEN_FLOORS = (15, 25, 35, 50, 60)  # enemies gain ★1..★5 from these floors
+OVERFLOW = 1.05        # past floor 60, health and damage multiply by this per floor
 REST_EVERY, REST_HEAL = 5, 0.60
 FLOOR_HEAL = 0.30      # a breather after every floor; rest stops heal more
 BOSS_EVERY = 10
@@ -49,21 +50,16 @@ def state(user) -> dict:
 # ── Floors ───────────────────────────────────────────────────────────────
 
 def level_for(floor: int) -> int:
-    return max(1, min(100, round(2 * GROWTH ** floor)))
-
-
-def _capped_at() -> int:
-    return next(f for f in range(1, 500) if level_for(f) >= 100)
+    return max(1, min(100, round(1 + floor ** LEVEL_POWER)))
 
 
 def awaken_for(floor: int) -> int:
-    """One awakening every 3 floors past the level cap."""
-    return max(0, min(3, (floor - _capped_at()) // 3 + 1)) if floor >= _capped_at() else 0
+    return sum(floor >= f for f in AWAKEN_FLOORS)
 
 
 def overflow_for(floor: int) -> float:
     """Health/damage multiplier once level and awakenings are maxed."""
-    extra = floor - (_capped_at() + 9)
+    extra = floor - AWAKEN_FLOORS[-1]
     return OVERFLOW ** extra if extra > 0 else 1.0
 
 
@@ -126,6 +122,11 @@ def preview(floor: int) -> dict:
 
 # ── Rewards ─────────────────────────────────────────────────────────────
 
+def stand_xp_for(floor: int) -> int:
+    """Each team stand's XP for a floor's first clear of the week: flat, so the tower doesn't outpace the rest."""
+    return 10 + floor // 2
+
+
 def reward_for(floor: int) -> dict:
     """Paid the first time each week you clear a floor."""
     reward = {"fragments": int(round(80 * 1.08 ** floor, -1)), "items": [], "super": 0}
@@ -138,9 +139,9 @@ def reward_for(floor: int) -> dict:
 
 def reward_text(floor: int) -> str:
     r = reward_for(floor)
-    parts = [f"{r['fragments']:,} fragments"] + [item_file[i - 1]["name"] for i in r["items"]]
+    parts = [f"{r['fragments']:,} Meteor Dust"] + [item_file[i - 1]["name"] for i in r["items"]]
     if r["super"]:
-        parts.append("1 super fragment")
+        parts.append("1 Arrowhead")
     return ", ".join(parts)
 
 
@@ -192,7 +193,7 @@ def start_climb(user, redis, fighters: list):
     if not user.main_characters:
         raise GameError("Put stands in your team before you climb.")
     if user.fragments < CLIMB_COST:
-        raise GameError(f"A climb costs {CLIMB_COST} fragments.")
+        raise GameError(f"A climb costs {CLIMB_COST} Meteor Dust.")
     user.fragments -= CLIMB_COST
     s["run"] = {"floor": 1}
     save_team(redis, user.id, fighters)
@@ -225,10 +226,10 @@ def finish_floor(user, fight, redis, name: str) -> dict:
         items = [item_from_dict({"id": i}) for i in reward["items"]]
         user.items.extend(items)
         for c in user.main_characters:
-            c.xp += 10 + floor * 2
+            train(c, stand_xp_for(floor))
         s["paid"] = floor
-        names = [i.name for i in items] + (["1 super fragment"] if reward["super"] else [])
-        rewards.update(fragments=reward["fragments"], stand_xp=10 + floor * 2, item=", ".join(names) or None)
+        names = [i.name for i in items] + (["1 Arrowhead"] if reward["super"] else [])
+        rewards.update(fragments=reward["fragments"], stand_xp=stand_xp_for(floor), item=", ".join(names) or None)
     if floor > s["best"]:
         s["best"] = floor
         user.tower_level = max(user.tower_level, floor)  # all-time best, shown on the ladder and profile

@@ -6,7 +6,7 @@
     <div>
       <p class="kicker">Endless climb · resets in {{ ends_in|delta }}</p>
       <h1 class="display sm">The Tower</h1>
-      <p class="muted">Floors never end and the enemies grow exponentially. Your team's health and growth carry from floor to floor:
+      <p class="muted">Floors never end. Enemies reach level 100 around floor 40 and gain awakenings from floor 15, then keep getting tougher. Your team's health and growth carry from floor to floor:
         a {{ floor_heal }}% patch-up after each one, and every 5th floor is a rest stop ({{ rest_heal }}% heal, fallen stands back at {{ revive }}%).</p>
     </div>
     <div class="rush-best"><small>Best this week</small><strong>{{ s.best }}</strong><span class="muted">all-time {{ u.tower_level }}</span></div>
@@ -62,9 +62,9 @@
           {% else %}
             <p class="kicker">New climb</p>
             <h2 class="h2">Start from floor 1</h2>
-            <p class="muted">A climb costs {{ cost|num }} fragments. Floors pay out the first time you clear them each week; every 10th floor adds a super fragment. Bring a levelled team: the tower is harder than the story.</p>
+            <p class="muted">A climb costs {{ cost|num }} Meteor Dust. Floors pay out the first time you clear them each week; every 10th floor adds an Arrowhead. Bring a levelled team: the tower is harder than the story.</p>
             {% if not u.main_characters %}<p class="notice">Put stands in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
-            {% elif u.fragments < cost %}<p class="notice">You need {{ cost|num }} fragments to climb.</p>
+            {% elif u.fragments < cost %}<p class="notice">You need {{ cost|num }} Meteor Dust to climb.</p>
             {% else %}
               <form method="post" action="{{ url_for('play.tower_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
                 <button class="btn gold big">Begin the climb · {{ cost|num }}</button></form>

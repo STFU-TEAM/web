@@ -35,10 +35,10 @@
         {
             "id": 3,
             "name": "Tower Climber",
-            "description": "Enter a tower",
+            "description": "Clear 3 tower floors",
             "category": "daily",
-            "action": "tower_attempt",
-            "target": 1,
+            "action": "tower_floor",
+            "target": 3,
             "rewards": {
                 "fragments": 200,
                 "super_fragments": 0,
@@ -78,7 +78,7 @@
                 "items": []
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": false
         },
         {
             "id": 6,
@@ -139,7 +139,11 @@
                 "fragments": 0,
                 "super_fragments": 0,
                 "xp": 500,
-                "items": [{"id": 2}]
+                "items": [
+                    {
+                        "id": 2
+                    }
+                ]
             },
             "level_requirement": 0,
             "enabled": true
@@ -147,15 +151,19 @@
         {
             "id": 102,
             "name": "Tower Master",
-            "description": "Complete 3 towers",
+            "description": "Clear 25 tower floors",
             "category": "weekly",
-            "action": "tower_complete",
-            "target": 3,
+            "action": "tower_floor",
+            "target": 25,
             "rewards": {
                 "fragments": 1000,
                 "super_fragments": 0,
                 "xp": 500,
-                "items": [{"id": 13}]
+                "items": [
+                    {
+                        "id": 13
+                    }
+                ]
             },
             "level_requirement": 0,
             "enabled": true
@@ -219,23 +227,31 @@
                 "fragments": 800,
                 "super_fragments": 0,
                 "xp": 400,
-                "items": [{"id": 2}]
+                "items": [
+                    {
+                        "id": 2
+                    }
+                ]
             },
             "level_requirement": 0,
-            "enabled": true
+            "enabled": false
         },
         {
             "id": 1001,
-            "name": "First Tower",
-            "description": "Complete tower 1 for the first time",
+            "name": "First Steps Up",
+            "description": "Reach floor 10 of the tower",
             "category": "permanent",
-            "action": "tower_complete",
-            "target": 1,
+            "action": "reach_tower",
+            "target": 10,
             "rewards": {
                 "fragments": 0,
                 "super_fragments": 0,
                 "xp": 500,
-                "items": [{"id": 2}]
+                "items": [
+                    {
+                        "id": 2
+                    }
+                ]
             },
             "level_requirement": 0,
             "enabled": true
@@ -283,6 +299,345 @@
                 "fragments": 0,
                 "super_fragments": 2,
                 "xp": 0,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 9,
+            "name": "Storyteller",
+            "description": "Win 1 story stage (replays count)",
+            "category": "daily",
+            "action": "story_win",
+            "target": 1,
+            "rewards": {
+                "fragments": 250,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 10,
+            "name": "Gauntlet Runner",
+            "description": "Beat 1 boss in the boss rush",
+            "category": "daily",
+            "action": "rush_boss",
+            "target": 1,
+            "rewards": {
+                "fragments": 250,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 11,
+            "name": "Floor by Floor",
+            "description": "Clear 3 tower floors",
+            "category": "daily",
+            "action": "tower_floor",
+            "target": 3,
+            "rewards": {
+                "fragments": 300,
+                "super_fragments": 0,
+                "xp": 120,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 12,
+            "name": "Raid Duty",
+            "description": "Attack your gang's raid boss",
+            "category": "daily",
+            "action": "raid_attack",
+            "target": 1,
+            "rewards": {
+                "fragments": 300,
+                "super_fragments": 0,
+                "xp": 100,
+                "items": [
+                    {
+                        "id": 40
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 13,
+            "name": "Summoner",
+            "description": "Pull a banner once",
+            "category": "daily",
+            "action": "banner_pull",
+            "target": 1,
+            "rewards": {
+                "fragments": 150,
+                "super_fragments": 0,
+                "xp": 60,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 14,
+            "name": "Fine-tuning",
+            "description": "Reforge a stand",
+            "category": "daily",
+            "action": "reforge",
+            "target": 1,
+            "rewards": {
+                "fragments": 200,
+                "super_fragments": 0,
+                "xp": 60,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 107,
+            "name": "Journey Onward",
+            "description": "Win 7 story stages",
+            "category": "weekly",
+            "action": "story_win",
+            "target": 7,
+            "rewards": {
+                "fragments": 1200,
+                "super_fragments": 0,
+                "xp": 500,
+                "items": [
+                    {
+                        "id": 2
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 108,
+            "name": "Gauntlet Veteran",
+            "description": "Beat 10 bosses in the boss rush",
+            "category": "weekly",
+            "action": "rush_boss",
+            "target": 10,
+            "rewards": {
+                "fragments": 1000,
+                "super_fragments": 1,
+                "xp": 500,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 109,
+            "name": "Raid Regular",
+            "description": "Attack the raid boss 5 times",
+            "category": "weekly",
+            "action": "raid_attack",
+            "target": 5,
+            "rewards": {
+                "fragments": 1000,
+                "super_fragments": 0,
+                "xp": 400,
+                "items": [
+                    {
+                        "id": 38
+                    },
+                    {
+                        "id": 39
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 110,
+            "name": "Fusion Master",
+            "description": "Fuse 8 duplicates",
+            "category": "weekly",
+            "action": "fuse",
+            "target": 8,
+            "rewards": {
+                "fragments": 800,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": [
+                    {
+                        "id": 40
+                    }
+                ]
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 111,
+            "name": "Re-roller",
+            "description": "Reforge 3 times",
+            "category": "weekly",
+            "action": "reforge",
+            "target": 3,
+            "rewards": {
+                "fragments": 800,
+                "super_fragments": 0,
+                "xp": 300,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1005,
+            "name": "Stardust Crusader",
+            "description": "Defeat DIO in the story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 6,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 300,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1006,
+            "name": "Diamond Is Unbreakable",
+            "description": "Finish Part 4 of the story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 11,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 400,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1007,
+            "name": "Golden Wind",
+            "description": "Finish Part 5 of the story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 16,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 500,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1008,
+            "name": "Stone Ocean",
+            "description": "Finish Part 6 of the story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 21,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 600,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1009,
+            "name": "Steel Ball Run",
+            "description": "Finish Part 7 of the story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 26,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 3,
+                "xp": 800,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1010,
+            "name": "The Bizarre Journey",
+            "description": "Finish the whole story",
+            "category": "permanent",
+            "action": "reach_story",
+            "target": 31,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 5,
+                "xp": 1000,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1011,
+            "name": "Skyscraper",
+            "description": "Reach floor 30 of the tower",
+            "category": "permanent",
+            "action": "reach_tower",
+            "target": 30,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 2,
+                "xp": 600,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1012,
+            "name": "Gauntlet Champion",
+            "description": "Beat all six bosses in one rush",
+            "category": "permanent",
+            "action": "reach_rush",
+            "target": 6,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 3,
+                "xp": 800,
+                "items": []
+            },
+            "level_requirement": 0,
+            "enabled": true
+        },
+        {
+            "id": 1013,
+            "name": "Requiem",
+            "description": "Evolve a stand with a Requiem Arrow",
+            "category": "permanent",
+            "action": "requiem",
+            "target": 1,
+            "rewards": {
+                "fragments": 0,
+                "super_fragments": 1,
+                "xp": 500,
                 "items": []
             },
             "level_requirement": 0,

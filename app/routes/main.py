@@ -77,6 +77,40 @@ def manifest():
     return resp
 
 
+SERVICE_WORKER = """// STFU Requiem service worker: makes the site installable and survives a dropped connection.
+// Pages are always fetched fresh (they hold your save); only static files are cached.
+const CACHE = "stfu-static-v1";
+self.addEventListener("install", (e) => self.skipWaiting());
+self.addEventListener("activate", (e) => e.waitUntil(
+  caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    .then(() => self.clients.claim())));
+self.addEventListener("fetch", (e) => {
+  const req = e.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin === location.origin && url.pathname.startsWith("/static/")) {
+    e.respondWith(caches.open(CACHE).then(async (cache) => {
+      const hit = await cache.match(req);
+      const fresh = fetch(req).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => hit);
+      return hit || fresh;
+    }));
+  } else if (req.mode === "navigate") {
+    e.respondWith(fetch(req).catch(() => new Response(
+      '<!doctype html><meta name=viewport content="width=device-width"><body style="font-family:sans-serif;background:#1C0F2E;color:#EDE6F7;display:grid;place-items:center;min-height:90vh;text-align:center"><div><h1>You are offline</h1><p>STFU Requiem needs a connection. Try again in a moment.</p></div>',
+      {headers: {"Content-Type": "text/html; charset=utf-8"}})));
+  }
+});
+"""
+
+
+@bp.get("/sw.js")
+def service_worker():
+    resp = Response(SERVICE_WORKER, mimetype="text/javascript")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Service-Worker-Allowed"] = "/"
+    return resp
+
+
 @bp.get("/stands")
 def stands():
     q = request.args.get("q", "").strip()

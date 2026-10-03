@@ -283,6 +283,113 @@ document.addEventListener("click", (e) => {
   btn.textContent = open ? "Show less" : "Show full log";
 });
 
+// Installable web app: register the service worker and, on phones, offer to install.
+if ("serviceWorker" in navigator) {
+  addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+}
+(() => {
+  const box = document.querySelector("[data-install]");
+  if (!box) return;
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const phone = matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 820;
+  let snoozed = false;
+  try { snoozed = Number(localStorage.getItem("install-snooze") || 0) > Date.now(); } catch (e) { /* storage blocked */ }
+  if (standalone || !phone || snoozed) return;
+  const text = box.querySelector("[data-install-text]");
+  const go = box.querySelector("[data-install-go]");
+  let deferred = null;
+  const show = () => { if (!document.body.classList.contains("touring")) box.hidden = false; };
+  // Chrome / Edge / Samsung Internet hand us a real install prompt.
+  addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferred = e;
+    go.hidden = false;
+    show();
+  });
+  // iOS Safari has no prompt: explain the Share menu instead.
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  setTimeout(() => {
+    if (deferred || !box.hidden) return;
+    text.textContent = ios
+      ? "Tap the Share button, then “Add to Home Screen”, to play full screen from your home screen."
+      : "Open your browser menu and choose “Install app” or “Add to Home screen”.";
+    show();
+  }, 4000);
+  go.addEventListener("click", async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => null);
+    deferred = null;
+    box.hidden = true;
+  });
+  box.querySelector("[data-install-later]").addEventListener("click", () => {
+    box.hidden = true;
+    try { localStorage.setItem("install-snooze", String(Date.now() + 14 * 24 * 3600 * 1000)); } catch (e) { /* storage blocked */ }
+  });
+  addEventListener("appinstalled", () => { box.hidden = true; });
+})();
+
+// The Forge: stand search, lock toggles with a live price, and slot reels when a new roll lands.
+document.addEventListener("input", (e) => {
+  if (!e.target.matches("[data-forge-search]")) return;
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".forge-list li[data-name]").forEach((li) => { li.hidden = !li.dataset.name.includes(q); });
+});
+document.addEventListener("click", (e) => {
+  const pick = e.target.closest("[data-forge-pick]");
+  if (!pick) return;
+  document.querySelectorAll("[data-forge-pick].on").forEach((a) => a.classList.remove("on"));
+  pick.classList.add("on");
+});
+function forgeLocks(form) {
+  const boxes = [...form.querySelectorAll("[data-forge-lock]")];
+  const locked = boxes.filter((b) => b.checked).length;
+  boxes.forEach((b) => {
+    b.closest(".reel").classList.toggle("locked", b.checked);
+    b.nextElementSibling.textContent = b.checked ? "\u{1F512}" : "\u{1F513}";
+    b.disabled = !b.checked && locked >= boxes.length - 1;  // one pair must stay free to roll
+  });
+  let costs = [];
+  try { costs = JSON.parse(form.dataset.costs || "[]"); } catch (err) { /* keep the server price */ }
+  const cost = costs[Math.min(locked, costs.length - 1)];
+  const amount = form.querySelector("[data-forge-cost] .cur-amount");
+  if (amount && cost !== undefined) amount.firstChild.nodeValue = cost.toLocaleString("en-US");
+}
+document.addEventListener("change", (e) => {
+  if (e.target.matches("[data-forge-lock]")) forgeLocks(e.target.closest("[data-forge-form]"));
+});
+document.addEventListener("htmx:load", (e) => {
+  const reels = e.detail.elt.querySelectorAll ? e.detail.elt.querySelectorAll(".forge-pairs.spin .reel") : [];
+  if (!reels.length) return;
+  const fast = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const TYPES = ["\u2694\uFE0F Attack", "\u{1F6E1}\uFE0F Defense", "\u{1F4A8} Speed", "\u{1F340} Luck", "\u2696\uFE0F Balance"];
+  const QUALS = [["A", "Universal"], ["B", "Supreme"], ["C", "Great"], ["D", "Good"], ["E", "Sub Par"], ["F", "Bad"]];
+  const show = (reel, type, rank, name) => {
+    reel.querySelector(".reel-type").textContent = type;
+    const q = reel.querySelector(".reel-quality");
+    q.firstElementChild.textContent = rank;
+    q.lastChild.nodeValue = " " + name;
+    reel.className = reel.className.replace(/\bq-[A-F]\b/, "q-" + rank);
+  };
+  reels.forEach((reel, i) => {
+    const d = reel.dataset;
+    const land = () => {
+      show(reel, d.type, d.rank, d.quality);
+      reel.classList.remove("rolling");
+      reel.classList.add("landed");
+      if (d.oldRank) reel.classList.add(d.rank < d.oldRank ? "better" : d.rank > d.oldRank ? "worse" : "same");
+      else reel.classList.add("fresh");
+    };
+    if (fast) return land();
+    reel.classList.add("rolling");
+    const tick = setInterval(() => {
+      const [rank, name] = QUALS[Math.floor(Math.random() * QUALS.length)];
+      show(reel, TYPES[Math.floor(Math.random() * TYPES.length)], rank, name);
+    }, 70);
+    setTimeout(() => { clearInterval(tick); land(); }, 900 + i * 450);
+  });
+});
+
 // "Copy link" buttons (profiles): clipboard with a short confirmation.
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-copy]");
