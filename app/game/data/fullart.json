@@ -1,4 +1,25 @@
 {
     "_comment": "Stand ids with a dedicated full-art illustration on the image server at artwork/{id}.webp. scripts/art_helper.py fills this list from the art/artwork folder.",
-    "ids": []
+    "ids": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        31,
+        58,
+        75,
+        84,
+        94,
+        109,
+        114,
+        120,
+        137,
+        161
+    ]
 }
