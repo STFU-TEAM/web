@@ -446,7 +446,11 @@ def test_pity_floor_and_new_tags(client):
     random.seed(1)
     user.pity = logic.PITY_LIMIT - 1
     drawn = logic._banner_draw(banner, user)
-    assert drawn.rarity in ("SSR", "UR") and user.pity == 0
+    assert drawn.rarity in ("UR", "LR") and user.pity == 0  # pity guarantees a UR or better
+    assert logic.PITY_ODDS == {"UR": 0.55, "LR": 0.45}
+    user.pity = 10
+    logic._banner_draw(banner, user, forced="SSR")
+    assert user.pity == 11  # an SSR no longer resets pity
     # ten pulls always include an SR or better
     for seed in range(40):
         random.seed(seed)
@@ -1421,3 +1425,48 @@ def test_auction_buyout_refunds_the_top_bidder(client):
     assert doc(client, "222")["super_fragments"] == 10  # refunded
     assert doc(client, "333")["super_fragments"] == 4 and doc(client, "111")["super_fragments"] == 6
     assert [c["uuid"] for c in doc(client, "333")["storage_characters"]] == [lot["uuid"]]
+
+
+def test_wonder_of_u_returns_its_wounds():
+    from app.game.characterabilities import wonder_of_u
+    wou = _stand(161)
+    foes = [_stand(150), _stand(151)]
+    hp = [f.current_hp for f in foes]
+    wonder_of_u(wou, [wou], foes)
+    plain = [h - f.current_hp for h, f in zip(hp, foes)]
+    wou2, foes2 = _stand(161), [_stand(150), _stand(151)]
+    wou2.current_hp = wou2.start_hp // 2
+    lost = wou2.start_hp - wou2.current_hp
+    wonder_of_u(wou2, [wou2], foes2)
+    hurt = [h - f.current_hp for h, f in zip(hp, foes2)]
+    assert all(b >= a + int(lost * 0.3) - 1 for a, b in zip(plain, hurt))
+
+
+def test_wall_eyes_go_beyond_and_new_special_synergies():
+    from app.game.characterabilities import paisley_park, soft_and_wet, emperor, crazy_diamond
+    gappy, yasuho = _stand(137), _stand(138)
+    target = _stand(150)
+    target.current_speed = 999  # Go Beyond can't be dodged
+    gappy._focus = target
+    hp = target.current_hp
+    _, msg = soft_and_wet(gappy, [gappy, yasuho], [target])
+    assert "GO BEYOND" in msg and hp - target.current_hp >= int(gappy.current_damage * 1.8) - 1
+    gappy.special_meter = 0
+    _, msg = paisley_park(yasuho, [gappy, yasuho], [_stand(151)])
+    assert gappy.as_special() and "Go Beyond is ready" in msg
+    _, msg = emperor(_stand(14), [_stand(14), _stand(13)], [_stand(150)])
+    assert "Emperor & Hanged Man" in msg
+    josuke = _stand(32)
+    josuke._focus = foe = _stand(150)
+    _, msg = crazy_diamond(josuke, [josuke, _stand(34)], [foe])
+    assert "Josuke & Okuyasu" in msg
+
+
+def test_wiki_item_catalog_lists_every_source(client):
+    from app.wiki import item_rows
+    rows = {r["id"]: r for r in item_rows()}
+    assert ("Crafting" in [w for w, _ in rows[46]["sources"]]) and rows[46]["ability"]
+    assert {"Shop", "Daily reward", "Mirror World"} <= {w for w, _ in rows[1]["sources"]}
+    assert "Gang raid" in {w for w, _ in rows[34]["sources"]}
+    page = client.get("/wiki/items").data.decode()
+    assert "Iggy&#39;s Collar" in page and "Where to get it" in page and "Gang raid" in page

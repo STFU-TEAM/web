@@ -85,6 +85,32 @@ SYNERGY_EFFECTS = {
         76: "Warps between two confused enemies, hitting and stunning both.",
         77: "Confuses every enemy: −25% speed and −15% damage.",
     },
+    "wall_eyes": {
+        137: "Go Beyond: 1.8× true damage that can't be blocked or dodged, steals 40% damage and 25% speed.",
+        138: "Gives the team +30% speed (from 20%) and charges Soft & Wet's Go Beyond on the spot.",
+    },
+    "hol_horse": {
+        13: "Rides the Emperor's bullet: a second 0.6× strike on the same target.",
+        14: "The headshot bends through a mirror and ignores armor.",
+    },
+    "kujo": {
+        1: "One more punch (stacks with the Crusaders' extra punch).",
+        31: "Time stop hits every enemy at 0.95× instead of 0.75×.",
+        86: "Hits at 1.0× (from 0.6×) and the bound target also loses 25% armor.",
+        163: "Time stop hits every enemy at 0.95× instead of 0.75×.",
+    },
+    "spin": {
+        114: "Infinite rotation also stuns its target.",
+        115: "Ages enemies harder (−25% damage and speed, from 15%) and gives allies +15% damage (from 10%).",
+    },
+    "josuke_okuyasu": {
+        32: "Heals 35% (from 25%) and hits at 1.8× (from 1.5×) when nobody needs healing.",
+        34: "Drags its target into reach: its special meter goes back to zero.",
+    },
+    "rohan_koichi": {
+        45: "Also writes “cannot defend”: −30% armor on top of the stun.",
+        50: "3 Freeze hits at 1.3× (from 1.0×) and slows the others by 35% (from 20%).",
+    },
 }
 
 EFFECT_INFO = {
@@ -233,6 +259,133 @@ def facts():
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,
         "wormhole_minutes": round((logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME) * 60),
     }
+
+
+# ── Items: what each one does and every place it comes from ──────────────
+# The sources are read from the same tables the game rolls, so this page can't drift from the drops.
+ITEM_ABILITY = {
+    5: "In fights, every turn: homes in on a random enemy for 40% of the holder's damage as true damage.",
+    6: "In fights, every 3 turns: heals 15% of max health, +25% damage and +20 crit for 2 turns.",
+    7: "In fights, every 2 turns: heals 10% of max health and +10% damage for good.",
+    16: "In fights: if a poisoner hit the holder, it weakens them (-15% damage for a turn).",
+    37: "In fights, every turn: the whole team heals 8% and gains +10% damage and armor for 2 turns.",
+    41: "In fights, every 3 turns: a Golden Spin throw for 60% damage as true damage that slows the target.",
+    43: "In fights, every 3 turns: heals 12% of max health.",
+    45: "In fights, every 3 turns: heals 10% of max health and +20% damage for 2 turns.",
+    46: "The holder taunts: enemies must hit it first with basic attacks, and it gains the taunt armor bonus.",
+}
+ITEM_USE = {
+    2: "Spent on a banner: 5 stands at SR or better.",
+    3: "Awakens a team stand up to ★5. At level 100 it evolves Killer Queen, Silver Chariot and Gold Experience into Requiem.",
+    12: "Draws a random Part 3 stand.",
+    13: "Opens into Meteor Dust.",
+}
+
+
+def _pct(share: float) -> str:
+    value = share * 100
+    return f"{value:.1f}%" if value < 10 else f"{round(value)}%"
+
+
+def _item_sources() -> dict:
+    """item id -> [(where, detail)] for every way the game hands it out."""
+    from app.game import altverse, dungeon, journey, rush, story, tower
+    from app.game.achievements import ALL_ACHIEVEMENTS
+    from app.game.gangs import RAID_TIERS
+    from app.game.items import item_file
+    from app.game.quests import ALL_QUESTS
+    out = {}
+
+    def add(item_id, where, detail=""):
+        rows = out.setdefault(int(item_id), [])
+        if (where, detail) not in rows:
+            rows.append((where, detail))
+
+    for entry in logic.DEFAULT_SHOP.values():
+        if entry.get("id"):
+            add(entry["id"], "Shop", f"{entry['price']:,} Meteor Dust" + (" (weekly summon limit)" if entry.get("summon") else ""))
+    total = sum(logic.DAILY_ITEM_DROPS.values())
+    for i, w in logic.DAILY_ITEM_DROPS.items():
+        add(i, "Daily reward", f"{_pct(logic.DAILY_ITEM_CHANCE / 100 * w / total)} a claim")
+    for day, bonus in enumerate(logic.STREAK_REWARDS, start=1):
+        for i in bonus.get("items", []):
+            add(i, "Daily streak", f"day {day} of the 7-day ladder")
+    total = sum(logic.MIRROR_ITEM_DROPS.values())
+    for i, w in logic.MIRROR_ITEM_DROPS.items():
+        add(i, "Mirror World", f"{_pct(logic.CHANCEITEM / 100 * w / total)} a win")
+    for floor in range(tower.REST_EVERY, tower.REST_EVERY * 4, tower.REST_EVERY):
+        for i in tower.reward_for(floor)["items"]:
+            add(i, "Tower", f"first clear of floors {floor}, {floor + 15}, {floor + 30}…")
+    story_palms = sum(1 for k in range(story.TOTAL) for i in story.reward_for(k)["items"] if i == 2)
+    if story_palms:
+        add(2, "Story", f"first clear of every 3rd stage ({story_palms} in all)")
+    for c in altverse.CHAPTERS:
+        for j in range(len(c["stages"])):
+            for i in altverse.reward_for(c["key"], j)["items"]:
+                add(i, "Alternate Universe", f"AU · {c['title']}, stage {j + 1}")
+    for n, tier in enumerate(rush.REWARDS, start=1):
+        for i in tier.get("items", []):
+            add(i, "Boss rush", f"weekly reward for beating {n} boss{'es' if n != 1 else ''}")
+    for tier in RAID_TIERS:
+        for i in tier["items"]:
+            for real in ([34, 35, 36] if i == "corpse" else [i]):
+                add(real, "Gang raid", f"tier at {tier['damage']:,} damage" + (" (one part at random)" if i == "corpse" else ""))
+    for i in journey.ITEM_POOL:
+        add(i, "Crusaders' Journey", "chance on any trip; better with longer trips and stronger stands")
+    for entries in dungeon.CHESTS.values():
+        for i, _w in entries:
+            add(i, "Dungeon", "chests (when the dungeon is open)")
+    for r in logic.RECIPES:
+        parts = ", ".join(f"{n} × {item_file[i - 1]['name']}" for i, n in r["ingredients"])
+        add(r["result"], "Crafting", parts)
+    for q in ALL_QUESTS:
+        for it in (q.get("rewards") or {}).get("items", []):
+            add(it["id"], "Quest", q.get("name") or q.get("description", ""))
+    for a in ALL_ACHIEVEMENTS:
+        for it in (a.get("reward") or {}).get("items", []):
+            add(it["id"], "Achievement", a["name"])
+    return out
+
+
+def item_rows() -> list:
+    from app.game.items import item_file
+    sources = _item_sources()
+    used_in = {}
+    for r in logic.RECIPES:
+        for i, n in r["ingredients"]:
+            used_in.setdefault(i, []).append(r["name"])
+    rows = []
+    for it in item_file:
+        iid = it["id"]
+        if not it.get("name") or it.get("price") is None:  # leftovers from the bot nobody can get
+            continue
+        if iid in logic.CHIP_IDS or "Stand Chip" in it["name"]:
+            kind = "Stand chip"
+        elif it.get("is_equipable"):
+            kind = "Gear"
+        elif iid in (38, 39, 40):
+            kind = "Material"
+        elif 34 <= iid <= 36:
+            kind = "Corpse part"
+        elif iid in ITEM_USE:
+            kind = "Usable"
+        else:
+            kind = "Collectible"
+        bonus = [fmt for fmt in (
+            f"+{it['bonus_hp']} HP" if it.get("bonus_hp") else "", f"+{it['bonus_damage']} ATK" if it.get("bonus_damage") else "",
+            f"+{it['bonus_armor']} ARM" if it.get("bonus_armor") else "", f"+{it['bonus_speed']} SPD" if it.get("bonus_speed") else "",
+            f"+{it['bonus_critical']}% CRT" if it.get("bonus_critical") else "") if fmt]
+        use = ITEM_USE.get(iid)
+        if kind == "Stand chip":
+            use = f"Unlocks {it['name'].replace(' Stand Chip', '').strip()} as a stand."
+        elif kind == "Corpse part":
+            use = "Collect all three to craft the Holy Corpse."
+        rows.append({"id": iid, "name": it["name"], "emoji": it.get("emoji") or "◈", "kind": kind, "bonus": bonus,
+                     "ability": ITEM_ABILITY.get(iid), "use": use, "sources": sources.get(iid, []),
+                     "used_in": used_in.get(iid, []), "sell": logic.sell_price(type("I", (), {"price": it.get("price")})())})
+    order = {"Gear": 0, "Usable": 1, "Material": 2, "Corpse part": 3, "Stand chip": 4, "Collectible": 5}
+    rows.sort(key=lambda x: (order[x["kind"]], x["id"]))
+    return rows
 
 
 def _stand_tags():

@@ -141,6 +141,8 @@ def _wiki_ctx(topic: str) -> dict:
         ctx["types"], ctx["qualities"] = wiki_data.type_rows(), wiki_data.quality_rows()
     elif topic == "ranked":
         ctx["ranks"] = wiki_data.rank_rows()
+    elif topic == "items":
+        ctx["items"] = wiki_data.item_rows()
     return ctx
 
 
@@ -172,9 +174,10 @@ def wiki_search_index():
         for c in PLAYABLE:
             entries.append({"t": c["name"], "k": f"Stand · {c['rarity']}", "u": url_for("main.stand", stand_id=c["id"]),
                             "s": c["special_description"].replace("`", ""), "x": c["universe"]})
-        for it in item_file:
-            if it.get("name"):
-                entries.append({"t": it["name"], "k": "Item", "u": url_for("main.wiki", topic="items"), "s": "", "x": ""})
+        for it in wiki_data.item_rows():
+            entries.append({"t": it["name"], "k": f"Item · {it['kind']}", "u": url_for("main.wiki", topic="items") + f"#item-{it['id']}",
+                            "s": it["ability"] or it["use"] or " · ".join(it["bonus"]),
+                            "x": " ".join(w for w, _ in it["sources"])})
         for t in wiki_data.terrain_rows():
             entries.append({"t": t["name"], "k": "Terrain", "u": url_for("main.wiki", topic="terrains") + "#" + t["key"],
                             "s": t.get("rule") or t["blurb"], "x": " ".join(s["name"] for s in t["setters"])})

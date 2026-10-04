@@ -4,18 +4,50 @@
 <header class="wiki-head">
   <p class="kicker">Modes</p>
   <h1 class="display sm">Items & equipment</h1>
+  <p>Every item in the game: what it does and every place it comes from. Drop chances are read from the same tables the game rolls, so they're always current.</p>
 </header>
 <h2 class="wiki-h2">Equipping</h2>
-<p>Items add health, damage, speed, critical or armor. Each <strong>team</strong> stand holds up to 3. Equip and unequip them from the <a href="{{ url_for('play.items') }}">items page</a> or from a stand's panel on the <a href="{{ url_for('play.team') }}">team page</a>. Some items have their own special that charges during fights.</p>
-<h2 class="wiki-h2">Where items come from</h2>
-<ul class="wiki-list">
-  <li>The daily reward (60% chance)</li>
-  <li>Mirror World wins and dungeon chests</li>
-  <li>The shop and <a href="{{ url_for('social.shops') }}">player shops</a></li>
-  <li>Crafting from recipes on the <a href="{{ url_for('play.items') }}">items page</a>. Materials (Golden Ratio Shard, Rokakaka Fruit, Devil's Palm Sand) drop from gang raids, the boss rush, the wormhole and the daily reward. They craft gear like the Steel Ball, Rokakaka Graft and Ultimate Being Mask, and Devil's Palm Sand rebuilds Devil's Palms and Requiem Arrows.</li>
-</ul>
-<h2 class="wiki-h2">Selling</h2>
-<p>Sell spare items from the <a href="{{ url_for('play.items') }}">items page</a> for a tenth of their shop price. Free drops like chips and raid parts can't be sold, but you can trade them.</p>
-<h2 class="wiki-h2">Consumables</h2>
-<p>Items that can't be equipped, like Devil's Palms and bags of Meteor Dust, are used straight from the <a href="{{ url_for('play.items') }}">items page</a>.</p>
+<p>Gear adds health, damage, speed, critical or armor. Each <strong>team</strong> stand holds up to 3. Equip and unequip them from the <a href="{{ url_for('play.items') }}">items page</a> or from a stand's panel on the <a href="{{ url_for('play.team') }}">team page</a>. Some gear has its own special that charges during fights. Usable items are spent from the items page; materials go into <a href="{{ url_for('play.items') }}#crafting">crafting</a>. Spare items sell for a tenth of their shop price; free drops can't be sold but can be traded.</p>
+
+<h2 class="wiki-h2">Item catalog</h2>
+{% set kinds = items|map(attribute='kind')|unique|list %}
+<div class="explorer-tools" data-explorer>
+  <div class="filter-row" role="group" aria-label="Show items">
+    <button type="button" class="filter-chip" data-filter="" aria-pressed="true">All <small>{{ items|length }}</small></button>
+    {% for k in kinds %}
+      <button type="button" class="filter-chip" data-filter="{{ k|lower|replace(' ', '-') }}" aria-pressed="false">{{ k }} <small>{{ items|selectattr('kind', 'equalto', k)|list|length }}</small></button>
+    {% endfor %}
+  </div>
+  <label class="explorer-search"><span class="sr">Find an item or a source</span>
+    <input type="search" placeholder="Find an item or a place, e.g. Steel Ball or raid" autocomplete="off" data-search>
+  </label>
+</div>
+
+<div class="explorer-list item-catalog">
+  {% for it in items %}
+    <section class="explorer-card item-card kind-{{ it.kind|lower|replace(' ', '-') }}" id="item-{{ it.id }}" data-key="{{ it.kind|lower|replace(' ', '-') }}"
+             data-search="{{ (it.name ~ ' ' ~ it.kind ~ ' ' ~ it.sources|map('first')|join(' ') ~ ' ' ~ it.used_in|join(' '))|lower }}">
+      <header class="explorer-card-head">
+        <span class="explorer-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
+        <div>
+          <h2>{{ it.name }}</h2>
+          <p>{{ it.kind }}{% if it.sell %} · sells for {{ it.sell|num }} Meteor Dust{% endif %}</p>
+        </div>
+      </header>
+      {% if it.bonus %}<p class="item-card-bonus">{{ it.bonus|join(' · ') }}</p>{% endif %}
+      {% if it.ability %}<p class="item-card-ability">✦ {{ it.ability }}</p>{% endif %}
+      {% if it.use %}<p>{{ it.use }}</p>{% endif %}
+      <h3 class="explorer-label">Where to get it</h3>
+      {% if it.sources %}
+        <ul class="bonus-rows item-sources">
+          {% for where, detail in it.sources %}<li><strong>{{ where }}</strong><span>{{ detail }}</span></li>{% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">Not dropped anywhere on the site right now. Look for it in <a href="{{ url_for('trades.index') }}">trades</a>, <a href="{{ url_for('social.shops') }}">player shops</a> and events.</p>
+      {% endif %}
+      {% if it.used_in %}<p class="muted item-card-used">Crafts into {{ it.used_in|join(', ') }}.</p>{% endif %}
+    </section>
+  {% endfor %}
+  <p class="explorer-empty muted" hidden>No item matches that.</p>
+</div>
 {% endblock %}

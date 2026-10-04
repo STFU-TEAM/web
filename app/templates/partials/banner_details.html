@@ -33,7 +33,7 @@
     </div>
     <ul class="bd-rules muted">
       <li>Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain.</li>
-      <li>After {{ PITY_LIMIT }} pulls without an SSR or better, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR{% if not has_lr %} (this banner has no LR: you get a UR){% endif %}. Your pity: {{ u.pity }}/{{ PITY_LIMIT }}.</li>
+      <li>After {{ PITY_LIMIT }} pulls without a UR or LR, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR{% if not has_lr %} (this banner has no LR: you get a UR){% endif %}. Your pity: {{ u.pity }}/{{ PITY_LIMIT }}.</li>
       {% if missing %}<li>No {{ missing|join(' or ') }} on this banner: those draws give the nearest rarity it has.</li>{% endif %}
     </ul>
   </section>

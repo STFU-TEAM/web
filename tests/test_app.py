@@ -459,9 +459,9 @@ def test_begin_pull_and_team(client):
     team_rank = sorted(rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["main_characters"])
     rest_rank = [rank[CHARACTER_FILE[c["id"] - 1]["rarity"]] for c in d["storage_characters"]]
     assert team_rank[0] >= max(rest_rank)
-    # pity counts pulls since the last SSR or better (a natural SSR+ resets it)
+    # pity counts pulls since the last UR or LR (an SSR doesn't reset it)
     rarities = [CHARACTER_FILE[i - 1]["rarity"] for i in d["web_pull_history"][0]["ids"]]
-    since = next((i for i, r in enumerate(reversed(rarities)) if r in ("SSR", "UR", "LR")), len(rarities))
+    since = next((i for i, r in enumerate(reversed(rarities)) if r in ("UR", "LR")), len(rarities))
     assert d["pity"] == since
     # second pull refused (spend any Arrowhead Bad Luck Brian paid first)
     d["super_fragments"] = 0

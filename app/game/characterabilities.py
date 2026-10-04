@@ -83,6 +83,16 @@ SYNERGIES = {
     "time_masters": {10, 31, 58, 75, 109, 110, 126, 134, 163},
     # Requiem duo
     "requiem": {83, 84},
+    # Hol Horse's partners: the Emperor's bullets travel through the Hanged Man's reflections
+    "hol_horse": {13, 14},
+    # The Kujo line: Jotaro and Jolyne
+    "kujo": {1, 31, 86, 163},
+    # Gyro and Johnny: the Spin
+    "spin": {114, 115},
+    # Josuke and Okuyasu
+    "josuke_okuyasu": {32, 34},
+    # Rohan and Koichi
+    "rohan_koichi": {45, 50},
 }
 
 # (label, icon) for the wiki, cards and the fight log
@@ -101,11 +111,16 @@ SYNERGY_INFO = {
     "echoes": ("Echoes acts", "💬"),
     "stone_ocean": ("Jolyne's crew", "🦋"),
     "sbr_racers": ("Steel Ball Run racers", "🐎"),
-    "president": ("Valentine's agents", "🇺🇸"),
+    "president": ("Valentine's agents", "🎖️"),
     "boom_boom": ("Boom Boom family", "🧲"),
     "wall_eyes": ("Wall Eyes duo", "🫧"),
     "time_masters": ("Masters of time", "⏱️"),
     "requiem": ("Requiem", "🏹"),
+    "hol_horse": ("Emperor & Hanged Man", "🔫"),
+    "kujo": ("Kujo family", "🌟"),
+    "spin": ("The Spin", "🌀"),
+    "josuke_okuyasu": ("Josuke & Okuyasu", "💎"),
+    "rohan_koichi": ("Rohan & Koichi", "📖"),
 }
 
 # Team bonus: every member of a group gets these for the whole fight while 2+ members are on the team
@@ -128,9 +143,14 @@ SYNERGY_BONUS = {
     "sbr_racers": [("speed_pct", 0.12)],
     "president": [("armor_pct", 0.08), ("damage_pct", 0.06)],
     "boom_boom": [("damage_pct", 0.12)],
-    "wall_eyes": [("hp_pct", 0.10), ("speed_pct", 0.08)],
+    "wall_eyes": [("hp_pct", 0.12), ("speed_pct", 0.10), ("damage_pct", 0.10)],
     "time_masters": [("speed_pct", 0.08), ("crit_flat", 8)],
     "requiem": [("damage_pct", 0.15)],
+    "hol_horse": [("crit_flat", 10)],
+    "kujo": [("damage_pct", 0.08), ("armor_pct", 0.08)],
+    "spin": [("damage_pct", 0.10), ("crit_flat", 5)],
+    "josuke_okuyasu": [("hp_pct", 0.10)],
+    "rohan_koichi": [("speed_pct", 0.10)],
 }
 
 
@@ -366,10 +386,11 @@ def _pct(x: float) -> str:
     return f"{round(x * 100)}%"
 
 
-def _time_stop(character, enemies, multiplier=0.75) -> tuple:
+def _time_stop(character, enemies, multiplier=0.75, kujo=False) -> tuple:
     payload = get_payload()
-    damage = _aoe(character, enemies, multiplier)
-    return payload, f"｢{character.name}｣ STOPS TIME and hits every enemy for {damage} total!"
+    damage = _aoe(character, enemies, 0.95 if kujo else multiplier)
+    message = f"｢{character.name}｣ STOPS TIME and hits every enemy for {damage} total!"
+    return payload, message + (" 🌟 Kujo synergy: the stopped time lasts longer!" if kujo else "")
 
 
 """
@@ -400,11 +421,14 @@ def star_platinum(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ punches the air!"
-    hits = random.randint(2, 4) + (1 if synergy else 0)
+    kujo = _has_synergy(character.id, allied_characters, "kujo")
+    hits = random.randint(2, 4) + (1 if synergy else 0) + (1 if kujo else 0)
     damage = sum(_hit(character, target, 0.45) for _ in range(hits) if target.is_alive())
     message = f"｢{character.name}｣ ORA ORA! {hits} punches on {target.name} for {damage}!"
     if synergy:
         message += " ⭐ Crusaders synergy!"
+    if kujo:
+        message += " 🌟 Kujo synergy!"
     return payload, message
 
 
@@ -548,6 +572,10 @@ def hanged_man(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ strikes from every reflection for {damage}, ignoring armor! +25 crit!"
     _buff(character, "critical", 15, 2, character)
     damage = _hit(character, target, 0.9) if target else 0
+    if target and target.is_alive() and _has_synergy(character.id, allied_characters, "hol_horse"):
+        damage += _hit(character, target, 0.6)
+        return payload, (f"｢{character.name}｣ rides the Emperor's bullet out of a reflection: {damage} damage! "
+                         f"+15 crit! 🔫 Emperor & Hanged Man!")
     return payload, f"｢{character.name}｣ strikes from a reflection for {damage}! +15 crit!"
 
 
@@ -556,6 +584,10 @@ def emperor(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ fires into the air!"
+    if _has_synergy(character.id, allied_characters, "hol_horse"):
+        damage = _hit(character, target, 2.2, pierce=True)
+        return payload, (f"｢{character.name}｣'s bullet bends through a mirror: headshot on {target.name} for {damage}, "
+                         f"ignoring armor! 🔫 Emperor & Hanged Man!")
     damage = _hit(character, target, 2.2)
     return payload, f"｢{character.name}｣ headshot on {target.name} for {damage}!"
 
@@ -739,21 +771,23 @@ def cream(character, allied_characters, enemy_characters) -> tuple:
 
 
 def star_platinum_the_world(character, allied_characters, enemy_characters) -> tuple:
-    return _time_stop(character, enemy_characters)
+    return _time_stop(character, enemy_characters, kujo=_has_synergy(character.id, allied_characters, "kujo"))
 
 
 # ── Part 4 ──────────────────────────────────────────────────────────────
 
 def crazy_diamond(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    duo = _has_synergy(character.id, allied_characters, "josuke_okuyasu")
+    tag = " 💎 Josuke & Okuyasu!" if duo else ""
     ally = _weakest(allied_characters)
     if ally and ally.current_hp < ally.start_hp:
-        healed = _heal(ally, ally.start_hp * 0.25)
+        healed = _heal(ally, ally.start_hp * (0.35 if duo else 0.25))
         _cleanse(ally)
-        return payload, f"｢{character.name}｣ restores {ally.name}: +{healed} health, debuffs cleared!"
+        return payload, f"｢{character.name}｣ restores {ally.name}: +{healed} health, debuffs cleared!{tag}"
     target = _target(character, enemy_characters)
-    damage = _hit(character, target, 1.5) if target else 0
-    return payload, f"｢{character.name}｣ DORA! {damage} damage!"
+    damage = _hit(character, target, 1.8 if duo else 1.5) if target else 0
+    return payload, f"｢{character.name}｣ DORA! {damage} damage!{tag}"
 
 
 def aqua_necklace(character, allied_characters, enemy_characters) -> tuple:
@@ -773,6 +807,10 @@ def the_hand(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ erases the air!"
     damage = _hit(character, target, 1.4, pierce=True)
     _debuff(target, "armor", 0.30, 2, character)
+    if _has_synergy(character.id, allied_characters, "josuke_okuyasu") and target.is_alive():
+        target.special_meter = 0
+        return payload, (f"｢{character.name}｣ erases space and drags {target.name} into Josuke's reach: {damage} damage "
+                         f"ignoring armor, -30% armor, its special reset! 💎 Josuke & Okuyasu!")
     return payload, f"｢{character.name}｣ erases space through {target.name}: {damage} damage ignoring armor, -30% armor!"
 
 
@@ -784,6 +822,10 @@ def heavens_door(character, allied_characters, enemy_characters) -> tuple:
     damage = _hit(character, target, 1.1)
     _stun(target, character)
     _debuff(target, "damage", 0.25, 2, character)
+    if _has_synergy(character.id, allied_characters, "rohan_koichi"):
+        _debuff(target, "armor", 0.30, 2, character)
+        return payload, (f"｢{character.name}｣ writes in {target.name} ({damage} damage): “cannot attack, cannot defend”. "
+                         f"Stunned, -25% damage and -30% armor! 📖 Rohan & Koichi!")
     return payload, f"｢{character.name}｣ writes in {target.name} ({damage} damage): “cannot attack”. Stunned and -25% damage!"
 
 
@@ -811,12 +853,14 @@ def echoes_act_3(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣!"
-    damage = _hit(character, target, 1.0)
+    duo = _has_synergy(character.id, allied_characters, "rohan_koichi")
+    damage = _hit(character, target, 1.3 if duo else 1.0)
     _stun(target, character)
     for other in _alive(enemy_characters):
         if other != target:
-            _debuff(other, "speed", 0.20, 2, character)
-    return payload, f"｢{character.name}｣ 3 FREEZE! {target.name} is pinned down for {damage}, the others slowed!"
+            _debuff(other, "speed", 0.35 if duo else 0.20, 2, character)
+    message = f"｢{character.name}｣ 3 FREEZE! {target.name} is pinned down for {damage}, the others slowed!"
+    return payload, message + (" 📖 Rohan & Koichi: it's heavier with Rohan watching!" if duo else "")
 
 
 DUMMY_HEAL = 0.03  # 2-8% all play the same: only a team that outlasts sudden death wins
@@ -1199,8 +1243,13 @@ def stone_free(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ frees the stone ocean!"
-    damage = _hit(character, target, 0.6)
+    kujo = _has_synergy(character.id, allied_characters, "kujo")
+    damage = _hit(character, target, 1.0 if kujo else 0.6)
     _stun(target, character)
+    if kujo:
+        _debuff(target, "armor", 0.25, 2, character)
+        return payload, (f"｢{character.name}｣ binds {target.name} for her father: {damage} damage, stunned and "
+                         f"-25% armor! 🌟 Kujo synergy!")
     return payload, f"｢{character.name}｣ ties {target.name} up in string: {damage} damage and stunned!"
 
 
@@ -1781,6 +1830,9 @@ def tusk_act_4(character, allied_characters, enemy_characters) -> tuple:
         _dot(target, EffectType.POISON, 3, 0.4 * character.current_damage, character)
         _debuff(target, "armor", 0.40, 3, character)
         message += f" Infinite rotation hits {target.name} for {damage} through armor: poisoned, -40% armor!"
+        if _has_synergy(character.id, allied_characters, "spin") and target.is_alive():
+            _stun(target, character)
+            message += " 🌀 Gyro's spin locks it in place: stunned!"
         if synergy:
             for enemy in _alive(enemy_characters):
                 if enemy != target:
@@ -1791,12 +1843,16 @@ def tusk_act_4(character, allied_characters, enemy_characters) -> tuple:
 
 def ball_breaker(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    spin = _has_synergy(character.id, allied_characters, "spin")
+    age, boost = (0.25, 0.15) if spin else (0.15, 0.10)
     for enemy in _alive(enemy_characters):
-        _debuff(enemy, "damage", 0.15, 2, character)
-        _debuff(enemy, "speed", 0.15, 2, character)
+        _debuff(enemy, "damage", age, 2, character)
+        _debuff(enemy, "speed", age, 2, character)
     for ally in _alive(allied_characters):
-        _buff(ally, "damage", 0.10, 2, character)
-    return payload, f"｢{character.name}｣ harnesses the golden spin! Enemies age (-15% damage and speed), allies +10% damage!"
+        _buff(ally, "damage", boost, 2, character)
+    message = (f"｢{character.name}｣ harnesses the golden spin! Enemies age (-{round(age * 100)}% damage and speed), "
+               f"allies +{round(boost * 100)}% damage!")
+    return payload, message + (" 🌀 The Spin, perfected with Johnny!" if spin else "")
 
 
 def oh_lonesome_me(character, allied_characters, enemy_characters) -> tuple:
@@ -1971,6 +2027,13 @@ def soft_and_wet(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ releases bubbles!"
+    if _has_synergy(character.id, allied_characters, "wall_eyes"):
+        # Go Beyond: an infinitely spinning bubble that doesn't exist, so nothing blocks or dodges it
+        damage = _take(target, character.current_damage * 1.8)
+        stolen = _debuff(target, "damage", 0.40, 2, character)
+        slowed = _debuff(target, "speed", 0.25, 2, character)
+        return payload, (f"｢{character.name}｣ GO BEYOND! A bubble that doesn't exist hits {target.name} for {damage} "
+                         f"true damage, stealing {stolen} damage and {slowed} speed! 🫧 Wall Eyes duo!")
     damage = _hit(character, target, 1.4)
     stolen = _debuff(target, "damage", 0.30, 2, character)
     return payload, f"｢{character.name}｣'s bubble pops on {target.name} for {damage} and steals its strength: -{stolen} damage!"
@@ -1978,15 +2041,23 @@ def soft_and_wet(character, allied_characters, enemy_characters) -> tuple:
 
 def paisley_park(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    duo = _has_synergy(character.id, allied_characters, "wall_eyes")
+    speed = 0.30 if duo else 0.20
     for ally in _alive(allied_characters):
-        _buff(ally, "speed", 0.20, 2, character)
+        _buff(ally, "speed", speed, 2, character)
         _buff(ally, "critical", 15, 2, character)
     target = _weakest(enemy_characters)
     damage = 0
     if target:
         _debuff(target, "armor", 0.30, 2, character)
         damage = _hit(character, target, 1.0)
-    return payload, f"｢{character.name}｣ finds the path: team +20% speed and +15 crit, {target.name if target else 'nobody'} exposed (-30% armor) and hit for {damage}!"
+    message = (f"｢{character.name}｣ finds the path: team +{round(speed * 100)}% speed and +15 crit, "
+               f"{target.name if target else 'nobody'} exposed (-30% armor) and hit for {damage}!")
+    gappy = next((a for a in _alive(allied_characters) if a.id == 137), None) if duo else None
+    if gappy is not None:
+        gappy.special_meter = max(gappy.special_meter, gappy.turn_for_ability)  # Go Beyond is ready now
+        message += f" 🫧 She guides {gappy.name}: Go Beyond is ready!"
+    return payload, message
 
 
 def doggy_style(character, allied_characters, enemy_characters) -> tuple:
@@ -2203,10 +2274,13 @@ def awaking_iii_leaves(character, allied_characters, enemy_characters) -> tuple:
 def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     total = 0
+    lost = max(0, character.start_hp - character.current_hp)
+    backlash = lost * 0.30  # every wound it took comes back to its pursuers as calamity
     for enemy in _alive(enemy_characters):
         share = 0.16 if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else 0.08
-        total += _take(enemy, enemy.start_hp * share)
-    return payload, f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
+        total += _take(enemy, enemy.start_hp * share + backlash)
+    message = f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
+    return payload, message + (f" Its own wounds return to its pursuers (+{int(backlash)} each)!" if backlash >= 1 else "")
 
 
 def space_trucking(character, allied_characters, enemy_characters) -> tuple:
@@ -2217,7 +2291,7 @@ def space_trucking(character, allied_characters, enemy_characters) -> tuple:
 
 
 def victorious_star_platinum(character, allied_characters, enemy_characters) -> tuple:
-    return _time_stop(character, enemy_characters)
+    return _time_stop(character, enemy_characters, kujo=_has_synergy(character.id, allied_characters, "kujo"))
 
 
 def not_implemented(character, allied_characters, enemy_characters) -> tuple:

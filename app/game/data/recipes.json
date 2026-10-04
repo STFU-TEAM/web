@@ -1,134 +1,75 @@
 {
-    "recipes": [
-        {
-            "name": "Holy Corpse",
-            "ingredients": [
-                [
-                    34,
-                    1
-                ],
-                [
-                    35,
-                    1
-                ],
-                [
-                    36,
-                    1
-                ]
-            ],
-            "result": 37
-        },
-        {
-            "name": "Steel Ball",
-            "ingredients": [
-                [
-                    38,
-                    2
-                ],
-                [
-                    1,
-                    1
-                ]
-            ],
-            "result": 41
-        },
-        {
-            "name": "Emperor's Revolver",
-            "ingredients": [
-                [
-                    1,
-                    2
-                ],
-                [
-                    15,
-                    1
-                ]
-            ],
-            "result": 42
-        },
-        {
-            "name": "Rokakaka Graft",
-            "ingredients": [
-                [
-                    39,
-                    2
-                ],
-                [
-                    4,
-                    1
-                ]
-            ],
-            "result": 43
-        },
-        {
-            "name": "Speedwagon's Hat",
-            "ingredients": [
-                [
-                    13,
-                    3
-                ],
-                [
-                    15,
-                    1
-                ]
-            ],
-            "result": 44
-        },
-        {
-            "name": "Ultimate Being Mask",
-            "ingredients": [
-                [
-                    7,
-                    1
-                ],
-                [
-                    6,
-                    1
-                ],
-                [
-                    38,
-                    2
-                ]
-            ],
-            "result": 45
-        },
-        {
-            "name": "Iggy's Collar",
-            "ingredients": [
-                [
-                    39,
-                    2
-                ],
-                [
-                    13,
-                    2
-                ]
-            ],
-            "result": 46
-        },
-        {
-            "name": "Devil's Palm",
-            "ingredients": [
-                [
-                    40,
-                    3
-                ]
-            ],
-            "result": 2
-        },
-        {
-            "name": "Requiem Arrow",
-            "ingredients": [
-                [
-                    40,
-                    4
-                ],
-                [
-                    2,
-                    2
-                ]
-            ],
-            "result": 3
-        }
-    ]
+  "recipes": [
+    {
+      "name": "Holy Corpse",
+      "ingredients": [
+        [34, 1],
+        [35, 1],
+        [36, 1]
+      ],
+      "result": 37
+    },
+    {
+      "name": "Steel Ball",
+      "ingredients": [
+        [38, 2],
+        [1, 1]
+      ],
+      "result": 41
+    },
+    {
+      "name": "Emperor's Revolver",
+      "ingredients": [
+        [1, 2],
+        [15, 1]
+      ],
+      "result": 42
+    },
+    {
+      "name": "Rokakaka Graft",
+      "ingredients": [
+        [39, 2],
+        [4, 1]
+      ],
+      "result": 43
+    },
+    {
+      "name": "Speedwagon's Hat",
+      "ingredients": [
+        [13, 3],
+        [15, 1]
+      ],
+      "result": 44
+    },
+    {
+      "name": "Ultimate Being Mask",
+      "ingredients": [
+        [7, 1],
+        [6, 1],
+        [38, 2]
+      ],
+      "result": 45
+    },
+    {
+      "name": "Iggy's Collar",
+      "ingredients": [
+        [39, 2],
+        [4, 2]
+      ],
+      "result": 46
+    },
+    {
+      "name": "Devil's Palm",
+      "ingredients": [[40, 3]],
+      "result": 2
+    },
+    {
+      "name": "Requiem Arrow",
+      "ingredients": [
+        [40, 4],
+        [2, 2]
+      ],
+      "result": 3
+    }
+  ]
 }

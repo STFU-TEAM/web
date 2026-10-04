@@ -2132,3 +2132,18 @@ body.cine-open { overflow: hidden; }
   .auction-bid { flex-wrap: wrap; }
   .auction-bid button { width: 100%; }
 }
+
+/* Wiki item catalog */
+.item-catalog { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); align-items: start; }
+.item-card.kind-gear { --accent: var(--gold); }
+.item-card.kind-usable { --accent: var(--magenta); }
+.item-card.kind-material { --accent: var(--teal); }
+.item-card.kind-corpse-part { --accent: #E3A93A; }
+.item-card .explorer-icon .emoji { width: 1.6em; height: 1.6em; }
+.item-card p { margin: .35rem 0; }
+.item-card-bonus { font-weight: 700; color: #7FE3D9; }
+.item-card-ability { color: var(--gold); }
+.item-sources li { flex-wrap: wrap; }
+.item-sources span { color: var(--muted); font-size: .82rem; }
+.item-card-used { font-size: var(--step--1); }
+@media (max-width: 560px) { .item-catalog { grid-template-columns: 1fr; } }

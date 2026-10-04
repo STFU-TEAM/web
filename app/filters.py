@@ -5,7 +5,7 @@ from flask import abort, current_app, request, session
 from markupsafe import Markup, escape
 
 from app.game.character import CHARACTER_FILE, MAX_LEVEL, STXPTOLEVEL, Qualities, Types
-from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, fmt_delta, rank_name
+from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, PITY_ODDS, fmt_delta, rank_name
 
 RARITY = {"R": "common", "SR": "rare", "SSR": "epic", "UR": "legend", "LR": "mythic"}
 RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
@@ -306,7 +306,7 @@ def register(app):
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),
-            "PITY_LIMIT": PITY_LIMIT, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS,
+            "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS,
         }
 
     @app.before_request

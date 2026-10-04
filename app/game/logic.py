@@ -29,6 +29,9 @@ PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = 300
 CHANCEITEM = 10
+MIRROR_ITEM_DROPS = {13: 0.24, 1: 0.16, 4: 0.14, 15: 0.12, 2: 0.08, 3: 0.04, 38: 0.08, 39: 0.06, 40: 0.08}  # a CHANCEITEM% roll
+DAILY_ITEM_CHANCE = 60
+DAILY_ITEM_DROPS = {13: 0.34, 1: 0.20, 4: 0.12, 2: 0.12, 15: 0.05, 40: 0.12, 38: 0.05}  # a DAILY_ITEM_CHANCE% roll
 DONOR_WH_WAIT_TIME = 10 / 60  # Mirror World: 10 minutes for everyone
 NORMAL_WH_WAIT_TIME = 0
 DONOR_ADV_WAIT_TIME = 6
@@ -244,9 +247,10 @@ def _banner(banner_id: int) -> dict:
 # Web drop rates (kinder than the bot's 80 / 19 / 0.9 / 0.1 with pity at 100).
 BANNER_ODDS = {"R": 0.55, "SR": 0.33, "SSR": 0.10, "UR": 0.02}
 ARROW_ODDS = {"SR": 0.70, "SSR": 0.25, "UR": 0.05}  # 5 cards: ~1.25 SSR and 0.25 UR, about a 10-pull's worth
-PITY_LIMIT = 50          # pulls without an SSR+ before one is guaranteed
-PITY_ODDS = {"UR": 0.94, "LR": 0.06}  # the guaranteed pull; banners without an LR give a UR
+PITY_LIMIT = 50          # pulls without a UR or LR before one is guaranteed
+PITY_ODDS = {"UR": 0.55, "LR": 0.45}  # the guaranteed pull; banners without an LR give a UR
 HIGH_RARITIES = ("SSR", "UR", "LR")
+PITY_RESETS = ("UR", "LR")  # an SSR no longer resets pity: only what pity itself guarantees does
 SPARK_COST = 20  # every 10-pull earns a spark; this many buy any SSR from a banner
 
 
@@ -287,7 +291,7 @@ def _template_of(banner: dict, rarity: str, exclude=()) -> dict:
 
 def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=(),
                  forced: Optional[str] = None) -> Character:
-    """One banner stand. Pity: PITY_LIMIT pulls without SSR+ guarantee an SSR, UR or (rarely) LR.
+    """One banner stand. Pity: PITY_LIMIT pulls without a UR or LR guarantee one (PITY_ODDS).
     forced: an admin's test rarity."""
     types, qualities = roll_types_qualities()
     if forced:
@@ -299,7 +303,7 @@ def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=
     if floor == "SR" and rarity == "R":
         rarity = "SR"
     template = _template_of(banner, rarity, exclude)
-    user.pity = 0 if template["rarity"] in HIGH_RARITIES else user.pity + 1
+    user.pity = 0 if template["rarity"] in PITY_RESETS else user.pity + 1
     return get_character_from_template(template, types, qualities)
 
 
@@ -402,8 +406,8 @@ def daily(user: User) -> dict:
     roll = random.randint(1, 100)
     res = {"fragments": 100, "item": None, "super": 0}
     user.fragments += 100
-    if roll < 60:
-        item_id = random.choices([13, 1, 4, 2, 15, 40, 38], weights=[0.34, 0.20, 0.12, 0.12, 0.05, 0.12, 0.05], k=1)[0]
+    if roll < DAILY_ITEM_CHANCE:
+        item_id = random.choices(list(DAILY_ITEM_DROPS), weights=list(DAILY_ITEM_DROPS.values()), k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
         res["item"] = item
@@ -1104,8 +1108,7 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
         train(c, int(MIRROR_STAND_XP * multi))
     item = None
     if random.randint(1, 100) <= CHANCEITEM:
-        item_id = random.choices([13, 1, 4, 15, 2, 3, 38, 39, 40],
-                                 weights=[0.24, 0.16, 0.14, 0.12, 0.08, 0.04, 0.08, 0.06, 0.08], k=1)[0]
+        item_id = random.choices(list(MIRROR_ITEM_DROPS), weights=list(MIRROR_ITEM_DROPS.values()), k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
     return {"won": True, "fragments": int(FRAGMENTSGAIN * multi), "xp": PLAYER_XPGAINS,

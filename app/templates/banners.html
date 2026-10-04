@@ -6,10 +6,10 @@
   <header class="player-bar">
     <div>
       <h1 class="display sm">Banners</h1>
-      <div class="pity" title="Pulls since your last SSR or better">
+      <div class="pity" title="Pulls since your last UR or LR">
         <span>Pity {{ u.pity }}/{{ PITY_LIMIT }}</span>
         <div class="meter" role="meter" aria-label="Pity" aria-valuemin="0" aria-valuemax="{{ PITY_LIMIT }}" aria-valuenow="{{ u.pity }}"><i style="width: {{ ([100 * u.pity / PITY_LIMIT, 100]|min)|round }}%"></i></div>
-        <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed SSR or UR · {{ st.free_slots }} free slots</small>
+        <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed UR or LR · {{ st.free_slots }} free slots</small>
       </div>
       <div class="pity sparks" title="Every 10-pull earns a spark. {{ SPARK_COST }} sparks buy any SSR from a banner.">
         <span>✦ Sparks {{ sparks }}/{{ SPARK_COST }}</span>
@@ -72,7 +72,7 @@
             <tr><th scope="row">10-pull</th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<td>{{ pct(BANNER_ODDS[r]) }}</td>{% endfor %}</tr>
             <tr><th scope="row">{{ PALM }}</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
           </table>
-          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. After {{ PITY_LIMIT }} pulls without an SSR or better, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR instead (a banner without an LR gives a UR). Any SSR+ resets it.</p>
+          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. After {{ PITY_LIMIT }} pulls without a UR or LR, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR instead (a banner without an LR gives a UR). Only a UR or LR resets it: SSRs don't.</p>
         </details>
         {% set ssrs = pool|selectattr('rarity', 'equalto', 'SSR')|list %}
         {% if sparks >= SPARK_COST and ssrs %}

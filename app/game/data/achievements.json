@@ -1,557 +1,557 @@
 {
-    "achievements": [
-        {
-            "id": 1,
-            "name": "First Steps",
-            "description": "Register and begin your adventure",
-            "action": "register",
-            "target": 1,
-            "reward": {
-                "fragments": 100,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "👣"
-        },
-        {
-            "id": 2,
-            "name": "Mirror Rookie",
-            "description": "Win your first Mirror World fight",
-            "action": "wormhole_win",
-            "target": 1,
-            "reward": {
-                "fragments": 200,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🌀"
-        },
-        {
-            "id": 3,
-            "name": "Mirror Explorer",
-            "description": "Win 10 Mirror World fights",
-            "action": "wormhole_win",
-            "target": 10,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": [
-                    {
-                        "id": 2
-                    }
-                ]
-            },
-            "emoji": "🌀"
-        },
-        {
-            "id": 4,
-            "name": "Mirror Conqueror",
-            "description": "Win 50 Mirror World fights",
-            "action": "wormhole_win",
-            "target": 50,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 2,
-                "items": []
-            },
-            "emoji": "🌀"
-        },
-        {
-            "id": 5,
-            "name": "Tower Novice",
-            "description": "Complete your first tower",
-            "action": "tower_complete",
-            "target": 1,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🏗️"
-        },
-        {
-            "id": 6,
-            "name": "Tower Veteran",
-            "description": "Complete 10 towers",
-            "action": "tower_complete",
-            "target": 10,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 1,
-                "items": [
-                    {
-                        "id": 3
-                    }
-                ]
-            },
-            "emoji": "🏗️"
-        },
-        {
-            "id": 7,
-            "name": "Arrow Beginner",
-            "description": "Pull from a banner for the first time",
-            "action": "banner_pull",
-            "target": 1,
-            "reward": {
-                "fragments": 200,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🏹"
-        },
-        {
-            "id": 8,
-            "name": "Gacha Veteran",
-            "description": "Pull from banners 25 times",
-            "action": "banner_pull",
-            "target": 25,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 2,
-                "items": []
-            },
-            "emoji": "🏹"
-        },
-        {
-            "id": 9,
-            "name": "Fighter",
-            "description": "Win 10 fights",
-            "action": "fight_win",
-            "target": 10,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "⚔️"
-        },
-        {
-            "id": 10,
-            "name": "Champion",
-            "description": "Win 50 fights",
-            "action": "fight_win",
-            "target": 50,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 2,
-                "items": [
-                    {
-                        "id": 2
-                    }
-                ]
-            },
-            "emoji": "⚔️"
-        },
-        {
-            "id": 11,
-            "name": "Ranked Debut",
-            "description": "Win your first ranked fight",
-            "action": "fight_ranked_win",
-            "target": 1,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🏆"
-        },
-        {
-            "id": 12,
-            "name": "Ranked Legend",
-            "description": "Win 25 ranked fights",
-            "action": "fight_ranked_win",
-            "target": 25,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 3,
-                "items": []
-            },
-            "emoji": "🏆"
-        },
-        {
-            "id": 13,
-            "name": "Daily Devotee",
-            "description": "Claim daily rewards 7 times",
-            "action": "daily_claim",
-            "target": 7,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": [
-                    {
-                        "id": 13
-                    }
-                ]
-            },
-            "emoji": "📅"
-        },
-        {
-            "id": 14,
-            "name": "Daily Addict",
-            "description": "Claim daily rewards 30 times",
-            "action": "daily_claim",
-            "target": 30,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 2,
-                "items": []
-            },
-            "emoji": "📅"
-        },
-        {
-            "id": 15,
-            "name": "Craftsman",
-            "description": "Craft your first item",
-            "action": "item_craft",
-            "target": 1,
-            "reward": {
-                "fragments": 200,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🔨"
-        },
-        {
-            "id": 16,
-            "name": "Master Craftsman",
-            "description": "Craft 10 items",
-            "action": "item_craft",
-            "target": 10,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 1,
-                "items": []
-            },
-            "emoji": "🔨"
-        },
-        {
-            "id": 17,
-            "name": "Dungeon Diver",
-            "description": "Complete 5 dungeons",
-            "action": "dungeon_complete",
-            "target": 5,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🗺️"
-        },
-        {
-            "id": 18,
-            "name": "Dungeon Master",
-            "description": "Complete 25 dungeons",
-            "action": "dungeon_complete",
-            "target": 25,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 2,
-                "items": []
-            },
-            "emoji": "🗺️"
-        },
-        {
-            "id": 19,
-            "name": "Shopper",
-            "description": "Buy 5 items from the shop",
-            "action": "shop_buy",
-            "target": 5,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🛒"
-        },
-        {
-            "id": 20,
-            "name": "Level 10",
-            "description": "Reach level 10",
-            "action": "reach_level",
-            "target": 10,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 1,
-                "items": []
-            },
-            "emoji": "⬆️"
-        },
-        {
-            "id": 21,
-            "name": "Level 25",
-            "description": "Reach level 25",
-            "action": "reach_level",
-            "target": 25,
-            "reward": {
-                "fragments": 1000,
-                "super_fragments": 1,
-                "items": []
-            },
-            "emoji": "⬆️"
-        },
-        {
-            "id": 22,
-            "name": "Level 50",
-            "description": "Reach level 50",
-            "action": "reach_level",
-            "target": 50,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 3,
-                "items": []
-            },
-            "emoji": "⬆️"
-        },
-        {
-            "id": 23,
-            "name": "Level 100",
-            "description": "Reach level 100",
-            "action": "reach_level",
-            "target": 100,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 5,
-                "items": [
-                    {
-                        "id": 3
-                    }
-                ]
-            },
-            "emoji": "⬆️"
-        },
-        {
-            "id": 24,
-            "name": "Dummy Thicc",
-            "description": "Defeat the Training Dummy",
-            "action": "dummy_kill",
-            "target": 1,
-            "reward": {
-                "fragments": 1000,
-                "super_fragments": 0,
-                "items": [
-                    {
-                        "id": 2
-                    }
-                ]
-            },
-            "emoji": "🎯",
-            "secret": true,
-            "hint": "Brute force won't do it. Outlast it."
-        },
-        {
-            "id": 25,
-            "name": "Beaten by a Mannequin",
-            "description": "Lose to the Training Dummy 3 times",
-            "action": "dummy_loss",
-            "target": 3,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🪵"
-        },
-        {
-            "id": 26,
-            "name": "Tactical Retreat",
-            "description": "Surrender 5 fights",
-            "action": "surrender",
-            "target": 5,
-            "reward": {
-                "fragments": 250,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🏳️"
-        },
-        {
-            "id": 27,
-            "name": "Bad Luck Brian",
-            "description": "Pull 9 R stands in a single 10-pull",
-            "action": "unlucky_pull",
-            "target": 1,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 1,
-                "items": []
-            },
-            "emoji": "💀",
-            "secret": true,
-            "hint": "Some days the Arrow hates you."
-        },
-        {
-            "id": 28,
-            "name": "Reroll Goblin",
-            "description": "Reforge 30 times",
-            "action": "reforge",
-            "target": 30,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 0,
-                "items": [
-                    {
-                        "id": 2
-                    }
-                ]
-            },
-            "emoji": "🎰"
-        },
-        {
-            "id": 29,
-            "name": "Character Development",
-            "description": "Keep a reforge roll that lowers your stand's power",
-            "action": "reforge_downgrade",
-            "target": 1,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "📉",
-            "secret": true,
-            "hint": "Sometimes worse is better."
-        },
-        {
-            "id": 30,
-            "name": "Mirror Tourist",
-            "description": "Lose 10 Mirror World fights",
-            "action": "wormhole_loss",
-            "target": 10,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🧳"
-        },
-        {
-            "id": 31,
-            "name": "The Arrow Rejects You",
-            "description": "Lose the very first story fight",
-            "action": "story_first_loss",
-            "target": 1,
-            "reward": {
-                "fragments": 200,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🏹",
-            "secret": true,
-            "hint": "Fail the Arrow's test."
-        },
-        {
-            "id": 32,
-            "name": "ZA WARUDO",
-            "description": "Win a fight in the first round",
-            "action": "one_round_win",
-            "target": 1,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "⏱️"
-        },
-        {
-            "id": 33,
-            "name": "Drip or Drown",
-            "description": "Give one stand three items",
-            "action": "full_kit",
-            "target": 1,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "💎"
-        },
-        {
-            "id": 34,
-            "name": "Let It Go",
-            "description": "Release an SSR or rarer stand",
-            "action": "release_rare",
-            "target": 1,
-            "reward": {
-                "fragments": 100,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🕊️",
-            "secret": true,
-            "hint": "Even legends get let go."
-        },
-        {
-            "id": 35,
-            "name": "Down Bad",
-            "description": "Drop below 100 Meteor Dust by spending it",
-            "action": "broke",
-            "target": 1,
-            "reward": {
-                "fragments": 500,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "💸",
-            "secret": true,
-            "hint": "Spend it. All of it."
-        },
-        {
-            "id": 36,
-            "name": "MUDA MUDA MUDA",
-            "description": "Open 25 bags of coins",
-            "action": "bag_open",
-            "target": 25,
-            "reward": {
-                "fragments": 1000,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "💰"
-        },
-        {
-            "id": 37,
-            "name": "Friend Zone",
-            "description": "Have 10 friends",
-            "action": "reach_friends",
-            "target": 10,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 0,
-                "items": [
-                    {
-                        "id": 2
-                    }
-                ]
-            },
-            "emoji": "🤝"
-        },
-        {
-            "id": 38,
-            "name": "Mutual Destruction",
-            "description": "End a duel in a draw",
-            "action": "draw",
-            "target": 1,
-            "reward": {
-                "fragments": 300,
-                "super_fragments": 0,
-                "items": []
-            },
-            "emoji": "🤷",
-            "secret": true,
-            "hint": "Nobody wins."
-        },
-        {
-            "id": 39,
-            "name": "Gacha Brain",
-            "description": "Summon 50 times",
-            "action": "banner_pull",
-            "target": 50,
-            "reward": {
-                "fragments": 0,
-                "super_fragments": 1,
-                "items": []
-            },
-            "emoji": "🧠"
-        }
-    ]
+  "achievements": [
+    {
+      "id": 1,
+      "name": "First Steps",
+      "description": "Register and begin your adventure",
+      "action": "register",
+      "target": 1,
+      "reward": {
+        "fragments": 100,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "👣"
+    },
+    {
+      "id": 2,
+      "name": "Mirror Rookie",
+      "description": "Win your first Mirror World fight",
+      "action": "wormhole_win",
+      "target": 1,
+      "reward": {
+        "fragments": 200,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🌀"
+    },
+    {
+      "id": 3,
+      "name": "Mirror Explorer",
+      "description": "Win 10 Mirror World fights",
+      "action": "wormhole_win",
+      "target": 10,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": [
+          {
+            "id": 2
+          }
+        ]
+      },
+      "emoji": "🌀"
+    },
+    {
+      "id": 4,
+      "name": "Mirror Conqueror",
+      "description": "Win 50 Mirror World fights",
+      "action": "wormhole_win",
+      "target": 50,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 2,
+        "items": []
+      },
+      "emoji": "🌀"
+    },
+    {
+      "id": 5,
+      "name": "Tower Novice",
+      "description": "Complete your first tower",
+      "action": "tower_complete",
+      "target": 1,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🏗️"
+    },
+    {
+      "id": 6,
+      "name": "Tower Veteran",
+      "description": "Complete 10 towers",
+      "action": "tower_complete",
+      "target": 10,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 1,
+        "items": [
+          {
+            "id": 3
+          }
+        ]
+      },
+      "emoji": "🏗️"
+    },
+    {
+      "id": 7,
+      "name": "Arrow Beginner",
+      "description": "Pull from a banner for the first time",
+      "action": "banner_pull",
+      "target": 1,
+      "reward": {
+        "fragments": 200,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🏹"
+    },
+    {
+      "id": 8,
+      "name": "Gacha Veteran",
+      "description": "Pull from banners 25 times",
+      "action": "banner_pull",
+      "target": 25,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 2,
+        "items": []
+      },
+      "emoji": "🏹"
+    },
+    {
+      "id": 9,
+      "name": "Fighter",
+      "description": "Win 10 fights",
+      "action": "fight_win",
+      "target": 10,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "⚔️"
+    },
+    {
+      "id": 10,
+      "name": "Champion",
+      "description": "Win 50 fights",
+      "action": "fight_win",
+      "target": 50,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 2,
+        "items": [
+          {
+            "id": 2
+          }
+        ]
+      },
+      "emoji": "⚔️"
+    },
+    {
+      "id": 11,
+      "name": "Ranked Debut",
+      "description": "Win your first ranked fight",
+      "action": "fight_ranked_win",
+      "target": 1,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🏆"
+    },
+    {
+      "id": 12,
+      "name": "Ranked Legend",
+      "description": "Win 25 ranked fights",
+      "action": "fight_ranked_win",
+      "target": 25,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 3,
+        "items": []
+      },
+      "emoji": "🏆"
+    },
+    {
+      "id": 13,
+      "name": "Daily Devotee",
+      "description": "Claim daily rewards 7 times",
+      "action": "daily_claim",
+      "target": 7,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": [
+          {
+            "id": 13
+          }
+        ]
+      },
+      "emoji": "📅"
+    },
+    {
+      "id": 14,
+      "name": "Daily Addict",
+      "description": "Claim daily rewards 30 times",
+      "action": "daily_claim",
+      "target": 30,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 2,
+        "items": []
+      },
+      "emoji": "📅"
+    },
+    {
+      "id": 15,
+      "name": "Craftsman",
+      "description": "Craft your first item",
+      "action": "item_craft",
+      "target": 1,
+      "reward": {
+        "fragments": 200,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🔨"
+    },
+    {
+      "id": 16,
+      "name": "Master Craftsman",
+      "description": "Craft 10 items",
+      "action": "item_craft",
+      "target": 10,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 1,
+        "items": []
+      },
+      "emoji": "🔨"
+    },
+    {
+      "id": 17,
+      "name": "Dungeon Diver",
+      "description": "Complete 5 dungeons",
+      "action": "dungeon_complete",
+      "target": 5,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🗺️"
+    },
+    {
+      "id": 18,
+      "name": "Dungeon Master",
+      "description": "Complete 25 dungeons",
+      "action": "dungeon_complete",
+      "target": 25,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 2,
+        "items": []
+      },
+      "emoji": "🗺️"
+    },
+    {
+      "id": 19,
+      "name": "Shopper",
+      "description": "Buy 5 items from the shop",
+      "action": "shop_buy",
+      "target": 5,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🛒"
+    },
+    {
+      "id": 20,
+      "name": "Level 10",
+      "description": "Reach level 10",
+      "action": "reach_level",
+      "target": 10,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 1,
+        "items": []
+      },
+      "emoji": "⬆️"
+    },
+    {
+      "id": 21,
+      "name": "Level 25",
+      "description": "Reach level 25",
+      "action": "reach_level",
+      "target": 25,
+      "reward": {
+        "fragments": 1000,
+        "super_fragments": 1,
+        "items": []
+      },
+      "emoji": "⬆️"
+    },
+    {
+      "id": 22,
+      "name": "Level 50",
+      "description": "Reach level 50",
+      "action": "reach_level",
+      "target": 50,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 3,
+        "items": []
+      },
+      "emoji": "⬆️"
+    },
+    {
+      "id": 23,
+      "name": "Level 100",
+      "description": "Reach level 100",
+      "action": "reach_level",
+      "target": 100,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 5,
+        "items": [
+          {
+            "id": 3
+          }
+        ]
+      },
+      "emoji": "⬆️"
+    },
+    {
+      "id": 24,
+      "name": "Dummy Thicc",
+      "description": "Defeat the Training Dummy",
+      "action": "dummy_kill",
+      "target": 1,
+      "reward": {
+        "fragments": 1000,
+        "super_fragments": 0,
+        "items": [
+          {
+            "id": 2
+          }
+        ]
+      },
+      "emoji": "🎯",
+      "secret": true,
+      "hint": "Brute force won't do it. Outlast it."
+    },
+    {
+      "id": 25,
+      "name": "Beaten by a Mannequin",
+      "description": "Lose to the Training Dummy 3 times",
+      "action": "dummy_loss",
+      "target": 3,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🪵"
+    },
+    {
+      "id": 26,
+      "name": "Tactical Retreat",
+      "description": "Surrender 5 fights",
+      "action": "surrender",
+      "target": 5,
+      "reward": {
+        "fragments": 250,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🏳️"
+    },
+    {
+      "id": 27,
+      "name": "Bad Luck Brian",
+      "description": "Pull 9 R stands in a single 10-pull",
+      "action": "unlucky_pull",
+      "target": 1,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 1,
+        "items": []
+      },
+      "emoji": "💀",
+      "secret": true,
+      "hint": "Some days the Arrow hates you."
+    },
+    {
+      "id": 28,
+      "name": "Reroll Goblin",
+      "description": "Reforge 30 times",
+      "action": "reforge",
+      "target": 30,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 0,
+        "items": [
+          {
+            "id": 2
+          }
+        ]
+      },
+      "emoji": "🎰"
+    },
+    {
+      "id": 29,
+      "name": "Character Development",
+      "description": "Keep a reforge roll that lowers your stand's power",
+      "action": "reforge_downgrade",
+      "target": 1,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "📉",
+      "secret": true,
+      "hint": "Sometimes worse is better."
+    },
+    {
+      "id": 30,
+      "name": "Mirror Tourist",
+      "description": "Lose 10 Mirror World fights",
+      "action": "wormhole_loss",
+      "target": 10,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🧳"
+    },
+    {
+      "id": 31,
+      "name": "The Arrow Rejects You",
+      "description": "Lose the very first story fight",
+      "action": "story_first_loss",
+      "target": 1,
+      "reward": {
+        "fragments": 200,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🏹",
+      "secret": true,
+      "hint": "Fail the Arrow's test."
+    },
+    {
+      "id": 32,
+      "name": "ZA WARUDO",
+      "description": "Win a fight in the first round",
+      "action": "one_round_win",
+      "target": 1,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "⏱️"
+    },
+    {
+      "id": 33,
+      "name": "Drip or Drown",
+      "description": "Give one stand three items",
+      "action": "full_kit",
+      "target": 1,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "💎"
+    },
+    {
+      "id": 34,
+      "name": "Let It Go",
+      "description": "Release an SSR or rarer stand",
+      "action": "release_rare",
+      "target": 1,
+      "reward": {
+        "fragments": 100,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🕊️",
+      "secret": true,
+      "hint": "Even legends get let go."
+    },
+    {
+      "id": 35,
+      "name": "Down Bad",
+      "description": "Drop below 100 Meteor Dust by spending it",
+      "action": "broke",
+      "target": 1,
+      "reward": {
+        "fragments": 500,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "💸",
+      "secret": true,
+      "hint": "Spend it. All of it."
+    },
+    {
+      "id": 36,
+      "name": "MUDA MUDA MUDA",
+      "description": "Open 25 bags of coins",
+      "action": "bag_open",
+      "target": 25,
+      "reward": {
+        "fragments": 1000,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "💰"
+    },
+    {
+      "id": 37,
+      "name": "Friend Zone",
+      "description": "Have 10 friends",
+      "action": "reach_friends",
+      "target": 10,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 0,
+        "items": [
+          {
+            "id": 2
+          }
+        ]
+      },
+      "emoji": "🤝"
+    },
+    {
+      "id": 38,
+      "name": "Mutual Destruction",
+      "description": "End a duel in a draw",
+      "action": "draw",
+      "target": 1,
+      "reward": {
+        "fragments": 300,
+        "super_fragments": 0,
+        "items": []
+      },
+      "emoji": "🤷",
+      "secret": true,
+      "hint": "Nobody wins."
+    },
+    {
+      "id": 39,
+      "name": "Gacha Brain",
+      "description": "Summon 50 times",
+      "action": "banner_pull",
+      "target": 50,
+      "reward": {
+        "fragments": 0,
+        "super_fragments": 1,
+        "items": []
+      },
+      "emoji": "🧠"
+    }
+  ]
 }
