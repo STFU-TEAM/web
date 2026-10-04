@@ -16,15 +16,15 @@
   <div class="actions-row">
     <div id="daily" class="action-tile">{% include "partials/daily_tile.html" %}</div>
     <div class="action-tile">
-      <h2 class="h3">Wormhole</h2>
+      <h2 class="h3">Mirror World</h2>
       {% if fight and not fight.finished %}
         <p>A fight is waiting for your move.</p>
-        <a class="btn" href="{{ url_for('play.wormhole') }}">Resume the fight</a>
+        <a class="btn" href="{{ url_for('play.mirror') }}">Resume the fight</a>
       {% elif st.wormhole %}
-        <p class="muted">Next wormhole in {{ st.wormhole|delta }}.</p>
+        <p class="muted">The mirror opens again in {{ st.wormhole|delta }}.</p>
       {% else %}
         <p>Fight a team scaled to your level. Costs 1 energy.</p>
-        <a class="btn" href="{{ url_for('play.wormhole') }}">Enter the wormhole</a>
+        <a class="btn" href="{{ url_for('play.mirror') }}">Step through the mirror</a>
       {% endif %}
     </div>
     <div class="action-tile">
@@ -36,7 +36,7 @@
 
   <ul class="timers" aria-label="Cooldowns">
     <li><span>🎁 Daily</span><strong>{{ st.daily|delta if st.daily else 'Ready' }}</strong></li>
-    <li><span>🌀 Wormhole</span><strong>{{ st.wormhole|delta if st.wormhole else 'Ready' }}</strong></li>
+    <li><span>🪞 Mirror World</span><strong>{{ st.wormhole|delta if st.wormhole else 'Ready' }}</strong></li>
     <li><span>⚡ Energy {{ u.energy }}/{{ u.total_energy }}</span><strong>{{ ('full in ' ~ st.energy_in|delta) if st.energy_in else 'Full' }}</strong></li>
     <li><a href="{{ url_for('progress.story_page') }}">📖 Story</a></li>
     <li><a href="{{ url_for('progress.achievements') }}">🏆 Achievements</a></li>

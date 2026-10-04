@@ -275,8 +275,9 @@ def test_tower_entry_and_bot_invite(client):
     fight = dbmod.load_fight("111")
     assert fight.kind == "tower" and len(fight.sides[1].chars) == 2  # floor 1 is a two-stand warm-up
     assert doc(client, "111")["fragments"] == 700
-    assert b"Your tower fight is active" in client.get("/wormhole").data
-    response = client.post("/wormhole/attack", data={"target": "0"}, headers=headers)
+    assert b"Your tower fight is active" in client.get("/mirror-world").data
+    assert client.get("/wormhole").headers["Location"].endswith("/mirror-world")  # old links still land
+    response = client.post("/mirror-world/attack", data={"target": "0"}, headers=headers)
     assert response.status_code == 409
     assert dbmod.load_fight("111").turn == fight.turn
     assert b"/randomAsset/avatar.png" in client.get("/stands/31").data
@@ -507,22 +508,22 @@ def test_wormhole_fight(client):
     d = create_user("222")
     d["main_characters"] = [char(1, xp=5000), char(10, xp=5000), char(59, xp=5000)]
     put(client, d)
-    assert client.post("/wormhole/start", headers=h).status_code == 302
-    assert client.get("/wormhole").status_code == 200
+    assert client.post("/mirror-world/start", headers=h).status_code == 302
+    assert client.get("/mirror-world").status_code == 200
     fight = dbmod.load_fight("222")
     for _ in range(400):
         fight = dbmod.load_fight("222")
         if fight.finished:
             break
-        r = client.post("/wormhole/attack", data={"target": fight.targets()[0], "log_len": len(fight.log)}, headers=h)
+        r = client.post("/mirror-world/attack", data={"target": fight.targets()[0], "log_len": len(fight.log)}, headers=h)
         assert r.status_code == 200
     assert fight.finished and fight.rewards is not None
     d = doc(client, "222")
     assert d["energy"] == 9
     assert d["achievement_data"]["counters"].get("wormhole_complete") == 1
-    client.post("/wormhole/leave", headers=h)
-    r = client.post("/wormhole/start", headers=h)
-    assert b"next wormhole opens" in r.data
+    client.post("/mirror-world/leave", headers=h)
+    client.post("/mirror-world/start", headers=h)
+    assert b"opens again" in client.get("/mirror-world").data
 
 
 def test_legacy_bytes_key_user_items_shop(client):
@@ -552,7 +553,7 @@ def test_legacy_bytes_key_user_items_shop(client):
     r = client.post("/team/fuse", data={"uuid": s1[0]["uuid"], "fodder": s1[1]["uuid"]}, headers=h)
     assert b"Fused" in r.data
     s1 = doc(client, "b'333'")["storage_characters"]
-    assert len(s1) == 1 and s1[0]["awaken"] == 0 and s1[0]["xp"] == 200  # SSR bonus; ★1 waits for Lv 20
+    assert len(s1) == 1 and s1[0]["awaken"] == 0 and s1[0]["xp"] == logic.FUSE_BONUS_XP["SSR"]  # SSR bonus; ★1 waits for Lv 20
     # reforge: priced by rarity, the player compares and picks
     frag = doc(client, "b'333'")["fragments"]
     uid0 = doc(client, "b'333'")["main_characters"][0]["uuid"]
@@ -562,7 +563,7 @@ def test_legacy_bytes_key_user_items_shop(client):
     assert doc(client, "b'333'")["fragments"] == frag - logic.REFORGE_PRICE["UR"]  # Chariot Requiem is UR
     assert b"keeps its old roll" in client.post("/reforge/keep", data={"keep": "old"}, headers=h).data
     # energy refilled on page load (last_full_energy was long ago)
-    client.get("/wormhole")
+    client.get("/mirror-world")
     assert doc(client, "b'333'")["energy"] == 10
     assert client.get("/u/333").status_code == 200
     assert client.get("/leaderboard?by=xp").status_code == 200

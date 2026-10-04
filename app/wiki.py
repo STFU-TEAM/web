@@ -24,7 +24,7 @@ TOPICS = [
     ("terrains", "Terrain explorer", "Which stands set each terrain and who gets stronger on it.", "Combat"),
     ("synergies", "Synergy explorer", "Team combos and exactly what each member gains.", "Combat"),
     ("ranked", "Ranked & ELO", "Matchmaking and the rank ladder.", "Modes"),
-    ("adventure", "Wormhole, tower & dungeon", "PvE modes, cooldowns and rewards.", "Modes"),
+    ("adventure", "Mirror World, tower & dungeon", "PvE modes, cooldowns and rewards.", "Modes"),
     ("items", "Items & equipment", "Equipping, crafting and where items drop.", "Modes"),
     ("gangs", "Gangs & player shops", "Clans, the shared market and what they cost.", "Community"),
 ]
@@ -241,7 +241,7 @@ def facts():
         "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),
         "sudden_death_round": fight_mod.SUDDEN_DEATH_ROUND, "sudden_death_step": round(fight_mod.SUDDEN_DEATH_STEP * 100),
         "sudden_death_heal": round(fight_mod.SUDDEN_DEATH_HEAL * 100), "max_rounds": fight_mod.MAX_ROUNDS,
-        "affinity": AFFINITY, "power_range": POWER_RANGE,
+        "affinity": AFFINITY, "power_range": POWER_RANGE, "fuse_bonus": logic.FUSE_BONUS_XP,
         "reforge_prices": logic.REFORGE_PRICE, "reforge_lock_mult": logic.REFORGE_LOCK_MULT, "max_presets": logic.MAX_TEAMS,
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,

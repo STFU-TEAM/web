@@ -162,7 +162,7 @@ def player(uid):
     return render_template("admin/player.html", t=target, uid=uid, ident=identity(uid), gang=gang,
                            username=accounts.username_of(uid), banned=r().sismember("web:banned", uid),
                            items=sorted(counts.values(), key=lambda x: x[0].id), stands=stands,
-                           catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, fight=load_fight(uid),
+                           catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),
                            history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
                            section="players")
 
@@ -248,21 +248,24 @@ def player_action(uid, op):
 
     elif op == "grant_stand":
         stand_id, level, awaken = _int(f.get("stand_id")), _int(f.get("level")), _int(f.get("awaken"))
-        if stand_id not in {s["id"] for s in PLAYABLE} or level is None or not 0 <= level <= 100 or awaken not in range(4):
-            flash("Choose a stand, a level (0-100) and an awakening (0-3).", "error")
+        shiny = bool(f.get("shiny"))
+        if (stand_id not in {s["id"] for s in PLAYABLE} or level is None or not 0 <= level <= 100
+                or awaken not in range(logic.MAX_AWAKEN + 1)):
+            flash(f"Choose a stand, a level (0-100) and an awakening (0-{logic.MAX_AWAKEN}).", "error")
             return back
 
         def run(t):
             types, qualities = logic.roll_types_qualities() if f.get("roll") else ([], [])
             stand = get_character_from_template(CHARACTER_FILE[stand_id - 1], types, qualities)
-            stand.xp, stand.awaken = level * 100, awaken
+            stand.xp, stand.awaken, stand.shiny = level * 100, awaken, shiny
             if not logic.add_to_available_storage(t, stand, skip_main=True):
                 raise logic.GameError("Their storage is full.")
-            return f"Granted {stand.name} (Lv {level}, ★{awaken}) to {name}."
-        _edit(uid, run, "stand", "", stand_id=stand_id, level=level, awaken=awaken)
+            return f"Granted {'✨ shiny ' if shiny else ''}{stand.name} (Lv {level}, ★{awaken}) to {name}."
+        _edit(uid, run, "stand", "", stand_id=stand_id, level=level, awaken=awaken, shiny=shiny)
 
     elif op == "stand_edit":
         stand_uuid, level, awaken = f.get("uuid"), _int(f.get("level")), _int(f.get("awaken"))
+        shiny = bool(f.get("shiny"))
 
         def run(t):
             c = t.find_character_by_uuid(stand_uuid)[0]
@@ -272,8 +275,9 @@ def player_action(uid, op):
                 c.xp = level * 100
             if awaken is not None and 0 <= awaken <= logic.MAX_AWAKEN:
                 c.awaken = awaken
-            return f"{c.name} set to Lv {c.xp // 100}, ★{c.awaken}."
-        _edit(uid, run, "stand_edit", "", uuid=stand_uuid, level=level, awaken=awaken)
+            c.shiny = shiny
+            return f"{c.name} set to Lv {c.xp // 100}, ★{c.awaken}{', shiny' if shiny else ''}."
+        _edit(uid, run, "stand_edit", "", uuid=stand_uuid, level=level, awaken=awaken, shiny=shiny)
 
     elif op == "stand_remove":
         stand_uuid = f.get("uuid")

@@ -21,17 +21,21 @@
 {% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None) %}
 {% set rar = s.rarity|rarity %}
 {% set b = badges or {} %}
-<article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}{% if b.locked %} locked{% endif %}">
+{% set full = owned and awaken >= FULLART_STARS %}{# ★3: the art takes the whole card #}
+{% set shiny = owned and owned.shiny %}
+<article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}{% if b.locked %} locked{% endif %}{% if full %} fullart{% endif %}{% if shiny %} shiny{% endif %}">
   {% if link %}<a class="card-link" href="{{ href or url_for('main.stand', stand_id=s.id) }}" aria-label="{{ s.name }}"></a>{% endif %}
   <div class="card-face">
     <header class="card-top">
       <span class="rar-badge">{{ s.rarity }}</span>
+      {% if shiny %}<span class="shiny-badge" title="Shiny: a rare colour variant">✨</span>{% endif %}
       {% for icon, tip in s.id|stand_tags %}<span class="tag" title="{{ tip }}">{{ icon }}</span>{% endfor %}
       {% if s.taunt %}<span class="tag" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
       {% if awaken %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>{% endif %}
     </header>
     <div class="card-window">
-      <img src="{{ s.id|stand_img }}" alt="{{ s.name }}" loading="lazy"
+      {% set art, own_art = card_art(s.id, full, shiny) %}
+      <img src="{{ art }}" alt="{{ s.name }}" loading="lazy"{% if own_art %} class="own-art"{% endif %}
            onload="if(this.naturalWidth / this.naturalHeight > 0.84) this.classList.add('cover')"
            onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
       {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}

@@ -3,6 +3,8 @@ import datetime
 import pickle
 import random
 
+import pytest
+
 from app.game import logic
 from app.game.character import CHARACTER_FILE, CRITMULTIPLIER, get_character_from_template
 from app.game.effects import Effect, EffectType
@@ -116,16 +118,24 @@ def test_fights_end_within_the_round_cap():
                for c, hp in zip(side.chars, e["hp"][s]))
 
 
-def test_wormhole_never_spawns_the_dummy_or_the_world_over_heaven():
-    from app.game.user import User
-    for xp, tier in ((450_000, "UR"), (100_000_000, "LR")):  # levels 60 and 100
-        data = create_user("1")
-        data["xp"] = xp
-        user = User(data)
-        assert (50 <= user.level < 75) if tier == "UR" else user.level >= 75
-        for _ in range(60):
-            _name, chars, _multi = logic.wormhole_enemy(user)
-            assert all(c.id not in (110, 164) for c in chars)
+def test_mirror_world_reflects_the_team_and_never_spawns_the_dummy_or_twoh():
+    from app.game.character import Character
+    team = [Character(char(i, xp=6000, awaken=2)) for i in (10, 75, 84)]  # UR, UR, LR at level 60, ★2
+    rnd = __import__("random")
+    rnd.seed(1)
+    seen = set()
+    for _ in range(200):
+        _name, chars, multi, difficulty = logic.mirror_enemy(team)
+        seen.add(difficulty)
+        fewer = next(d[6] for d in logic.MIRROR_DIFFICULTIES if d[0] == difficulty)
+        assert len(chars) == 3 - fewer and all(c.id not in (110, 164) for c in chars)
+        assert all(c.rarity in ("SSR", "UR", "LR") for c in chars)  # near the team's rarities
+        factor = next(d[2] for d in logic.MIRROR_DIFFICULTIES if d[0] == difficulty)
+        assert all(abs(c.level - 60 * factor) <= 60 * factor * 0.11 + 1 for c in chars)
+        assert multi > 1.5  # level 60 pays more than a level-0 trip
+    assert seen == {d[0] for d in logic.MIRROR_DIFFICULTIES}
+    with pytest.raises(logic.GameError):
+        logic.mirror_enemy([])
 
 
 def test_dummy_win_counts_for_the_story(client):
@@ -466,9 +476,9 @@ def test_auto_fuse_merges_r_and_sr_duplicates_only(client):
     d = doc(client, "111")
     hermit = d["main_characters"][0]
     # Lv 20 earns ★1 on the first copy; ★2 needs Lv 50, so the second copy pays XP only
-    assert hermit["uuid"] == team_hermit["uuid"] and hermit["awaken"] == 1 and hermit["xp"] == 2000 + 2 * 25
+    assert hermit["uuid"] == team_hermit["uuid"] and hermit["awaken"] == 1 and hermit["xp"] == 2000 + 2 * logic.FUSE_BONUS_XP["R"]
     wof = [c for c in d["storage_characters"] if c["id"] == 15]
-    assert [c["uuid"] for c in wof] == [locked_copy["uuid"]] and wof[0]["awaken"] == 0 and wof[0]["xp"] == 900 + 2 * 25
+    assert [c["uuid"] for c in wof] == [locked_copy["uuid"]] and wof[0]["awaken"] == 0 and wof[0]["xp"] == 900 + 2 * logic.FUSE_BONUS_XP["R"]
     assert sorted(c["id"] for c in d["storage_characters"]) == [1, 1, 2, 15]
     assert b"No R or SR duplicates" in client.post("/team/autofuse", headers=h).data
 
@@ -871,7 +881,7 @@ def test_fusing_stars_wait_for_the_level_and_shop_heads_are_capped(client):
     h = login(client, "111")
     client.post("/team/fuse", data={"uuid": keeper["uuid"], "fodder": spare["uuid"]}, headers=h)  # team keeper is fine
     d = doc(client, "111")["main_characters"][0]
-    assert d["xp"] == 5100 and d["awaken"] == 1  # Lv 51: ★1 comes first
+    assert d["xp"] == 4900 + logic.FUSE_BONUS_XP["SSR"] and d["awaken"] == 1  # Lv 50+: ★1 comes first
     client.post("/team/fuse", data={"uuid": keeper["uuid"], "fodder": spare2["uuid"]}, headers=h)
     assert doc(client, "111")["main_characters"][0]["awaken"] == 2
     for _ in range(SHOP_HEADS_PER_WEEK):
@@ -1144,3 +1154,31 @@ def test_health_type_boosts_health_and_powers_healers():
     assert ab.special_power(healer)["type"] == "Health Universal"
     assert ab.special_power(mk("DEFENSE"))["affinity"] == 0  # DEFENSE is armor only now
     assert mk("DEFENSE").start_hp == natural_stats(healer)["hp"]
+
+
+def test_admins_can_grant_and_toggle_shiny_and_fusing_keeps_it(client):
+    from app.game import logic
+    from app.game.user import User
+    admin = sorted(client.application.config["DISCORD_ADMIN_IDS"])[0]
+    player(client, admin)
+    player(client, "111", storage_characters=[char(1)])
+    h = login(client, admin)
+    client.post("/admin/player/111/grant_stand", data={"stand_id": 1, "level": 30, "awaken": 5, "shiny": "1"}, headers=h)
+    stands = doc(client, "111")["storage_characters"]
+    shiny = next(s for s in stands if s.get("shiny"))
+    assert shiny["id"] == 1 and shiny["awaken"] == 5  # ★5 is now grantable too
+    # the toggle on an existing stand: off, then on again
+    plain = next(s for s in stands if not s.get("shiny"))
+    client.post("/admin/player/111/stand_edit", data={"uuid": shiny["uuid"], "level": 30, "awaken": 5}, headers=h)
+    assert not next(s for s in doc(client, "111")["storage_characters"] if s["uuid"] == shiny["uuid"]).get("shiny")
+    client.post("/admin/player/111/stand_edit", data={"uuid": shiny["uuid"], "level": 30, "awaken": 5, "shiny": "1"}, headers=h)
+    # fusing a shiny copy into a plain one keeps the shine
+    u = User(doc(client, "111"))
+    keeper = next(c for c in u.storage_characters if c.uuid == plain["uuid"])
+    fodder = next(c for c in u.storage_characters if c.uuid == shiny["uuid"])
+    logic._absorb(u, keeper, fodder)
+    assert keeper.shiny and keeper.to_dict()["shiny"] is True
+    # and the card shows it
+    login(client, "111")
+    page = client.get("/team").data.decode()
+    assert "card" in page and " shiny" in page and "shiny-badge" in page

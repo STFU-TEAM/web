@@ -28,7 +28,7 @@
 <p>Stands earn XP from every fight mode. {{ facts.xp_per_level }} XP is one level, up to level <strong>{{ facts.max_level }}</strong>. Levels raise health, damage, speed and critical. Stands below level {{ facts.catch_up }} learn <strong>twice as fast</strong>, so a new pull can catch up with your team.</p>
 
 <h2 class="wiki-h2">Fusing (awakening)</h2>
-<p>Fuse a spare copy from <strong>storage</strong> into another copy of the same stand (the kept one can be in your team). The kept copy takes the other's XP plus a bonus by rarity (R 25, SR 50, SSR 200, UR 400, LR 600 XP). It also gains an awakening, once it has the level for it: <strong>★1 at Lv 20, ★2 at Lv 50, ★3 at Lv 80</strong>. Below that level a copy still pays its XP. The consumed copy's items return to your inventory. Each awakening raises bonus stats by another third.</p>
+<p>Fuse a spare copy from <strong>storage</strong> into another copy of the same stand (the kept one can be in your team). The kept copy takes the other's XP plus a bonus by rarity ({% for r, xp in facts.fuse_bonus.items() %}{{ r }} {{ xp|num }}{{ ', ' if not loop.last }}{% endfor %} XP: the rarer the copy, the more it teaches). It also gains an awakening, once it has the level for it: <strong>★1 at Lv 20, ★2 at Lv 50, ★3 at Lv 80</strong>. Below that level a copy still pays its XP. The consumed copy's items return to your inventory. Each awakening raises bonus stats by another third.</p>
 
 <h2 class="wiki-h2">Ascension</h2>
 <p>A team stand at level {{ facts.max_level }} with fewer than 3 awakenings can ascend: it gains an awakening and its XP resets to 0 so it can level again.</p>

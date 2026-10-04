@@ -566,7 +566,7 @@ def train(char: Character, amount: int) -> int:
 # Fusing: the kept copy takes the other's XP plus a bonus by its rarity. It also gains an
 # awakening, but only once it has the level for it, so stars come with time played and a
 # lucky pull can't skip the whole climb. Below the gate a copy still pays its XP.
-FUSE_BONUS_XP = {"R": 25, "SR": 50, "SSR": 200, "UR": 400, "LR": 600}
+FUSE_BONUS_XP = {"R": 30, "SR": 100, "SSR": 400, "UR": 2500, "LR": 5000}  # rare copies teach a lot: +25 levels for a UR
 AWAKEN_LEVELS = (20, 50, 80)  # level needed for ★1, ★2, ★3 through fusing
 
 
@@ -578,6 +578,7 @@ def awaken_gate(char: Character) -> Optional[int]:
 def _absorb(user: User, keeper: Character, fodder: Character) -> Character:
     """Fold fodder into keeper: its XP plus a rarity bonus, one gated awakening, its items back to the bag."""
     user.items.extend(fodder.items)
+    keeper.shiny = keeper.shiny or getattr(fodder, "shiny", False)
     keeper.xp += fodder.xp + FUSE_BONUS_XP.get(fodder.rarity, 100)
     gate = awaken_gate(keeper)
     if gate is not None and min(100, keeper.xp // STXPTOLEVEL) >= gate:
@@ -1001,32 +1002,67 @@ def energy_refill_in(user: User) -> Optional[datetime.timedelta]:
 
 
 # --------------------------------------------------------------------------- #
-# /wormhole
+# Mirror World (was the wormhole; internal names keep "wormhole" for saves, quests and stats)
 # --------------------------------------------------------------------------- #
 WORMHOLE_NAMES = ["Megalo", "Mr Davelo", "Vince", "Icarus", "Arkkos", "Yoshikage Ramsay",
                   "Keyshiwo", "EIRBLAST", "Obama", "Mizu", "ft.fate"]
+# The reflection copies your team's strength, distorted by a rolled difficulty:
+# (name, weight, level factor, awakening shift, reward factor, health/damage factor, stands fewer)
+MIRROR_DIFFICULTIES = [
+    ("Faded", 35, 0.70, -1, 0.8, 0.75, 1),
+    ("Clear", 40, 0.85, 0, 1.0, 0.88, 0),
+    ("Sharp", 20, 1.00, 0, 1.4, 0.96, 0),
+    ("Twisted", 5, 1.00, 1, 2.0, 0.95, 0),
+]
+RARITY_STEPS = ["R", "SR", "SSR", "UR", "LR"]
+MIRROR_STAND_XP = 10  # per win, times the trip's multiplier (team level and difficulty)
 
 
 def wormhole_wait(user: User) -> float:
     return DONOR_WH_WAIT_TIME + (not user.is_donator()) * NORMAL_WH_WAIT_TIME
 
 
+def mirror_enemy(team: List[Character]):
+    """A reflection of the team: as many stands, rarities near each member's, levels and awakenings
+    scaled from the team's, all bent by a rolled difficulty. Returns (name, stands, reward multiplier, difficulty)."""
+    if not team:
+        raise GameError("You need at least one stand in your team.")
+    name, _, factor, shift, reward, power, fewer = random.choices(
+        MIRROR_DIFFICULTIES, weights=[d[1] for d in MIRROR_DIFFICULTIES], k=1)[0]
+    level = sum(c.level for c in team) / len(team)
+    awaken = sum(c.awaken for c in team) / len(team)
+    chars, used = [], set()
+    reflected = random.sample(team, max(1, len(team) - fewer))
+    for member in reflected:
+        step = RARITY_STEPS.index(member.rarity) if member.rarity in RARITY_STEPS else 0
+        roll = random.random()
+        # sometimes a rarity below; only a Twisted reflection can come back a rarity above
+        step += -1 if roll < 0.25 else (1 if name == "Twisted" and roll > 0.7 else 0)
+        step = max(0, min(len(RARITY_STEPS) - 1, step))
+        # no training dummy (1M HP) or The World Over Heaven (100k damage) in the wild
+        pool = [c for c in CHARACTER_FILE if c["rarity"] == RARITY_STEPS[step] and c["universe"] != "Dummy"
+                and c["id"] != 110 and c["id"] not in used] or \
+               [c for c in CHARACTER_FILE if c["rarity"] == "SR" and c["universe"] != "Dummy"]
+        template = random.choice(pool)
+        used.add(template["id"])
+        types, qualities = roll_types_qualities()
+        stand = get_character_from_template(template, types, qualities)
+        stand.xp = int(max(1, min(100, round(level * factor * random.uniform(0.9, 1.1)))) * STXPTOLEVEL)
+        stand.awaken = max(0, min(MAX_AWAKEN, round(awaken) + shift))
+        stand = Character(stand.to_dict())
+        for stat in ("hp", "damage"):  # at low levels base stats dominate: the factor keeps difficulties apart
+            value = int(getattr(stand, f"start_{stat}") * power)
+            setattr(stand, f"start_{stat}", value)
+            setattr(stand, f"current_{stat}", value)
+        chars.append(stand)
+    multi = round((1 + level / 33) * reward, 2)  # 1 at level 0, about 4 at level 100, then the difficulty
+    return f"{random.choice(WORMHOLE_NAMES)}'s Reflection", chars, multi, name
+
+
 def wormhole_enemy(user: User):
-    lvl = user.level
-    if lvl < 5:
-        rarity, n, multi = "R", random.randint(1, 2), 1
-    elif lvl < 25:
-        rarity, n, multi = "SR", 1, 2
-    elif lvl < 50:
-        rarity, n, multi = "SSR", random.randint(2, 3), 3
-    elif lvl < 75:
-        rarity, n, multi = "UR", 3, 3
-    else:
-        rarity, n, multi = "LR", 3, 4
-    # no training dummy (1M HP) or The World Over Heaven (100k damage) in the wild
-    pool = [c for c in CHARACTER_FILE if c["rarity"] == rarity and c["universe"] != "Dummy" and c["id"] != 110]
-    chars = [get_character_from_template(t, [], []) for t in random.choices(pool, k=n)]
-    return f"{random.choice(WORMHOLE_NAMES)}'s Soul", chars, multi
+    """Kept for callers outside the routes (simulations)."""
+    name, chars, multi, _ = mirror_enemy(user.main_characters)
+    return name, chars, multi
 
 
 def wormhole_start(user: User):
@@ -1034,13 +1070,13 @@ def wormhole_start(user: User):
         raise GameError("You need at least one stand in your team.")
     left = cooldown_left(user.last_wormhole, wormhole_wait(user))
     if left:
-        raise GameError(f"The next wormhole opens in {fmt_delta(left)}.")
+        raise GameError(f"The Mirror World opens again in {fmt_delta(left)}.")
     refill_energy(user)
     if user.energy < 1:
         raise GameError("You need 1 energy. It refills over time.")
     user.energy -= 1
     user.last_wormhole = now()
-    return wormhole_enemy(user)
+    return mirror_enemy(user.main_characters)
 
 
 def wormhole_reward(user: User, won: bool, multi: int) -> dict:
@@ -1054,17 +1090,17 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
         track_quest_progress(user, a)
         check_achievements(user, a)
     user.xp += PLAYER_XPGAINS
-    user.fragments += FRAGMENTSGAIN * multi
+    user.fragments += int(FRAGMENTSGAIN * multi)
     for c in user.main_characters:
-        train(c, CHARACTER_XPGAINS * multi)
+        train(c, int(MIRROR_STAND_XP * multi))
     item = None
     if random.randint(1, 100) <= CHANCEITEM:
         item_id = random.choices([13, 1, 4, 15, 2, 3, 38, 39, 40],
                                  weights=[0.24, 0.16, 0.14, 0.12, 0.08, 0.04, 0.08, 0.06, 0.08], k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
-    return {"won": True, "fragments": FRAGMENTSGAIN * multi, "xp": PLAYER_XPGAINS,
-            "stand_xp": CHARACTER_XPGAINS * multi, "item": item.name if item else None}
+    return {"won": True, "fragments": int(FRAGMENTSGAIN * multi), "xp": PLAYER_XPGAINS,
+            "stand_xp": int(MIRROR_STAND_XP * multi), "item": item.name if item else None}
 
 
 def sell_price(item) -> int:

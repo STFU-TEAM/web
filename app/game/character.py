@@ -61,6 +61,7 @@ class Character:
         self.xp: int = data.get("xp", 0)
         self.awaken: int = data.get("awaken", 0)
         self.trained: int = data.get("trained", 0)
+        self.shiny: bool = bool(data.get("shiny", False))  # cosmetic variant: alternate colours, holo frame
         self.types:list[str] = data.get("types", [])
         self.qualities:list[str] = data.get("qualities", [])
         self.etypes:list[Types] = [Types.from_string(typ) for typ in self.types]
@@ -333,6 +334,10 @@ class Character:
         self.data["items"] = [s.to_dict() for s in self.items]
         self.data["types"] = self.types
         self.data["qualities"] = self.qualities
+        if self.shiny:
+            self.data["shiny"] = True
+        else:
+            self.data.pop("shiny", None)
         return self.data
 
     def reset(self) -> None:

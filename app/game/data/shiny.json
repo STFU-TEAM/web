@@ -1,0 +1,4 @@
+{
+    "_comment": "Stand ids with a dedicated shiny illustration on the image server at shiny/{id}.webp. Shiny copies of other stands use their regular art with shifted colours. scripts/art_helper.py fills this list from the art/shiny folder.",
+    "ids": []
+}

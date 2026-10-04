@@ -6,7 +6,7 @@
   </div>
   <div class="panel-body">
     <p class="kicker">{{ c.rarity }} · {{ template.universe }}</p>
-    <h2 class="display sm">{{ c.name }}</h2>
+    <h2 class="display sm">{% if c.shiny %}<span class="shiny-title" title="Shiny: a rare colour variant">✨</span> {% endif %}{{ c.name }}</h2>
     <p class="panel-meta">
       Level {{ c.level }}{% if c.level < 100 %} <span class="muted">({{ c|xp_pct }}% to {{ c.level + 1 }})</span>{% endif %}
       · Awakening {{ c.awaken }}/3 · Power {{ power|num }}

@@ -1,0 +1,4 @@
+{
+    "_comment": "Stand ids with a dedicated full-art illustration on the image server at artwork/{id}.webp. scripts/art_helper.py fills this list from the art/artwork folder.",
+    "ids": []
+}

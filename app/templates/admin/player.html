@@ -81,8 +81,9 @@
   {% call act('grant_stand', 'Grant stand', 'btn small gold', anchor='#stands') %}
     <select name="stand_id" aria-label="Stand">{% for s in STANDS %}<option value="{{ s.id }}">{{ s.id }} · {{ s.name }} ({{ s.rarity }})</option>{% endfor %}</select>
     <input type="number" name="level" min="0" max="100" value="0" aria-label="Level">
-    <select name="awaken" aria-label="Awakening">{% for a in range(4) %}<option value="{{ a }}">★{{ a }}</option>{% endfor %}</select>
+    <select name="awaken" aria-label="Awakening">{% for a in range(MAX_AWAKEN + 1) %}<option value="{{ a }}">★{{ a }}</option>{% endfor %}</select>
     <label class="check"><input type="checkbox" name="roll" value="1" checked> roll types</label>
+    <label class="check"><input type="checkbox" name="shiny" value="1"> ✨ shiny</label>
   {% endcall %}
   <div class="admin-table-wrap">
   <table class="admin-table">
@@ -90,9 +91,9 @@
     <tbody>
       {% for c, team in stands %}
         <tr>
-          <td><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> {{ c.name }} <small class="muted">#{{ c.id }}</small></td>
+          <td><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> {{ '✨ ' if c.shiny }}{{ c.name }} <small class="muted">#{{ c.id }}</small></td>
           <td>{{ 'Team' if team else 'Storage' }}</td>
-          <td>{% call act('stand_edit', 'Save', 'btn small ghost', anchor='#stands') %}<input type="hidden" name="uuid" value="{{ c.uuid }}"><input type="number" name="level" min="0" max="100" value="{{ c.level }}" aria-label="Level"><input type="number" name="awaken" min="0" max="7" value="{{ c.awaken }}" aria-label="Awakening">{% endcall %}</td>
+          <td>{% call act('stand_edit', 'Save', 'btn small ghost', anchor='#stands') %}<input type="hidden" name="uuid" value="{{ c.uuid }}"><input type="number" name="level" min="0" max="100" value="{{ c.level }}" aria-label="Level"><input type="number" name="awaken" min="0" max="{{ MAX_AWAKEN }}" value="{{ c.awaken }}" aria-label="Awakening"><label class="check" title="Shiny variant"><input type="checkbox" name="shiny" value="1" {% if c.shiny %}checked{% endif %}> ✨</label>{% endcall %}</td>
           <td>{% for emo, ty, q, rank, qemo in c|traits %}{{ emo }}{{ rank }} {% endfor %}</td>
           <td>{% for it in c['items'] %}{{ it.emoji|emoji }}{% endfor %}</td>
           <td>{% call act('stand_remove', 'Remove', 'btn small danger', confirm='Remove ' ~ c.name ~ ' from this save?', anchor='#stands') %}<input type="hidden" name="uuid" value="{{ c.uuid }}">{% endcall %}</td>

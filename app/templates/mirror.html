@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Mirror World | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <div class="crusade-intro narrow mirror-intro">
+      <p class="menace" aria-hidden="true">ゴゴゴ</p>
+      <h1 class="display sm">Mirror World</h1>
+      <p class="lede">Man in the Mirror pulls your team through the glass. On the other side waits a reflection of it: as many stands as you bring, of similar rarity, near your team's level (Lv {{ team_level }}). How sharp the reflection is, is rolled each time:</p>
+      <ul class="mirror-odds">
+        {% set total = difficulties|sum(attribute=1) %}
+        {% for name, weight, factor, shift, reward, power, fewer in difficulties %}
+          <li class="mirror-{{ name|lower }}"><strong>{{ name }}</strong><span>{{ (100 * weight / total)|round|int }}% of the time</span>
+            <small>{% if fewer %}{{ fewer }} stand fewer · {% endif %}Lv ×{{ factor }}{% if shift > 0 %}, +{{ shift }}★{% elif shift < 0 %}, {{ shift }}★{% endif %}{% if power != 1 %}, power ×{{ power }}{% endif %} · rewards ×{{ reward }}</small></li>
+        {% endfor %}
+      </ul>
+      <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_in %}, full refill in {{ st.energy_in|delta }}{% endif %}.</p>
+      {% if other_fight %}
+        <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.tower') if other_fight == 'tower' else url_for('play.mirror') }}">Return to it</a>.</p>
+      {% elif not u.main_characters %}
+        <p class="notice">You need at least one stand in your team. <a href="{{ url_for('play.team') }}">Set up your team</a>.</p>
+      {% elif st.wormhole %}
+        <p class="notice">The mirror opens again in {{ st.wormhole|delta }}.</p>
+      {% elif u.energy < 1 %}
+        <p class="notice">You're out of energy.</p>
+      {% else %}
+        <form method="post" action="{{ url_for('play.mirror_start') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">🪞 Step through the mirror</button>
+        </form>
+        <p class="muted">Entering costs 1 energy and starts the cooldown, even if you leave mid-fight. Unattended fights expire after 15 minutes.</p>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}

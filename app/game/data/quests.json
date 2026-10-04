@@ -2,8 +2,8 @@
     "quests": [
         {
             "id": 1,
-            "name": "Wormhole Wanderer",
-            "description": "Complete 1 wormhole fight",
+            "name": "Mirror Wanderer",
+            "description": "Complete 1 Mirror World fight",
             "category": "daily",
             "action": "wormhole_complete",
             "target": 1,
@@ -19,8 +19,8 @@
         },
         {
             "id": 2,
-            "name": "Wormhole Victor",
-            "description": "Win 1 wormhole fight",
+            "name": "Mirror Victor",
+            "description": "Win 1 Mirror World fight",
             "category": "daily",
             "action": "wormhole_win",
             "target": 1,
@@ -138,8 +138,8 @@
         },
         {
             "id": 101,
-            "name": "Wormhole Warrior",
-            "description": "Win 5 wormhole fights",
+            "name": "Mirror Warrior",
+            "description": "Win 5 Mirror World fights",
             "category": "weekly",
             "action": "wormhole_win",
             "target": 5,
@@ -700,8 +700,8 @@
         },
         {
             "id": 16,
-            "name": "Wormhole Regular",
-            "description": "Win 3 wormhole fights",
+            "name": "Mirror Regular",
+            "description": "Win 3 Mirror World fights",
             "category": "daily",
             "action": "wormhole_win",
             "target": 3,
@@ -840,8 +840,8 @@
         },
         {
             "id": 114,
-            "name": "Wormhole Hunter",
-            "description": "Win 20 wormhole fights",
+            "name": "Mirror Hunter",
+            "description": "Win 20 Mirror World fights",
             "category": "weekly",
             "action": "wormhole_win",
             "target": 20,

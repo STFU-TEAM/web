@@ -15,8 +15,8 @@
         },
         {
             "id": 2,
-            "name": "Wormhole Rookie",
-            "description": "Win your first wormhole fight",
+            "name": "Mirror Rookie",
+            "description": "Win your first Mirror World fight",
             "action": "wormhole_win",
             "target": 1,
             "reward": {
@@ -28,8 +28,8 @@
         },
         {
             "id": 3,
-            "name": "Wormhole Explorer",
-            "description": "Win 10 wormhole fights",
+            "name": "Mirror Explorer",
+            "description": "Win 10 Mirror World fights",
             "action": "wormhole_win",
             "target": 10,
             "reward": {
@@ -45,8 +45,8 @@
         },
         {
             "id": 4,
-            "name": "Wormhole Conqueror",
-            "description": "Win 50 wormhole fights",
+            "name": "Mirror Conqueror",
+            "description": "Win 50 Mirror World fights",
             "action": "wormhole_win",
             "target": 50,
             "reward": {
@@ -413,8 +413,8 @@
         },
         {
             "id": 30,
-            "name": "Wormhole Tourist",
-            "description": "Lose 10 wormhole fights",
+            "name": "Mirror Tourist",
+            "description": "Lose 10 Mirror World fights",
             "action": "wormhole_loss",
             "target": 10,
             "reward": {

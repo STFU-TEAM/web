@@ -522,7 +522,7 @@ def shop_buy():
 # --------------------------------------------------------------------------- #
 # Quests
 # --------------------------------------------------------------------------- #
-QUEST_ICONS = {"wormhole": "◎", "tower": "▲", "rush": "♛", "story": "📜", "raid": "⚑", "banner": "✦", "reforge": "⚒",
+QUEST_ICONS = {"wormhole": "🪞", "tower": "▲", "rush": "♛", "story": "📜", "raid": "⚑", "banner": "✦", "reforge": "⚒",
                "fuse": "♟", "item": "◈", "shop": "⚖", "daily": "🎁", "ranked": "⚔", "fight": "⚔", "invite": "♥",
                "friends": "♥", "level": "★", "requiem": "✧"}
 
@@ -617,11 +617,16 @@ def quest_claim():
 
 
 # --------------------------------------------------------------------------- #
-# Wormhole (PvE fight)
+# Mirror World (PvE fight; was the wormhole)
 # --------------------------------------------------------------------------- #
 @bp.get("/wormhole")
+def wormhole_old():
+    return redirect(url_for("play.mirror"), 301)
+
+
+@bp.get("/mirror-world")
 @player_required
-def wormhole():
+def mirror():
     user = _user()
     _refill(user)
     fight = load_fight(session["uid"])
@@ -629,48 +634,51 @@ def wormhole():
     if fight and fight.kind != "wormhole":
         other_fight = fight.kind
         fight = None
-    return render_template("wormhole.html", u=user, fight=fight, st=status(user),
-                           other_fight=other_fight,
-                           fight_action=url_for("play.wormhole_attack"),
-                           fight_leave_action=url_for("play.wormhole_leave"), fight_label="Wormhole")
+    team = user.main_characters
+    return render_template("mirror.html", u=user, fight=fight, st=status(user), other_fight=other_fight,
+                           team_level=round(sum(c.level for c in team) / len(team)) if team else 0,
+                           difficulties=logic.MIRROR_DIFFICULTIES,
+                           fight_action=url_for("play.mirror_attack"),
+                           fight_leave_action=url_for("play.mirror_leave"), fight_label="Mirror World")
 
 
-@bp.post("/wormhole/start")
+@bp.post("/mirror-world/start")
 @player_required
-def wormhole_start():
+def mirror_start():
     uid = session["uid"]
     if load_fight(uid):
-        return redirect(url_for("play.wormhole"))
+        return redirect(url_for("play.mirror"))
 
     def start(u):
-        name, enemies, multi = logic.wormhole_start(u)
-        foes = Side(name, enemies, False)
-        foes.ai = "easy" if u.level < 5 else "smart"
+        name, enemies, multi, difficulty = logic.wormhole_start(u)
+        foes = Side(f"{name} · {difficulty}", enemies, False)
+        foes.ai = "easy" if difficulty == "Faded" or u.level < 5 else "smart"
         fight = Fight(Side(session.get("name", "You"), fighting_copy(u.main_characters), True, session.get("avatar")),
-                      foes, meta={"multi": multi})
+                      foes, meta={"multi": multi, "difficulty": difficulty})
         fight.advance()
         return fight
 
     user, fight, err = action(start)
     if err:
-        return render_template("wormhole.html", u=user, fight=None, st=status(user), error=err)
+        flash(err, "error")
+        return redirect(url_for("play.mirror"))
     save_fight(uid, fight)
-    return redirect(url_for("play.wormhole"))
+    return redirect(url_for("play.mirror"))
 
 
-@bp.post("/wormhole/attack")
+@bp.post("/mirror-world/attack")
 @player_required
-def wormhole_attack():
-    return play_turn("wormhole", url_for("play.wormhole"), "Wormhole", "play.wormhole_attack", "play.wormhole_leave",
+def mirror_attack():
+    return play_turn("wormhole", url_for("play.mirror"), "Mirror World", "play.mirror_attack", "play.mirror_leave",
                      lambda user, fight: logic.wormhole_reward(user, fight.winner == 0, fight.meta.get("multi", 1)))
 
-@bp.post("/wormhole/leave")
+@bp.post("/mirror-world/leave")
 @player_required
-def wormhole_leave():
+def mirror_leave():
     fight = load_fight(session["uid"])
     if fight and fight.kind == "wormhole" and fight.finished:
         clear_fight(session["uid"])
-    return redirect(url_for("play.wormhole"))
+    return redirect(url_for("play.mirror"))
 
 
 # --------------------------------------------------------------------------- #

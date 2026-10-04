@@ -20,6 +20,7 @@ def power_score(char) -> int:
            + char.start_speed * 6 + char.start_critical * 3)
     return int(raw * (1 + 0.4 * (special_power(char)["power"] - 1)))
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
+FULLART_STARS = 3  # owned copies at this awakening or more are drawn as full-art cards
 TAROT = [
     "0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X",
     "XI", "XII", "XIII", "XIV", "XV", "XVI", "XVII", "XVIII", "XIX", "XX", "XXI",
@@ -42,7 +43,8 @@ def register(app):
     app.jinja_env.globals.update(icon=branding.icon, DUST=branding.DUST, HEAD=branding.HEAD, HEADS=branding.HEADS,
                                  PALM=branding.PALM, PALMS=branding.PALMS)
     from app.game import logic
-    app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left)
+    app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
+                                 FULLART_STARS=FULLART_STARS)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
     from app.game import characterabilities as abilities
@@ -56,6 +58,24 @@ def register(app):
     def stand_img(stand_id):
         cfg = current_app.config
         return cfg["IMAGE_BASE_URL"] + cfg["IMAGE_PATH"].format(id=stand_id)
+
+    import json as _json
+    import os as _os
+    def _ids(name):
+        with open(_os.path.join(_os.path.dirname(__file__), "game", "data", name), encoding="utf-8") as fh:
+            return set(_json.load(fh).get("ids", []))
+    fullart_ids, shiny_ids = _ids("fullart.json"), _ids("shiny.json")
+
+    @app.template_global("card_art")
+    def card_art(stand_id, full=False, shiny=False):
+        """(url, own art?) for a card: a dedicated shiny or full-art illustration if one was uploaded, else the
+        regular image (shiny copies then get their colours shifted by CSS)."""
+        base = current_app.config["IMAGE_BASE_URL"]
+        if shiny and int(stand_id) in shiny_ids:
+            return base + f"/shiny/{stand_id}.webp", True
+        if full and int(stand_id) in fullart_ids:
+            return base + f"/artwork/{stand_id}.webp", True
+        return stand_img(stand_id), False
 
     @app.template_filter("asset")
     def asset(path):

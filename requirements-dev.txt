@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest
 fakeredis
+pillow  # scripts/art_helper.py converts downloads to webp

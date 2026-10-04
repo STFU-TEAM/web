@@ -429,6 +429,54 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .card:has(.card-link:hover) { transform: translateY(-3px); box-shadow: 7px 9px 0 rgb(0 0 0 / .35); }
 .card { transition: transform .12s, box-shadow .12s; }
 
+/* Full art (★3+): the image fills the card, text sits on a dark gradient, a foil sheen runs across.
+   The window keeps its place (and so the card keeps a classic card's size); only the image leaves it. */
+.card.fullart .card-face { position: relative; background: #120821; color: var(--paper); }
+.card.fullart .card-face > * { position: relative; z-index: 1; }
+.card.fullart .card-face > .card-window { position: static; z-index: auto; border-color: transparent; background: none; }
+.card.fullart .card-window img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%;
+  object-fit: cover; object-position: center 22%; border-radius: inherit; }
+.card.fullart .card-face::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(to bottom, rgb(12 6 22 / .55) 0%, transparent 15%, transparent 52%, rgb(12 6 22 / .82) 76%, rgb(12 6 22 / .95) 100%); }
+.card.fullart .lvl, .card.fullart .charge-chip, .card.fullart .card-flags { z-index: 2; }
+.card.fullart .rar-badge { box-shadow: 0 2px 6px rgb(0 0 0 / .5); }
+.card.fullart .lvl { bottom: auto; top: 2.3rem; left: 10px; }
+.card.fullart .charge-chip { bottom: auto; top: 2.3rem; right: 10px; }
+.card.fullart .card-flags { top: auto; bottom: 48%; right: 10px; }
+.card.fullart .card-name { color: #fff; border-color: rgb(255 255 255 / .55); background: none; text-shadow: 2px 2px 0 #000, 0 0 12px rgb(0 0 0 / .8); }
+.card.fullart.epic .card-name { border-color: var(--gold); } .card.fullart.legend .card-name { border-color: #FF6FAE; }
+.card.fullart.mythic .card-name { border-image: linear-gradient(90deg, var(--gold), var(--magenta), var(--teal)) 1; }
+.card.fullart .card-flavor { color: var(--paper-2); text-shadow: 0 1px 2px #000; }
+.card.fullart .card-stats div + div { border-left-color: rgb(255 255 255 / .2); }
+.card.fullart .card-stats dt { color: var(--muted); }
+.card.fullart .card-stats dd { color: #fff; }
+.card.fullart .traits li { border-color: rgb(255 255 255 / .45); background: rgb(12 6 22 / .6); }
+.card.fullart .xp { background: rgb(255 255 255 / .2); }
+.card.fullart::after { content: ""; position: absolute; inset: 7px; z-index: 2; border-radius: calc(var(--radius-card) - 5px); pointer-events: none;
+  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / .28) 45%, rgb(160 240 255 / .18) 50%, transparent 62%) -120% 0 / 250% 100% no-repeat;
+  mix-blend-mode: screen; animation: foil 4.5s ease-in-out infinite; }
+.card.fullart:hover::after, .card.fullart:focus-within::after { animation-duration: 1.6s; }
+@keyframes foil { 0%, 35% { background-position: -120% 0; } 75%, 100% { background-position: 220% 0; } }
+@media (prefers-reduced-motion: reduce) { .card.fullart::after { animation: none; background-position: 40% 0; } }
+
+/* Shiny: alternate colours on the art, a rainbow holo frame, a twinkling badge (stacks with full art) */
+.card.shiny {
+  --frame: conic-gradient(from var(--spin, 0deg), #FF5EAE, #FFD45E, #6EF2C9, #6EA8FF, #C77DFF, #FF5EAE);
+  animation: holo 4s linear infinite;
+}
+.card.shiny .card-window img:not(.own-art) { filter: hue-rotate(150deg) saturate(1.35) brightness(1.05); }
+.card.shiny .card-face::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; mix-blend-mode: color-dodge; opacity: .35;
+  background: repeating-linear-gradient(125deg, rgb(255 94 174 / .5) 0 8%, rgb(255 212 94 / .5) 8% 16%, rgb(110 242 201 / .5) 16% 24%, rgb(110 168 255 / .5) 24% 32%),
+              radial-gradient(circle at 20% 15%, #fff 0 1.5px, transparent 2.5px) 0 0 / 46px 46px,
+              radial-gradient(circle at 70% 60%, #fff 0 1px, transparent 2px) 0 0 / 34px 34px;
+  background-size: 300% 300%, 46px 46px, 34px 34px; animation: shiny-sheen 6s linear infinite; }
+.card.shiny .card-face { position: relative; }
+.shiny-badge { margin-right: auto; margin-left: 3px; font-size: .9rem; line-height: 1; filter: drop-shadow(0 0 4px #FFD45E); animation: twinkle 1.8s ease-in-out infinite; }
+.shiny-title { display: inline-block; animation: twinkle 1.8s ease-in-out infinite; }
+@keyframes twinkle { 50% { transform: scale(1.25) rotate(15deg); filter: drop-shadow(0 0 8px #FFD45E); } }
+@keyframes shiny-sheen { to { background-position: 300% 300%, 46px 46px, 34px 34px; } }
+@media (prefers-reduced-motion: reduce) { .card.shiny, .card.shiny .card-face::after, .shiny-badge, .shiny-title { animation: none; } }
+
 .card.big { max-width: 320px; }
 .card.big .card-name { font-size: 1.35rem; }
 .card.big .card-stats dd { font-size: 1.05rem; }
@@ -955,6 +1003,12 @@ details.menu[open] summary::before { content: "− "; }
 .turn-clock.mine { color: var(--paper); }
 .turn-clock b { font-size: var(--step-1); color: var(--gold); }
 .turn-clock.urgent b { color: #FF4D6D; animation: hp-pulse .5s ease-in-out infinite; }
+.mirror-odds { list-style: none; margin: 1rem 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; }
+.mirror-odds li { display: grid; gap: .1rem; padding: .6rem .7rem; border-radius: var(--radius-ui); background: var(--night-2); border-top: 3px solid var(--muted); }
+.mirror-odds .mirror-clear { border-color: var(--teal); } .mirror-odds .mirror-sharp { border-color: var(--gold); }
+.mirror-odds .mirror-twisted { border-color: var(--magenta); }
+.mirror-odds small { color: var(--muted); font-size: .72rem; }
+@media (max-width: 640px) { .mirror-odds { grid-template-columns: 1fr 1fr; } }
 .searching { display: flex; align-items: center; gap: .6rem; }
 .spinner { flex: none; width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--night-3); border-top-color: var(--gold); animation: cine-spin .8s linear infinite; }
 .special-preview { margin: .1rem 0 0; max-width: 60ch; text-align: center; font-size: var(--step--1); color: var(--paper-2); }

@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 .venv/
+# art_helper downloads (upload them to the image server, they don't belong in git)
+art/
