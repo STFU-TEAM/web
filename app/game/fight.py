@@ -100,6 +100,16 @@ class Fight:
             self.order = [1, 0]
         for c in self.sides[self.order[1]].chars:
             c.special_meter += 1
+        self._apply_synergies()
+
+    def _apply_synergies(self) -> None:
+        from app.game.characterabilities import SYNERGY_BONUS, SYNERGY_INFO, apply_synergy_bonuses
+        from app.game.effects import fmt_perk
+        for s, side in enumerate(self.sides):
+            for name, members in apply_synergy_bonuses(side.chars):
+                label, icon = SYNERGY_INFO.get(name, (name, "✶"))
+                perks = ", ".join(fmt_perk(stat, v) for stat, v in SYNERGY_BONUS.get(name, []))
+                self._log(f"{icon} {label} synergy for {side.name}: {', '.join(members)} gain {perks}.", "terrain", side=s)
 
     @property
     def acting_side(self) -> int:

@@ -543,6 +543,29 @@ def test_smart_ai_finishes_kills_and_respects_taunt():
     assert {ai_choice([strong, weak], hitter, "easy") for _ in range(30)} == {0, 1}
 
 
+def test_iggys_collar_makes_its_holder_taunt():
+    from app.game.fight import ai_choice
+    from app.game.character import Character
+    from app.game.items import get_item_from_template, item_file
+    collar = next(i for i in item_file if i["name"] == "Iggy's Collar")
+    hitter, weak, holder = _stand(10), _stand(1), _stand(2)
+    bare_armor = holder.start_armor
+    assert not holder.taunt
+    holder = Character({**holder.to_dict(), "items": [get_item_from_template(collar)]})
+    assert holder.taunt and not holder.natural_taunt
+    assert holder.start_armor > bare_armor
+    weak.current_hp = 5
+    assert ai_choice([weak, holder], hitter) == 1  # the kill is skipped: the collar forces the target
+
+
+def test_special_text_shows_what_each_number_is_worth():
+    from app.filters import special_text
+    emperor = _stand(14)  # Headshot: `220%` damage
+    html = str(special_text(emperor))
+    assert 'class="sp-scales"' in html and f"{emperor.start_damage * 2.2:,.0f}" in html
+    assert 'class="sp-calc"' not in str(special_text(CHARACTER_FILE[13], owned=False))
+
+
 def test_story_replay_costs_energy_and_pays_a_share(client):
     import app.db as dbmod
     from app.game import story
@@ -1182,3 +1205,219 @@ def test_admins_can_grant_and_toggle_shiny_and_fusing_keeps_it(client):
     login(client, "111")
     page = client.get("/team").data.decode()
     assert "card" in page and " shiny" in page and "shiny-badge" in page
+
+
+def test_short_cooldowns_open_when_the_timer_hits_zero():
+    import datetime
+    assert logic.wormhole_wait(User(create_user("cd"))) == 10 / 60
+    just_over = logic.now() - datetime.timedelta(minutes=10, seconds=5)
+    assert logic.cooldown_left(just_over, 10 / 60) is None          # used to stay locked for the whole hour
+    left = logic.cooldown_left(logic.now() - datetime.timedelta(minutes=4), 10 / 60)
+    assert 5 * 60 < left.total_seconds() <= 6 * 60
+    assert logic.cooldown_left(logic.now() - datetime.timedelta(hours=1, minutes=45), 1.5) is None
+
+
+def test_tower_floors_show_their_rewards():
+    from app.game import tower
+    view = tower.preview(10)["reward"]
+    assert view["fragments"] == tower.reward_for(10)["fragments"] and view["super"] == 1
+    assert view["items"] and view["stand_xp"] == tower.stand_xp_for(10)
+    assert [m["floor"] for m in tower.milestones(3)] == [5, 10, 15, 20]
+    assert [m["floor"] for m in tower.milestones(10)] == [15, 20, 25, 30]
+
+
+def test_synergy_team_bonus_applies_once_and_logs():
+    from app.game.characterabilities import SYNERGY_BONUS, SYNERGY_INFO, SYNERGIES
+    from app.game.fight import Fight, Side
+    assert set(SYNERGY_BONUS) == set(SYNERGIES) == set(SYNERGY_INFO)  # every group has a bonus and a name
+    jotaro, avdol, loner = _stand(1), _stand(2), _stand(92)
+    dmg, spd = jotaro.current_damage, jotaro.current_speed
+    team = [jotaro, avdol, loner]
+    fight = Fight(Side("A", team, True), Side("B", [_stand(150)], False))
+    assert jotaro.current_damage == pytest.approx(dmg * 1.08) and jotaro.current_speed == pytest.approx(spd * 1.08)
+    assert any("Stardust Crusaders" in e["text"] for e in fight.log)
+    Fight(Side("A", team, True), Side("B", [_stand(150)], False))  # the tower reuses its fighters
+    assert jotaro.current_damage == pytest.approx(dmg * 1.08)
+
+
+def test_new_terrain_setters_are_natives():
+    from app.game.effects import TERRAIN_BENEFITS, TERRAIN_SETTERS
+    assert all(t in TERRAIN_BENEFITS.get(cid, {}) for cid, t in TERRAIN_SETTERS.items())
+
+
+def test_alternate_universe_opens_with_the_story_and_pays_once(client):
+    import app.db as dbmod
+    from app.game import altverse
+    player(client, "111", fragments=0, super_fragments=0)
+    h = login(client, "111")
+    d = doc(client, "111")
+    d["main_characters"] = [char(1)]
+    put(client, d)
+    page = client.get("/alternate-universe").data.decode()
+    assert "No universe has split off yet" in page and "Opens after Part 3" in page
+    client.post("/alternate-universe/fight", data={"chapter": "world_unbroken"}, headers=h)
+    assert client.fake.get("web:fight:111") is None  # locked until Part 3's boss falls
+
+    d = doc(client, "111")
+    d["web_story"] = {"cleared": altverse._boss_index(3) + 1}
+    put(client, d)
+    assert "Cairo Under Night" in client.get("/alternate-universe").data.decode()
+    client.post("/alternate-universe/fight", data={"chapter": "world_unbroken"}, headers=h)
+    fight = dbmod.load_fight("111")
+    assert fight.kind == "alt_universe" and fight.meta == {"chapter": "world_unbroken", "stage": 0}
+    for c in fight.sides[1].chars:
+        c.current_hp = 0
+    dbmod.save_fight("111", fight)
+    client.post("/alternate-universe/attack", data={"log_len": len(fight.log)}, headers=h)
+    client.post("/alternate-universe/leave", headers=h)
+    d = doc(client, "111")
+    assert d["web_au"]["cleared"]["world_unbroken"] == 1
+    assert d["fragments"] == altverse.reward_for("world_unbroken", 0)["fragments"] + _ach_dust(d)
+    assert "The Vampire Guard" in client.get("/alternate-universe?ch=world_unbroken").data.decode()
+    # the finale's boss is the hardest fight and pays a Requiem Arrow
+    assert altverse.difficulty("requiem_of_all", 4)["mult"] > 1
+    assert 3 in altverse.reward_for("requiem_of_all", 4)["items"]
+
+
+# --------------------------------------------------------------------------- #
+# Auction house, Crusaders' Journey, gang hub
+# --------------------------------------------------------------------------- #
+def test_auction_escrows_sells_for_dust_and_arrowheads_and_returns_unsold(client):
+    import json
+    from app.game import auction as A
+    sold, kept = char(10, items=[{"id": 1}]), char(1)
+    player(client, "111", main_characters=[kept], storage_characters=[sold], fragments=0, super_fragments=0)
+    player(client, "222", fragments=5000, super_fragments=3)
+    h = login(client, "111")
+    client.post("/auction/sell", data={"uuid": kept["uuid"], "dust": 100}, headers=h)  # last team stand: refused
+    assert not A.all_listings(client.fake)
+    client.post("/auction/sell", data={"uuid": sold["uuid"]}, headers=h)  # no price: refused
+    assert not A.all_listings(client.fake)
+    client.post("/auction/sell", data={"uuid": sold["uuid"], "dust": 1000, "heads": 2}, headers=h)
+    d = doc(client, "111")
+    assert d["storage_characters"] == [] and [i["id"] for i in d["items"]] == [1]  # escrowed, gear kept
+    listing = A.all_listings(client.fake)[0]
+    assert "TheWorld" in client.get("/auction").data.decode()
+
+    h2 = login(client, "222")
+    client.post(f"/auction/{listing['id']}/buy", headers=h2)
+    buyer, seller = doc(client, "222"), doc(client, "111")
+    assert buyer["fragments"] == 4000 and buyer["super_fragments"] == 1
+    assert [c["uuid"] for c in buyer["storage_characters"]] == [sold["uuid"]]
+    assert seller["fragments"] == 1000 - A.fee_for(1000) and seller["super_fragments"] == 2
+    assert not A.all_listings(client.fake)
+
+    # an unsold listing comes back when it expires
+    h = login(client, "222")
+    client.post("/auction/sell", data={"uuid": sold["uuid"], "heads": 1}, headers=h)
+    listing = A.all_listings(client.fake)[0]
+    listing["ends"] = 0
+    client.fake.hset(A.KEY, listing["id"], json.dumps(listing))
+    client.get("/auction")
+    assert [c["uuid"] for c in doc(client, "222")["storage_characters"]] == [sold["uuid"]]
+
+
+def test_journey_takes_the_stand_away_and_pays_by_power():
+    import time as _time
+    from app.game import journey as J
+    u = User(create_user("j"))
+    weak, strong = _stand(8), _stand(84)
+    strong.xp, strong.awaken = 10000, 3
+    strong = Character_from(strong)
+    u.main_characters = [weak, strong]
+    with pytest.raises(logic.GameError):
+        J.depart(u, weak.uuid, "nowhere")
+    trip = J.depart(u, strong.uuid, "cairo", now=1000)
+    assert strong.uuid not in [c.uuid for c in u.main_characters + u.storage_characters]  # can't be fielded
+    with pytest.raises(logic.GameError):
+        J.depart(u, weak.uuid, "hong_kong")  # the last team stand stays
+    cairo = J.BY_KEY["cairo"]
+    assert J.estimate(cairo, J.power_of(strong))["fragments"] > J.estimate(cairo, J.power_of(weak))["fragments"] * 2
+    with pytest.raises(logic.GameError):
+        J.claim(u, trip["id"], now=1000 + 3600)  # still on the road
+    dust = u.fragments
+    res = J.claim(u, trip["id"], now=trip["end"])
+    assert u.fragments == dust + trip["loot"]["fragments"] and res["stand"].uuid == strong.uuid
+    assert strong.uuid in [c.uuid for c in u.main_characters + u.storage_characters]
+    trip = J.depart(u, strong.uuid, "singapore", now=_time.time())
+    J.recall(u, trip["id"])
+    assert J.journeys(u) == []
+
+
+def Character_from(c):
+    from app.game.character import character_from_dict
+    return character_from_dict(c.to_dict())
+
+
+def test_team_page_puts_the_gang_up_front(client):
+    player(client, "111", main_characters=[char(1)])
+    login(client, "111")
+    page = client.get("/team").data.decode()
+    assert "not in a gang yet" in page and "Crusaders" in page and "Plan a trip" in page
+    assert page.index('class="nav-gang"') < page.index("Summon")
+    assert client.get("/journey").status_code == 200
+
+
+def test_auction_bids_escrow_refund_extend_and_settle(client):
+    import json
+    from app.game import auction as A
+    lot, other = char(10), char(1)
+    player(client, "111", main_characters=[char(2)], storage_characters=[lot, other], fragments=0, super_fragments=0)
+    player(client, "222", fragments=5000)
+    player(client, "333", fragments=5000)
+    h1 = login(client, "111")
+    client.post("/auction/sell", data={"uuid": lot["uuid"], "mode": "bid", "currency": "dust", "start": 1000,
+                                       "buyout": 900, "hours": 24}, headers=h1)
+    assert not A.all_listings(client.fake)  # buyout under the start: refused
+    client.post("/auction/sell", data={"uuid": lot["uuid"], "mode": "bid", "currency": "dust", "start": 1000,
+                                       "hours": 24}, headers=h1)
+    listing = A.all_listings(client.fake)[0]
+    assert listing["mode"] == "bid" and listing["dust"] == 0 and A.min_bid(listing) == 1000
+
+    h2 = login(client, "222")
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 999}, headers=h2)  # under the start
+    assert doc(client, "222")["fragments"] == 5000
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 1000}, headers=h2)
+    assert doc(client, "222")["fragments"] == 4000  # held in escrow
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 1100}, headers=h2)  # raising costs the difference
+    assert doc(client, "222")["fragments"] == 3900
+
+    h1 = login(client, "111")
+    client.post(f"/auction/{listing['id']}/cancel", headers=h1)  # it has bids: can't cancel
+    assert A.get(client.fake, listing["id"])
+
+    h3 = login(client, "333")
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 1150}, headers=h3)  # under +5%
+    assert A.get(client.fake, listing["id"])["bidder"] == "222"
+    listing = A.get(client.fake, listing["id"])
+    listing["ends"] = int(__import__("time").time()) + 30  # 30 s left: the next bid pushes the end back
+    client.fake.hset(A.KEY, listing["id"], json.dumps(listing))
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 1200}, headers=h3)
+    fresh = A.get(client.fake, listing["id"])
+    assert fresh["bidder"] == "333" and fresh["ends"] - __import__("time").time() > A.SNIPE_GUARD - 5
+    assert doc(client, "222")["fragments"] == 5000 and doc(client, "333")["fragments"] == 3800  # 222 refunded
+
+    fresh["ends"] = 0
+    client.fake.hset(A.KEY, fresh["id"], json.dumps(fresh))
+    client.get("/auction")  # the sweep settles it
+    assert [c["uuid"] for c in doc(client, "333")["storage_characters"]] == [lot["uuid"]]
+    assert doc(client, "111")["fragments"] == 1200 - A.fee_for(1200)
+
+
+def test_auction_buyout_refunds_the_top_bidder(client):
+    from app.game import auction as A
+    lot = char(10)
+    player(client, "111", main_characters=[char(2)], storage_characters=[lot], super_fragments=0)
+    player(client, "222", super_fragments=10)
+    player(client, "333", super_fragments=10)
+    client.post("/auction/sell", data={"uuid": lot["uuid"], "mode": "bid", "currency": "heads", "start": 2,
+                                       "buyout": 6, "hours": 12}, headers=login(client, "111"))
+    listing = A.all_listings(client.fake)[0]
+    assert listing["heads"] == 6 and listing["currency"] == "heads"
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 3}, headers=login(client, "222"))
+    client.post(f"/auction/{listing['id']}/bid", data={"amount": 6}, headers=login(client, "333"))  # >= buyout: refused
+    assert doc(client, "333")["super_fragments"] == 10
+    client.post(f"/auction/{listing['id']}/buy", headers=login(client, "333"))
+    assert doc(client, "222")["super_fragments"] == 10  # refunded
+    assert doc(client, "333")["super_fragments"] == 4 and doc(client, "111")["super_fragments"] == 6
+    assert [c["uuid"] for c in doc(client, "333")["storage_characters"]] == [lot["uuid"]]

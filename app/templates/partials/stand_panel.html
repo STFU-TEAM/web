@@ -14,8 +14,10 @@
     </p>
 
     <h3 class="h3">Special</h3>
-    <p>{{ template.special_description|replace('`', '')|trim('. ') }}. <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
+    <p class="special-text">{{ special_text(c) }} <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
     {{ special_scaling(c) }}
+    <p class="muted small-print">Highlighted numbers grow with this copy's stats and special power: the value after each one is what it's worth right now, before armor, crits and dodges. Hover one for the formula.</p>
+    {% if c.taunt %}<p>🎯 Taunt{% if not c.natural_taunt %} from {{ c.items|selectattr('taunt')|map(attribute='name')|first }}{% endif %}: enemies must hit this stand first with basic attacks. It gets extra armor.</p>{% endif %}
 
     <h3 class="h3">Stats</h3>
     <table class="panel-stats">
@@ -40,7 +42,7 @@
       <ul class="stand-wiki">
         {% if wiki.sets %}<li><span>{{ wiki.sets.emoji }}</span><span>Sets {{ wiki.sets.display_name }}.</span></li>{% endif %}
         {% for t in wiki.boosts %}<li><span>{{ t.emoji }}</span><span>On {{ t.name }}: {{ t.bonuses|join(', ') }}.</span></li>{% endfor %}
-        {% for g in wiki.synergies %}<li><span>{{ g.icon }}</span><span><a href="{{ url_for('main.wiki', topic='synergies') }}#{{ g.key }}">{{ g.name }}</a>{% if g.effect %}: {{ g.effect }}{% else %} (enabler){% endif %}</span></li>{% endfor %}
+        {% for g in wiki.synergies %}<li><span>{{ g.icon }}</span><span><a href="{{ url_for('main.wiki', topic='synergies') }}#{{ g.key }}">{{ g.name }}</a>: {{ g.bonus|join(', ') }}{% if g.effect %}. Special: {{ g.effect }}{% endif %}</span></li>{% endfor %}
       </ul>
     {% endif %}
 

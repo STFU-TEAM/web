@@ -93,6 +93,20 @@
             "result": 45
         },
         {
+            "name": "Iggy's Collar",
+            "ingredients": [
+                [
+                    39,
+                    2
+                ],
+                [
+                    13,
+                    2
+                ]
+            ],
+            "result": 46
+        },
+        {
             "name": "Devil's Palm",
             "ingredients": [
                 [

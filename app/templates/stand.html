@@ -8,7 +8,7 @@
     <p class="kicker">{{ s.rarity }} stand from {{ s.universe }}</p>
     <h1 class="display sm">{{ s.name }}</h1>
     <h2 class="h3">Ability</h2>
-    <p class="lede">{{ s.special_description|replace('`', '') }}</p>
+    <p class="lede special-text">{{ special_text(s, owned=False) }}</p>
     <p>Charges in {{ s.turn_for_ability }} turn{{ 's' if s.turn_for_ability != 1 }}.</p>
     {{ special_scaling(stand_id=s.id) }}
     <p class="muted small-print">How to read it: “120% damage” is a hit worth 120% of this stand's damage, reduced by armor and able to crit or be dodged, unless it ignores armor. True damage skips armor and dodges. “Its target” is the enemy it attacked this turn. Effects last the affected stand's own turns; damage over time ticks once per turn. “For good” lasts the whole fight, up to +100% of the starting stat.</p>
@@ -20,7 +20,7 @@
         {% for t in wiki.boosts %}<li><span aria-hidden="true">{{ t.emoji }}</span><span>On <a href="{{ url_for('main.wiki', topic='terrains') }}#{{ t.key }}">{{ t.name }}</a>: {{ t.bonuses|join(', ') }}.</span></li>{% endfor %}
         {% for t in wiki.reacts %}<li><span aria-hidden="true">{{ t.emoji }}</span><span>Its special changes on <a href="{{ url_for('main.wiki', topic='terrains') }}#{{ t.key }}">{{ t.name }}</a>.</span></li>{% endfor %}
         {% for g in wiki.synergies %}
-          <li><span aria-hidden="true">{{ g.icon }}</span><span><a href="{{ url_for('main.wiki', topic='synergies') }}#{{ g.key }}">{{ g.name }}</a>{% if g.effect %}: {{ g.effect }}{% else %}: helps unlock it for teammates.{% endif %}
+          <li><span aria-hidden="true">{{ g.icon }}</span><span><a href="{{ url_for('main.wiki', topic='synergies') }}#{{ g.key }}">{{ g.name }}</a>: {{ g.bonus|join(', ') }} for each member{% if g.effect %}. Special: {{ g.effect }}{% endif %}
             <small class="muted">With {% for p in g.partners %}<a href="{{ url_for('main.stand', stand_id=p.id) }}">{{ p.name }}</a>{{ ', ' if not loop.last }}{% endfor %}.</small></span></li>
         {% endfor %}
       </ul>

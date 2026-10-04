@@ -85,7 +85,26 @@ def team():
     _refill(user)
     shelf = "all"
     return render_template("team.html", u=user, st=status(user), shelves=storage_shelves(user), shelf=shelf,
-                           fight=load_fight(session["uid"]), **collection_ctx(user))
+                           fight=load_fight(session["uid"]), gang_hub=_gang_hub(user), **collection_ctx(user))
+
+
+def _gang_hub(user):
+    """The gang banner at the top of the team page: your gang at a glance, or why to join one."""
+    from app.game import gangs as G
+    from app.game import journey
+    db = get_db()
+    gang = db.get_gang(user.gang_id)
+    hub = {"gang": gang, "journeys_ready": journey.ready_count(user), "journeys": len(journey.journeys(user)),
+           "villain": G.weekly_boss()}
+    if gang:
+        raid = G.raid_state(gang)
+        opp = G.opponent_id(r(), gang["_id"])
+        hub.update(members=len(G.members(gang)), rank=G.RANK_NAMES.get(G.rank_of(gang, user.id), ""),
+                   raid_ready=G.can_attack(gang, user.id), raid_damage=raid.get("damage", 0),
+                   at_war=bool(opp), vault=gang.get("vault", 0), claim=len(G.claimable_tiers(gang, user.id)))
+    else:
+        hub["invites"] = len(user.gang_invites)
+    return hub
 
 
 @bp.get("/team/collection")
@@ -702,6 +721,7 @@ def tower():
     return render_template("tower.html", u=user, s=s, floor=floor, team=team, fight=fight, other_fight=other_fight,
                            floors=[tower_logic.preview(f) for f in reversed(shown)], cost=TOWER_COST,
                            reward=tower_logic.reward_text(floor), board=tower_logic.leaderboard(r()),
+                           milestones=tower_logic.milestones(max(floor - 1, s["paid"])),
                            ends_in=tower_logic.ends_in(), rest_heal=round(tower_logic.REST_HEAL * 100),
                            floor_heal=round(tower_logic.FLOOR_HEAL * 100), revive=round(tower_logic.REVIVE * 100),
                            fight_action=url_for("play.tower_attack"),

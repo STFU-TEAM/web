@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% from "macros.html" import owned_card %}
+{% block title %}Auction house | STFU Requiem{% endblock %}
+{% block main %}
+{% macro price(x) -%}
+  <span class="auction-price">{% if x.dust %}{{ x.dust|dust }}{% endif %}{% if x.dust and x.heads %}<em>+</em>{% endif %}{% if x.heads %}{{ x.heads|heads }}{% endif %}</span>
+{%- endmacro %}
+{% macro amount(x, n) -%}
+  <span class="auction-price">{{ n|dust if x.currency == 'dust' else n|heads }}</span>
+{%- endmacro %}
+{% macro left(x) -%}
+  {%- set s = (x.ends - now)|int -%}
+  {%- if s <= 0 %}ending{% elif s < 3600 %}{{ s // 60 }} min left{% elif s < 86400 %}{{ s // 3600 }} h {{ '%02d'|format(s % 3600 // 60) }} min left{% else %}{{ s // 86400 }} d {{ s % 86400 // 3600 }} h left{% endif -%}
+{%- endmacro %}
+<section class="page auction">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Player market</p>
+      <h1 class="display sm">Auction house</h1>
+      <p class="muted">Sell a stand at a fixed price, or put it up for bids in Meteor Dust or Arrowheads. A listed stand leaves your collection until it sells or comes back to you, and its gear goes back to your items. The house keeps {{ fee }}% of the Meteor Dust; Arrowheads pass through whole.</p>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  <div class="auction-layout">
+    <div>
+      <form class="auction-filters" method="get" action="{{ url_for('auction.index') }}">
+        <label><span class="sr">Search</span><input type="search" name="q" value="{{ q }}" placeholder="Find a stand"></label>
+        <label><span class="sr">Sale type</span><select name="kind"><option value="">Bids & buy now</option><option value="bid" {% if kind == 'bid' %}selected{% endif %}>Auctions only</option><option value="fixed" {% if kind == 'fixed' %}selected{% endif %}>Buy now only</option></select></label>
+        <label><span class="sr">Rarity</span><select name="rarity"><option value="">Any rarity</option>{% for r in ['R', 'SR', 'SSR', 'UR', 'LR'] %}<option {% if rarity == r %}selected{% endif %}>{{ r }}</option>{% endfor %}</select></label>
+        <label><span class="sr">Paid in</span><select name="pay"><option value="">Any currency</option><option value="dust" {% if pay == 'dust' %}selected{% endif %}>Meteor Dust</option><option value="heads" {% if pay == 'heads' %}selected{% endif %}>Arrowheads</option></select></label>
+        <label><span class="sr">Sort</span><select name="sort">{% for k, label in sorts.items() %}<option value="{{ k }}" {% if sort == k %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <button class="btn small">Filter</button>
+      </form>
+
+      {% if market %}
+        <ul class="auction-grid">
+          {% for x in market %}
+            <li class="auction-lot{% if x.bid_mode %} is-auction{% endif %}{% if x.winning %} winning{% endif %}">
+              {{ owned_card(x.char, link=False) }}
+              <div class="auction-lot-info">
+                <p class="auction-seller">by <a href="{{ url_for('main.profile', uid=x.seller) }}">{{ x.seller_name }}</a> · {{ left(x) }}</p>
+                {% if x.bid_mode %}
+                  <p class="auction-bid-line">
+                    {% if x.bid %}<span class="muted">Top bid</span> {{ amount(x, x.bid) }} <small class="muted">· {{ x.bids }} bid{{ 's' if x.bids != 1 }}</small>
+                    {% else %}<span class="muted">Starts at</span> {{ amount(x, x.start) }}{% endif %}
+                  </p>
+                  {% if x.winning %}<p class="auction-winning">★ You're the top bidder</p>{% endif %}
+                  {% set wallet = u.fragments if x.currency == 'dust' else u.super_fragments %}
+                  {% set can_bid = wallet + (x.bid if x.winning else 0) >= x.min_bid %}
+                  <form class="auction-bid" method="post" action="{{ url_for('auction.bid', listing_id=x.id) }}">
+                    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                    <label><span class="sr">Your bid</span><input type="number" name="amount" min="{{ x.min_bid }}" value="{{ x.min_bid }}" step="1" required></label>
+                    <button class="btn small {{ 'gold' if can_bid }}" {% if not can_bid %}disabled title="You can't afford the next bid"{% endif %}>{{ 'Raise' if x.winning else 'Bid' }}</button>
+                  </form>
+                  <small class="muted">Next bid at least {{ x.min_bid|num }}</small>
+                  {% if x.buyout %}
+                    {% set can = (u.fragments + (x.bid if x.winning and x.currency == 'dust' else 0)) >= x.dust and (u.super_fragments + (x.bid if x.winning and x.currency == 'heads' else 0)) >= x.heads %}
+                    <form method="post" action="{{ url_for('auction.buy', listing_id=x.id) }}" data-ask="Buy {{ x.char.name }} out now?" onsubmit="return confirm(this.dataset.ask)">
+                      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                      <button class="btn small ghost" {% if not can %}disabled title="You can't afford the buyout"{% endif %}>Buy out · {{ price(x) }}</button>
+                    </form>
+                  {% endif %}
+                {% else %}
+                  {{ price(x) }}
+                  {% set can = u.fragments >= x.dust and u.super_fragments >= x.heads %}
+                  {% set ask = 'Buy ' ~ x.char.name ~ ' for ' ~ ((x.dust|num ~ ' Meteor Dust') if x.dust else '') ~ (' and ' if x.dust and x.heads else '') ~ ((x.heads ~ ' Arrowhead' ~ ('s' if x.heads != 1 else '')) if x.heads else '') ~ '?' %}
+                  <form method="post" action="{{ url_for('auction.buy', listing_id=x.id) }}" data-ask="{{ ask }}" onsubmit="return confirm(this.dataset.ask)">
+                    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                    <button class="btn small {{ 'gold' if can }}" {% if not can %}disabled title="You can't afford this yet"{% endif %}>Buy</button>
+                  </form>
+                {% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="notice">No stands match. {% if q or rarity or pay or kind %}<a href="{{ url_for('auction.index') }}">Clear the filters</a>{% else %}Be the first to list one.{% endif %}</p>
+      {% endif %}
+      <p class="muted wiki-note">How bids work: your bid is taken from your wallet right away and held. If someone outbids you, it comes straight back. Each bid must beat the last by {{ raise_pct }}%. A bid in the last {{ snipe_min }} minutes pushes the end back {{ snipe_min }} minutes so nobody can snipe it. When time runs out the top bidder gets the stand.</p>
+    </div>
+
+    <aside class="auction-side">
+      <section class="social-panel">
+        <h2 class="h3">Sell a stand</h2>
+        {% if mine|length >= max_listings %}
+          <p class="notice">You have {{ max_listings }} stands for sale, the most at once.</p>
+        {% elif sellable %}
+          <form class="social-form auction-sell" method="post" action="{{ url_for('auction.sell') }}" data-sale-form>
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <label>Stand<select name="uuid" required>
+              {% for c in sellable %}<option value="{{ c.uuid }}">{{ c.name }} · {{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.shiny %} ✨{% endif %}</option>{% endfor %}
+            </select></label>
+            <fieldset class="sale-mode">
+              <legend class="sr">Sale type</legend>
+              <label><input type="radio" name="mode" value="fixed" checked> Buy now</label>
+              <label><input type="radio" name="mode" value="bid"> Auction</label>
+            </fieldset>
+            <div data-mode="fixed">
+              <label>Meteor Dust<input type="number" name="dust" min="0" step="1" value="0"></label>
+              <label>Arrowheads<input type="number" name="heads" min="0" step="1" value="0"></label>
+              <p class="muted">Set one price or both: the buyer pays everything you ask. Listed for {{ days }} days.</p>
+            </div>
+            <div data-mode="bid">
+              <label>Bids in<select name="currency"><option value="dust">Meteor Dust</option><option value="heads">Arrowheads</option></select></label>
+              <label>Starting bid<input type="number" name="start" min="1" step="1" value="100"></label>
+              <label>Buyout price <small class="muted">(optional)</small><input type="number" name="buyout" min="0" step="1" value="0"></label>
+              <label>Runs for<select name="hours">{% for h in bid_hours %}<option value="{{ h }}" {% if h == 24 %}selected{% endif %}>{{ h }} hours</option>{% endfor %}</select></label>
+              <p class="muted">You can cancel only until the first bid. If nobody bids, the stand comes back to you.</p>
+            </div>
+            <p class="muted">Locked stands can't be sold.</p>
+            <button class="btn gold">List it</button>
+          </form>
+        {% else %}
+          <p class="muted">You have no unlocked stands to sell.</p>
+        {% endif %}
+      </section>
+
+      {% if bidding %}
+        <section class="social-panel">
+          <h2 class="h3">You're winning</h2>
+          <ul class="auction-mine">
+            {% for x in bidding %}
+              <li><img src="{{ x.char.id|stand_img }}" alt="" loading="lazy"><div><strong>{{ x.char.name }}</strong><br>{{ amount(x, x.bid) }}<small class="muted"> · {{ left(x) }}</small></div></li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <section class="social-panel">
+        <h2 class="h3">Your listings {{ mine|length }}/{{ max_listings }}</h2>
+        {% if mine %}
+          <ul class="auction-mine">
+            {% for x in mine %}
+              <li><img src="{{ x.char.id|stand_img }}" alt="" loading="lazy">
+                <div><strong>{{ x.char.name }}</strong> <small class="muted">Lv {{ x.char.level }}</small><br>
+                  {% if x.bid_mode %}
+                    {% if x.bid %}<span class="muted">Top bid</span> {{ amount(x, x.bid) }} <small class="muted">· {{ x.bids }} bid{{ 's' if x.bids != 1 }}</small>
+                    {% else %}<span class="muted">No bids · starts at</span> {{ amount(x, x.start) }}{% endif %}
+                  {% else %}{{ price(x) }}{% endif %}
+                  <small class="muted"> · {{ left(x) }}</small></div>
+                {% if not x.bid_mode or not x.bid %}
+                  <form method="post" action="{{ url_for('auction.cancel', listing_id=x.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Cancel</button></form>
+                {% else %}<span class="tower-tag here" title="It has bids, so it runs to the end">Live</span>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}<p class="muted">Nothing for sale.</p>{% endif %}
+      </section>
+    </aside>
+  </div>
+</section>
+{% endblock %}

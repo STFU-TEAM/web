@@ -30,7 +30,7 @@
       <span class="rar-badge">{{ s.rarity }}</span>
       {% if shiny %}<span class="shiny-badge" title="Shiny: a rare colour variant">✨</span>{% endif %}
       {% for icon, tip in s.id|stand_tags %}<span class="tag" title="{{ tip }}">{{ icon }}</span>{% endfor %}
-      {% if s.taunt %}<span class="tag" title="Taunt: takes basic attacks first">🎯</span>{% endif %}
+      {% if s.taunt %}<span class="tag" title="Taunt: takes basic attacks first{{ ' (from an item)' if s.natural_taunt is defined and not s.natural_taunt }}">🎯</span>{% endif %}
       {% if awaken %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>{% endif %}
     </header>
     <div class="card-window">
@@ -53,7 +53,7 @@
       <div class="xp" title="{{ pct }}% to level {{ level + 1 }}"><i style="width: {{ pct }}%"></i></div>
     {% endif %}
     <h3 class="card-name">{{ s.name }}</h3>
-    {% if not owned or size == 'big' %}<p class="card-flavor" title="{{ s.special_description|replace('`', '') }}">{{ s.special_description|replace('`', '') }}</p>{% endif %}
+    {% if not owned or size == 'big' %}<p class="card-flavor" title="{{ s.special_description|replace('`', '') }}">{{ special_text(owned or s, owned=owned is not none) }}</p>{% endif %}
     <dl class="card-stats five">
       <div title="Health"><dt>HP</dt><dd>{{ hp|stat }}</dd></div>
       <div title="Damage"><dt>ATK</dt><dd>{{ dmg|stat }}</dd></div>

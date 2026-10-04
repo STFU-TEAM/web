@@ -7,6 +7,7 @@
   {%- if it.bonus_armor %}{% set _ = bonus.append('+' ~ it.bonus_armor ~ ' ARM') %}{% endif -%}
   {%- if it.bonus_speed %}{% set _ = bonus.append('+' ~ it.bonus_speed ~ ' SPD') %}{% endif -%}
   {%- if it.bonus_critical %}{% set _ = bonus.append('+' ~ it.bonus_critical ~ '% CRT') %}{% endif -%}
+  {%- if it.taunt %}{% set _ = bonus.append('🎯 Taunt') %}{% endif -%}
   {{ bonus|join(' · ') }}{% if it.is_active %}{{ ' · ' if bonus }}special in fights{% endif %}
 {%- endmacro %}
 {% macro sell_buttons(it, count) -%}

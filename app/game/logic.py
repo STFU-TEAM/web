@@ -29,8 +29,8 @@ PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = 300
 CHANCEITEM = 10
-DONOR_WH_WAIT_TIME = 1
-NORMAL_WH_WAIT_TIME = 1.5
+DONOR_WH_WAIT_TIME = 10 / 60  # Mirror World: 10 minutes for everyone
+NORMAL_WH_WAIT_TIME = 0
 DONOR_ADV_WAIT_TIME = 6
 NORMAL_ADV_WAIT_TIME = 6
 STXPTOLEVEL = 100
@@ -81,10 +81,9 @@ def fmt_delta(td: datetime.timedelta) -> str:
 
 
 def cooldown_left(last: datetime.datetime, hours: float) -> Optional[datetime.timedelta]:
-    delta = now() - last
-    if delta.total_seconds() // 3600 < hours:
-        return datetime.timedelta(hours=hours) - delta
-    return None
+    # compare exact seconds: flooring to whole hours kept short cooldowns locked after the timer hit 0
+    left = datetime.timedelta(hours=hours) - (now() - last)
+    return left if left.total_seconds() > 0 else None
 
 
 # --------------------------------------------------------------------------- #
@@ -104,6 +103,16 @@ def locate(user: User, uuid: str):
     if char is None:
         raise GameError("That stand isn't in your collection anymore.")
     return char, lst, idx
+
+
+def take_stand(user: User, uuid: str) -> Character:
+    """Take a stand out of the team or storage (auctions, journeys); presets forget it."""
+    char, lst, idx = locate(user, uuid)
+    lst.pop(idx)
+    for team in user.teams.values():
+        if uuid in team:
+            team.remove(uuid)
+    return char
 
 
 def free_slots(user: User) -> int:

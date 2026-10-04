@@ -61,6 +61,76 @@ SYNERGIES = {
     "tusk": {111, 112, 113, 114},
     # Clash + Talking Head duo
     "clash_talking": {76, 77},
+    # Joestar bloodline: every JoJo's Stand, across the parts
+    "joestar": {1, 4, 31, 32, 59, 84, 86, 111, 112, 113, 114, 137, 163},
+    # DIO's Tarot assassins (Part 3)
+    "tarot": {7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21},
+    # The Egyptian Nine Glory Gods (Part 3)
+    "nine_gods": {22, 23, 24, 25, 26, 27, 28, 29},
+    # Echoes, act by act (Koichi)
+    "echoes": {36, 41, 42, 50},
+    # Jolyne's crew (Part 6)
+    "stone_ocean": {86, 92, 94, 97},
+    # Steel Ball Run racers (Part 7)
+    "sbr_racers": {111, 112, 113, 114, 115, 116, 117, 121, 122, 134},
+    # Valentine's agents (Part 7)
+    "president": {118, 120, 123, 124, 125, 126, 127, 129, 130, 131, 132, 133, 135, 136},
+    # The Boom Boom family (Part 7)
+    "boom_boom": {123, 135, 136},
+    # Gappy and Yasuho (Part 8)
+    "wall_eyes": {137, 138},
+    # Stands that stop, skip, rewind or rush time
+    "time_masters": {10, 31, 58, 75, 109, 110, 126, 134, 163},
+    # Requiem duo
+    "requiem": {83, 84},
+}
+
+# (label, icon) for the wiki, cards and the fight log
+SYNERGY_INFO = {
+    "crusaders": ("Stardust Crusaders", "⭐"),
+    "kira": ("Kira duo", "💣"),
+    "squadra": ("La Squadra", "🗡️"),
+    "passione": ("Passione", "🐞"),
+    "morioh": ("Morioh Warriors", "🏘️"),
+    "pucci": ("Pucci evolution", "☽"),
+    "tusk": ("Tusk evolution", "✦"),
+    "clash_talking": ("Clash + Talking Head", "🦈"),
+    "joestar": ("Joestar bloodline", "⭑"),
+    "tarot": ("DIO's Tarot", "🃏"),
+    "nine_gods": ("Nine Glory Gods", "𓂀"),
+    "echoes": ("Echoes acts", "💬"),
+    "stone_ocean": ("Jolyne's crew", "🦋"),
+    "sbr_racers": ("Steel Ball Run racers", "🐎"),
+    "president": ("Valentine's agents", "🇺🇸"),
+    "boom_boom": ("Boom Boom family", "🧲"),
+    "wall_eyes": ("Wall Eyes duo", "🫧"),
+    "time_masters": ("Masters of time", "⏱️"),
+    "requiem": ("Requiem", "🏹"),
+}
+
+# Team bonus: every member of a group gets these for the whole fight while 2+ members are on the team
+# (fallen ones count). It comes on top of the special upgrades some members get (_has_synergy).
+# stats: "damage_pct", "armor_pct", "speed_pct", "hp_pct" (shares of the stat), "crit_flat" (points)
+SYNERGY_BONUS = {
+    "crusaders": [("damage_pct", 0.08), ("speed_pct", 0.08)],
+    "kira": [("damage_pct", 0.08), ("crit_flat", 10)],
+    "squadra": [("damage_pct", 0.12)],
+    "passione": [("speed_pct", 0.10), ("hp_pct", 0.06)],
+    "morioh": [("armor_pct", 0.10), ("hp_pct", 0.08)],
+    "pucci": [("speed_pct", 0.12)],
+    "tusk": [("damage_pct", 0.06), ("crit_flat", 8)],
+    "clash_talking": [("speed_pct", 0.12)],
+    "joestar": [("hp_pct", 0.08), ("damage_pct", 0.06)],
+    "tarot": [("damage_pct", 0.08)],
+    "nine_gods": [("armor_pct", 0.10), ("crit_flat", 5)],
+    "echoes": [("crit_flat", 10)],
+    "stone_ocean": [("hp_pct", 0.08), ("armor_pct", 0.08)],
+    "sbr_racers": [("speed_pct", 0.12)],
+    "president": [("armor_pct", 0.08), ("damage_pct", 0.06)],
+    "boom_boom": [("damage_pct", 0.12)],
+    "wall_eyes": [("hp_pct", 0.10), ("speed_pct", 0.08)],
+    "time_masters": [("speed_pct", 0.08), ("crit_flat", 8)],
+    "requiem": [("damage_pct", 0.15)],
 }
 
 
@@ -72,6 +142,37 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
     ids = _ally_ids(allied_characters)
     # Need at least one OTHER member present
     return len(group & ids) >= 2
+
+
+def active_synergies(team: list) -> list:
+    """Names of the synergy groups with 2+ members on this team."""
+    ids = _ally_ids(team)
+    return [name for name, group in SYNERGIES.items() if len(group & ids) >= 2]
+
+
+def apply_synergy_bonuses(team: list) -> list:
+    """Give each member of an active group its team bonus, once per fighter (tower teams fight many floors).
+    Returns [(group name, [member names])] for the fight log."""
+    out = []
+    for name in active_synergies(team):
+        members = [c for c in team if c.id in SYNERGIES[name] and not getattr(c, "_synergy_done", False)]
+        for c in members:
+            for stat, value in SYNERGY_BONUS.get(name, []):
+                if stat == "hp_pct":
+                    added = int(c.start_hp * value)
+                    c.start_hp += added
+                    c.current_hp += added if c.current_hp > 0 else 0
+                elif stat == "crit_flat":
+                    c.current_critical += value
+                else:
+                    attr = {"damage_pct": "current_damage", "armor_pct": "current_armor",
+                            "speed_pct": "current_speed"}[stat]
+                    setattr(c, attr, getattr(c, attr) * (1 + value))
+        if members:
+            out.append((name, [c.name for c in members]))
+    for c in team:
+        c._synergy_done = True
+    return out
 
 
 # ── Special power: what a special scales with ────────────────────────────

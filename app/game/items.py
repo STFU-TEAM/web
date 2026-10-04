@@ -31,6 +31,7 @@ class Item:
         self.is_usable = item_file[self.id-1]["is_usable"]
         self.turn_for_ability = item_file[self.id-1]["turn_for_ability"]
         self.special_image = item_file[self.id-1]["special_image"]
+        self.taunt: bool = item_file[self.id-1].get("taunt", False)  # the holder taunts like a tank stand
         # Variable
         self.special_meter: int = 0
 

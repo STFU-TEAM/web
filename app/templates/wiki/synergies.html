@@ -4,7 +4,11 @@
 <header class="wiki-head">
   <p class="kicker">Combat</p>
   <h1 class="display sm">Synergy explorer</h1>
-  <p>Put <strong>at least two members</strong> of a group in your team of three and their specials upgrade. Fallen teammates still count. Only the stands marked <span class="syn-on">active</span> change; the others just help unlock it.</p>
+  <p>Put <strong>at least two members</strong> of a group in your team of three and the synergy wakes up. Fallen teammates still count. Two things happen:</p>
+  <ul>
+    <li><strong>Team bonus:</strong> every member of the group on your team gets the group's stat bonus for the whole fight. A stand in two active groups gets both.</li>
+    <li><strong>Special upgrades:</strong> the members marked <span class="syn-on">special+</span> also get a stronger special.</li>
+  </ul>
 </header>
 
 <div class="explorer-tools" data-explorer>
@@ -26,14 +30,15 @@
         <span class="explorer-icon" aria-hidden="true">{{ g.icon }}</span>
         <div>
           <h2>{{ g.name }}</h2>
-          <p>{{ g.rule }} {% if g.active %}{{ g.active }} of {{ g.members|length }} stands upgrade.{% else %}<strong>No special uses this synergy yet.</strong>{% endif %}</p>
+          <p>{{ g.rule }} {% if g.active %}{{ g.active }} of {{ g.members|length }} stands also upgrade their special.{% else %}No special uses this synergy yet.{% endif %}</p>
+          {% if g.bonus %}<p class="syn-bonus">Team bonus: <strong>{{ g.bonus|join(', ') }}</strong></p>{% endif %}
         </div>
       </header>
       <ul class="synergy-members">
         {% for m in g.members %}
           <li class="{{ 'is-active' if m.effect }}" data-name="{{ m.stand.name|lower }}">
             <a href="{{ url_for('main.stand', stand_id=m.stand.id) }}">{{ m.stand.name }}</a>
-            {% if m.effect %}<span class="syn-on">active</span><p>{{ m.effect }}</p>{% else %}<span class="syn-off">enabler</span>{% endif %}
+            {% if m.effect %}<span class="syn-on">special+</span><p>{{ m.effect }}</p>{% else %}<span class="syn-off">team bonus</span>{% endif %}
           </li>
         {% endfor %}
       </ul>

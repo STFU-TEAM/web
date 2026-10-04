@@ -26,6 +26,8 @@ def create_app() -> Flask:
     from app.routes.progress import bp as progress_bp
     from app.routes.trades import bp as trades_bp
     from app.routes.community import bp as community_bp
+    from app.routes.auction import bp as auction_bp
+    from app.routes.journey import bp as journey_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -37,6 +39,8 @@ def create_app() -> Flask:
     app.register_blueprint(progress_bp)
     app.register_blueprint(trades_bp)
     app.register_blueprint(community_bp)
+    app.register_blueprint(auction_bp)
+    app.register_blueprint(journey_bp)
 
     @app.get("/healthz")
     def healthz():

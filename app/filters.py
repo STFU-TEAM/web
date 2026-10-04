@@ -19,6 +19,79 @@ def power_score(char) -> int:
     raw = (char.start_hp / 3 + char.start_damage * 2 + char.start_armor / 2
            + char.start_speed * 6 + char.start_critical * 3)
     return int(raw * (1 + 0.4 * (special_power(char)["power"] - 1)))
+
+
+SPECIAL_TOKEN = re.compile(r"`([^`]+)`")
+SPECIAL_NUMBER = re.compile(r"^([+-]?)(\d[\d,.]*)(?:-(\d[\d,.]*))?(%?)$")
+
+
+def _calc_token(char, sp, sign, num, pct, before, after):
+    """(value text, formula) for one number of a special description, or None when it doesn't scale."""
+    from app.game.characterabilities import ARMOR_BASE, DEBUFF_CAP, HEALING_STATS, SPEED_FLOOR
+    p, x = sp["power"], num / 100
+    stat = sp["stat"]
+    mult = f" × {p:.2f} power" if round(p, 2) != 1 else ""
+    sentence = before[before.rfind(".") + 1:].lower()
+    if not pct:
+        if sign == "+" and after.startswith("crit"):
+            return f"+{num * p:.0f} crit", f"{num:g} crit{mult}"
+        return None
+    if sign == "-" or after.startswith(("slow", "and are slowed")) or " by " in before[-12:]:
+        cut = min(DEBUFF_CAP, x * p)
+        return f"−{cut * 100:.0f}%", f"{num:g}%{mult} of the enemy's stat, at most {DEBUFF_CAP:.0%}"
+    if sign == "+":
+        if after.startswith("damage"):
+            return f"+{char.start_damage * x * p:.0f} ATK", f"{num:g}% × {char.start_damage:.0f} ATK{mult}"
+        if after.startswith("armor"):
+            if "for good" in after[:30]:
+                return f"+{char.start_armor * x * p:.0f} ARM", f"{num:g}% × {char.start_armor:.0f} ARM{mult}"
+            return f"+{ARMOR_BASE * x * p:.0f} ARM", f"{num:g}% × {ARMOR_BASE} base armor{mult}"
+        if after.startswith("speed"):
+            base = max(char.start_speed, SPEED_FLOOR)
+            return f"+{base * x * p:.0f} SPD", f"{num:g}% × {base:.0f} SPD{mult}"
+        return f"+{num * p:.0f}%", f"{num:g}% × {p:.2f} power"
+    if after.startswith("damage") or (after.startswith(("burn", "poison", "bleed")) and "damage" not in after[:8]):
+        return f"{char.start_damage * x * p:,.0f}", f"{num:g}% × {char.start_damage:.0f} ATK{mult}"
+    if after.startswith(("of its max health", "of its own max health", "of max health", "of their max health")):
+        healing = "heal" in sentence or "regen" in sentence
+        hp_mult = mult if not healing or stat in HEALING_STATS else ""
+        who = "its" if "their" not in after[:12] else "their"
+        if who == "their":
+            return (f"{num * p:.0f}%", f"{num:g}%{hp_mult} of their max health") if hp_mult else None
+        return f"{char.start_hp * x * (p if hp_mult else 1):,.0f} HP", f"{num:g}% × {char.start_hp:.0f} HP{hp_mult}"
+    return f"{num * p:.0f}%", f"{num:g}% × {p:.2f} power"
+
+
+def special_text(char, owned=True):
+    """The special's description with its numbers highlighted. Numbers that scale are marked; on an owned
+    stand each one also shows what it's worth for this copy (its stats and special power)."""
+    from app.game.characterabilities import special_power
+    text = str(getattr(char, "special_description", None) or char.get("special_description", ""))
+    sp = special_power(char) if owned else None
+    out, last = [], 0
+    for m in SPECIAL_TOKEN.finditer(text):
+        out.append(escape(text[last:m.start()]))
+        token, last = m.group(1), m.end()
+        num = SPECIAL_NUMBER.match(token)
+        after = text[m.end():].lstrip()
+        if not num or after.startswith(("turn", "time", "bullet")):
+            out.append(Markup('<b class="sp-fixed">{}</b>').format(token))
+            continue
+        sign, value, pct = num.group(1), float(num.group(2).replace(",", "")), num.group(4)
+        if not owned:
+            out.append(Markup('<b class="sp-scales" title="Grows with this stand\'s stats and special power">{}</b>')
+                       .format(token))
+            continue
+        calc = None if num.group(3) else _calc_token(char, sp, sign, value, pct, text[:m.start()], after)
+        if calc is None:
+            out.append(Markup('<b class="sp-fixed">{}</b>').format(token))
+        elif calc[0].replace("−", "-") == token:
+            out.append(Markup('<b class="sp-scales" title="{1} = {2}">{0}</b>').format(token, calc[1], calc[0]))
+        else:
+            out.append(Markup('<b class="sp-scales" title="{1} = {2}">{0}<span class="sp-calc">{2}</span></b>')
+                       .format(token, calc[1], calc[0]))
+    out.append(escape(text[last:]))
+    return Markup("").join(out)
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
 FULLART_STARS = 3  # owned copies at this awakening or more are drawn as full-art cards
 TAROT = [
@@ -49,7 +122,7 @@ def register(app):
     app.jinja_env.globals.update(fighter_status=status.view)
     from app.game import characterabilities as abilities
     app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
-                                 STAT_INFO=abilities.STAT_INFO)
+                                 STAT_INFO=abilities.STAT_INFO, special_text=special_text)
     app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
     app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
     app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")

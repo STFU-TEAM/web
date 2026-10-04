@@ -117,7 +117,7 @@ def floor_team(floor: int, week: Optional[str] = None) -> list:
 def preview(floor: int) -> dict:
     return {"floor": floor, "ids": floor_ids(floor), "level": level_for(floor), "awaken": awaken_for(floor),
             "mult": round(overflow_for(floor), 2), "boss": is_boss(floor), "rest": is_rest(floor),
-            "stands": [CHARACTER_FILE[i - 1] for i in floor_ids(floor)]}
+            "stands": [CHARACTER_FILE[i - 1] for i in floor_ids(floor)], "reward": reward_view(floor)}
 
 
 # ── Rewards ─────────────────────────────────────────────────────────────
@@ -135,6 +135,19 @@ def reward_for(floor: int) -> dict:
     if is_boss(floor):
         reward["super"] = 1
     return reward
+
+
+def reward_view(floor: int) -> dict:
+    """A floor's first-clear reward, ready to draw: dust, each team stand's XP, items and Arrowheads."""
+    r = reward_for(floor)
+    return {"fragments": r["fragments"], "stand_xp": stand_xp_for(floor), "super": r["super"],
+            "items": [{"name": item_file[i - 1]["name"], "emoji": item_file[i - 1]["emoji"]} for i in r["items"]]}
+
+
+def milestones(after: int, count: int = 4) -> list:
+    """The next floors past `after` that pay more than dust: items every 5th floor, an Arrowhead every 10th."""
+    first = (after // REST_EVERY + 1) * REST_EVERY
+    return [{"floor": f, **reward_view(f)} for f in range(first, first + REST_EVERY * count, REST_EVERY)]
 
 
 def reward_text(floor: int) -> str:

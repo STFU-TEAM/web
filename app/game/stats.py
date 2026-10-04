@@ -17,7 +17,7 @@ from app.game.fight import PVP_KINDS
 from app.game.items import item_file
 
 PVP = set(PVP_KINDS) | {"gang_war"}
-PVE = {"wormhole", "story", "rush", "tower", "dungeon"}
+PVE = {"wormhole", "story", "alt_universe", "rush", "tower", "dungeon"}
 STATS_DAYS = 120
 MIN_GAMES = 5  # rows with fewer games are shown greyed out
 

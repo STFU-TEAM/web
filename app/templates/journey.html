@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Crusaders' Journey | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page journey" data-server-now="{{ server_now|int }}">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Idle adventure · Part 3</p>
+      <h1 class="display sm">The Crusaders' Journey</h1>
+      <p class="muted">Send a stand down the road from Tokyo to Cairo on its own. The stronger the stand and the longer the trip, the bigger the haul. While it travels it leaves your collection: it can't fight, be traded, fused or sold until you welcome it home.</p>
+    </div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  <section class="journey-trips">
+    <h2 class="h3">On the road {{ trips|length }}/{{ slots }}</h2>
+    {% if trips %}
+      <ul class="journey-list">
+        {% for t in trips %}
+          <li class="journey-trip{% if t.done %} done{% endif %}">
+            <img src="{{ t.char.id|stand_img }}" alt="" loading="lazy">
+            <div class="journey-trip-body">
+              <p><strong>{{ t.char.name }}</strong> <small class="muted">Lv {{ t.char.level }} · power {{ t.power|num }}</small></p>
+              <p class="muted">{{ t.route_info.emoji }} {{ t.route_info.name }}</p>
+              <div class="meter"{% if not t.done %} data-progress-start="{{ t.start }}" data-progress-end="{{ t.end }}"{% endif %}><i style="width: {{ t.pct }}%"></i></div>
+              {% if t.done %}
+                <p class="journey-log">{{ t.char.name }} {{ t.events[0] }}, then {{ t.events[1] }}.</p>
+                <p class="journey-loot">🎁 {{ t.loot.fragments|dust }} · +{{ t.loot.stand_xp }} XP{% for n in t.item_names %} · {{ n }}{% endfor %}{% if t.loot.super %} · {{ t.loot.super|heads }}{% endif %}</p>
+              {% else %}
+                <p class="muted" data-reload-in="{{ t.left + 1 }}">Home in <span data-countdown>{{ t.left // 3600 }} h {{ '%02d'|format(t.left % 3600 // 60) }} min</span></p>
+              {% endif %}
+            </div>
+            <div class="journey-trip-actions">
+              {% if t.done %}
+                <form method="post" action="{{ url_for('journey.claim', trip_id=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Welcome home</button></form>
+              {% else %}
+                <form method="post" action="{{ url_for('journey.recall', trip_id=t.id) }}" data-ask="Call {{ t.char.name }} back now? It comes home with no loot." onsubmit="return confirm(this.dataset.ask)">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Recall</button></form>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Nobody is travelling. Plan a trip below.</p>
+    {% endif %}
+  </section>
+
+  <section class="journey-plan">
+    <h2 class="h3">Plan a trip</h2>
+    {% if not stands %}
+      <p class="notice">You have no stands to send. <a href="{{ url_for('play.banners') }}">Summon some</a>.</p>
+    {% elif trips|length >= slots %}
+      <p class="notice">All {{ slots }} travel slots are in use. Welcome a stand home to send another.</p>
+    {% else %}
+      <form class="journey-pick" method="get" action="{{ url_for('journey.index') }}">
+        <label>Traveller
+          <select name="uuid" onchange="this.form.submit()">
+            {% for c in stands %}<option value="{{ c.uuid }}" {% if chosen and c.uuid == chosen.uuid %}selected{% endif %}>{{ c.name }} · {{ c.rarity }} · Lv {{ c.level }} · power {{ powers[c.uuid]|num }}{% if c in u.main_characters %} · in team{% endif %}</option>{% endfor %}
+          </select>
+        </label>
+        <noscript><button class="btn small">Show trips</button></noscript>
+      </form>
+      <p class="muted">{{ chosen.name }} has a power of <strong>{{ power|num }}</strong>. Level it, awaken it, gear it and roll good types to bring more back.{% if chosen in u.main_characters %} It will leave your team while it travels.{% endif %}</p>
+      <ol class="journey-road">
+        {% for r in routes %}
+          <li class="journey-stop{% if r.super_chance %} finale{% endif %}">
+            <span class="journey-stop-icon" aria-hidden="true">{{ r.emoji }}</span>
+            <div>
+              <h3>{{ r.name }} <small class="muted">· {{ (r.hours * 60)|int ~ ' min' if r.hours < 1 else r.hours|int ~ ' h' }}</small></h3>
+              <p class="muted">{{ r.blurb }}</p>
+              <p class="journey-est">
+                <span class="tower-chip dust">{{ r.est.fragments|dust }}</span>
+                <span class="tower-chip stand-xp">+{{ r.est.stand_xp }} stand XP</span>
+                <span class="tower-chip item">{{ r.est.item_chance }}% item{% if r.hours >= 8 %}, chance of 2{% endif %}</span>
+                {% if r.est.super_chance %}<span class="tower-chip arrow">{{ r.est.super_chance }}% Arrowhead</span>{% endif %}
+              </p>
+            </div>
+            <form method="post" action="{{ url_for('journey.depart') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="uuid" value="{{ chosen.uuid }}"><input type="hidden" name="route" value="{{ r.key }}">
+              <button class="btn small {{ 'gold' if r.super_chance }}">Send</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ol>
+    {% endif %}
+  </section>
+</section>
+{% endblock %}

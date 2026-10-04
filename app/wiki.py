@@ -11,9 +11,9 @@ import re
 from app.game import character as character_mod
 from app.game import logic
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
-from app.game.characterabilities import AFFINITY, POWER_RANGE, SYNERGIES
+from app.game.characterabilities import AFFINITY, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
 from app.game import fight as fight_mod
-from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain
+from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain, fmt_perk
 
 TOPICS = [
     # slug, title, one-line blurb, group
@@ -45,19 +45,6 @@ TERRAIN_BLURB = {
     "GRAVITY": "Gravity users bend speed and damage in their favour.",
 }
 
-STAT_LABEL = {"damage_pct": "damage", "speed_pct": "speed", "armor_pct": "armor",
-              "crit_flat": "critical", "regen_pct": "regen / turn"}
-
-SYNERGY_INFO = {
-    "crusaders": ("Stardust Crusaders", "⭐"),
-    "kira": ("Kira duo", "💣"),
-    "squadra": ("La Squadra", "🗡️"),
-    "passione": ("Passione", "🐞"),
-    "morioh": ("Morioh Warriors", "🏘️"),
-    "pucci": ("Pucci evolution", "☽"),
-    "tusk": ("Tusk evolution", "✦"),
-    "clash_talking": ("Clash + Talking Head", "🦈"),
-}
 
 # What each stand's special does differently while its synergy is active.
 SYNERGY_EFFECTS = {
@@ -149,10 +136,7 @@ def _scan_specials():
 SYNERGY_USERS, TERRAIN_SPECIALS = _scan_specials()
 
 
-def fmt_bonus(stat, value):
-    if stat == "crit_flat":
-        return f"+{value} {STAT_LABEL[stat]}"
-    return f"+{round(value * 100)}% {STAT_LABEL[stat]}"
+fmt_bonus = fmt_perk
 
 
 def terrain_rows():
@@ -186,6 +170,7 @@ def synergy_rows():
         rows.append({
             "key": key, "name": label, "icon": icon,
             "rule": "Both stands on the team." if len(members) == 2 else "Any 2 of these on the team.",
+            "bonus": [fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, [])],
             "members": [{"stand": _stand(c), "effect": effects.get(c) if c in users else None}
                         for c in sorted(members)],
             "active": len(users),
@@ -227,7 +212,8 @@ def stand_links(stand_id):
             label, icon = SYNERGY_INFO.get(key, (key, "✶"))
             effect = SYNERGY_EFFECTS.get(key, {}).get(stand_id) if stand_id in SYNERGY_USERS.get(key, ()) else None
             partners = [_stand(c) for c in sorted(members) if c != stand_id]
-            synergies.append({"key": key, "name": label, "icon": icon, "effect": effect, "partners": partners})
+            synergies.append({"key": key, "name": label, "icon": icon, "effect": effect, "partners": partners,
+                              "bonus": [fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, [])]})
     return {"sets": sets, "boosts": boosts, "reacts": reacts, "synergies": synergies}
 
 
@@ -245,8 +231,7 @@ def facts():
         "reforge_prices": logic.REFORGE_PRICE, "reforge_lock_mult": logic.REFORGE_LOCK_MULT, "max_presets": logic.MAX_TEAMS,
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,
-        "wormhole_hours": logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME,
-        "wormhole_hours_donor": logic.DONOR_WH_WAIT_TIME,
+        "wormhole_minutes": round((logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME) * 60),
     }
 
 
@@ -257,9 +242,9 @@ def _stand_tags():
         tags.setdefault(cid, []).append((terrain.emoji, f"Sets {terrain.display_name}"))
     for key, members in SYNERGIES.items():
         label, icon = SYNERGY_INFO.get(key, (key, "✶"))
+        bonus = ", ".join(fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, []))
         for cid in members:
-            active = cid in SYNERGY_USERS.get(key, ())
-            tags.setdefault(cid, []).append((icon, f"{label} synergy" + ("" if active else " (enabler)")))
+            tags.setdefault(cid, []).append((icon, f"{label} synergy: {bonus}"))
     return tags
 
 

@@ -904,3 +904,56 @@ document.addEventListener("keydown", (e) => {
     else start();
   }
 })();
+
+// Cooldown notices count down live and reload the page once the wait is over.
+function cooldownReload(root) {
+  root.querySelectorAll("[data-reload-in]").forEach((el) => {
+    if (el.dataset.ticking) return;
+    el.dataset.ticking = "1";
+    const end = Date.now() + Number(el.dataset.reloadIn) * 1000;
+    const out = el.querySelector("[data-countdown]");
+    const tick = () => {
+      const left = Math.max(0, Math.round((end - Date.now()) / 1000));
+      const h = Math.floor(left / 3600), m = Math.floor(left % 3600 / 60), sec = left % 60;  // same wording as fmt_delta
+      if (out) out.textContent = h ? `${h} h ${String(m).padStart(2, "0")} min`
+        : m ? `${m} min ${String(sec).padStart(2, "0")} s` : `${sec} s`;
+      if (left <= 0) location.reload();
+      else setTimeout(tick, 1000);
+    };
+    tick();
+  });
+}
+cooldownReload(document);
+document.addEventListener("htmx:load", (e) => cooldownReload(e.detail.elt));
+
+// Timed progress bars (Crusaders' Journey): fill live from data-progress-start to data-progress-end (unix seconds).
+function liveProgress(root) {
+  const bars = [...root.querySelectorAll("[data-progress-end]")].filter((el) => !el.dataset.live);
+  if (!bars.length) return;
+  const clock = document.querySelector("[data-server-now]");  // trust the server's clock, not the device's
+  const skew = clock ? Date.now() / 1000 - Number(clock.dataset.serverNow) : 0;
+  const tick = () => {
+    const now = Date.now() / 1000 - skew;
+    bars.forEach((el) => {
+      const start = Number(el.dataset.progressStart), end = Number(el.dataset.progressEnd);
+      const pct = Math.min(100, Math.max(0, (100 * (now - start)) / Math.max(1, end - start)));
+      el.firstElementChild.style.width = `${pct}%`;
+    });
+    if (bars.some((el) => el.isConnected)) setTimeout(tick, 1000);
+  };
+  bars.forEach((el) => (el.dataset.live = "1"));
+  tick();
+}
+liveProgress(document);
+document.addEventListener("htmx:load", (e) => liveProgress(e.detail.elt));
+
+// Auction sell form: show only the fields of the chosen sale type (without JS both show; the server reads "mode").
+function saleForms(root) {
+  root.querySelectorAll("[data-sale-form]").forEach((form) => {
+    const sync = () => { form.dataset.active = form.querySelector("input[name=mode]:checked")?.value || "fixed"; };
+    form.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", sync));
+    sync();
+  });
+}
+saleForms(document);
+document.addEventListener("htmx:load", (e) => saleForms(e.detail.elt));

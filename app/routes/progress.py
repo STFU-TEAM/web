@@ -3,7 +3,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
-from app.game import logic, rush, story
+from app.game import altverse, logic, rush, story
 from app.game.fight import Fight, Side, fighting_copy
 from app.routes.fightturn import play_turn
 from app.game.achievements import get_all_achievements_status
@@ -110,6 +110,88 @@ def story_leave():
         if fight.winner == 0 and story.cleared(get_db().get_user(session["uid"])) >= story.TOTAL:
             r().set(f"web:story_done:{session['uid']}", 1)
     return redirect(url_for("progress.story_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Alternate Universe: custom "what if" chapters (app/game/altverse.py)
+# --------------------------------------------------------------------------- #
+AU_KIND = "alt_universe"
+
+
+def _au_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == AU_KIND else None
+
+
+@bp.get("/alternate-universe")
+@player_required
+def au_page():
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != AU_KIND and not other.finished else None
+    fight = _au_fight(uid)
+    chosen = request.args.get("ch") or (fight.meta.get("chapter") if fight else None)
+    return render_template("alt_universe.html", u=user, fight=fight, error=error, chapters=altverse.chapters(user),
+                           stage=altverse.current(user, chosen), cleared=altverse.total_cleared(user),
+                           total=altverse.TOTAL, story_cleared=story.cleared(user),
+                           fight_action=url_for("progress.au_attack"), fight_leave_action=url_for("progress.au_leave"),
+                           fight_label="Alternate Universe")
+
+
+@bp.post("/alternate-universe/fight")
+@player_required
+def au_fight():
+    uid = session["uid"]
+    key = request.form.get("chapter", "")
+    existing = load_fight(uid)
+    if existing and not (existing.kind == AU_KIND and existing.finished):
+        return redirect(url_for("progress.au_page", ch=key))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            j = request.form.get("stage", type=int)
+            j = altverse.cleared(user, key) if j is None else j
+            try:
+                altverse.check_can_fight(user, key, j)
+            except GameError as e:
+                flash(str(e), "error")
+                return redirect(url_for("progress.au_page", ch=key))
+            stage = altverse.BY_KEY[key]["stages"][j]
+            foes = Side(f"AU · {stage['title']}", altverse.enemy_team(key, j), False)
+            fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
+                          foes, kind=AU_KIND, meta={"chapter": key, "stage": j})
+            fight.advance()
+            save_fight(uid, fight)
+            user.update()  # replays spend energy
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.au_page", ch=key))
+
+
+def _au_settle(user, fight):
+    if fight.winner != 0:
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    logic.check_achievements(user, "fight_win")
+    return altverse.win(user, fight.meta["chapter"], int(fight.meta["stage"]))
+
+
+@bp.post("/alternate-universe/attack")
+@player_required
+def au_attack():
+    return play_turn(AU_KIND, url_for("progress.au_page"), "Alternate Universe", "progress.au_attack",
+                     "progress.au_leave", _au_settle)
+
+
+@bp.post("/alternate-universe/leave")
+@player_required
+def au_leave():
+    fight = _au_fight(session["uid"])
+    key = fight.meta.get("chapter") if fight else None
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.au_page", ch=key) if key else url_for("progress.au_page"))
 
 
 # --------------------------------------------------------------------------- #

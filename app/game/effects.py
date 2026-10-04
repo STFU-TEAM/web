@@ -129,24 +129,41 @@ TERRAIN_SETTERS = {
     7:  Terrain.OCEAN,    # Dark Blue Moon
     76: Terrain.OCEAN,    # Clash
     71: Terrain.OCEAN,    # Beach Boy
+    33: Terrain.OCEAN,    # Aqua Necklace
+    94: Terrain.OCEAN,    # Weather Report
+    137: Terrain.OCEAN,   # Soft & Wet
     # DESERT
     2:  Terrain.DESERT,   # Magician's Red
     18: Terrain.DESERT,   # The Sun
+    121: Terrain.DESERT,  # In a Silent Way
+    143: Terrain.DESERT,  # Speed King
     # FROZEN
     74: Terrain.FROZEN,   # White Album
     27: Terrain.FROZEN,   # Horus
+    127: Terrain.FROZEN,  # Catch the Rainbow
+    146: Terrain.FROZEN,  # Born This Way
     # MIRROR
     68: Terrain.MIRROR,   # Man in the Mirror
     30: Terrain.MIRROR,   # Cream
     83: Terrain.MIRROR,   # Chariot Requiem
+    13: Terrain.MIRROR,   # Hanged Man
+    56: Terrain.MIRROR,   # Enigma
+    120: Terrain.MIRROR,  # D4C
     # NATURE
     59: Terrain.NATURE,   # Gold Experience
     54: Terrain.NATURE,   # Stray Cat
     81: Terrain.NATURE,   # Green Day
+    101: Terrain.NATURE,  # Green Green Grass of Home
+    128: Terrain.NATURE,  # Sugar Mountain
+    147: Terrain.NATURE,  # Les Feuilles
     # GRAVITY
     108: Terrain.GRAVITY, # C-Moon
     109: Terrain.GRAVITY, # Made in Heaven
     95:  Terrain.GRAVITY, # Jumpin Jack Flash
+    114: Terrain.GRAVITY, # Tusk Act 4
+    115: Terrain.GRAVITY, # Ball Breaker
+    148: Terrain.GRAVITY, # I Am a Rock
+    161: Terrain.GRAVITY, # Wonder of U
 }
 
 # Character ID → {Terrain: [(stat, value)]}: the stands native to a terrain.
@@ -161,6 +178,10 @@ TERRAIN_BENEFITS = {
     71:  {Terrain.OCEAN: [("damage_pct", 0.15), ("regen_pct", 0.03)]},
     22:  {Terrain.OCEAN: [("speed_pct", 0.20), ("damage_pct", 0.15)]},
     33:  {Terrain.OCEAN: [("damage_pct", 0.15)]},
+    94:  {Terrain.OCEAN: [("speed_pct", 0.15), ("damage_pct", 0.10)], Terrain.FROZEN: [("crit_flat", 10)]},
+    137: {Terrain.OCEAN: [("damage_pct", 0.15), ("armor_pct", 0.10)]},
+    92:  {Terrain.OCEAN: [("damage_pct", 0.10), ("regen_pct", 0.03)]},
+    97:  {Terrain.OCEAN: [("armor_pct", 0.15)]},
     # ── DESERT natives ──
     2:   {Terrain.DESERT: [("damage_pct", 0.15)]},
     18:  {Terrain.DESERT: [("damage_pct", 0.15), ("armor_pct", 0.15)]},
@@ -168,6 +189,13 @@ TERRAIN_BENEFITS = {
     80:  {Terrain.DESERT: [("damage_pct", 0.15)]},
     72:  {Terrain.DESERT: [("damage_pct", 0.15)]},
     143: {Terrain.DESERT: [("damage_pct", 0.15)]},
+    121: {Terrain.DESERT: [("damage_pct", 0.15), ("speed_pct", 0.10)]},
+    25:  {Terrain.DESERT: [("damage_pct", 0.10), ("crit_flat", 5)]},
+    26:  {Terrain.DESERT: [("armor_pct", 0.15)]},
+    28:  {Terrain.DESERT: [("crit_flat", 10)]},
+    29:  {Terrain.DESERT: [("damage_pct", 0.10)]},
+    116: {Terrain.DESERT: [("speed_pct", 0.15)]},
+    122: {Terrain.DESERT: [("crit_flat", 10)]},
     # ── FROZEN natives ──
     74:  {Terrain.FROZEN: [("armor_pct", 0.25)]},
     27:  {Terrain.FROZEN: [("damage_pct", 0.15)]},
@@ -175,12 +203,19 @@ TERRAIN_BENEFITS = {
     4:   {Terrain.FROZEN: [("speed_pct", 0.15)]},
     127: {Terrain.FROZEN: [("crit_flat", 10)]},
     146: {Terrain.FROZEN: [("damage_pct", 0.15)]},
+    35:  {Terrain.FROZEN: [("armor_pct", 0.15)]},
+    132: {Terrain.FROZEN: [("damage_pct", 0.10)]},
     # ── MIRROR natives ──
     68:  {Terrain.MIRROR: [("damage_pct", 0.15)]},
     30:  {Terrain.MIRROR: [("damage_pct", 0.15)]},
     13:  {Terrain.MIRROR: [("crit_flat", 10)]},
     44:  {Terrain.MIRROR: [("armor_pct", 0.15)]},
     83:  {Terrain.MIRROR: [("damage_pct", 0.15)]},
+    56:  {Terrain.MIRROR: [("damage_pct", 0.15)]},
+    120: {Terrain.MIRROR: [("damage_pct", 0.10), ("armor_pct", 0.15)]},
+    19:  {Terrain.MIRROR: [("crit_flat", 10)]},
+    23:  {Terrain.MIRROR: [("speed_pct", 0.15)]},
+    20:  {Terrain.MIRROR: [("armor_pct", 0.10)]},
     # ── NATURE natives ──
     59:  {Terrain.NATURE: [("regen_pct", 0.04)]},
     69:  {Terrain.NATURE: [("damage_pct", 0.15)]},
@@ -190,15 +225,35 @@ TERRAIN_BENEFITS = {
     47:  {Terrain.NATURE: [("speed_pct", 0.15)]},
     78:  {Terrain.NATURE: [("regen_pct", 0.03)]},
     147: {Terrain.NATURE: [("damage_pct", 0.15)]},
+    101: {Terrain.NATURE: [("armor_pct", 0.15)]},
+    128: {Terrain.NATURE: [("regen_pct", 0.03), ("armor_pct", 0.10)]},
+    160: {Terrain.NATURE: [("damage_pct", 0.15)]},
+    48:  {Terrain.NATURE: [("regen_pct", 0.03)]},
     # ── GRAVITY natives ──
     109: {Terrain.GRAVITY: [("speed_pct", 0.20)]},
     95:  {Terrain.GRAVITY: [("damage_pct", 0.15)]},
     115: {Terrain.GRAVITY: [("damage_pct", 0.15)]},
     114: {Terrain.GRAVITY: [("damage_pct", 0.15)]},
     161: {Terrain.GRAVITY: [("damage_pct", 0.15)]},
+    148: {Terrain.GRAVITY: [("damage_pct", 0.15)]},
+    110: {Terrain.GRAVITY: [("damage_pct", 0.10), ("speed_pct", 0.10)]},
+    123: {Terrain.GRAVITY: [("damage_pct", 0.10)]},
+    135: {Terrain.GRAVITY: [("damage_pct", 0.10)]},
+    136: {Terrain.GRAVITY: [("damage_pct", 0.10)]},
     # ── Multi-terrain natives ──
     108: {Terrain.OCEAN: [("speed_pct", 0.10)], Terrain.GRAVITY: [("speed_pct", 0.15), ("damage_pct", 0.10)]},
 }
+
+
+PERK_LABEL = {"damage_pct": "damage", "speed_pct": "speed", "armor_pct": "armor", "hp_pct": "max health",
+              "crit_flat": "critical", "regen_pct": "regen / turn"}
+
+
+def fmt_perk(stat: str, value: float) -> str:
+    """'+15% damage' / '+10 critical' for terrain and synergy bonuses."""
+    if stat == "crit_flat":
+        return f"+{value} {PERK_LABEL[stat]}"
+    return f"+{round(value * 100)}% {PERK_LABEL[stat]}"
 
 
 def is_native(c, terrain: Terrain) -> bool:

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Alternate Universe | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page story au">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Story mode · Alternate Universe</p>
+      <h1 class="display sm">{{ ('AU · ' ~ stage.chapter_title) if stage else 'Alternate Universe' }}</h1>
+      <p class="muted">What if the villains had won? Each chapter branches off one part of the main story and opens once you clear that part. They're harder than the part they come from and pay more.</p>
+    </div>
+    <div class="story-progress" title="Alternate stages cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} stages
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+  </header>
+  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% elif stage %}
+    <article class="story-stage{% if stage.boss %} boss{% endif %}" style="--part: {{ stage.color }}">
+      <div class="story-stage-text">
+        <p class="kicker">Stage {{ stage.number }}{% if stage.boss %} · Boss{% endif %} · alongside {{ stage.ally }}</p>
+        <h2 class="h2">{{ stage.title }}</h2>
+        {% if stage.index == 0 %}<p class="story-intro">{{ stage.intro }}</p>{% endif %}
+        <p class="story-text">{{ stage.text }}</p>
+        <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
+        {% if u.main_characters %}
+          <form method="post" action="{{ url_for('progress.au_fight') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="chapter" value="{{ stage.chapter }}">
+            <button class="btn gold big">{{ 'Face the boss' if stage.boss else 'Cross over' }} →</button>
+          </form>
+        {% else %}
+          <p class="notice">Put at least one stand in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+        {% endif %}
+      </div>
+      <div class="story-foes" aria-label="Enemies">
+        <p class="muted">Enemies · level {{ stage.level }}{% if stage.awaken %} · ★{{ stage.awaken }}{% endif %} · {{ stage.quality_name }}{% if stage.mult > 1 %} · ×{{ stage.mult }} health & damage{% endif %}</p>
+        <ul>
+          {% for c in stage.enemy_stands %}
+            <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">
+              <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span>{{ c.name }}</span><small>{{ c.rarity }}</small></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </article>
+  {% elif chapters|selectattr('unlocked')|list %}
+    <article class="story-stage done">
+      <h2 class="h2">Every open universe is settled</h2>
+      <p class="story-text">Clear more of the <a href="{{ url_for('progress.story_page') }}">main story</a> to open the next alternate universe, or replay a stage below for stand XP.</p>
+    </article>
+  {% else %}
+    <article class="story-stage done">
+      <h2 class="h2">No universe has split off yet</h2>
+      <p class="story-text">The first alternate universe opens when you beat DIO at the end of Part 3 in the <a href="{{ url_for('progress.story_page') }}">main story</a>.</p>
+    </article>
+  {% endif %}
+
+  <h2 class="h3 story-map-title">The universes</h2>
+  <ol class="story-map">
+    {% for c in chapters %}
+      <li class="story-part{% if c.complete %} complete{% endif %}{% if not c.unlocked %} au-locked{% endif %}" style="--part: {{ c.color }}">
+        <header>
+          <strong>{% if c.unlocked %}<a href="{{ url_for('progress.au_page', ch=c.key) }}">AU · {{ c.title }}</a>{% else %}🔒 AU · {{ c.title }}{% endif %}</strong>
+          <small>{{ c.ally }}</small>
+          <span class="muted">{% if c.unlocked %}{{ c.cleared }}/{{ c.stages|length }}{% else %}Opens after {{ c.source }}{% endif %}</span>
+        </header>
+        <ol class="story-nodes">
+          {% for s in c.stages %}
+            <li class="node {{ s.state }}{% if s.boss %} boss{% endif %}" title="{{ s.title }} · enemy level {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}">
+              <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if s.boss else s.index + 1) }}</span>
+              <span class="node-label">{{ s.title }}</span>
+              <small class="node-level">Lv {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}{% if s.mult > 1 %} ×{{ s.mult }}{% endif %}</small>
+              {% if s.state == 'cleared' and not fight %}
+                <form method="post" action="{{ url_for('progress.au_fight') }}" class="node-replay">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="chapter" value="{{ c.key }}"><input type="hidden" name="stage" value="{{ s.index }}">
+                  <button class="btn small ghost" title="Replay for stand XP and a fifth of the Meteor Dust">↻ 1⚡</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </li>
+    {% endfor %}
+  </ol>
+  <p class="muted wiki-note">These chapters are original stories, not canon. Cleared stages can be replayed for 1 energy: full stand XP and a fifth of the Meteor Dust. Each chapter's third stage drops a crafting material and its boss drops an Arrowhead and a Devil's Palm. The final chapter's boss drops a Requiem Arrow.</p>
+</section>
+{% endblock %}

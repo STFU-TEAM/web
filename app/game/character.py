@@ -74,8 +74,9 @@ class Character:
         self.turn_for_ability: int = character_file[self.id-1]["turn_for_ability"]
         self.special_description: str = character_file[self.id-1]["special_description"]
         self.special_url:str = character_file[self.id-1]["special_url"]
-        self.taunt: bool = character_file[self.id-1]["taunt"]
         self.items: List[Item] = [item_from_dict(s) for s in data.get("items", [])]
+        self.natural_taunt: bool = character_file[self.id-1]["taunt"]
+        self.taunt: bool = self.natural_taunt or any(item.taunt for item in self.items)
         self.universe: str = character_file[self.id-1]["universe"]
         self.level: int = min(MAX_LEVEL, self.xp // STXPTOLEVEL)
 

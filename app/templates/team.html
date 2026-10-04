@@ -13,8 +13,54 @@
     {% include "partials/wallet.html" %}
   </header>
 
+  {% set h = gang_hub %}
+  <section class="gang-hub{% if not h.gang %} recruit{% endif %}" aria-label="Your gang">
+    {% if h.gang %}
+      <img class="gang-hub-crest" src="{{ h.gang.image_url }}" alt="" loading="lazy" onerror="this.hidden=true">
+      <div class="gang-hub-main">
+        <p class="kicker">⚑ Your gang · {{ h.rank }}</p>
+        <h2 class="h2"><a href="{{ url_for('gangs.index') }}">{{ h.gang.name }}</a></h2>
+        {% if h.gang.motd %}<p class="muted">“{{ h.gang.motd }}”</p>{% endif %}
+        <ul class="gang-hub-facts">
+          <li>{{ h.members }} member{{ 's' if h.members != 1 }}</li>
+          <li>Vault {{ h.vault|dust }}</li>
+          <li>{{ '⚔ At war' if h.at_war else 'No war on' }}</li>
+          <li>Raid damage this week {{ h.raid_damage|num }}</li>
+        </ul>
+      </div>
+      <div class="gang-hub-actions">
+        {% if h.raid_ready %}<a class="btn gold" href="{{ url_for('gangs.index') }}#raid">🐉 Raid {{ h.villain.name }}</a>{% else %}<span class="muted">Raid done today</span>{% endif %}
+        {% if h.claim %}<a class="btn small" href="{{ url_for('gangs.index') }}#raid">🎁 {{ h.claim }} raid reward{{ 's' if h.claim != 1 }} to claim</a>{% endif %}
+        <a class="btn small ghost" href="{{ url_for('gangs.index') }}">Open gang</a>
+      </div>
+    {% else %}
+      <div class="gang-hub-main">
+        <p class="kicker">⚑ Gangs</p>
+        <h2 class="h2">You're not in a gang yet</h2>
+        <p>Gangs share a vault, defend each other with guardians, fight weekly wars and take down a raid boss together for big rewards. This week's raid boss is <strong>{{ h.villain.name }}</strong>.</p>
+      </div>
+      <div class="gang-hub-actions">
+        {% if h.invites %}<a class="btn gold" href="{{ url_for('gangs.index') }}">📨 {{ h.invites }} invite{{ 's' if h.invites != 1 }} waiting</a>{% endif %}
+        <a class="btn {{ '' if h.invites else 'gold' }}" href="{{ url_for('gangs.index') }}">Find or found a gang</a>
+      </div>
+    {% endif %}
+  </section>
+
   <div class="actions-row">
     <div id="daily" class="action-tile">{% include "partials/daily_tile.html" %}</div>
+    <div class="action-tile">
+      <h2 class="h3">🐫 Crusaders' Journey</h2>
+      {% if h.journeys_ready %}
+        <p><strong>{{ h.journeys_ready }}</strong> stand{{ 's are' if h.journeys_ready != 1 else ' is' }} home with loot.</p>
+        <a class="btn gold" href="{{ url_for('journey.index') }}">Welcome them home</a>
+      {% elif h.journeys %}
+        <p class="muted">{{ h.journeys }} stand{{ 's' if h.journeys != 1 }} on the road to Cairo.</p>
+        <a class="btn" href="{{ url_for('journey.index') }}">Check the road</a>
+      {% else %}
+        <p>Send a spare stand on a trip. Stronger stands bring back more.</p>
+        <a class="btn" href="{{ url_for('journey.index') }}">Plan a trip</a>
+      {% endif %}
+    </div>
     <div class="action-tile">
       <h2 class="h3">Mirror World</h2>
       {% if fight and not fight.finished %}

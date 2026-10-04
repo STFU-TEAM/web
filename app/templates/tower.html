@@ -1,5 +1,11 @@
 {% extends "base.html" %}
 {% block title %}Tower | STFU Requiem{% endblock %}
+{% macro reward_chips(rw) -%}
+  <span class="tower-chip dust" title="Meteor Dust">{{ rw.fragments|dust }}</span>
+  <span class="tower-chip stand-xp" title="XP for each team stand">+{{ rw.stand_xp }} stand XP</span>
+  {% for it in rw['items'] %}<span class="tower-chip item" title="{{ it.name }}">{{ it.emoji|emoji }} {{ it.name }}</span>{% endfor %}
+  {% if rw.super %}<span class="tower-chip arrow" title="An Arrowhead">{{ rw.super|heads }}</span>{% endif %}
+{%- endmacro %}
 {% block main %}
 <section class="page tower-page">
   <header class="player-bar">
@@ -29,6 +35,10 @@
           </ul>
           <div class="tower-floor-meta">Lv {{ f.level }}{% if f.awaken %} ★{{ f.awaken }}{% endif %}{% if f.mult > 1 %} · ×{{ f.mult }} stats{% endif %}
             {% if state == 'cleared' %}<span class="tower-tag done">✓ cleared</span>{% elif state == 'current' %}<span class="tower-tag here">{{ 'You are here' if s.run else 'Start here' }}</span>{% endif %}</div>
+          {% set paid = f.floor <= s.paid %}
+          <div class="tower-reward{% if paid %} paid{% endif %}" aria-label="First-clear reward for floor {{ f.floor }}">
+            <span class="tower-reward-label">{{ '✓ paid this week' if paid else '🎁 First clear' }}</span>{{ reward_chips(f.reward) }}
+          </div>
           {% if state == 'current' and team %}
             <ul class="tower-climbers" aria-label="Your team">
               {% for c in team %}<li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" title="{{ c.name }} {{ c.current_hp|int }}/{{ c.start_hp|int }}" loading="lazy"></li>{% endfor %}
@@ -72,6 +82,15 @@
           {% endif %}
         </div>
       {% endif %}
+      <section class="tower-panel">
+        <h2 class="h3">Rewards ahead</h2>
+        <p class="muted">Every floor pays Meteor Dust and stand XP the first time you clear it each week. Every 5th floor adds a crafting material and every 10th an Arrowhead.</p>
+        <ul class="tower-milestones">
+          {% for m in milestones %}
+            <li class="{{ 'boss' if m.super }}"><strong>Floor {{ m.floor }}</strong><span>{{ reward_chips(m) }}</span></li>
+          {% endfor %}
+        </ul>
+      </section>
       <section class="tower-panel">
         <h2 class="h3">This week's highest climbers</h2>
         {% if board %}

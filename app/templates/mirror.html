@@ -22,7 +22,7 @@
       {% elif not u.main_characters %}
         <p class="notice">You need at least one stand in your team. <a href="{{ url_for('play.team') }}">Set up your team</a>.</p>
       {% elif st.wormhole %}
-        <p class="notice">The mirror opens again in {{ st.wormhole|delta }}.</p>
+        <p class="notice" data-reload-in="{{ st.wormhole.total_seconds()|int + 1 }}">The mirror opens again in <span data-countdown>{{ st.wormhole|delta }}</span>.</p>
       {% elif u.energy < 1 %}
         <p class="notice">You're out of energy.</p>
       {% else %}

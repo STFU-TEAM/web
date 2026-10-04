@@ -203,7 +203,7 @@ body.touring .nav-drop[open] > .nav-menu { display: none; }
 
   .dock {
     position: fixed; inset: auto 0 0; z-index: 40;
-    display: grid; grid-template-columns: repeat(5, 1fr);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
     padding: .25rem max(.25rem, env(safe-area-inset-right)) calc(.25rem + env(safe-area-inset-bottom)) max(.25rem, env(safe-area-inset-left));
     background: rgb(43 23 71 / .97); backdrop-filter: blur(8px);
     border-top: 1px solid var(--night-3);
@@ -1383,7 +1383,7 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
   background: linear-gradient(transparent, rgb(122 63 184 / .15)); -webkit-mask-image: linear-gradient(transparent, #000 60%); }
 .tower-base { text-align: center; padding: .5rem; color: var(--muted); font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; border-top: 3px solid var(--night-3); }
 .tower-floor {
-  position: relative; display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; grid-template-areas: "num foes meta" "num team team";
+  position: relative; display: grid; grid-template-columns: 4.2rem minmax(0, 1fr) auto; grid-template-areas: "num foes meta" "num reward reward" "num team team";
   align-items: center; gap: .3rem .8rem; padding: .55rem .7rem; margin: 0 0 4px;
   border-radius: 6px; background: var(--night-2); border: 2px solid var(--night-3);
 }
@@ -1409,6 +1409,22 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .tower-tag { padding: .05rem .45rem; border-radius: 999px; font-weight: 700; font-size: .68rem; }
 .tower-tag.here { background: var(--gold); color: var(--ink); }
 .tower-tag.done { color: var(--teal); }
+.tower-reward { grid-area: reward; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; font-size: .72rem; }
+.tower-reward-label { font-weight: 700; color: var(--gold); margin-right: .15rem; }
+.tower-reward.paid { opacity: .6; }
+.tower-reward.paid .tower-reward-label { color: var(--teal); }
+.tower-chip { display: inline-flex; align-items: center; gap: .25em; padding: .05rem .5rem; border-radius: 999px;
+  background: var(--night-3); font-weight: 700; white-space: nowrap; }
+.tower-chip .emoji { width: 1.1em; height: 1.1em; }
+.tower-chip.dust { color: #9FD8FF; }
+.tower-chip.stand-xp { color: #7DF0A8; }
+.tower-chip.item { color: var(--gold); }
+.tower-chip.arrow { color: #FF8DB9; background: rgb(214 36 110 / .2); }
+.tower-milestones { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.tower-milestones li { display: grid; gap: .25rem; padding: .45rem .6rem; border-radius: 6px; background: var(--night-3); font-size: .78rem; }
+.tower-milestones li span { display: flex; flex-wrap: wrap; gap: .25rem; }
+.tower-milestones .tower-chip { background: var(--night-2); }
+.tower-milestones li.boss { box-shadow: inset 3px 0 0 var(--magenta); }
 .tower-climbers { grid-area: team; list-style: none; margin: 0; padding: 0; display: flex; gap: .3rem; }
 .tower-climbers img { width: 30px; height: 30px; object-fit: cover; object-position: center top; border-radius: 50%; border: 2px solid var(--gold); }
 .tower-climbers .down img { filter: grayscale(1); opacity: .45; border-color: var(--night-3); }
@@ -1422,7 +1438,7 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
   .tower-layout { grid-template-columns: 1fr; }
   .tower-side { position: static; order: -1; }
   .tower-stack { padding: 0 .3rem; }
-  .tower-floor { grid-template-columns: 3.2rem minmax(0, 1fr); grid-template-areas: "num foes" "num meta" "num team"; }
+  .tower-floor { grid-template-columns: 3.2rem minmax(0, 1fr); grid-template-areas: "num foes" "num meta" "num reward" "num team"; }
   .tower-floor-meta { justify-items: start; text-align: left; }
   .tower-foes img { width: 38px; height: 38px; }
 }
@@ -2013,4 +2029,106 @@ body.cine-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .cine *, .cine { animation: none !important; }
   .cine-card { transition: transform .2s; }
+}
+
+/* Special descriptions: numbers that grow with the stand's stats vs fixed ones */
+.sp-fixed { font-weight: 700; }
+.sp-scales { font-weight: 700; color: var(--gold); border-bottom: 1px dotted currentColor; cursor: help; white-space: nowrap; }
+.sp-calc { margin-left: .25em; padding: 0 .35em; border-radius: 999px; font-size: .85em; font-style: normal;
+  font-variant-numeric: tabular-nums; background: rgb(244 197 66 / .18); }
+.card .sp-scales { color: #8a5a00; }
+.card .sp-calc { background: rgb(214 140 0 / .2); }
+.card.fullart .sp-scales { color: var(--gold); }
+
+/* Alternate Universe: locked chapters stay readable but dimmed */
+.story-part.au-locked { opacity: .55; filter: saturate(.4); }
+.story-part header a { color: inherit; }
+.syn-bonus { margin: .2rem 0 0; color: var(--gold); font-size: var(--step--1); }
+
+/* Auction house */
+.auction-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1.2rem; align-items: start; }
+.auction-filters { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.auction-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1rem; }
+.auction-lot { display: grid; gap: .45rem; }
+.auction-lot-info { display: grid; gap: .3rem; justify-items: start; font-size: var(--step--1); }
+.auction-lot-info form { margin: 0; }
+.auction-seller { margin: 0; color: var(--muted); }
+.auction-price { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .3rem; font-weight: 700; color: var(--gold); }
+.auction-price em { font-style: normal; color: var(--muted); }
+.auction-side { display: grid; gap: 1rem; position: sticky; top: 80px; }
+.auction-mine { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.auction-mine li { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: var(--step--1); }
+.auction-mine img { width: 40px; height: 40px; object-fit: cover; object-position: center top; border-radius: 6px; }
+.auction-mine form { margin: 0; }
+@media (max-width: 860px) {
+  .auction-layout { grid-template-columns: 1fr; }
+  .auction-side { position: static; order: -1; }
+}
+
+/* Crusaders' Journey */
+.journey-trips, .journey-plan { margin-bottom: 1.6rem; }
+.journey-list, .journey-road { list-style: none; margin: 0; padding: 0; display: grid; gap: .6rem; }
+.journey-trip { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: .8rem; align-items: center;
+  padding: .7rem .9rem; border-radius: var(--radius-ui); background: var(--night-2); border: 2px solid var(--night-3); }
+.journey-trip.done { border-color: var(--gold); }
+.journey-trip img { width: 56px; height: 56px; object-fit: cover; object-position: center top; border-radius: 8px; }
+.journey-trip-body p { margin: 0 0 .2rem; }
+.journey-trip-body .meter { margin: .3rem 0; }
+.journey-log { font-style: italic; font-size: var(--step--1); }
+.journey-loot { color: var(--gold); font-weight: 700; }
+.journey-trip-actions form { margin: 0; }
+.journey-pick { margin-bottom: .6rem; }
+.journey-pick select { max-width: 100%; }
+.journey-road { position: relative; padding-left: .2rem; }
+.journey-stop { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; gap: .8rem; align-items: center;
+  padding: .6rem .9rem; border-radius: var(--radius-ui); background: var(--night-2); border-left: 4px solid var(--violet); }
+.journey-stop.finale { border-left-color: var(--magenta); background: linear-gradient(90deg, rgb(214 36 110 / .15), var(--night-2) 60%); }
+.journey-stop h3 { margin: 0; font-size: var(--step-0); }
+.journey-stop p { margin: .15rem 0; }
+.journey-stop form { margin: 0; }
+.journey-stop-icon { font-size: 1.6rem; text-align: center; }
+.journey-est { display: flex; flex-wrap: wrap; gap: .3rem; font-size: .75rem; }
+@media (max-width: 560px) {
+  .journey-stop, .journey-trip { grid-template-columns: 2.4rem minmax(0, 1fr); }
+  .journey-stop form, .journey-trip-actions { grid-column: 2; }
+}
+
+/* Gang hub at the top of the team page */
+.gang-hub { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1rem 1.2rem; align-items: center;
+  margin: 0 0 1.4rem; padding: 1rem 1.2rem; border-radius: var(--radius-card);
+  background: linear-gradient(110deg, rgb(214 36 110 / .22), var(--night-2) 55%); border: 2px solid var(--magenta); }
+.gang-hub.recruit { grid-template-columns: minmax(0, 1fr) auto; background: linear-gradient(110deg, rgb(122 63 184 / .3), var(--night-2) 60%); border-color: var(--violet); }
+.gang-hub-crest { width: 72px; height: 72px; object-fit: cover; border-radius: 12px; border: 2px solid var(--night-3); }
+.gang-hub-main .h2 { margin: .1rem 0 .3rem; }
+.gang-hub-main .h2 a { color: inherit; }
+.gang-hub-main p { margin: 0 0 .3rem; }
+.gang-hub-facts { list-style: none; margin: .3rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: var(--step--1); color: var(--muted); }
+.gang-hub-actions { display: grid; gap: .45rem; justify-items: stretch; text-align: center; }
+.nav .nav-gang { color: #FF8DB9; }
+@media (max-width: 720px) {
+  .gang-hub, .gang-hub.recruit { grid-template-columns: 1fr; }
+  .gang-hub-crest { display: none; }
+}
+.auction-lot.is-auction .card { box-shadow: 0 0 0 2px rgb(122 63 184 / .6); border-radius: var(--radius-card); }
+.auction-lot.winning .card { box-shadow: 0 0 0 3px var(--gold); }
+.auction-bid-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+.auction-winning { margin: 0; color: var(--gold); font-weight: 700; }
+.auction-bid { display: flex; gap: .3rem; align-items: center; width: 100%; }
+.auction-bid label { flex: 1; min-width: 0; }
+.auction-bid input { width: 100%; }
+.sale-mode { display: flex; gap: 1rem; border: 0; padding: 0; margin: 0; }
+.sale-mode label { display: flex; align-items: center; gap: .35rem; font-weight: 700; }
+.auction-sell [data-mode] { display: grid; gap: .6rem; }
+.auction-sell[data-active="fixed"] [data-mode="bid"], .auction-sell[data-active="bid"] [data-mode="fixed"] { display: none; }
+.auction-bid input[type=number] { font: inherit; font-size: var(--step--1); color: var(--ink); background: var(--paper);
+  border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .3rem .5rem; }
+.sale-mode label { white-space: nowrap; color: var(--paper); }
+.auction-side .social-panel { margin: 0; padding: 1rem 0; }
+.auction-side .social-panel:first-child { padding-top: 0; border-top: 0; }
+.auction-sell { grid-template-columns: 1fr; }
+@media (max-width: 560px) {
+  .auction-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem .6rem; }
+  .auction-lot .card { min-width: 0; }
+  .auction-bid { flex-wrap: wrap; }
+  .auction-bid button { width: 100%; }
 }
