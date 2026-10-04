@@ -83,7 +83,7 @@
   <ul class="timers" aria-label="Cooldowns">
     <li><span>🎁 Daily</span><strong>{{ st.daily|delta if st.daily else 'Ready' }}</strong></li>
     <li><span>🪞 Mirror World</span><strong>{{ st.wormhole|delta if st.wormhole else 'Ready' }}</strong></li>
-    <li><span>⚡ Energy {{ u.energy }}/{{ u.total_energy }}</span><strong>{{ ('full in ' ~ st.energy_in|delta) if st.energy_in else 'Full' }}</strong></li>
+    <li><span>⚡ Energy {{ u.energy }}/{{ u.total_energy }}</span><strong>{{ ('+1 in ' ~ st.energy_next|delta ~ ' · full in ' ~ st.energy_in|delta) if st.energy_in else 'Full' }}</strong></li>
     <li><a href="{{ url_for('progress.story_page') }}">📖 Story</a></li>
     <li><a href="{{ url_for('progress.achievements') }}">🏆 Achievements</a></li>
     <li><a href="{{ url_for('trades.index') }}">⇄ Trades</a></li>

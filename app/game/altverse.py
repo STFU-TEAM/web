@@ -327,11 +327,8 @@ def check_can_fight(user, key: str, j: int):
     if j < 0 or j >= len(chapter["stages"]) or j > cleared(user, key):
         raise GameError("That stage isn't open yet.")
     if j < cleared(user, key):
-        from app.game.logic import refill_energy
-        refill_energy(user)
-        if user.energy < REPLAY_ENERGY:
-            raise GameError(f"Replaying a stage costs {REPLAY_ENERGY} energy. It refills over time.")
-        user.energy -= REPLAY_ENERGY
+        from app.game.logic import spend_energy
+        spend_energy(user, REPLAY_ENERGY, f"Replaying a stage costs {REPLAY_ENERGY} energy. It refills over time.")
 
 
 def win(user, key: str, j: int) -> dict:

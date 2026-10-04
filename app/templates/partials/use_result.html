@@ -13,6 +13,8 @@
   </div>
 {% elif res.kind == 'fragments' %}
   <p class="toast ok" role="status">The bag held {{ res.fragments }} Meteor Dust.</p>
+{% elif res.kind == 'energy' %}
+  <p class="toast ok" role="status">⚡ +{{ res.energy }} energy. You're at {{ u.energy }}/{{ u.total_energy }}.</p>
 {% elif res.kind == 'awaken' %}
   <p class="toast ok" role="status">{{ res.stand.name }} reached awakening {{ res.stand.awaken }}.</p>
 {% elif res.kind == 'crafted' %}

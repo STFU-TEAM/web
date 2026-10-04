@@ -16,7 +16,7 @@
             <small>{% if fewer %}{{ fewer }} stand fewer · {% endif %}Lv ×{{ factor }}{% if shift > 0 %}, +{{ shift }}★{% elif shift < 0 %}, {{ shift }}★{% endif %}{% if power != 1 %}, power ×{{ power }}{% endif %} · rewards ×{{ reward }}</small></li>
         {% endfor %}
       </ul>
-      <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_in %}, full refill in {{ st.energy_in|delta }}{% endif %}.</p>
+      <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_next %}: +1 in {{ st.energy_next|delta }}, full in {{ st.energy_in|delta }}{% endif %}.</p>
       {% if other_fight %}
         <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.tower') if other_fight == 'tower' else url_for('play.mirror') }}">Return to it</a>.</p>
       {% elif not u.main_characters %}
@@ -24,7 +24,7 @@
       {% elif st.wormhole %}
         <p class="notice" data-reload-in="{{ st.wormhole.total_seconds()|int + 1 }}">The mirror opens again in <span data-countdown>{{ st.wormhole|delta }}</span>.</p>
       {% elif u.energy < 1 %}
-        <p class="notice">You're out of energy.</p>
+        <p class="notice">You're out of energy. The next point arrives in {{ st.energy_next|delta }}{% if u['items']|selectattr('id', 'equalto', 47)|list %}, or <a href="{{ url_for('play.items') }}">drink a Can of Energy</a>{% endif %}.</p>
       {% else %}
         <form method="post" action="{{ url_for('play.mirror_start') }}">
           <input type="hidden" name="csrf" value="{{ csrf_token }}">

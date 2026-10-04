@@ -1470,3 +1470,36 @@ def test_wiki_item_catalog_lists_every_source(client):
     assert "Gang raid" in {w for w, _ in rows[34]["sources"]}
     page = client.get("/wiki/items").data.decode()
     assert "Iggy&#39;s Collar" in page and "Where to get it" in page and "Gang raid" in page
+
+
+def test_energy_regens_one_point_at_a_time_and_cans_bank_past_max():
+    import datetime
+    u = User(create_user("e"))
+    step = logic.energy_interval(u)
+    full = u.total_energy
+    u.energy = full
+    logic.spend_energy(u, 3)  # spending from a full bar starts the clock now
+    assert u.energy == full - 3 and abs((logic.now() - u.last_full_energy).total_seconds()) < 5
+    u.last_full_energy = logic.now() - step * 2 - datetime.timedelta(seconds=10)
+    assert logic.refill_energy(u) and u.energy == full - 1  # two points, not the whole bar
+    assert logic.energy_next_in(u) <= step and logic.energy_refill_in(u) <= step
+    u.last_full_energy = logic.now() - step * 50
+    logic.refill_energy(u)
+    assert u.energy == full and logic.energy_refill_in(u) is None  # never past the max by regen
+    with pytest.raises(logic.GameError):
+        logic.spend_energy(User(dict(create_user("f"), energy=0)), 1)
+    from app.game.items import item_from_dict
+    u.items = [item_from_dict({"id": logic.ENERGY_CAN}) for _ in range(5)]
+    res = logic.use_item(u, logic.ENERGY_CAN)
+    assert res["kind"] == "energy" and u.energy == full + logic.ENERGY_CAN_AMOUNT  # banked past the max
+    u.energy = full * logic.ENERGY_BANK
+    with pytest.raises(logic.GameError):
+        logic.use_item(u, logic.ENERGY_CAN)  # the bank is full; the can is given back
+    assert sum(1 for i in u.items if i.id == logic.ENERGY_CAN) == 4
+
+
+def test_energy_cans_drop_in_many_places():
+    from app.wiki import item_rows
+    can = next(r for r in item_rows() if r["id"] == 47)
+    places = {w for w, _ in can["sources"]}
+    assert {"Daily reward", "Daily streak", "Mirror World", "Tower", "Boss rush", "Gang raid", "Crusaders' Journey"} <= places

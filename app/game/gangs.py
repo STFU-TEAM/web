@@ -283,8 +283,8 @@ WEEKLY_RAIDS = [
 ]
 RAID_LEVEL, RAID_AWAKEN, RAID_BOSS_HP = 80, 1, 12  # the boss is a damage sponge, not a kill
 RAID_TIERS = [
-    {"damage": 10_000, "fragments": 1500, "items": [40, 40]},
-    {"damage": 50_000, "fragments": 3000, "items": [38, 38, 39]},
+    {"damage": 10_000, "fragments": 1500, "items": [40, 40, 47]},
+    {"damage": 50_000, "fragments": 3000, "items": [38, 38, 39, 47, 47]},
     {"damage": 200_000, "fragments": 5000, "super": 1, "items": [2, 38, 38]},
     {"damage": 600_000, "fragments": 8000, "super": 2, "items": [39, 39, "corpse"]},
 ]

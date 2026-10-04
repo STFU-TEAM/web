@@ -258,6 +258,8 @@ def facts():
         "daily_hours": logic.DONOR_ADV_WAIT_TIME + logic.NORMAL_ADV_WAIT_TIME,
         "daily_hours_donor": logic.DONOR_ADV_WAIT_TIME,
         "wormhole_minutes": round((logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME) * 60),
+        "energy_minutes": logic.ENERGY_REGEN_MINUTES, "energy_minutes_donor": logic.DONOR_ENERGY_REGEN_MINUTES,
+        "energy_can": logic.ENERGY_CAN_AMOUNT, "energy_bank": logic.ENERGY_BANK,
     }
 
 
@@ -279,6 +281,7 @@ ITEM_USE = {
     3: "Awakens a team stand up to ★5. At level 100 it evolves Killer Queen, Silver Chariot and Gold Experience into Requiem.",
     12: "Draws a random Part 3 stand.",
     13: "Opens into Meteor Dust.",
+    47: "Drink it for +5 energy. Unlike regen it can push you past your max, up to double it.",
 }
 
 
@@ -313,9 +316,12 @@ def _item_sources() -> dict:
     total = sum(logic.MIRROR_ITEM_DROPS.values())
     for i, w in logic.MIRROR_ITEM_DROPS.items():
         add(i, "Mirror World", f"{_pct(logic.CHANCEITEM / 100 * w / total)} a win")
-    for floor in range(tower.REST_EVERY, tower.REST_EVERY * 4, tower.REST_EVERY):
+    floors = {}
+    for floor in range(1, tower.REST_EVERY * 3 + 1):  # the reward pattern repeats every 15 floors
         for i in tower.reward_for(floor)["items"]:
-            add(i, "Tower", f"first clear of floors {floor}, {floor + 15}, {floor + 30}…")
+            floors.setdefault(i, []).append(floor)
+    for i, fs in floors.items():
+        add(i, "Tower", f"first clear of floors {', '.join(map(str, fs))}, then every 15 floors")
     story_palms = sum(1 for k in range(story.TOTAL) for i in story.reward_for(k)["items"] if i == 2)
     if story_palms:
         add(2, "Story", f"first clear of every 3rd stage ({story_palms} in all)")

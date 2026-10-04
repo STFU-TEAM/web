@@ -132,6 +132,8 @@ def reward_for(floor: int) -> dict:
     reward = {"fragments": int(round(80 * 1.08 ** floor, -1)), "items": [], "super": 0}
     if floor % 5 == 0:
         reward["items"].append([40, 38, 39][(floor // 5) % 3])
+    elif floor % 5 == 3:
+        reward["items"].append(47)  # a Can of Energy keeps the climb going
     if is_boss(floor):
         reward["super"] = 1
     return reward

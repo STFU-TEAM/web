@@ -52,7 +52,7 @@ def status(user):
     return {
         "daily": logic.cooldown_left(user.last_adventure, logic.DONOR_ADV_WAIT_TIME + (not user.is_donator()) * logic.NORMAL_ADV_WAIT_TIME),
         "wormhole": logic.cooldown_left(user.last_wormhole, logic.wormhole_wait(user)),
-        "energy_in": logic.energy_refill_in(user),
+        "energy_in": logic.energy_refill_in(user), "energy_next": logic.energy_next_in(user),
         "free_slots": logic.free_slots(user),
         "streak": logic.streak(user), "streak_rewards": logic.STREAK_REWARDS,
     }
@@ -820,9 +820,9 @@ def dungeon_start():
             raise GameError("Set up a team before entering the dungeon.")
         if user.data.get("web_dungeon"):
             raise GameError("You are already exploring the dungeon.")
-        if wager is None or not 1 <= wager <= user.energy:
+        if wager is None or wager < 1:
             raise GameError("Choose a valid energy wager.")
-        user.energy -= wager
+        logic.spend_energy(user, wager, "Choose a valid energy wager.")
         user.data.pop("web_dungeon_message", None)
         user.data["web_dungeon"] = {
             "position": list(dungeon_logic.START), "energy": wager,

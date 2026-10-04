@@ -782,6 +782,23 @@
       "special_image": "",
       "turn_for_ability": 0,
       "taunt": true
+    },
+    {
+      "id": 47,
+      "name": "Can of Energy",
+      "price": 400,
+      "emoji": "🥫",
+      "bonus_hp": 0,
+      "bonus_damage": 0,
+      "bonus_speed": 0,
+      "bonus_critical": 0,
+      "bonus_armor": 0,
+      "is_equipable": false,
+      "is_active": false,
+      "prurchasable": false,
+      "is_usable": true,
+      "special_image": "",
+      "turn_for_ability": 0
     }
   ]
 }

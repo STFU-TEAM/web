@@ -20,7 +20,7 @@ BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
 PATCH_UP = 0.20
 REWARDS = [
     {"fragments": 500, "items": []},
-    {"fragments": 1000, "items": [40]},
+    {"fragments": 1000, "items": [40, 47]},
     {"fragments": 2000, "items": [38]},
     {"fragments": 3000, "items": [39, 40]},
     {"fragments": 4000, "super": 1, "items": [38, 38]},

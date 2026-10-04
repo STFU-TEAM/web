@@ -22,8 +22,8 @@ SLOTS = 3
 DUST_BASE, DUST_PER_POWER = 25, 0.05   # Meteor Dust per hour: base + power x this
 LONG_TRIP_BONUS = 0.03                 # each hour of the trip adds 3% to the per-hour rate
 STAND_XP_PER_HOUR = 25
-ITEM_POOL = [13, 1, 4, 15, 38, 39, 40, 2]
-ITEM_WEIGHTS = [0.22, 0.15, 0.12, 0.12, 0.12, 0.10, 0.12, 0.05]
+ITEM_POOL = [13, 47, 1, 4, 15, 38, 39, 40, 2]
+ITEM_WEIGHTS = [0.18, 0.18, 0.12, 0.10, 0.10, 0.10, 0.08, 0.10, 0.04]
 
 ROUTES = [
     {"key": "hong_kong", "name": "Hong Kong", "hours": 0.5, "emoji": "🏙️",

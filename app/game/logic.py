@@ -28,10 +28,10 @@ with open(os.path.join(_DATA, "recipes.json"), encoding="utf-8") as f:
 PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = 300
-CHANCEITEM = 10
-MIRROR_ITEM_DROPS = {13: 0.24, 1: 0.16, 4: 0.14, 15: 0.12, 2: 0.08, 3: 0.04, 38: 0.08, 39: 0.06, 40: 0.08}  # a CHANCEITEM% roll
+CHANCEITEM = 15
+MIRROR_ITEM_DROPS = {13: 0.20, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.08, 2: 0.08, 3: 0.04, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll
 DAILY_ITEM_CHANCE = 60
-DAILY_ITEM_DROPS = {13: 0.34, 1: 0.20, 4: 0.12, 2: 0.12, 15: 0.05, 40: 0.12, 38: 0.05}  # a DAILY_ITEM_CHANCE% roll
+DAILY_ITEM_DROPS = {13: 0.26, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.04, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
 DONOR_WH_WAIT_TIME = 10 / 60  # Mirror World: 10 minutes for everyone
 NORMAL_WH_WAIT_TIME = 0
 DONOR_ADV_WAIT_TIME = 6
@@ -363,7 +363,7 @@ def begin(user: User):
 
 # Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over.
 STREAK_REWARDS = [
-    {"fragments": 100}, {"fragments": 150}, {"items": [13]}, {"fragments": 250},
+    {"fragments": 100, "items": [47]}, {"fragments": 150}, {"items": [13]}, {"fragments": 250, "items": [47]},
     {"items": [2]}, {"fragments": 400}, {"super": 1},
 ]
 
@@ -867,6 +867,16 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
         if not where:
             refund("Every storage slot is full.")
         res = {"kind": "stand", "stand": c, "where": where}
+    elif item.id == ENERGY_CAN:
+        refill_energy(user)
+        cap = user.total_energy * ENERGY_BANK
+        if user.energy >= cap:
+            refund(f"Your energy is already at {cap}, the most cans can bank.")
+        if user.energy >= user.total_energy:
+            user.last_full_energy = now()
+        gained = min(ENERGY_CAN_AMOUNT, cap - user.energy)
+        user.energy += gained
+        res = {"kind": "energy", "energy": gained}
     elif item.id == 13:
         amount = random.randint(75, 125)
         user.fragments += amount
@@ -998,20 +1008,59 @@ def team_delete(user: User, name: str):
 # --------------------------------------------------------------------------- #
 # Energy (utils/decorators.py energy_check)
 # --------------------------------------------------------------------------- #
+# Energy comes back one point at a time. The save's last_full_energy (shared with the bot) is the
+# moment the next point started charging; spending from a full bar restarts that clock.
+ENERGY_REGEN_MINUTES = 4
+DONOR_ENERGY_REGEN_MINUTES = 3
+ENERGY_CAN = 47            # Can of Energy
+ENERGY_CAN_AMOUNT = 5
+ENERGY_BANK = 2            # cans can push energy up to this many times the max; regen stops at the max
+
+
+def energy_interval(user: User) -> datetime.timedelta:
+    return datetime.timedelta(minutes=DONOR_ENERGY_REGEN_MINUTES if user.is_donator() else ENERGY_REGEN_MINUTES)
+
+
 def refill_energy(user: User) -> bool:
-    wait = (12 - 6 * user.is_donator()) * 3600
-    if (now() - user.last_full_energy).total_seconds() >= wait and user.energy < user.total_energy:
-        user.energy = user.total_energy
+    """Credit every point charged since the clock started. Returns True if energy went up."""
+    if user.energy >= user.total_energy:
+        return False
+    step = energy_interval(user)
+    anchor = user.last_full_energy
+    if anchor > now():  # a clock from the future (bad server time): start counting now
         user.last_full_energy = now()
-        return True
-    return False
+        return False
+    ticks = int((now() - anchor) / step)
+    if ticks <= 0:
+        return False
+    gained = min(ticks, user.total_energy - user.energy)
+    user.energy += gained
+    user.last_full_energy = now() if user.energy >= user.total_energy else anchor + step * gained
+    return True
+
+
+def spend_energy(user: User, amount: int, why: str = "") -> None:
+    refill_energy(user)
+    if user.energy < amount:
+        raise GameError(why or f"You need {amount} energy. It refills over time.")
+    if user.energy >= user.total_energy:
+        user.last_full_energy = now()  # the bar was full, so the next point starts charging now
+    user.energy -= amount
 
 
 def energy_refill_in(user: User) -> Optional[datetime.timedelta]:
+    """Time until the bar is full again (None when it is)."""
     if user.energy >= user.total_energy:
         return None
-    wait = datetime.timedelta(hours=12 - 6 * user.is_donator())
-    return max(datetime.timedelta(0), user.last_full_energy + wait - now())
+    missing = user.total_energy - user.energy
+    return max(datetime.timedelta(0), user.last_full_energy + energy_interval(user) * missing - now())
+
+
+def energy_next_in(user: User) -> Optional[datetime.timedelta]:
+    """Time until the next point (None when the bar is full)."""
+    if user.energy >= user.total_energy:
+        return None
+    return max(datetime.timedelta(0), user.last_full_energy + energy_interval(user) - now())
 
 
 # --------------------------------------------------------------------------- #
@@ -1084,10 +1133,7 @@ def wormhole_start(user: User):
     left = cooldown_left(user.last_wormhole, wormhole_wait(user))
     if left:
         raise GameError(f"The Mirror World opens again in {fmt_delta(left)}.")
-    refill_energy(user)
-    if user.energy < 1:
-        raise GameError("You need 1 energy. It refills over time.")
-    user.energy -= 1
+    spend_energy(user, 1)
     user.last_wormhole = now()
     return mirror_enemy(user.main_characters)
 
