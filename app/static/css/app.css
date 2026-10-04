@@ -435,7 +435,7 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .card.fullart .card-face > * { position: relative; z-index: 1; }
 .card.fullart .card-face > .card-window { position: static; z-index: auto; border-color: transparent; background: none; }
 .card.fullart .card-window img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%;
-  object-fit: cover; object-position: center 22%; border-radius: inherit; }
+  object-fit: cover; object-position: center 22%; border-radius: 0; }  /* not the classic arch: the face's own corners clip it */
 .card.fullart .card-face::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; border-radius: inherit;
   background: linear-gradient(to bottom, rgb(12 6 22 / .55) 0%, transparent 15%, transparent 52%, rgb(12 6 22 / .82) 76%, rgb(12 6 22 / .95) 100%); }
 .card.fullart .lvl, .card.fullart .charge-chip, .card.fullart .card-flags { z-index: 2; }

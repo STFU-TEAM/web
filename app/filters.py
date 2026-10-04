@@ -61,21 +61,34 @@ def register(app):
 
     import json as _json
     import os as _os
-    def _ids(name):
-        with open(_os.path.join(_os.path.dirname(__file__), "game", "data", name), encoding="utf-8") as fh:
-            return set(_json.load(fh).get("ids", []))
-    fullart_ids, shiny_ids = _ids("fullart.json"), _ids("shiny.json")
+    def _files(name):
+        """{stand id: file name} from fullart.json / shiny.json / special.json (older lists: ids -> {id}.webp)."""
+        path = _os.path.join(_os.path.dirname(__file__), "game", "data", name)
+        if not _os.path.exists(path):
+            return {}
+        with open(path, encoding="utf-8") as fh:
+            data = _json.load(fh)
+        files = {int(k): v for k, v in (data.get("files") or {}).items()}
+        files.update({int(i): f"{i}.webp" for i in data.get("ids", []) if int(i) not in files})
+        return files
+    art_files = {"artwork": _files("fullart.json"), "shiny": _files("shiny.json"), "special": _files("special.json")}
+
+    def art_url(kind, stand_id):
+        name = art_files[kind].get(int(stand_id))
+        cfg = current_app.config
+        return f"{cfg['IMAGE_BASE_URL']}{cfg['ART_PATH']}/{kind}/{name}" if name else None
 
     @app.template_global("card_art")
     def card_art(stand_id, full=False, shiny=False):
         """(url, own art?) for a card: a dedicated shiny or full-art illustration if one was uploaded, else the
         regular image (shiny copies then get their colours shifted by CSS)."""
-        base = current_app.config["IMAGE_BASE_URL"]
-        if shiny and int(stand_id) in shiny_ids:
-            return base + f"/shiny/{stand_id}.webp", True
-        if full and int(stand_id) in fullart_ids:
-            return base + f"/artwork/{stand_id}.webp", True
-        return stand_img(stand_id), False
+        url = (shiny and art_url("shiny", stand_id)) or (full and art_url("artwork", stand_id))
+        return (url, True) if url else (stand_img(stand_id), False)
+
+    @app.template_filter("special_gif")
+    def special_gif(stand_id):
+        """The special's animation: a custom one from art/special if uploaded, else the original."""
+        return art_url("special", stand_id) or asset(f"special/{stand_id}.gif")
 
     @app.template_filter("asset")
     def asset(path):

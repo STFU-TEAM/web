@@ -1,25 +1,25 @@
 {
-    "_comment": "Stand ids with a dedicated full-art illustration on the image server at artwork/{id}.webp. scripts/art_helper.py fills this list from the art/artwork folder.",
-    "ids": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        31,
-        58,
-        75,
-        84,
-        94,
-        109,
-        114,
-        120,
-        137,
-        161
-    ]
+    "_comment": "Custom artwork files on the image server at /artwork/<file>. Written by scripts/art_helper.py from the art/ folder.",
+    "files": {
+        "1": "1.webp",
+        "2": "2.png",
+        "3": "3.jpg",
+        "4": "4.png",
+        "5": "5.png",
+        "6": "6.jpg",
+        "7": "7.png",
+        "8": "8.png",
+        "9": "9.png",
+        "10": "10.jpg",
+        "31": "31.jpg",
+        "58": "58.png",
+        "75": "75.jpg",
+        "84": "84.png",
+        "94": "94.jpg",
+        "109": "109.webp",
+        "114": "114.png",
+        "120": "120.png",
+        "137": "137.png",
+        "161": "161.jpg"
+    }
 }

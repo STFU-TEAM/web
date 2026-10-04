@@ -2,7 +2,7 @@
 {% set hp = [c.current_hp, 0]|max %}
 <li class="fighter {% if not c.is_alive() %}down{% endif %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}"
     data-side="{{ side }}" data-idx="{{ idx }}" data-name="{{ c.name }}" data-max="{{ [c.start_hp, 1]|max }}"
-    data-img="{{ c.id|stand_img }}" data-gif="{{ ('special/' ~ c.id ~ '.gif')|asset }}">
+    data-img="{{ c.id|stand_img }}" data-gif="{{ c.id|special_gif }}">
   {% if targetable %}
   <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}{% if hit is not none %}, about {{ hit }} damage{% endif %}"
           {% if hit is not none %}data-hit="~{{ hit }}{% if hit >= c.current_hp %} · KO{% endif %}"{% endif %}></button>

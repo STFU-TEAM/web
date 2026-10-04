@@ -2,15 +2,15 @@
 
     python scripts/art_helper.py          then open http://127.0.0.1:5055
 
-Folders (next to this repo's app/, ignored by git):
-    art/artwork/{id}.webp   full-art cards (★3+)        -> upload to the image server as artwork/{id}.webp
-    art/shiny/{id}.webp     shiny cards                  -> upload as shiny/{id}.webp
-    art/special/{id}.gif    the special's animation      -> upload as special/{id}.gif
+Folders (next to this repo's app/, ignored by git); upload their contents to the image server root:
+    art/artwork/{id}.webp   full-art cards (★3+)        -> https://images.stfurequiem.com/artwork/{id}.webp
+    art/shiny/{id}.webp     shiny cards                  -> .../shiny/{id}.webp
+    art/special/{id}.gif    the special's animation      -> .../special/{id}.gif (replaces the original)
 
 Candidates come from the stand's page on the JoJo wiki (jojo.fandom.com); any other image can be saved
 by pasting its URL or dropping the file. Still images are converted to WebP (Pillow) and can be cropped
-to the card's 7:12 shape. "Update the game's lists" writes app/game/data/fullart.json and shiny.json from
-the folders, so cards switch to the new art once the files are on the image server.
+to the card's 7:12 shape. "Update the game's lists" writes app/game/data/fullart.json, shiny.json and
+special.json (each file's exact name) and tells you which files aren't on the image server yet.
 """
 import io
 import json
@@ -28,8 +28,9 @@ ART = os.path.join(ROOT, "art")
 KINDS = {  # folder: (label, extension of still images, game list)
     "artwork": ("Artwork (full art)", ".webp", "fullart.json"),
     "shiny": ("Shiny", ".webp", "shiny.json"),
-    "special": ("Special (animation)", ".gif", None),
+    "special": ("Special (animation)", ".gif", "special.json"),
 }
+ART_PATH = os.environ.get("ART_PATH", "").rstrip("/")  # artwork/, shiny/, special/ at the image server root
 WIKI = "https://jojo.fandom.com/api.php"
 UA = {"User-Agent": "STFU-Requiem-art-helper/1.0 (fan game asset tool)"}
 MAX_BYTES = 40 * 1024 * 1024
@@ -331,20 +332,55 @@ def file(kind, name):
     return send_from_directory(folder(kind), name)
 
 
+def on_server(kind: str, name: str) -> bool:
+    try:
+        req = urllib.request.Request(f"{IMAGE_BASE}{ART_PATH}/{kind}/{name}", method="HEAD", headers=UA)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 @app.post("/sync")
 def sync():
-    """Write the ids found in art/artwork and art/shiny into the game's lists."""
-    cov = coverage()
-    done = []
+    """Write each folder's exact file names into the game's lists, checking what's already on the image server.
+    If the server has the stand under another name (say 109.webp for a local 109.png), that one is used."""
+    from concurrent.futures import ThreadPoolExecutor
+    done, missing = [], []
     for kind, (_label, _ext, listname) in KINDS.items():
-        if not listname:
-            continue
+        local = {}
+        for name in sorted(os.listdir(folder(kind))):
+            stem = os.path.splitext(name)[0]
+            if stem.isdigit():
+                local[int(stem)] = name
+
+        def resolve(item):
+            sid, name = item
+            if on_server(kind, name):
+                return sid, name, True
+            for ext in (".webp", ".png", ".jpg", ".gif"):
+                alt = f"{sid}{ext}"
+                if alt != name and on_server(kind, alt):
+                    return sid, alt, True
+            return sid, name, False
+
+        with ThreadPoolExecutor(12) as pool:
+            rows = list(pool.map(resolve, sorted(local.items())))
         path = os.path.join(DATA, listname)
-        data = json.load(open(path, encoding="utf-8"))
-        data["ids"] = sorted(cov[kind])
+        data = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+        data["_comment"] = (f"Custom {kind} files on the image server at {ART_PATH}/{kind}/<file>. "
+                            "Written by scripts/art_helper.py from the art/ folder.")
+        data.pop("ids", None)
+        data["files"] = {str(sid): name for sid, name, _up in rows}
         open(path, "w", encoding="utf-8").write(json.dumps(data, indent=4, ensure_ascii=False) + "\n")
-        done.append(f"{listname}: {len(cov[kind])}")
-    flash("Updated " + ", ".join(done) + ". Upload the files to the image server, then restart the site.")
+        done.append(f"{kind} {len(rows)}")
+        missing += [f"{kind}/{name}" for _sid, name, up in rows if not up]
+    msg = "Updated the game's lists: " + ", ".join(done) + ". Restart the site to use them."
+    if missing:
+        flash(msg + f" Not on the image server yet ({len(missing)}): " + ", ".join(missing[:12])
+              + ("…" if len(missing) > 12 else "") + f". Upload them to {IMAGE_BASE}{ART_PATH}/<folder>/.", "error")
+    else:
+        flash(msg + " Every file is on the image server.")
     return redirect(url_for("index"))
 
 

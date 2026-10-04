@@ -35,6 +35,7 @@ class Config:
     # Stand art. The bot used https://storage.stfurequiem.com/Image/{id}.png
     IMAGE_BASE_URL = os.environ.get("IMAGE_BASE_URL", "https://images.stfurequiem.com").rstrip("/")
     IMAGE_PATH = os.environ.get("IMAGE_PATH", "/Image/{id}.png")
+    ART_PATH = os.environ.get("ART_PATH", "").rstrip("/")  # custom art folders (artwork/, shiny/, special/) sit at the image server root
 
     SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"
     SESSION_COOKIE_HTTPONLY = True
