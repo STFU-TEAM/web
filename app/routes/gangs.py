@@ -1,7 +1,7 @@
 """Gangs: members and ranks, guardians, vault, stash, wars and raids (bot /gang)."""
 import uuid as uuidlib
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 
 from app.accounts import resolve_player
 from app.auth import player_required
@@ -59,6 +59,19 @@ def _back():
     return redirect(url_for("gangs.index"))
 
 
+def _war_news(a, b, record):
+    from app import social
+    for gang, other in ((a, b), (b, a)):
+        if record["draw"]:
+            text = f"⚑ The war between {gang['name']} and {other['name']} ended in a draw."
+        elif record["winner"] == gang["_id"]:
+            text = f"⚑ {gang['name']} won the war against {other['name']}! The prize is in the vault."
+        else:
+            text = f"⚑ {gang['name']} lost the war against {other['name']}."
+        for member in G.members(gang):
+            social.notify(str(member), "gang", text, url_for("gangs.index"), toast=False)
+
+
 def _settle_war(db, gang):
     """Close a finished war on the first visit after it ends (both gangs locked)."""
     opp_id = G.opponent_id(r(), gang["_id"]) if gang else None
@@ -69,8 +82,9 @@ def _settle_war(db, gang):
             mine, theirs = db.get_gang(gang["_id"]), db.get_gang(opp_id)
             if mine and G.opponent_id(r(), mine["_id"]) == opp_id:
                 if theirs:
-                    G.settle_war(r(), mine, theirs)
+                    record = G.settle_war(r(), mine, theirs)
                     db.update_gang(theirs)
+                    _war_news(mine, theirs, record)
                 else:  # the other gang disbanded mid-war
                     r().hdel("active_wars", mine["_id"])
                 db.update_gang(mine)
@@ -108,8 +122,9 @@ def index():
             raid_claim=G.claimable_tiers(gang, user.id) + G.claimable_previous(gang, user.id),
             raid_prev_claim=G.claimable_previous(gang, user.id),
             raid_hits=sorted(((identity(m)["name"], d) for m, d in G.raid_state(gang)["hits"].items()), key=lambda x: -x[1]),
-            now=logic.now(),
+            now=logic.now(), msgs=G.chat_messages(r(), gang["_id"]), seq=G.chat_seq(r(), gang["_id"]),
         )
+        ctx["names"] = {m["uid"]: identity(m["uid"])["name"] for m in ctx["msgs"]}
         if ctx["last_war"]:
             for side in ("winner", "loser"):
                 other = db.get_gang(ctx["last_war"][side])
@@ -475,3 +490,65 @@ def fight_leave():
     if fight and fight.kind.startswith("gang_") and fight.finished:
         clear_fight(session["uid"])
     return _back()
+
+
+# --------------------------------------------------------------------------- #
+# Chat
+# --------------------------------------------------------------------------- #
+def _chat_view(gang, user_id, error=None):
+    msgs = G.chat_messages(r(), gang["_id"])
+    names = {m["uid"]: identity(m["uid"])["name"] for m in msgs}
+    return render_template("partials/gang_chat.html", gang=gang, msgs=msgs, names=names, chat_error=error,
+                           seq=G.chat_seq(r(), gang["_id"]), me_rank=G.rank_of(gang, user_id))
+
+
+@bp.get("/chat")
+@player_required
+def chat():
+    """Polled every few seconds: 204 when nothing changed since ?seq."""
+    db = get_db()
+    user = db.get_user(session["uid"])
+    gang = db.get_gang(user.gang_id)
+    if not gang:
+        return Response(status=286)
+    if request.args.get("seq", type=int) == G.chat_seq(r(), gang["_id"]):
+        return Response(status=204)
+    return _chat_view(gang, user.id)
+
+
+@bp.post("/chat")
+@player_required
+def chat_post():
+    db = get_db()
+    user = db.get_user(session["uid"])
+    gang = db.get_gang(user.gang_id)
+    if not gang:
+        return Response(status=286)
+    error = None
+    try:
+        G.chat_post(r(), gang, user.id, request.form.get("text", ""))
+    except GameError as e:
+        error = str(e)
+    if not request.headers.get("HX-Request"):
+        if error:
+            flash(error, "error")
+        return redirect(url_for("gangs.index") + "#chat")
+    return _chat_view(gang, user.id, error)
+
+
+@bp.post("/chat/<int:msg_id>/delete")
+@player_required
+def chat_delete(msg_id):
+    db = get_db()
+    user = db.get_user(session["uid"])
+    gang = db.get_gang(user.gang_id)
+    if not gang:
+        return Response(status=286)
+    try:
+        G.chat_delete(r(), gang, user.id, msg_id)
+    except GameError as e:
+        if not request.headers.get("HX-Request"):
+            flash(str(e), "error")
+    if not request.headers.get("HX-Request"):
+        return redirect(url_for("gangs.index") + "#chat")
+    return _chat_view(gang, user.id)

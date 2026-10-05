@@ -11,7 +11,7 @@
     </form>
   </header>
   <nav class="tabs admin-tabs" aria-label="Admin sections">
-    {% for key, label, endpoint in [('dashboard', 'Dashboard', 'admin.index'), ('stats', 'Balance', 'admin.stats'), ('gangs', 'Gangs', 'admin.gangs'), ('shops', 'Shops', 'admin.shops'), ('banners', 'Banners', 'admin.banners'), ('news', 'News', 'admin.news_admin'), ('audit', 'Audit log', 'admin.audit_log')] %}
+    {% for key, label, endpoint in [('dashboard', 'Dashboard', 'admin.index'), ('stats', 'Balance', 'admin.stats'), ('gangs', 'Gangs', 'admin.gangs'), ('shops', 'Shops', 'admin.shops'), ('banners', 'Banners', 'admin.banners'), ('news', 'News', 'admin.news_admin'), ('events', 'Events', 'admin.events_admin'), ('audit', 'Audit log', 'admin.audit_log')] %}
       <a href="{{ url_for(endpoint) }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a>
     {% endfor %}
   </nav>

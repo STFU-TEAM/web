@@ -393,7 +393,7 @@ setInterval(() => {
 
 // Scroll a fresh pull result into view.
 document.addEventListener("htmx:afterSwap", (e) => {
-  if (["use-result", "pull-result"].includes(e.detail.target.id) && e.detail.target.firstElementChild) {
+  if (["use-result", "pull-result", "sim-result"].includes(e.detail.target.id) && e.detail.target.firstElementChild) {
     e.detail.target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 });
@@ -742,7 +742,9 @@ function playFight(root) {
   setHp(prev);
   arena.addEventListener("click", skip, { once: true });
   const total = events.reduce((sum, e) => sum + (FIGHT_STEP[e.kind] || 600), 0);
-  const pace = Math.min(1, 8000 / total);
+  // A turn's replay is squeezed into 8 s; a full replay (data-replay) plays at real pace, times the chosen speed.
+  const capped = Math.min(1, 8000 / total);
+  const pace = () => (root.dataset.replay ? 1 / (Number(root.dataset.speed) || 1) : capped);
   let lastSpecial = null;
 
   (async () => {
@@ -758,7 +760,7 @@ function playFight(root) {
       if (src && e.kind !== "stun") restart(src, e.kind === "special" || e.kind === "item" ? "cast" : "lunge");
       showSpot(src, text, e.kind === "special");
       if (e.kind === "special") { lastSpecial = [src, text]; restart(arena, "flash-special"); }
-      await wait(e.kind === "special" ? 450 * pace : 200 * pace);
+      await wait(e.kind === "special" ? 450 * pace() : 200 * pace());
 
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
       if (src && e.kind === "stun") pop(src, "STUNNED", "stun");
@@ -773,7 +775,7 @@ function playFight(root) {
           const crit = e.kind === "crit" && f === dst;
           if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? "crit" : ""); }
           else pop(f, `+${Math.round(after - before)}`, "miss");
-          if (after <= 0 && before > 0) setTimeout(() => restart(f, "ko"), 300 * pace);
+          if (after <= 0 && before > 0) setTimeout(() => restart(f, "ko"), 300 * pace());
         });
         setHp(e.hp);
         prev = e.hp;
@@ -781,7 +783,7 @@ function playFight(root) {
         restart(dst, "hurt", ...(e.kind === "crit" ? ["crit"] : []));
         pop(dst, `-${e.dmg}`, e.kind === "crit" ? "crit" : "");
       }
-      await wait(((FIGHT_STEP[e.kind] || 600) - (e.kind === "special" ? 450 : 200)) * pace);
+      await wait(((FIGHT_STEP[e.kind] || 600) - (e.kind === "special" ? 450 : 200)) * pace());
     }
 
     if (!root.isConnected) return;
@@ -811,6 +813,28 @@ document.addEventListener("htmx:load", (e) => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.querySelector("#fight.playing .arena")?.click();
+});
+// Replays: watch again, and 1x / 2x / 4x speed (applies from the next event on).
+document.addEventListener("click", (e) => {
+  const again = e.target.closest("[data-replay-again]");
+  if (again) {
+    const root = again.closest("#fight");
+    if (root && !root.classList.contains("playing")) {
+      root.scrollIntoView({ behavior: "smooth", block: "start" });
+      playFight(root);
+    }
+    return;
+  }
+  const speed = e.target.closest("[data-replay-speed]");
+  if (!speed) return;
+  const root = document.querySelector("#fight[data-replay]");
+  if (root) root.dataset.speed = speed.dataset.replaySpeed;
+  document.querySelectorAll("[data-replay-speed]").forEach((b) => {
+    const on = b === speed;
+    b.setAttribute("aria-checked", String(on));
+    b.classList.toggle("gold", on);
+    b.classList.toggle("ghost", !on);
+  });
 });
 
 // New-player tour: spotlight each nav tab (desktop bar or mobile dock) with a card saying why it matters.
@@ -957,3 +981,43 @@ function saleForms(root) {
 }
 saleForms(document);
 document.addEventListener("htmx:load", (e) => saleForms(e.detail.elt));
+
+// Team simulator: the player field only matters when "Another player's team" is picked.
+document.addEventListener("change", (e) => {
+  const vs = e.target.closest("[data-sim-vs]");
+  if (!vs) return;
+  const field = vs.form.querySelector("[data-sim-player]");
+  field.hidden = vs.value !== "player";
+  if (!field.hidden) field.querySelector("input").focus();
+});
+
+// Gang chat: follow new messages (unless you scrolled up to read), clear the box after a successful send.
+(() => {
+  let follow = true;
+  const list = () => document.querySelector("[data-chat-list]");
+  const toBottom = () => { const l = list(); if (l) l.scrollTop = l.scrollHeight; };
+  toBottom();
+  document.addEventListener("htmx:beforeSwap", (e) => {
+    if (e.detail.target.id !== "gang-chat") return;
+    const l = list();
+    follow = !l || l.scrollHeight - l.scrollTop - l.clientHeight < 60 || e.detail.requestConfig?.verb === "post";
+  });
+  document.addEventListener("htmx:afterSettle", (e) => {
+    if (e.detail.target.id !== "gang-chat" && !e.detail.elt?.matches?.("#gang-chat")) return;
+    if (follow) toBottom();
+  });
+  document.addEventListener("htmx:afterRequest", (e) => {
+    const form = e.detail.elt.closest?.("[data-chat-form]");
+    if (!form || !e.detail.successful) return;
+    if (!document.querySelector("#gang-chat [data-chat-error]")?.dataset.chatError) {
+      form.reset();
+      form.querySelector("[name=text]")?.focus();
+    }
+  });
+  // Enter sends, Shift+Enter makes a new line
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.shiftKey || e.isComposing || !e.target.matches?.("[data-chat-form] textarea")) return;
+    e.preventDefault();
+    e.target.form.requestSubmit();
+  });
+})();

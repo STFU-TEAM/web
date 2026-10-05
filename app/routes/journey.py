@@ -3,9 +3,11 @@ import time
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app import social
 from app.auth import player_required
 from app.db import Busy, get_db, user_lock
 from app.game import journey as J
+from app.game.character import character_from_dict
 from app.game.logic import GameError
 from app.routes.trades import sorted_stands
 
@@ -45,6 +47,10 @@ def depart():
     trip = _act(lambda u: J.depart(u, request.form.get("uuid", ""), request.form.get("route", "")))
     if trip:
         route = J.BY_KEY[trip["route"]]
+        name = trip["stand"].get("name") or character_from_dict(dict(trip["stand"])).name
+        social.notify_later(session["uid"], f"journey:{trip['id']}", trip["end"], "journey",
+                            f"{route['emoji']} {name} is home from {route['name']}. Collect its loot!",
+                            url_for("journey.index"))
         flash(f"{route['emoji']} Your stand sets out for {route['name']}. Back in {J.fmt_hours(route['hours'])}.", "ok")
     return redirect(url_for("journey.index"))
 
@@ -54,6 +60,7 @@ def depart():
 def claim(trip_id):
     res = _act(lambda u: J.claim(u, trip_id))
     if res:
+        social.cancel_later(session["uid"], f"journey:{trip_id}")
         extra = [f"{res['fragments']:,} Meteor Dust", f"+{res['stand_xp']} XP"] + res["items"]
         if res["super"]:
             extra.append("1 Arrowhead")
@@ -66,5 +73,6 @@ def claim(trip_id):
 def recall(trip_id):
     stand = _act(lambda u: J.recall(u, trip_id))
     if stand:
+        social.cancel_later(session["uid"], f"journey:{trip_id}")
         flash(f"{stand.name} turned back early. No loot this time.", "ok")
     return redirect(url_for("journey.index"))

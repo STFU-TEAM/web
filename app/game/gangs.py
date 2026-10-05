@@ -9,8 +9,10 @@ attacks and reads the shared keys:
     HGETALL war_records               -> pickle({winner, loser, winner_damage, loser_damage, timestamp})
 """
 import datetime
+import json
 import pickle
 import re
+import time
 from typing import Optional
 
 from app.game.character import character_from_dict
@@ -434,3 +436,61 @@ def attack_rewards(user, won: bool) -> dict:
         train(c, CHARACTER_XPGAINS * mult)
     return {"won": won, "fragments": FRAGMENTSGAIN * mult, "xp": PLAYER_XPGAINS * mult,
             "stand_xp": CHARACTER_XPGAINS * mult, "item": None}
+
+
+# --------------------------------------------------------------------------- #
+# Gang chat (web): a short shared message board polled by the gang page.
+#   web:gang:chat:<gang_id>      list of JSON {id, uid, text, at}, newest last, capped CHAT_KEEP
+#   web:gang:chat:seq:<gang_id>  last message id (the page polls with it: nothing new, nothing sent)
+# --------------------------------------------------------------------------- #
+CHAT_KEEP = 150
+CHAT_MAX_LEN = 300
+CHAT_COOLDOWN = 2  # seconds between two messages from the same player
+
+
+def chat_post(redis, gang: dict, uid: str, text: str) -> dict:
+    text = " ".join((text or "").split())[:CHAT_MAX_LEN]
+    if not text:
+        raise GameError("Write something first.")
+    if str(uid) not in [str(m) for m in members(gang)]:
+        raise GameError("You're not in this gang.")
+    if not redis.set(f"web:gang:chat:slow:{uid}", "1", nx=True, ex=CHAT_COOLDOWN):
+        raise GameError("Slow down a little.")
+    gid = gang["_id"]
+    msg = {"id": int(redis.incr(f"web:gang:chat:seq:{gid}")), "uid": str(uid), "text": text, "at": int(time.time())}
+    pipe = redis.pipeline()
+    pipe.rpush(f"web:gang:chat:{gid}", json.dumps(msg))
+    pipe.ltrim(f"web:gang:chat:{gid}", -CHAT_KEEP, -1)
+    pipe.execute()
+    return msg
+
+
+def chat_seq(redis, gang_id: str) -> int:
+    return int(redis.get(f"web:gang:chat:seq:{gang_id}") or 0)
+
+
+def chat_messages(redis, gang_id: str, limit: int = 60) -> list:
+    out = []
+    for raw in redis.lrange(f"web:gang:chat:{gang_id}", -limit, -1):
+        try:
+            out.append(json.loads(raw))
+        except ValueError:
+            continue
+    return out
+
+
+def chat_delete(redis, gang: dict, actor: str, msg_id: int):
+    """Capos and the boss can remove any message; everyone can remove their own."""
+    key = f"web:gang:chat:{gang['_id']}"
+    for raw in redis.lrange(key, 0, -1):
+        try:
+            msg = json.loads(raw)
+        except ValueError:
+            continue
+        if msg.get("id") == msg_id:
+            if msg["uid"] != str(actor) and rank_of(gang, actor) > CAPO:
+                raise GameError("Only capos and the boss can remove other members' messages.")
+            redis.lrem(key, 1, raw)
+            redis.incr(f"web:gang:chat:seq:{gang['_id']}")  # the pollers refresh
+            return
+    raise GameError("That message is gone.")

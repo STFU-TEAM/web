@@ -140,7 +140,11 @@ def _wiki_ctx(topic: str) -> dict:
     elif topic == "types":
         ctx["types"], ctx["qualities"] = wiki_data.type_rows(), wiki_data.quality_rows()
     elif topic == "ranked":
-        ctx["ranks"] = wiki_data.rank_rows()
+        ctx["ranks"], ctx["seasons"] = wiki_data.rank_rows(), wiki_data.season_rows()
+    elif topic == "events":
+        ctx["shop"] = wiki_data.event_shop_rows()
+    elif topic == "progress":
+        ctx["mastery"], ctx["sets"] = wiki_data.mastery_rows(), wiki_data.dex_rows()
     elif topic == "items":
         ctx["items"] = wiki_data.item_rows()
     return ctx
@@ -209,14 +213,20 @@ def stand(stand_id: int):
 def leaderboard():
     by = request.args.get("by", "global_elo")
     rows = []
-    for rank, row in enumerate(lb(by), start=1):
+    if by == "season":
+        from app.db import r
+        from app.game import seasons
+        source, season = seasons.board(r()), seasons.standing(r(), "", 0)
+    else:
+        source, season = lb(by), None
+    for rank, row in enumerate(source, start=1):
         ident = identity(row["id"])
         value = row["value"]
         if by == "xp":
             value = min(100, int(0.09 * value ** 0.5))
         rows.append({**row, "rank": rank, "name": ident["name"], "avatar": ident["avatar"], "value": value})
     tpl = "partials/leaderboard_rows.html" if request.headers.get("HX-Request") else "leaderboard.html"
-    return render_template(tpl, rows=rows, by=by)
+    return render_template(tpl, rows=rows, by=by, season=season)
 
 
 @bp.get("/u/<uid>")
@@ -232,7 +242,7 @@ def profile(uid: str):
     gang = get_db().get_gang(user.gang_id)
     stands = user.main_characters + user.storage_characters
     rank = {r: i for i, r in enumerate(RARITY_ORDER)}
-    unique = {c.id for c in stands}
+    unique = {c.id for c in stands} | set(user.data.get("web_dex") or [])  # every stand ever owned here
     collection = []
     for r in RARITY_ORDER:
         pool = {c["id"] for c in PLAYABLE if c["rarity"] == r}
@@ -248,11 +258,21 @@ def profile(uid: str):
     unlocked_ids = user.achievement_data.get("unlocked", [])
     recent = [a for a in achievements if a["unlocked"]]
     recent.sort(key=lambda a: unlocked_ids.index(a["id"]) if a["id"] in unlocked_ids else -1, reverse=True)
+    from app.db import r
+    from app.game import history, mastery, seasons, titles
+    from app.routes.battles import live_fight_of
+    mastery_titles = mastery.titles(r(), uid)
+    is_me = session.get("uid") == uid
+    battles = history.recent(r(), uid, limit=6)
     return render_template(
-        "profile.html", u=user, ident=identity(uid), gang=gang, uid=uid, owned=len(stands), unique=len(unique),
+        "profile.html", season=seasons.standing(r(), uid, user.global_elo),
+        title=titles.shown(user, mastery_titles), my_titles=titles.available(user, mastery_titles) if is_me else [],
+        mastery=mastery.ranking(r(), uid, limit=6), battles=battles, battle_record=history.summary(battles),
+        live_fight=live_fight_of(uid) if session.get("uid") else None,
+        u=user, ident=identity(uid), gang=gang, uid=uid, owned=len(stands), unique=len(unique),
         playable=len(PLAYABLE), collection=collection, showcase=showcase, level_pct=round(level_pct),
         story_cleared=story.cleared(user), story_total=story.TOTAL,
         tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSS_STAGES),
         achievements_done=len(recent), achievements_total=len(achievements), recent=recent[:4],
-        is_me=session.get("uid") == uid,
+        is_me=is_me,
         relation=social.relation(session["uid"], uid) if session.get("uid") else None)

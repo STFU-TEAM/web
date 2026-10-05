@@ -29,11 +29,33 @@
     </ul>
   {% endif %}
 
-  <h2 class="h2">Your friends</h2>
+  {% if gifts %}
+    <section class="gift-card" aria-labelledby="gifts-h">
+      <span class="gift-icon" aria-hidden="true">🎁</span>
+      <div>
+        <h2 class="h3" id="gifts-h">{{ gifts|length }} gift{{ 's' if gifts|length > 1 }} waiting</h2>
+        <p class="muted">{% for g in gifts[:4] %}{{ g.icon }} {{ g.label }} from <strong>{{ g.name }}</strong>{{ ', ' if not loop.last }}{% endfor %}{% if gifts|length > 4 %} and {{ gifts|length - 4 }} more{% endif %}.</p>
+      </div>
+      <form method="post" action="{{ url_for('community.open_gifts') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="back" value="{{ request.url }}">
+        <button class="btn gold">Open {{ 'all' if gifts|length > 1 else 'it' }}</button>
+      </form>
+    </section>
+  {% endif %}
+
+  <div class="social-heading">
+    <h2 class="h2">Your friends</h2>
+    {% if friends %}<p class="muted small-print">{% if can_gift %}Send each friend one gift a day ({{ gift_kinds.dust.label }} or {{ gift_kinds.energy.label }}). Each player opens up to {{ gift_cap }} a day.{% else %}Clear {{ ref_stage }} story stages to start sending daily gifts.{% endif %}</p>{% endif %}
+  </div>
   {% if friends %}
     <ul class="player-list">
       {% for p in friends %}
-        {% set acts %}{{ challenge_button(p.id) }}<a class="btn small ghost" href="{{ url_for('trades.new', **{'with': p.id}) }}">⇄ Trade</a>{{ form_btn('remove', p.id, 'Remove', 'btn small ghost danger-text') }}{% endset %}
+        {% set acts %}{% if can_gift %}{% if p.id in gifted %}<span class="pill gifted" title="You sent a gift today">🎁 Sent</span>{% else %}
+          <form class="inline gift-form" method="post" action="{{ url_for('community.gift') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="user_id" value="{{ p.id }}"><input type="hidden" name="back" value="{{ request.url }}">
+            <span class="gift-label" aria-hidden="true">🎁</span>
+            {% for key, g in gift_kinds.items() %}<button class="btn small gift-btn" name="kind" value="{{ key }}" aria-label="Gift {{ g.label }} to {{ p.name }}" title="Gift {{ g.label }}">{{ g.icon }} {{ g.label.split(' ')[0] }}</button>{% endfor %}
+          </form>{% endif %}{% endif %}{{ challenge_button(p.id) }}<a class="btn small ghost" href="{{ url_for('trades.new', **{'with': p.id}) }}">⇄ Trade</a>{{ form_btn('remove', p.id, 'Remove', 'btn small ghost danger-text') }}{% endset %}
         {{ player_row(p, extra=acts) }}
       {% endfor %}
     </ul>

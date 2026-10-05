@@ -1,0 +1,37 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Replays, live duels & simulator{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Modes</p>
+  <h1 class="display sm">Replays, live duels & simulator</h1>
+  <p>Look back at your fights, share the best ones, watch other players duel and test a team before you spend energy.</p>
+</header>
+
+<h2 class="wiki-h2">Battle history</h2>
+<p><a href="{{ url_for('battles.index', mode='history') }}">Battle → History</a> keeps your last <strong>{{ facts.history_keep }} fights</strong> of every kind: story, Alternate Universe, tower, Mirror World, boss rush, gang raids and wars, ranked and friendly duels and practice. Each line shows the result, the opponent, both teams and how many rounds it took. Your profile shows your latest few to everyone who visits it.</p>
+
+<h2 class="wiki-h2">Replays</h2>
+<p>Every finished fight can be watched again for <strong>{{ facts.replay_days }} days</strong>: open it from your history, your profile, or the ▶ Replay button on the result screen. The replay plays every hit, crit, dodge, special and terrain change as it happened.</p>
+<ul class="wiki-list">
+  <li><strong>Speed</strong>: 1×, 2× or 4×, switchable while it plays.</li>
+  <li><strong>Skip</strong>: tap the arena (or press Escape) to jump to the end.</li>
+  <li><strong>Share</strong>: the 🔗 Share button copies a link. Anyone can open it, even without an account.</li>
+</ul>
+
+<h2 class="wiki-h2">Watching live duels</h2>
+<p><a href="{{ url_for('battles.index', mode='watch') }}">Battle → Watch live</a> lists the duels being fought right now, with both teams and how much health they have left. The list refreshes by itself.</p>
+<ul class="wiki-list">
+  <li><strong>Ranked duels</strong> are public: anyone can watch.</li>
+  <li><strong>Friendly duels</strong> can only be watched by the friends of either player.</li>
+</ul>
+<p>When a friend is fighting, a <span class="live-dot" aria-hidden="true"></span> <strong>Watch live duel</strong> button also appears on their profile. The fight updates on its own every few seconds, and when it ends you can jump straight into its replay. Spectators can't affect the fight.</p>
+
+<h2 class="wiki-h2">Team simulator</h2>
+<p>The <a href="{{ url_for('battles.simulator') }}">team simulator</a> plays a fight <strong>{{ facts.sim_runs }} times</strong> through the real battle engine, with the best target picks made for you, and tells you how it went. Nothing is spent, won or saved.</p>
+<ul class="wiki-list">
+  <li><strong>Your side</strong>: your current team or any saved preset.</li>
+  <li><strong>Opponent</strong>: any story stage, any tower floor (this week's enemies), or another player's team (handy before a duel).</li>
+  <li><strong>What you get</strong>: the win rate, rounds per fight, health left after a win, and for each of your stands its share of the damage, how often it survives and how many specials it fires. The stand doing the most work is marked <strong>Carry</strong>.</li>
+</ul>
+<p>The simulator includes the running <a href="{{ url_for('main.wiki', topic='events') }}">event</a>'s boosts. Real fights let you pick targets yourself, so a careful player usually beats its numbers. You can run one simulation every few seconds.</p>
+{% endblock %}

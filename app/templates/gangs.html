@@ -33,12 +33,24 @@
   </header>
 
   <nav class="tabs gang-tabs" aria-label="Gang sections">
-    <a href="#war">War</a><a href="#raid">Raid</a><a href="#members">Members</a><a href="#guardians">Guardians</a><a href="#vault">Vault & stash</a>{% if boss %}<a href="#settings">Settings</a>{% endif %}
+    <a href="#chat">Chat</a><a href="#war">War</a><a href="#raid">Raid</a><a href="#members">Members</a><a href="#guardians">Guardians</a><a href="#vault">Vault & stash</a>{% if boss %}<a href="#settings">Settings</a>{% endif %}
   </nav>
 
   {% if fight and fight.kind.startswith('gang_') %}
     <p class="notice">A gang fight is in progress. <a href="{{ url_for('gangs.fight_page') }}">Resume it</a>.</p>
   {% endif %}
+
+  <section class="social-panel chat-panel" id="chat" aria-labelledby="chat-h">
+    <h2 class="h2" id="chat-h">💬 Gang chat</h2>
+    {% include "partials/gang_chat.html" %}
+    <form class="chat-form" data-chat-form method="post" action="{{ url_for('gangs.chat_post') }}"
+          hx-post="{{ url_for('gangs.chat_post') }}" hx-target="#gang-chat" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <label class="sr" for="chat-text">Message your gang</label>
+      <textarea id="chat-text" name="text" rows="1" maxlength="{{ R.CHAT_MAX_LEN }}" placeholder="Message {{ gang.name }}…" required enterkeyhint="send"></textarea>
+      <button class="btn gold" aria-label="Send">Send</button>
+    </form>
+  </section>
 
   <div class="gang-grid">
     <section class="social-panel gang-card" id="war">

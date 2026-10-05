@@ -93,6 +93,13 @@ class Fight:
         self.winner: Optional[int] = None
         self.rewards: Optional[dict] = None
 
+        from app.game import events
+        boosted = events.apply_to_fight(self)
+        if boosted:
+            ev = events.cached()
+            self._log(f"🎉 {ev['name']}: {', '.join(boosted)} {'is' if len(boosted) == 1 else 'are'} in the spotlight "
+                      f"(+{events.BOOST:.0%} damage and speed).", "terrain")
+
         s0 = sum(c.current_speed for c in human.chars)
         s1 = sum(c.current_speed for c in opponent.chars)
         self.order = [0, 1]

@@ -14,6 +14,7 @@
       <div><p class="kicker">Combat arena</p><h1 class="display sm">Battles</h1></div>
       <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
     </header>
+    {% include "partials/event_ribbon.html" %}
     {% if story_stage %}
       <a class="story-cta" href="{{ url_for('progress.story_page') }}">
         <span class="story-cta-icon" aria-hidden="true">📜</span>
@@ -23,10 +24,11 @@
         <span class="btn gold">Continue →</span>
       </a>
     {% endif %}
-    <nav class="tabs battle-tabs" aria-label="Battle mode">
-      {% for key, label in [('dummy', 'Dummy'), ('ranked', 'Ranked'), ('friends', 'Friends')] %}
-        <a href="{{ url_for('battles.index', mode=key) }}" {% if mode == key %}aria-current="true"{% endif %}>{{ label }}</a>
+    <nav class="tabs battle-tabs scroll-tabs" aria-label="Battle mode">
+      {% for key, label in [('dummy', 'Dummy'), ('ranked', 'Ranked'), ('friends', 'Friends'), ('watch', 'Watch live'), ('history', 'History')] %}
+        <a href="{{ url_for('battles.index', mode=key) }}" {% if mode == key %}aria-current="true"{% endif %}>{% if key == 'watch' %}<span class="live-dot" aria-hidden="true"></span>{% endif %}{{ label }}</a>
       {% endfor %}
+      <a class="tab-aside" href="{{ url_for('battles.simulator') }}">🧪 Simulator</a>
     </nav>
 
     {% if mode == 'dummy' %}
@@ -36,6 +38,47 @@
         {% else %}<form method="post" action="{{ url_for('battles.dummy_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Fight the dummy</button></form>{% endif %}
       </section>
     {% elif mode == 'ranked' %}
+      {% for s in season_claims[:1] %}
+        <section class="season-claim" aria-labelledby="season-claim-h">
+          <span class="season-claim-icon" aria-hidden="true">♛</span>
+          <div>
+            <h2 class="h3" id="season-claim-h">Season reward{{ 's' if season_claims|length > 1 }} ready</h2>
+            <p>{% for c in season_claims %}{{ c.label }}: finished <strong>{{ c.tier }}</strong> → {{ c.reward.fragments|num }} Meteor Dust{% if c.reward.super %} + {{ c.reward.super }} Arrowhead{{ 's' if c.reward.super > 1 }}{% endif %}{% if c.title %} + title “{{ c.title }}”{% endif %}{{ '. ' if not loop.last }}{% endfor %}</p>
+          </div>
+          <form method="post" action="{{ url_for('battles.season_claim') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Claim</button></form>
+        </section>
+      {% endfor %}
+      <section class="season-card" aria-labelledby="season-h">
+        <div class="season-tier">
+          <span class="season-badge tier-{{ season.tier|replace(' ', '-')|lower }}" aria-hidden="true">{{ season.icon }}</span>
+          <div>
+            <p class="kicker">{{ season.label }} season · ends in {{ season.ends_in }}</p>
+            <h2 class="h2" id="season-h">{{ season.tier }} <small class="muted">{{ season.rating|num }}</small></h2>
+            {% if season.next_tier %}<p class="muted">{{ season.to_next|num }} to {{ season.next_tier }}</p>{% endif %}
+          </div>
+        </div>
+        <dl class="season-figures">
+          <div><dt>Place</dt><dd>{{ '#' ~ season.place if season.place else '–' }}</dd></div>
+          <div><dt>Won</dt><dd>{{ season.wins }}</dd></div>
+          <div><dt>Lost</dt><dd>{{ season.losses }}</dd></div>
+        </dl>
+        {% if not season.qualified %}
+          <p class="season-qualify">Play {{ season_min - season.games }} more ranked duel{{ 's' if season_min - season.games != 1 }} this month to earn a season reward.</p>
+          <div class="meter" role="meter" aria-label="Ranked duels played toward the season reward" aria-valuemin="0" aria-valuemax="{{ season_min }}" aria-valuenow="{{ season.games }}"><i style="width: {{ 100 * season.games // season_min }}%"></i></div>
+        {% else %}
+          <p class="season-qualify done">✓ Qualified: your reward follows the tier you finish in.</p>
+        {% endif %}
+        <details class="season-rewards">
+          <summary>Season rewards by tier</summary>
+          <ul>
+            {% for t in season_rewards %}
+              <li class="{{ 'current' if t.tier == season.tier }}"><span class="season-badge sm tier-{{ t.tier|replace(' ', '-')|lower }}" aria-hidden="true">{{ t.icon }}</span>
+                <strong>{{ t.tier }}</strong><small class="muted">{{ t.from|num }}+</small><span>{{ t.reward }}{% if t.title %} · title{% endif %}</span></li>
+            {% endfor %}
+          </ul>
+          <p class="muted small-print">Each month starts from half your last season's rating. Lifetime Elo (shown above) never resets. <a href="{{ url_for('main.leaderboard', by='season') }}">Season ladder</a></p>
+        </details>
+      </section>
       <section class="battle-panel">
         <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2><p>Queue against another web player. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
         {% if waiting %}
@@ -43,6 +86,62 @@
           <form method="post" action="{{ url_for('battles.ranked_cancel') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn danger">Leave queue</button></form>
         {% elif not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
         {% else %}<form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Join ranked queue</button></form>{% endif %}
+      </section>
+    {% elif mode == 'watch' %}
+      <section class="watch-panel" hx-get="{{ url_for('battles.index', mode='watch') }}" hx-trigger="every 10s [document.visibilityState === 'visible']"
+               hx-select=".watch-panel" hx-swap="outerHTML">
+        <p class="muted">Ranked duels are public. Friendly duels show up when one of the players is your friend. The list refreshes by itself.</p>
+        {% if live %}
+          <ul class="duel-list">
+            {% for d in live %}
+              <li class="duel-row">
+                <a class="duel-link" href="{{ url_for('battles.watch', fight_id=d.id) }}">
+                  <span class="duel-tag {{ d.kind }}">{{ 'Ranked' if d.kind == 'ranked' else 'Friendly' }} · round {{ d.round }}{% if d.mine %} · you{% endif %}</span>
+                  <span class="duel-sides">
+                    {% for s in d.sides %}
+                      <span class="duel-side">
+                        <span class="duel-faces">{% for cid in s.lead[:3] %}<img src="{{ cid|stand_img }}" alt="" width="34" height="34" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">{% endfor %}</span>
+                        <strong>{{ s.name }}</strong>
+                        <span class="duel-hp" role="meter" aria-label="{{ s.name }} team health" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ s.hp }}"><i style="width: {{ s.hp }}%"></i></span>
+                      </span>
+                      {% if loop.first %}<span class="duel-vs" aria-hidden="true">VS</span>{% endif %}
+                    {% endfor %}
+                  </span>
+                  <span class="btn small gold duel-watch">{{ 'Rejoin' if d.mine else '👁 Watch' }}</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="notice">No duel is running right now. Queue for <a href="{{ url_for('battles.index', mode='ranked') }}">ranked</a> and you might be the one people watch.</p>
+        {% endif %}
+      </section>
+    {% elif mode == 'history' %}
+      <section class="history-panel">
+        {% if recent %}
+          <p class="history-record"><strong>{{ record.wins }}</strong> won · <strong>{{ record.losses }}</strong> lost{% if record.draws %} · <strong>{{ record.draws }}</strong> drawn{% endif %} <span class="muted">in your last {{ recent|length }} fights</span></p>
+          <ul class="history-list">
+            {% for b in recent %}
+              <li class="history-row {{ b.result }}">
+                <span class="history-result" aria-label="{{ b.result|title }}">{{ {'win': 'W', 'loss': 'L', 'draw': 'D'}[b.result] }}</span>
+                <span class="history-main">
+                  <strong><span aria-hidden="true">{{ b.icon }}</span> {{ b.label }} vs {% if b.opp_uid %}<a href="{{ url_for('main.profile', uid=b.opp_uid) }}">{{ b.opp }}</a>{% else %}{{ b.opp }}{% endif %}</strong>
+                  <small class="muted">{{ b.rounds }} round{{ 's' if b.rounds != 1 }}{% if b.surrender %} · surrendered{% endif %} · <time data-ago="{{ b.at }}" datetime="{{ b.at }}"></time></small>
+                  <span class="history-teams" aria-hidden="true">
+                    {% for cid in b.mine %}<img src="{{ cid|stand_img }}" alt="" width="28" height="28" loading="lazy">{% endfor %}
+                    <em>vs</em>
+                    {% for cid in b.theirs[:3] %}<img src="{{ cid|stand_img }}" alt="" width="28" height="28" loading="lazy">{% endfor %}
+                  </span>
+                </span>
+                {% if b.replay %}<a class="btn small ghost" href="{{ url_for('battles.replay', fight_id=b.id) }}">▶ Replay</a>
+                {% else %}<span class="muted small-print">Replay expired</span>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+          <p class="muted small-print">Your last 30 fights are kept. Replays last 14 days and anyone with the link can watch them.</p>
+        {% else %}
+          <p class="notice">No fights yet. Every fight you finish (story, tower, Mirror World, duels...) shows up here with a replay you can share.</p>
+        {% endif %}
       </section>
     {% else %}
       <section class="battle-panel">

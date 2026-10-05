@@ -29,6 +29,8 @@
   </div>
 </section>
 
+{% if live_event and registered %}<div class="page">{% include "partials/event_ribbon.html" %}</div>{% endif %}
+
 {% if posts %}
 <section class="page home-news">
   <header class="shelf-head"><h2 class="h2">Latest news</h2><a href="{{ url_for('main.news_list') }}">All news →</a></header>

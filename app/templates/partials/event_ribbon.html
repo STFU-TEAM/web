@@ -1,0 +1,7 @@
+{% if live_event %}
+  <a class="event-ribbon" href="{{ url_for('progress.events_page') }}">
+    <span class="event-ribbon-icon" aria-hidden="true">🎉</span>
+    <span class="event-ribbon-text"><strong>{{ live_event.name }}</strong> <span>{{ event_rule(live_event) }}</span></span>
+    <span class="event-ribbon-go">Event shop →</span>
+  </a>
+{% endif %}

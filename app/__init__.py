@@ -12,6 +12,8 @@ def create_app() -> Flask:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     init_db(app)
+    from app.game import events
+    events._cache.update(at=0.0, event=None)  # a fresh app never trusts another app's Redis
 
     from app import filters
     filters.register(app)
@@ -41,6 +43,20 @@ def create_app() -> Flask:
     app.register_blueprint(community_bp)
     app.register_blueprint(auction_bp)
     app.register_blueprint(journey_bp)
+
+    @app.before_request
+    def live_state():
+        """Read the running event (the fight engine applies its boost) and send due notifications."""
+        from flask import request
+        if request.endpoint in (None, "static", "healthz"):
+            return
+        from app import social
+        from app.game import events
+        try:
+            events.current(r())
+            social.tick()
+        except Exception:
+            app.logger.exception("live state")
 
     @app.get("/healthz")
     def healthz():

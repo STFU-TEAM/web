@@ -1,14 +1,37 @@
 {% extends "wiki/layout.html" %}
-{% block wiki_title %}Ranked & ELO{% endblock %}
+{% block wiki_title %}Ranked, seasons & duels{% endblock %}
 {% block wiki %}
 <header class="wiki-head">
   <p class="kicker">Modes</p>
-  <h1 class="display sm">Ranked & ELO</h1>
+  <h1 class="display sm">Ranked, seasons & duels</h1>
+  <p>Fight other players turn by turn. Ranked duels move your ELO and your season rating; friendly duels are just for fun.</p>
 </header>
-<p>Queue from <a href="{{ url_for('battles.index', mode='ranked') }}">Battle → Ranked</a> to be matched against a player close to your ELO. Wins add ELO and losses take it away. The bot and the site share one ladder.</p>
+
+<h2 class="wiki-h2">Ranked matchmaking</h2>
+<p>Queue from <a href="{{ url_for('battles.index', mode='ranked') }}">Battle → Ranked</a> to be matched against a player close to your ELO. The duel opens by itself as soon as someone is found. A win adds {{ facts.season_win }} ELO and a loss takes {{ facts.season_loss }} (never below zero). If both teams fall together it's a draw and nobody's ELO moves.</p>
+<p>Every pick has a turn clock. When it runs out, your stand picks a target on its own; run out twice in a row and you lose the duel.</p>
+
 <h2 class="wiki-h2">Rank tiers</h2>
 <ol class="rank-ladder">
-  {% for r in ranks %}<li><strong>{{ r.name }}</strong><span>{{ r.elo }}+ ELO</span></li>{% endfor %}
+  {% for r in ranks %}<li><strong>{{ r.name }}</strong><span>{{ r.elo }}+</span></li>{% endfor %}
 </ol>
-<p>The top players are on the <a href="{{ url_for('main.leaderboard') }}">ranked ladder</a>. For practice without risk, fight the dummy or a friend from the same Battle page.</p>
+<p>Your <strong>lifetime ELO</strong> is shared with the bot and never resets. The top players are on the <a href="{{ url_for('main.leaderboard') }}">ranked ladder</a>.</p>
+
+<h2 class="wiki-h2">Seasons</h2>
+<p>A ranked season lasts one calendar month. Next to your lifetime ELO you have a <strong>season rating</strong> that uses the same tiers and moves by the same amounts. A new season doesn't wipe it: you start from <strong>half the rating you finished your last season with</strong> (in your first season, half your lifetime ELO). See where you stand on Battle → Ranked and on the <a href="{{ url_for('main.leaderboard', by='season') }}">Season ladder</a>.</p>
+<p>Play at least <strong>{{ facts.season_min }} ranked duels</strong> in a month to qualify. Once the season ends, claim your reward on Battle → Ranked (you get a notification). The reward follows the tier you <em>finished</em> in:</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Final tier</th><th scope="col">From</th><th scope="col">Reward</th><th scope="col">Title</th></tr></thead>
+  <tbody>
+    {% for t in seasons %}<tr><th scope="row">{{ t.icon }} {{ t.tier }}</th><td>{{ t.from|num }}</td><td>{{ t.reward }}</td><td>{{ '✓' if t.title else '–' }}</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+<p>Season titles name the tier and the month, like “Requiem · October 2026”. They're given from {{ facts.season_title_from }} up and stay on your account for good. Show one under your name from your profile (see <a href="{{ url_for('main.wiki', topic='progress') }}#titles">titles</a>). Unclaimed rewards wait for up to 6 months.</p>
+
+<h2 class="wiki-h2">Friendly duels</h2>
+<p>Challenge anyone by username or Discord ID from <a href="{{ url_for('battles.index', mode='friends') }}">Battle → Friends</a>, or with the ⚔ Challenge button on a profile or friend. They have 5 minutes to accept from their inbox. Friendly duels don't change ELO or your season, but they count toward duel quests and achievements.</p>
+<p>Every duel can be watched live and replayed afterwards: see <a href="{{ url_for('main.wiki', topic='battles') }}">replays, live duels & simulator</a>.</p>
+<p>For practice without risk, fight the training dummy from the same Battle page.</p>
 {% endblock %}

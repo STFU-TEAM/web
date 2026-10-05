@@ -1,0 +1,45 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Limited-time events{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Modes</p>
+  <h1 class="display sm">Limited-time events</h1>
+  <p>Every so often the team runs an event for a few days: a twist on every fight, and a token shop that sells gear you can't get anywhere else.</p>
+</header>
+
+<h2 class="wiki-h2">What's on</h2>
+<p>The <a href="{{ url_for('progress.events_page') }}">Events page</a> shows the running event, when it ends, its modifier and your tokens. While one is live, a banner shows on the home and Battle pages and Events is highlighted in the menu. When none is running, the page shows the next one if it's already scheduled. Only one event runs at a time.</p>
+
+<h2 class="wiki-h2">Modifiers</h2>
+<ul class="wiki-list">
+  <li><strong>Meteor Dust rush</strong>: every PvE win pays {{ facts.event_dust }}% more Meteor Dust.</li>
+  <li><strong>Rarity spotlight</strong>: every stand of one rarity deals {{ facts.event_boost }}% more damage and is {{ facts.event_boost }}% faster.</li>
+  <li><strong>Synergy spotlight</strong>: the same boost for every member of one <a href="{{ url_for('main.wiki', topic='synergies') }}">synergy group</a>.</li>
+</ul>
+<p>Spotlight boosts apply in <strong>every fight</strong>, to both sides: enemies of the spotlighted kind get stronger too. The fight log opens with a 🎉 line naming the boosted stands. A tower team that carries over from floor to floor gets the boost only once.</p>
+
+<h2 class="wiki-h2">Tokens</h2>
+<ul class="wiki-list">
+  <li><strong>+{{ facts.tokens_pve }} tokens</strong> for every PvE win that pays a reward: story, Alternate Universe, Mirror World, tower floors and boss rush.</li>
+  <li><strong>+{{ facts.tokens_pvp }} tokens</strong> for every ranked duel won.</li>
+</ul>
+<p>Tokens belong to their event: spend them before it ends.</p>
+
+<h2 class="wiki-h2">Exchange shop</h2>
+<p>Each offer has a limit per event. The gear marked <strong>Event only</strong> can't be found anywhere else in the game: no drop, quest, craft or shop sells it.</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Offer</th><th scope="col">Tokens</th><th scope="col">Per event</th></tr></thead>
+  <tbody>
+    {% for s in shop %}
+      <tr>
+        <th scope="row">{% if s.item %}<a href="{{ url_for('main.wiki', topic='items') }}#item-{{ s.item }}">{{ s.label }}</a>{% else %}{{ s.label }}{% endif %}{% if s.exclusive %} <span class="pill event-only">Event only</span>{% endif %}
+          {% if s.ability %}<br><small class="muted">{{ s.ability }}</small>{% endif %}
+          {% if s.key == 'title' %}<br><small class="muted">The title “&lt;event name&gt; veteran” for your profile.</small>{% endif %}</th>
+        <td>{{ s.cost }}</td><td>{{ s.limit }}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

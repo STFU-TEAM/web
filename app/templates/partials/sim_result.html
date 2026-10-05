@@ -1,0 +1,32 @@
+{% set tone = 'good' if res.rate >= 65 else ('mid' if res.rate >= 40 else 'bad') %}
+<section class="sim-card {{ tone }}" aria-label="Simulation result">
+  <div class="sim-top">
+    <div class="sim-rate" role="meter" aria-label="Win rate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ res.rate }}" style="--rate: {{ res.rate }}">
+      <strong>{{ res.rate }}%</strong><small>win rate</small>
+    </div>
+    <div class="sim-sum">
+      <p class="kicker">{{ team_label }} vs {{ foe.label }}</p>
+      <p class="sim-verdict">{{ res.verdict }}</p>
+      <dl class="sim-figures">
+        <div><dt>Won</dt><dd>{{ res.wins }}</dd></div>
+        <div><dt>Lost</dt><dd>{{ res.losses }}</dd></div>
+        {% if res.draws %}<div><dt>Draws</dt><dd>{{ res.draws }}</dd></div>{% endif %}
+        <div><dt>Rounds</dt><dd>{{ res.rounds }}</dd></div>
+        {% if res.wins %}<div><dt>HP left</dt><dd>{{ res.hp_left }}%</dd></div>{% endif %}
+      </dl>
+    </div>
+  </div>
+  <h3 class="h3">Who does the work</h3>
+  <ul class="sim-stands">
+    {% for p in res.stands %}
+      <li>
+        <img src="{{ p.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+        <div class="sim-stand-body">
+          <p><strong>{{ p.name }}</strong>{% if p.name == res.carry %} <span class="pill carry">Carry</span>{% endif %}</p>
+          <div class="sim-bar" role="meter" aria-label="{{ p.name }} share of the damage" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ p.share }}"><i style="width: {{ p.share }}%"></i></div>
+          <p class="muted sim-stand-meta"><span>{{ p.share }}% of damage</span><span>~{{ p.avg|stat }} a fight</span><span>survives {{ p.survive }}%</span><span>{{ p.specials }} specials</span></p>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+</section>

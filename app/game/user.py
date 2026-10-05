@@ -193,6 +193,10 @@ class User:
         self.data["quests"] = self.quests
         self.data["story_progress"] = self.story_progress
         self.data["teams"] = self.teams
+        # web Stand Dex: every stand ever owned (each save adds what's in the collection now)
+        owned = {c.id for c in self.main_characters + self.storage_characters}
+        if not owned <= set(self.data.get("web_dex") or []):
+            self.data["web_dex"] = sorted(owned | set(self.data.get("web_dex") or []))
         return self.data
 
 

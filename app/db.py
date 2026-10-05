@@ -205,6 +205,7 @@ def users_lock(*user_ids: str, ttl: int = 10):
 # Fights (pickled state machine, web-only keys)
 # --------------------------------------------------------------------------- #
 FIGHT_TTL = 15 * 60
+LIVE_FIGHTS = "web:live"  # hash fight id -> JSON {players, kind, at}: PvP duels others can watch
 
 
 def save_fight(user_id: str, fight):
@@ -215,6 +216,15 @@ def save_fight(user_id: str, fight):
             stats.record(_redis, fight, now())
         except Exception:  # telemetry must never break a fight
             current_app.logger.exception("fight stats")
+    if fight.finished and not getattr(fight, "history_recorded", False):
+        fight.history_recorded = True  # a duel is saved once per player: record it on the first save only
+        from app.game import history, mastery
+        try:
+            history.record(_redis, fight, user_id)
+            mastery.record_fight(_redis, fight, history.players_of(fight, user_id))
+        except Exception:
+            current_app.logger.exception("fight history")
+        _redis.hdel(LIVE_FIGHTS, fight.id)
     _redis.set(f"web:fight:{user_id}", pickle.dumps(fight), ex=FIGHT_TTL)
 
 

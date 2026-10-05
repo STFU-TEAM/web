@@ -1,0 +1,42 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Friends, gifts & trading{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Community</p>
+  <h1 class="display sm">Friends, gifts & trading</h1>
+  <p>Play with other people: add friends, send them gifts, keep up through the inbox, and swap or sell stands.</p>
+</header>
+
+<h2 class="wiki-h2">Friends</h2>
+<p><a href="{{ url_for('community.players') }}">Find players</a> by name, then send a friend request from their row or profile. You can have up to {{ facts.max_friends }} friends. Friends can watch each other's friendly duels, and you can challenge, trade with or gift any of them in one tap from <a href="{{ url_for('community.friends') }}">Friends</a>.</p>
+
+<h2 class="wiki-h2">Invite links</h2>
+<p>Your Friends page has a personal invite link. Anyone who signs up with it becomes your friend right away. Once they clear {{ facts.gift_stage }} story stages, your “Bring a Friend” quest counts them and pays a Devil's Palm (and “Squad Goals” at 3 friends).</p>
+
+<h2 class="wiki-h2">Daily gifts</h2>
+<p>Once a day, send each friend a gift:</p>
+<ul class="wiki-list">
+  {% for key, g in facts.gifts.items() %}<li>{{ g.icon }} <strong>{{ g.label }}</strong></li>{% endfor %}
+</ul>
+<p>The gift lands on their Friends page and in their inbox; they open everything at once with <strong>Open all</strong>. Gifted energy can push you past your max, like a Can of Energy. Limits keep it fair:</p>
+<ul class="wiki-list">
+  <li>one gift per friend per day;</li>
+  <li>each player receives at most <strong>{{ facts.gift_cap }} gifts a day</strong>;</li>
+  <li>you need to clear <strong>{{ facts.gift_stage }} story stages</strong> before you can send any.</li>
+</ul>
+
+<h2 class="wiki-h2">Inbox & notifications</h2>
+<p>The 🔔 bell opens your <a href="{{ url_for('community.inbox') }}">inbox</a>: duel challenges, trade offers, friend requests and gang invites waiting on you, then a feed of everything that happened. Its badge counts unread news, open requests and unopened gifts. Most news also pops up as a toast on your next page.</p>
+<p>You hear about: duels and challenges, trade offers, auction bids and sales, a stand coming home from the Crusaders' Journey, gang invites and war results, gifts, friend requests, quests, achievements and season rewards. Everything stays on the site.</p>
+
+<h2 class="wiki-h2">Trades</h2>
+<p>Open a <a href="{{ url_for('trades.index') }}">trade</a> with any player (⇄ Trade on their profile or row). Each side can put in up to {{ facts.trade_stands }} stands, items and Meteor Dust. Nothing moves until the other player accepts, and ownership is checked again at that moment, so nobody can be cheated. Offers expire after {{ facts.trade_days }} days, and you can have {{ facts.trade_open }} open at a time. Locked stands can't be traded.</p>
+
+<h2 class="wiki-h2">Auction house</h2>
+<p>Sell stands on the <a href="{{ url_for('auction.index') }}">auction house</a>, up to {{ facts.auction_max }} listings at a time. A listed stand leaves your collection until it sells or comes back to you; its items return to your inventory.</p>
+<ul class="wiki-list">
+  <li><strong>Fixed price</strong>: in Meteor Dust, Arrowheads or both. The first buyer gets it. Listings last {{ facts.auction_days }} days.</li>
+  <li><strong>Bids</strong>: pick a currency, a starting bid and a length ({{ facts.auction_hours|join(', ') }} hours), plus an optional buyout. Each bid must beat the last by {{ facts.auction_raise }}%. Your bid is held right away and returned the moment someone outbids you. A bid in the last {{ facts.auction_snipe }} minutes pushes the end back, so nobody wins by sniping.</li>
+</ul>
+<p>The house keeps <strong>{{ facts.auction_fee }}%</strong> of the Meteor Dust from a sale; Arrowheads go to the seller whole. You can cancel a listing until the first bid. An unsold stand comes back when time runs out.</p>
+{% endblock %}

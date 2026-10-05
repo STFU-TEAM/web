@@ -1,0 +1,24 @@
+{#- Swapped as a whole by the 4 s poll and by sending; the message box lives outside it so typing is never lost. -#}
+<div id="gang-chat" class="chat" data-chat>
+  {% if msgs %}
+    <ol class="chat-list" data-chat-list aria-label="Gang messages">
+      {% for m in msgs %}
+        {% set mine = m.uid == me.id %}
+        <li class="chat-msg{{ ' mine' if mine }}">
+          <p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a> <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
+          <p class="chat-text">{{ m.text }}</p>
+          {% if mine or me_rank <= 1 %}
+            <button type="button" class="chat-del" aria-label="Delete this message" title="Delete"
+                    hx-post="{{ url_for('gangs.chat_delete', msg_id=m.id) }}" hx-target="#gang-chat" hx-swap="outerHTML"
+                    hx-confirm="Delete this message?">✕</button>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="chat-empty muted">No messages yet. Say hi to your gang!</p>
+  {% endif %}
+  <p class="chat-error" role="alert" data-chat-error="{{ chat_error or '' }}">{{ chat_error or '' }}</p>
+  <div hidden hx-get="{{ url_for('gangs.chat', seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible']"
+       hx-target="#gang-chat" hx-swap="outerHTML"></div>
+</div>

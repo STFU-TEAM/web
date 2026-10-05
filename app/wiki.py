@@ -23,10 +23,14 @@ TOPICS = [
     ("combat", "Combat system", "Turn order, stats, dodge, armor, specials and status effects.", "Combat"),
     ("terrains", "Terrain explorer", "Which stands set each terrain and who gets stronger on it.", "Combat"),
     ("synergies", "Synergy explorer", "Team combos and exactly what each member gains.", "Combat"),
-    ("ranked", "Ranked & ELO", "Matchmaking and the rank ladder.", "Modes"),
+    ("ranked", "Ranked, seasons & duels", "Matchmaking, the rank tiers, monthly seasons and their rewards.", "Modes"),
+    ("battles", "Replays, live duels & simulator", "Your fight history, sharing replays, watching duels, testing teams.", "Modes"),
     ("adventure", "Mirror World, tower & dungeon", "PvE modes, cooldowns and rewards.", "Modes"),
+    ("events", "Limited-time events", "Event modifiers, tokens and the exchange shop.", "Modes"),
     ("items", "Items & equipment", "Equipping, crafting and where items drop.", "Modes"),
-    ("gangs", "Gangs & player shops", "Clans, the shared market and what they cost.", "Community"),
+    ("progress", "Mastery, titles & Stand Dex", "Stand mastery levels, profile titles and collection sets.", "Progress"),
+    ("gangs", "Gangs & player shops", "Clans, gang chat, the shared market and what they cost.", "Community"),
+    ("social", "Friends, gifts & trading", "Invites, daily gifts, the inbox, trades and the auction house.", "Community"),
 ]
 TOPIC_SLUGS = {slug for slug, *_ in TOPICS}
 TOPIC_GROUPS = []  # [(group, [(slug, title, blurb), ...])] in TOPICS order
@@ -224,6 +228,32 @@ def rank_rows():
     return [{"name": name, "elo": elo} for elo, name in reversed(logic.RANK_TIERS)]
 
 
+def season_rows():
+    from app.game import seasons
+    return seasons.reward_table()
+
+
+def event_shop_rows():
+    from app.game import events
+    rows = []
+    for offer in sorted(events.SHOP, key=lambda o: not o.get("exclusive")):
+        item = offer["give"].get("items", [None])[0]
+        rows.append({**offer, "item": item, "ability": ITEM_ABILITY.get(item) if item else None})
+    return rows
+
+
+def mastery_rows():
+    from app.game import mastery
+    return [{"rank": name, "icon": icon, "points": need} for need, name, icon in mastery.LEVELS[1:]]
+
+
+def dex_rows():
+    from app.game import dex
+    by_id = {c["id"]: c["name"] for c in CHARACTER_FILE}
+    return [{**s, "reward_text": dex.reward_text(s["reward"]), "names": [by_id.get(i, i) for i in s["ids"]]}
+            for s in dex.SETS]
+
+
 def stand_links(stand_id):
     """Terrain and synergy facts for one stand's detail page."""
     sets = TERRAIN_SETTERS.get(stand_id)
@@ -260,6 +290,27 @@ def facts():
         "wormhole_minutes": round((logic.DONOR_WH_WAIT_TIME + logic.NORMAL_WH_WAIT_TIME) * 60),
         "energy_minutes": logic.ENERGY_REGEN_MINUTES, "energy_minutes_donor": logic.DONOR_ENERGY_REGEN_MINUTES,
         "energy_can": logic.ENERGY_CAN_AMOUNT, "energy_bank": logic.ENERGY_BANK,
+        **_new_facts(),
+    }
+
+
+def _new_facts():
+    from app import social
+    from app.game import auction, events, gangs, history, mastery, seasons, simulate, trades
+    return {
+        "season_min": seasons.MIN_GAMES, "season_win": seasons.WIN, "season_loss": seasons.LOSS,
+        "season_title_from": seasons.TITLE_FROM,
+        "history_keep": history.KEEP, "replay_days": history.REPLAY_DAYS, "sim_runs": simulate.RUNS,
+        "event_boost": round(events.BOOST * 100), "event_dust": round(events.DUST_BONUS * 100),
+        "tokens_pve": events.TOKENS_PVE, "tokens_pvp": events.TOKENS_PVP,
+        "mastery_master": mastery.MASTER,
+        "chat_len": gangs.CHAT_MAX_LEN, "chat_keep": gangs.CHAT_KEEP,
+        "gifts": social.GIFTS, "gift_cap": social.GIFT_RECEIVE_CAP, "gift_stage": social.REFERRAL_STAGE,
+        "max_friends": social.MAX_FRIENDS,
+        "trade_days": trades.OFFER_TTL // 86400, "trade_open": trades.MAX_OPEN, "trade_stands": trades.MAX_STANDS,
+        "auction_days": auction.LISTING_DAYS, "auction_max": auction.MAX_LISTINGS, "auction_fee": round(auction.FEE * 100),
+        "auction_hours": auction.BID_HOURS, "auction_raise": round(auction.MIN_RAISE * 100),
+        "auction_snipe": auction.SNIPE_GUARD // 60, "spark_cost": logic.SPARK_COST,
     }
 
 
@@ -341,6 +392,10 @@ def _item_sources() -> dict:
     for entries in dungeon.CHESTS.values():
         for i, _w in entries:
             add(i, "Dungeon", "chests (when the dungeon is open)")
+    from app.game.events import SHOP as EVENT_SHOP
+    for offer in EVENT_SHOP:
+        for i in offer["give"].get("items", []):
+            add(i, "Event shop", f"{offer['cost']} event tokens, {offer['limit']} per event")
     for r in logic.RECIPES:
         parts = ", ".join(f"{n} × {item_file[i - 1]['name']}" for i, n in r["ingredients"])
         add(r["result"], "Crafting", parts)

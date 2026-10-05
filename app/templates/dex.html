@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Stand Dex | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Collection</p><h1 class="display sm">Stand Dex</h1></div>
+    <dl class="figures compact"><div><dt>Discovered</dt><dd>{{ total_known }}/{{ total }}</dd></div>
+      <div><dt>Sets done</dt><dd>{{ sets|selectattr('complete')|list|length }}/{{ sets|length }}</dd></div></dl>
+  </header>
+  <p class="muted dex-intro">Own every stand of a set once to claim its reward. A stand counts forever after you've owned it here, so releasing or fusing a copy never undoes progress.</p>
+
+  {% set ready = sets|selectattr('complete')|rejectattr('claimed')|list %}
+  {% if ready %}<p class="notice dex-ready">🎁 {{ ready|length }} set reward{{ 's' if ready|length > 1 }} ready to claim below.</p>{% endif %}
+
+  {% for group, title in [('rarity', 'By rarity'), ('group', 'By crew')] %}
+    <h2 class="h2 dex-h">{{ title }}</h2>
+    <ul class="dex-sets">
+      {% for s in sets if s.kind == group %}
+        <li class="dex-set{{ ' complete' if s.complete }}{{ ' claimed' if s.claimed }}" id="set-{{ s.key|replace(':', '-') }}">
+          <details {% if shown == s.key or (s.complete and not s.claimed) %}open{% endif %}>
+            <summary>
+              <span class="dex-icon{% if s.kind == 'rarity' %} rar-tag {{ s.rarity|rarity }}{% endif %}" aria-hidden="true">{{ s.icon }}</span>
+              <span class="dex-name"><strong>{{ s.name }}</strong>
+                <small class="muted">{{ D.reward_text(s.reward) }}{% if s.title %} + title “{{ s.title }}”{% endif %}</small></span>
+              <span class="dex-count">{{ s.have }}/{{ s.total }}</span>
+              <span class="meter dex-meter" role="meter" aria-label="{{ s.name }} progress" aria-valuemin="0" aria-valuemax="{{ s.total }}" aria-valuenow="{{ s.have }}"><i style="width: {{ s.pct }}%"></i></span>
+            </summary>
+            <div class="dex-body">
+              {% if s.complete and not s.claimed %}
+                <form class="dex-claim" method="post" action="{{ url_for('progress.dex_claim') }}">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="key" value="{{ s.key }}">
+                  <button class="btn gold">Claim {{ D.reward_text(s.reward) }}</button>
+                </form>
+              {% elif s.claimed %}<p class="dex-done">✓ Claimed</p>{% endif %}
+              <ul class="dex-grid">
+                {% for sid in s.ids %}
+                  {% set st = stands.get(sid) %}
+                  <li class="{{ 'have' if sid in s.owned else 'missing' }}">
+                    <a href="{{ url_for('main.stand', stand_id=sid) }}" title="{{ st.name if st else sid }}{{ '' if sid in s.owned else ' (not owned yet)' }}">
+                      <img src="{{ sid|stand_img }}" alt="" width="64" height="64" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                      <span>{{ st.name if st else sid }}</span>
+                    </a>
+                  </li>
+                {% endfor %}
+              </ul>
+            </div>
+          </details>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endfor %}
+</section>
+{% endblock %}

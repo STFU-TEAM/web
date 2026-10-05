@@ -6,7 +6,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
-from app.game import logic
+from app.game import logic, mastery
 from app.game import dungeon as dungeon_logic
 from app import wiki as wiki_data
 from app.filters import power_score
@@ -141,7 +141,8 @@ def stand_panel(uuid):
                            dupes=[d for d in user.storage_characters if d.id == char.id and d.uuid != char.uuid],
                            is_locked=uuid in logic.locked(user), wiki=wiki_data.stand_links(char.id),
                            equipable=[g for g in _grouped(user.items) if g["item"].is_equipable],
-                           power=power_score(char), template=CHARACTER_FILE[char.id - 1])
+                           power=power_score(char), template=CHARACTER_FILE[char.id - 1],
+                           mastery=mastery.of(r(), user.id, char.id))
 
 
 @bp.post("/team/lock")

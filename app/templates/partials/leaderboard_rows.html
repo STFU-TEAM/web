@@ -1,3 +1,4 @@
+{% if season %}<p class="board-note">♛ {{ season.label }} season · ends in {{ season.ends_in }} · everyone starts from half of last season's rating</p>{% endif %}
 <ol class="board">
   {% for row in rows %}
   <li class="{% if row.id == me.id %}you{% endif %}">
@@ -7,7 +8,7 @@
       <span>{{ row.name }}</span>
     </a>
     {% if row.lead %}<img class="lead" src="{{ row.lead|stand_img }}" alt="Stand portrait" width="40" height="40" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">{% endif %}
-    <span class="value">{% if by == "global_elo" %}<small class="tier">{{ row.value|rank }}</small> {% endif %}{{ row.value|num }}</span>
+    <span class="value">{% if by in ("global_elo", "season") %}<small class="tier">{{ row.value|rank }}</small> {% endif %}{{ row.value|num }}</span>
   </li>
   {% else %}
   <li class="notice">Nobody here yet.</li>

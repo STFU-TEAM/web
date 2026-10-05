@@ -1,0 +1,55 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Events{% endblock %}
+{% block admin %}
+<h1 class="display sm">Events</h1>
+<p class="muted">One event at a time. Its modifier applies to every fight while it runs; players earn tokens (+{{ E.TOKENS_PVE }} per PvE win, +{{ E.TOKENS_PVP }} per ranked win) for the <a href="{{ url_for('progress.events_page') }}">event shop</a>. Dates are in game time; the end date is the first day it's over.</p>
+
+<form class="news-form admin-card event-form" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="create">
+  <label>Name<input type="text" name="name" maxlength="60" required placeholder="Golden Week"></label>
+  <label>Blurb <small class="muted">(optional)</small><textarea name="blurb" rows="2" maxlength="300" placeholder="What's going on, in a sentence or two."></textarea></label>
+  <div class="event-form-row">
+    <label>Starts<input type="date" name="start" value="{{ today.isoformat() }}" required></label>
+    <label>Ends (first day off)<input type="date" name="end" value="{{ default_end }}" required></label>
+  </div>
+  <div class="event-form-row">
+    <label>Modifier
+      <select name="kind" required>
+        {% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select></label>
+    <label>Rarity <small class="muted">(rarity spotlight)</small>
+      <select name="rarity">{% for r in rarities %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></label>
+    <label>Synergy group <small class="muted">(synergy spotlight)</small>
+      <select name="synergy">{% for key, name in synergies %}<option value="{{ key }}">{{ name }}</option>{% endfor %}</select></label>
+  </div>
+  <p class="muted small-print">Meteor Dust rush: PvE wins pay {{ (E.DUST_BONUS * 100)|int }}% more. Spotlights: those stands get +{{ (E.BOOST * 100)|int }}% damage and speed in every fight (enemies too).</p>
+  <button class="btn gold">Schedule event</button>
+</form>
+
+<h2 class="h2">Scheduled and past</h2>
+{% if rows %}
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Event</th><th>Dates</th><th>Modifier</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for ev in rows %}
+      {% set live = E.is_live(ev, today) %}
+      <tr>
+        <td><strong>{{ ev.name }}</strong>{% if ev.blurb %}<br><small class="muted">{{ ev.blurb }}</small>{% endif %}</td>
+        <td>{{ E.window(ev) }}</td>
+        <td>{{ E.describe(ev) }}</td>
+        <td>{{ '🟢 Live' if live else ('⏳ Upcoming' if ev.start > today.isoformat() else 'Over') }}</td>
+        <td>
+          <form class="inline" method="post">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ ev.id }}">
+            {% if live %}<button class="btn small ghost" name="op" value="end" onclick="return confirm('End this event now?')">End now</button>{% endif %}
+            <button class="btn small danger" name="op" value="delete" onclick="return confirm('Delete this event? Unspent tokens are lost.')">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}<p class="notice">No event yet.</p>{% endif %}
+{% endblock %}

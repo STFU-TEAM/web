@@ -10,6 +10,7 @@
     <div class="profile-id">
       <p class="kicker">{{ u.global_elo|rank }}{% if u.is_donator() %} · <span class="supporter">★ Supporter</span>{% endif %}</p>
       <h1 class="display sm">{{ ident.name }}</h1>
+      {% if title %}<p class="profile-title"><span aria-hidden="true">✦</span> {{ title }}</p>{% endif %}
       <p class="muted">Playing since {{ u.join_date.strftime('%B %Y') }}{% if gang %} · <strong>⚑ {{ gang.name }}</strong>{% endif %}</p>
       <div class="profile-level" title="{{ level_pct }}% to the next level">
         <span>Level <strong>{{ u.level }}</strong></span>
@@ -17,6 +18,7 @@
       </div>
     </div>
     <div class="profile-actions">
+      {% if live_fight %}<a class="btn small gold" href="{{ url_for('battles.watch', fight_id=live_fight) }}"><span class="live-dot" aria-hidden="true"></span> Watch live duel</a>{% endif %}
       {% if relation and relation != 'self' %}
         {{ friend_button(relation, uid) }}
         {{ challenge_button(uid) }}
@@ -27,7 +29,8 @@
   </header>
 
   <ul class="profile-stats" aria-label="Records">
-    <li><span>⚔</span><strong>{{ u.global_elo|num }}</strong><small>Elo · {{ u.global_elo|rank }}</small></li>
+    <li><span>{{ season.icon }}</span><strong>{{ season.tier }}</strong><small>{{ season.label }} season · {{ season.rating|num }}{% if season.place %} · #{{ season.place }}{% endif %}</small></li>
+    <li><span>⚔</span><strong>{{ u.global_elo|num }}</strong><small>Lifetime Elo · {{ u.global_elo|rank }}</small></li>
     <li><span>📜</span><strong>{{ story_cleared }}/{{ story_total }}</strong><small>Story stages</small></li>
     <li><span>▲</span><strong>{{ tower_week }}</strong><small>Tower this week · best ever {{ u.tower_level }}</small></li>
     <li><span>♛</span><strong>{{ rush_best.bosses }}/{{ rush_total }}</strong><small>Boss rush this week</small></li>
@@ -53,6 +56,34 @@
           {% endfor %}
         </ul>
       </section>
+      {% if mastery %}
+        <section>
+          <h2 class="h3">Stand mastery</h2>
+          <ul class="profile-mastery">
+            {% for m in mastery %}
+              <li class="lv{{ m.level }}">
+                <a href="{{ url_for('main.stand', stand_id=m.id) }}"><img src="{{ m.id|stand_img }}" alt="" width="40" height="40" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></a>
+                <span><strong>{{ m.name }}</strong><small class="muted">{{ m.rank }} · {{ m.w }} wins · {{ m.g }} fights</small></span>
+                <span class="mastery-chip" title="{{ m.points|num }} mastery points">{{ m.icon or '·' }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+      {% if battles %}
+        <section>
+          <h2 class="h3">Recent battles <small class="muted">{{ battle_record.wins }}W {{ battle_record.losses }}L</small></h2>
+          <ul class="profile-battles">
+            {% for b in battles %}
+              <li class="{{ b.result }}">
+                <span class="history-result sm" aria-label="{{ b.result|title }}">{{ {'win': 'W', 'loss': 'L', 'draw': 'D'}[b.result] }}</span>
+                <span class="pb-main"><strong>{{ b.label }}</strong><small class="muted">vs {{ b.opp }} · <time data-ago="{{ b.at }}" datetime="{{ b.at }}"></time></small></span>
+                {% if b.replay %}<a class="pb-replay" href="{{ url_for('battles.replay', fight_id=b.id) }}" aria-label="Replay {{ b.label }} against {{ b.opp }}">▶</a>{% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
       {% if recent %}
         <section>
           <h2 class="h3">Latest achievements</h2>
@@ -67,6 +98,24 @@
   {% if showcase %}
     <h2 class="h2 profile-showcase-title">Showcase</h2>
     <div class="grid pull-grid">{% for c in showcase %}{{ owned_card(c, size='small') }}{% endfor %}</div>
+  {% endif %}
+  {% if is_me %}
+    <section class="social-panel title-picker" aria-labelledby="title-h">
+      <h2 class="h3" id="title-h">Your title</h2>
+      {% if my_titles %}
+        <form class="inline" method="post" action="{{ url_for('progress.choose_title') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label class="sr" for="title-pick">Title shown under your name</label>
+          <select id="title-pick" name="title">
+            <option value="">No title</option>
+            {% for t in my_titles %}<option value="{{ t }}" {% if t == title %}selected{% endif %}>{{ t }}</option>{% endfor %}
+          </select>
+          <button class="btn small gold">Show it</button>
+        </form>
+      {% else %}
+        <p class="muted">Earn titles by finishing a ranked season at ACT 3 or higher, mastering a stand, completing <a href="{{ url_for('progress.dex_page') }}">Stand Dex</a> rarity sets, or in the <a href="{{ url_for('progress.events_page') }}">event shop</a>.</p>
+      {% endif %}
+    </section>
   {% endif %}
   {% if is_me %}<p class="muted wiki-note">This is how other players see you. <a href="{{ url_for('play.team') }}">Manage your team</a></p>{% endif %}
 </section>

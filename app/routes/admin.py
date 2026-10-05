@@ -495,3 +495,35 @@ def audit_log():
     names = {uid: identity(uid)["name"] for uid in {row.get("actor") for row in rows} if uid}
     return render_template("admin/audit.html", rows=rows, kinds=kinds, kind=kind, target=target,
                            names=names, section="audit")
+
+
+@bp.route("/events", methods=["GET", "POST"])
+@admin_required
+def events_admin():
+    from app.game import events
+    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO
+    if request.method == "POST":
+        f = request.form
+        try:
+            if f.get("op") == "create":
+                ev = events.create(r(), f.get("name", ""), f.get("blurb", ""), f.get("start", ""), f.get("end", ""),
+                                   f.get("kind", ""), f.get("rarity") if f.get("kind") == "rarity" else f.get("synergy", ""))
+                audit("event_create", ev["id"], name=ev["name"], modifier=ev["kind"], spotlight=ev["target"],
+                      start=ev["start"], end=ev["end"])
+                flash(f"Event “{ev['name']}” scheduled.", "ok")
+            elif f.get("op") == "end":
+                events.end_now(r(), f.get("id", ""))
+                audit("event_end", f.get("id", ""))
+                flash("Event ended.", "ok")
+            elif f.get("op") == "delete":
+                events.delete(r(), f.get("id", ""))
+                audit("event_delete", f.get("id", ""))
+                flash("Event deleted.", "ok")
+        except logic.GameError as e:
+            flash(str(e), "error")
+        return redirect(url_for("admin.events_admin"))
+    today = logic.now().date()
+    return render_template("admin/events.html", section="events", E=events, rows=events.all_events(r()),
+                           today=today, rarities=logic.RARITIES, kinds=events.KINDS,
+                           synergies=sorted(((k, SYNERGY_INFO.get(k, (k, ""))[0]) for k in SYNERGIES), key=lambda x: x[1]),
+                           default_end=(today + datetime.timedelta(days=7)).isoformat())

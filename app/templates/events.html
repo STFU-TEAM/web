@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}{{ ev.name if ev else 'Events' }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar">
+    <div><p class="kicker">Limited time</p><h1 class="display sm">Events</h1></div>
+    {% include "partials/wallet.html" %}
+  </header>
+
+  {% if ev %}
+    <section class="event-hero" aria-labelledby="ev-h">
+      <div class="event-hero-body">
+        <p class="kicker">{{ E.KINDS[ev.kind] }} · {{ E.window(ev) }} · ends in {{ (E.ends_at(ev) - now)|delta }}</p>
+        <h2 class="display sm" id="ev-h">🎉 {{ ev.name }}</h2>
+        {% if ev.blurb %}<p class="lede">{{ ev.blurb }}</p>{% endif %}
+        <p class="event-rule"><strong>Modifier:</strong> {{ E.describe(ev) }}</p>
+        <p class="muted">Earn 🎟️ tokens: +{{ E.TOKENS_PVE }} per PvE win (story, tower, Mirror World, boss rush…), +{{ E.TOKENS_PVP }} per ranked win.</p>
+      </div>
+      <div class="event-tokens" aria-label="Your event tokens">
+        <span aria-hidden="true">🎟️</span><strong>{{ tokens|num }}</strong><small>tokens</small>
+      </div>
+    </section>
+
+    {% if boosted %}
+      <h2 class="h2">In the spotlight</h2>
+      <ul class="event-stands">
+        {% for sid in boosted[:24] %}
+          <li><a href="{{ url_for('main.stand', stand_id=sid) }}" title="See this stand"><img src="{{ sid|stand_img }}" alt="" width="56" height="56" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"><span class="sr">Stand {{ sid }}</span></a></li>
+        {% endfor %}
+        {% if boosted|length > 24 %}<li class="more muted">+{{ boosted|length - 24 }}</li>{% endif %}
+      </ul>
+    {% endif %}
+
+    <h2 class="h2">Exchange</h2>
+    <ul class="event-shop">
+      {% for s in shop %}
+        <li class="{{ 'sold-out' if s.left <= 0 }}{{ ' exclusive' if s.exclusive }}">
+          <div>
+            <strong>{{ s.label if s.key != 'title' else 'Title: “' ~ E.title_for(ev) ~ '”' }}{% if s.exclusive %} <span class="pill event-only">Event only</span>{% endif %}</strong>
+            {% if s.ability %}<small class="event-ability">{{ s.ability }}</small>{% endif %}
+            <small class="muted">{{ s.left }} of {{ s.limit }} left this event</small>
+          </div>
+          <form method="post" action="{{ url_for('progress.events_buy') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="key" value="{{ s.key }}">
+            <button class="btn small {{ 'gold' if tokens >= s.cost and s.left > 0 else 'ghost' }}" {% if s.left <= 0 or tokens < s.cost %}disabled{% endif %}
+                    aria-label="Exchange {{ s.cost }} tokens for {{ s.label }}">🎟️ {{ s.cost }}</button>
+          </form>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="muted small-print">Tokens belong to this event: spend them before it ends.</p>
+  {% else %}
+    <section class="event-hero quiet">
+      <div class="event-hero-body">
+        <h2 class="h2">No event is running</h2>
+        {% if next_ev %}
+          <p>Next up: <strong>{{ next_ev.name }}</strong>, {{ E.window(next_ev) }}. {{ E.describe(next_ev) }}</p>
+        {% else %}
+          <p class="muted">Events bring a twist for a few days (a rarity in the spotlight, bonus Meteor Dust…) and a token shop. Watch the <a href="{{ url_for('main.news_list') }}">news</a> for the next one.</p>
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

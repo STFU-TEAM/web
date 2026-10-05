@@ -42,9 +42,11 @@
 {% endmacro %}
 
 {% set my_side = my_side|default(0) %}
+{#- viewer: "watch" (spectating a live duel) or "replay" (a finished fight played back): nothing to click -#}
+{% set viewer = viewer|default(none) %}
 {% set you, foe = fight.sides[my_side], fight.sides[1 - my_side] %}
-{% set my_turn = fight.awaiting_input and fight.acting_side == my_side %}
-{% set foe_turn_human = fight.awaiting_input and fight.acting_side != my_side %}
+{% set my_turn = not viewer and fight.awaiting_input and fight.acting_side == my_side %}
+{% set foe_turn_human = not viewer and fight.awaiting_input and fight.acting_side != my_side %}
 {% set targets = fight.targets() %}
 {% set sudden_from = fight.sudden_death_round %}
 {% set base = fresh_from if (fresh_from is defined and fresh_from is not none) else fight.log|length %}
@@ -54,9 +56,11 @@
 {% else %}
   {% set star = fight.acting_char or you.chars[0] %}
 {% endif %}
-<div id="fight" class="fight{% if fight.finished %} finished{% endif %}" data-my-side="{{ my_side }}">
+<div id="fight" class="fight{% if fight.finished %} finished{% endif %}{% if viewer %} viewer{% endif %}" data-my-side="{{ my_side }}"
+     {% if viewer == 'replay' %}data-replay="full" data-speed="1"{% endif %}>
+  {% if viewer %}<div class="fight-stage">{% else %}
   <form class="fight-stage" hx-post="{{ fight_action }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
-    <input type="hidden" name="log_len" value="{{ fight.log|length }}">
+    <input type="hidden" name="log_len" value="{{ fight.log|length }}">{% endif %}
     <div class="arena{% if fight.terrain.name != 'DEFAULT' %} has-terrain{% endif %}">
       <section class="side foe" aria-label="{{ foe.name }}">
         <h2 class="side-name">{{ foe.name }}</h2>
@@ -65,9 +69,13 @@
       </section>
 
       <div class="arena-mid">
-        <p class="turn-banner{% if fight.finished %} done {{ 'win' if fight.winner == my_side else 'loss' }}{% endif %}" role="status">
-          {% if fight.finished %}
+        <p class="turn-banner{% if fight.finished %} done {{ 'win' if viewer or fight.winner == my_side else 'loss' }}{% endif %}" role="status">
+          {% if fight.finished and viewer %}
+            {{ 'Draw' if fight.winner is none else fight.sides[fight.winner].name ~ ' wins' }}
+          {% elif fight.finished %}
             {{ 'Draw' if fight.winner is none else ('Victory' if fight.winner == my_side else 'Defeat') }}
+          {% elif viewer %}
+            <span class="turn-no">Round {{ fight.round }}</span> {{ fight.sides[fight.acting_side].name }} is choosing a target…
           {% elif my_turn %}
             <span class="turn-no">Round {{ fight.round }}</span> Pick a target for {{ fight.acting_char.name }}
           {% else %}
@@ -76,7 +84,7 @@
         </p>
         {% if turn_left is defined and turn_left is not none and not fight.finished and fight.awaiting_input %}
           <p class="turn-clock{{ ' mine' if my_turn }}" data-turn-clock="{{ turn_left }}" role="timer" aria-live="off">
-            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ foe.name ~ ' to pick' }}
+            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ fight.sides[fight.acting_side].name ~ ' to pick' }}
           </p>
         {% endif %}
         {% if my_turn and fight.special_ready %}
@@ -101,7 +109,19 @@
       <p class="fight-controls"><button class="btn small danger" name="forfeit" value="1" hx-confirm="Surrender this fight? You get no reward.">Surrender</button></p>
     {% endif %}
 
-    {% if fight.finished %}
+    {% if fight.finished and viewer %}
+      <div class="result win viewer-result">
+        <p class="loot">{{ 'A draw: both teams fell together.' if fight.winner is none else fight.sides[fight.winner].name ~ ' wins in ' ~ fight.round ~ ' round' ~ ('s' if fight.round != 1) ~ '.' }}</p>
+        <div class="viewer-actions">
+          {% if viewer == 'replay' %}
+            <button type="button" class="btn gold" data-replay-again>▶ Watch again</button>
+          {% else %}
+            <a class="btn gold" href="{{ replay_url }}">▶ Watch the replay</a>
+          {% endif %}
+          <a class="btn ghost" href="{{ url_for('battles.index', mode='watch') }}">More duels</a>
+        </div>
+      </div>
+    {% elif fight.finished %}
       <div class="result {{ 'win' if fight.winner == my_side else 'loss' }}">
         {% if fight.meta.damage is defined %}
           <p class="loot">{{ fight.meta.damage|num }}{{ '% of their guardians cleared' if fight.kind == 'gang_war' else ' damage dealt to the raid boss' }} for your gang.</p>
@@ -112,12 +132,23 @@
         {% else %}
           <p>{{ 'The practice fight ended.' if fight.kind == 'dummy' else 'No reward was earned.' }}</p>
         {% endif %}
-        <button class="btn gold" form="fight-leave">Back to {{ fight_label|lower }}</button>
+        {% if fight.rewards and fight.rewards.event_bonus %}<p class="event-line">🎉 Event bonus: +{{ fight.rewards.event_bonus|num }} Meteor Dust included.</p>{% endif %}
+        {% set tokens = (fight.rewards.tokens if fight.rewards and fight.rewards.tokens else 0) or (fight.meta.tokens if fight.winner == my_side and fight.meta.tokens else 0) %}
+        {% if tokens %}<p class="event-line">🎟️ +{{ tokens }} event tokens · <a href="{{ url_for('progress.events_page') }}">event shop</a></p>{% endif %}
+        <div class="viewer-actions">
+          <button class="btn gold" form="fight-leave">Back to {{ fight_label|lower }}</button>
+          <a class="btn ghost" href="{{ url_for('battles.replay', fight_id=fight.id) }}" target="_blank" rel="noopener">▶ Replay</a>
+        </div>
       </div>
     {% endif %}
-  </form>
+  {% if viewer %}</div>{% else %}</form>{% endif %}
 
-  {% if fight.finished %}
+  {% if viewer == 'watch' and not fight.finished %}
+    {# Spectating: fetch what happened since, without a manual refresh (204 = nothing new). #}
+    <div hidden hx-get="{{ watch_frame }}?log_len={{ fight.log|length }}" hx-trigger="every 3s [!document.querySelector('#fight.playing')]"
+         hx-target="#fight" hx-swap="outerHTML"></div>
+  {% elif viewer %}
+  {% elif fight.finished %}
     <form id="fight-leave" hidden method="post" action="{{ fight_leave_action }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
     </form>
@@ -139,7 +170,7 @@
       </div>
       <figcaption>
         <strong class="spotlight-name">{{ star.name }}</strong>
-        <span class="spotlight-line">{% if fight.finished %}{{ 'Last one standing' if fight.winner is not none else 'Nobody wins' }}{% elif my_turn %}Your move{% else %}Their move{% endif %}</span>
+        <span class="spotlight-line">{% if fight.finished %}{{ 'Last one standing' if fight.winner is not none else 'Nobody wins' }}{% elif viewer %}{{ fight.sides[fight.acting_side].name }}'s move{% elif my_turn %}Your move{% else %}Their move{% endif %}</span>
       </figcaption>
     </figure>
   </aside>

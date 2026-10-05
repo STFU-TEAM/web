@@ -1,0 +1,46 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Mastery, titles & Stand Dex{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Progress</p>
+  <h1 class="display sm">Mastery, titles & Stand Dex</h1>
+  <p>Long-term goals: get to know your favourite stands, collect whole sets, and wear what you earned under your name.</p>
+</header>
+
+<h2 class="wiki-h2">Stand mastery</h2>
+<p>Every stand you fight with keeps a record: fights, wins, damage dealt and specials fired. Mastery belongs to the <strong>stand</strong>, not to one copy, so fusing, releasing or pulling a new copy never resets it. You'll find it in each stand's panel on your <a href="{{ url_for('play.team') }}">Team</a> page, and your best ones show on your profile.</p>
+<p>Points: <strong>1 per fight</strong>, <strong>+3 per win</strong> and <strong>+1 per special</strong> fired. Every fight counts (story, tower, Mirror World, raids, duels…) except the training dummy and fights you surrender.</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Level</th><th scope="col">Points</th></tr></thead>
+  <tbody>{% for m in mastery %}<tr><th scope="row">{{ m.icon }} {{ m.rank }}</th><td>{{ m.points|num }}</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+<p>Reaching <strong>Master</strong> ({{ facts.mastery_master|num }} points) unlocks the title “&lt;stand&gt; Master”.</p>
+
+<h2 class="wiki-h2" id="titles">Titles</h2>
+<p>A title shows in gold under your name on your profile. Pick which one, or none, at the bottom of <a href="{{ url_for('main.profile', uid=me.id) if me.id else url_for('main.leaderboard') }}">your profile</a>. Once earned, a title is yours for good. Ways to earn one:</p>
+<ul class="wiki-list">
+  <li><strong>Ranked seasons</strong>: finish a month at {{ facts.season_title_from }} or higher, e.g. “Requiem · October 2026” (<a href="{{ url_for('main.wiki', topic='ranked') }}">seasons</a>).</li>
+  <li><strong>Mastery</strong>: “&lt;stand&gt; Master” for every stand you master.</li>
+  <li><strong>Stand Dex</strong>: complete every stand of a rarity (below).</li>
+  <li><strong>Events</strong>: “&lt;event name&gt; veteran” from the <a href="{{ url_for('main.wiki', topic='events') }}">event shop</a>.</li>
+</ul>
+
+<h2 class="wiki-h2">Stand Dex</h2>
+<p>The <a href="{{ url_for('progress.dex_page') }}">Stand Dex</a> groups stands into sets: every stand of a rarity, and every member of a crew (synergy group). Own each stand of a set once to claim its reward. A stand stays in your Dex for good once you've owned it here, so releasing or fusing a copy, or trading it away, never undoes progress. Each set pays once.</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Set</th><th scope="col">Stands</th><th scope="col">Reward</th></tr></thead>
+  <tbody>
+    {% for s in sets %}
+      <tr>
+        <th scope="row">{{ s.icon if s.kind == 'group' else '' }} {{ s.name }}{% if s.kind == 'group' %}<br><small class="muted">{{ s.names|join(', ') }}</small>{% endif %}</th>
+        <td>{{ s.ids|length }}</td>
+        <td>{{ s.reward_text }}{% if s.title %}<br><small class="muted">title “{{ s.title }}”</small>{% endif %}</td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

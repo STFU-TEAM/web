@@ -42,6 +42,9 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
             if fight.finished and fight.rewards is None and settle:
                 user = get_db().get_user(uid)
                 fight.rewards = settle(user, fight)
+                if fight.winner == fight.human_side and not getattr(fight, "forfeited", False):
+                    from app.game import events
+                    fight.rewards = events.pve_win(user, fight.rewards)
                 fun_achievements(user, fight)
                 user.update()
             save_fight(uid, fight)

@@ -4,11 +4,14 @@ import time
 import uuid
 
 from flask import Blueprint, flash, redirect, render_template, request, Response, session, url_for
+from markupsafe import Markup
 
 from app.accounts import resolve_player
 from app.auth import player_required
-from app.db import Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import logic, story
+from app import social
+from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
+from app.game import events, history, logic, seasons, simulate, story
+from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, ai_choice, fighting_copy
 from app.filters import PLAYABLE
@@ -104,6 +107,7 @@ def _create_duel(uid_a, uid_b, kind):
     arm_timer(fight)
     save_fight(uid_a, fight)
     save_fight(uid_b, fight)
+    r().hset(LIVE_FIGHTS, fight.id, json.dumps({"players": [uid_a, uid_b], "kind": kind, "at": int(time.time())}))
     return fight
 
 
@@ -124,7 +128,17 @@ def index():
         else:
             r().srem(inbox, challenge_id)
     user = get_db().get_user(uid)
-    return render_template("battles.html", u=user, mode=request.args.get("mode", "dummy"),
+    mode = request.args.get("mode", "dummy")
+    extra = {}
+    if mode == "ranked":
+        extra = {"season": seasons.standing(r(), uid, user.global_elo), "season_claims": seasons.unclaimed(r(), user),
+                 "season_rewards": seasons.reward_table(), "season_min": seasons.MIN_GAMES}
+    elif mode == "watch":
+        extra = {"live": live_duels(uid)}
+    elif mode == "history":
+        rows = history.recent(r(), uid)
+        extra = {"recent": rows, "record": history.summary(rows)}
+    return render_template("battles.html", u=user, mode=mode, **extra,
                            fight=_active_fight(uid), pending=pending, waiting=r().zscore(RANKED_QUEUE, uid) is not None,
                            challenge_to=(lambda t: identity(t.decode() if isinstance(t, bytes) else t)["name"] if t else None)(
                                r().get(CHALLENGE_WAIT.format(uid))),
@@ -330,13 +344,22 @@ def _settle(fight):
         fun_achievements(user, fight, side)
         if fight.winner is None and not getattr(fight, "forfeited", False):
             logic.check_achievements(user, "draw")
+    if fight.kind == "ranked":
+        elos = {p: int(u.global_elo or 0) for p, u in zip(players, users)}
+        winner_id = players[fight.winner] if fight.winner is not None else None
+        for uid in seasons.record(r(), players, winner_id, elos):
+            sid = seasons.season_id()
+            social.notify_later(uid, f"season:{sid}", time.time() + seasons.seconds_left(sid), "season",
+                                f"♛ The {seasons.label(sid)} ranked season is over. Claim your season reward!",
+                                url_for("battles.index", mode="ranked"))
     if fight.winner is not None:
         winner, loser = users[fight.winner], users[1 - fight.winner]
         actions = ["fight_win"]
         if fight.kind == "ranked":
-            winner.global_elo += 25
-            loser.global_elo = max(0, loser.global_elo - 20)
+            winner.global_elo += seasons.WIN
+            loser.global_elo = max(0, loser.global_elo - seasons.LOSS)
             actions.insert(0, "fight_ranked_win")
+            fight.meta["tokens"] = events.earn(winner, events.TOKENS_PVP)
         for action_name in actions:
             logic.track_quest_progress(winner, action_name)
             logic.check_achievements(winner, action_name)
@@ -387,3 +410,185 @@ def leave():
         for player_id in players:
             clear_fight(player_id)
     return redirect(url_for("battles.index"))
+
+# --------------------------------------------------------------------------- #
+# Ranked seasons
+# --------------------------------------------------------------------------- #
+@bp.post("/season/claim")
+@player_required
+def season_claim():
+    uid = session["uid"]
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            paid = seasons.claim(r(), user)
+            user.update()
+        for s in paid:
+            extra = f" and the title “{s['title']}”" if s["title"] else ""
+            flash(f"♛ {s['label']}: you finished {s['tier']}. {seasons.reward_text(s['reward'])}{extra}.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("battles.index", mode="ranked"))
+
+
+# --------------------------------------------------------------------------- #
+# Watching live duels and replays
+# --------------------------------------------------------------------------- #
+def can_watch(viewer, entry) -> bool:
+    """Ranked duels are public; friendly duels are for the two players and their friends."""
+    players = entry.get("players", [])
+    if entry.get("kind") == "ranked" or (viewer and viewer in players):
+        return True
+    return bool(viewer) and any(social.are_friends(viewer, p) for p in players)
+
+
+def _live_entry(fight_id):
+    raw = r().hget(LIVE_FIGHTS, fight_id)
+    return json.loads(raw) if raw else None
+
+
+def _live_fight(fight_id, entry):
+    """The duel behind a live entry, or None (and the stale entry dropped) once it's gone."""
+    fight = load_fight(entry["players"][0]) if entry and entry.get("players") else None
+    if not fight or fight.id != fight_id:
+        r().hdel(LIVE_FIGHTS, fight_id)
+        return None
+    return fight
+
+
+def live_duels(viewer) -> list:
+    out = []
+    for fid, raw in r().hgetall(LIVE_FIGHTS).items():
+        fid = fid.decode() if isinstance(fid, bytes) else fid
+        try:
+            entry = json.loads(raw)
+        except ValueError:
+            r().hdel(LIVE_FIGHTS, fid)
+            continue
+        if not can_watch(viewer, entry):
+            continue
+        fight = _live_fight(fid, entry)
+        if not fight or fight.finished:
+            continue
+        out.append({"id": fid, "kind": entry["kind"], "round": fight.round, "at": entry.get("at", 0),
+                    "mine": viewer in entry["players"],
+                    "sides": [{"name": s.name, "uid": entry["players"][i], "lead": [c.id for c in s.chars],
+                               "hp": int(100 * sum(max(0, c.current_hp) for c in s.chars)
+                                         / max(1, sum(c.start_hp for c in s.chars)))}
+                              for i, s in enumerate(fight.sides)]})
+    out.sort(key=lambda d: (not d["mine"], d["kind"] != "ranked", -d["at"]))
+    return out
+
+
+def live_fight_of(uid):
+    """Id of the PvP duel uid is fighting right now (for the profile's Watch button), or None."""
+    fight = load_fight(uid)
+    if fight and fight.kind in PVP and not fight.finished and r().hexists(LIVE_FIGHTS, fight.id):
+        return fight.id
+    return None
+
+
+def _viewer_view(fight, mode, fight_id, fresh_from=None):
+    return render_template("partials/fight.html", fight=fight, fresh_from=fresh_from, my_side=0, viewer=mode,
+                           turn_left=turn_left(fight), fight_action="", fight_leave_action="",
+                           watch_frame=url_for("battles.watch_frame", fight_id=fight_id),
+                           replay_url=url_for("battles.replay", fight_id=fight_id),
+                           fight_label=history.LABELS.get(fight.kind, "Battle"))
+
+
+@bp.get("/watch/<fight_id>")
+@player_required
+def watch(fight_id):
+    entry = _live_entry(fight_id)
+    fight = _live_fight(fight_id, entry) if entry else None
+    if not fight:
+        if history.load_replay(r(), fight_id):
+            return redirect(url_for("battles.replay", fight_id=fight_id))
+        flash("That duel is over.", "error")
+        return redirect(url_for("battles.index", mode="watch"))
+    if not can_watch(session["uid"], entry):
+        flash("Friendly duels can only be watched by the players' friends.", "error")
+        return redirect(url_for("battles.index", mode="watch"))
+    return render_template("watch.html", fight=fight, fight_id=fight_id, entry=entry, mode="watch",
+                           frame=Markup(_viewer_view(fight, "watch", fight_id, fresh_from=len(fight.log))))
+
+
+@bp.get("/watch/<fight_id>/frame")
+@player_required
+def watch_frame(fight_id):
+    """The polled view: 204 (nothing to swap) until something happened since log_len."""
+    log_len = _int("log_len", 0)
+    entry = _live_entry(fight_id)
+    fight = _live_fight(fight_id, entry) if entry else None
+    if fight and not can_watch(session["uid"], entry):
+        return Response(status=403)
+    if not fight:
+        fight = history.load_replay(r(), fight_id)  # it just ended
+        if not fight:
+            return Response(status=286)
+    elif len(fight.log) == log_len and not fight.finished:
+        return Response(status=204)
+    return _viewer_view(fight, "watch", fight_id, fresh_from=min(log_len, len(fight.log)))
+
+
+@bp.get("/replay/<fight_id>")
+def replay(fight_id):
+    """Public: anyone with the link can watch a finished fight again."""
+    fight = history.load_replay(r(), fight_id)
+    if not fight:
+        return render_template("error.html", code=404, message="This replay has expired (replays are kept "
+                                                                f"{history.REPLAY_DAYS} days)."), 404
+    return render_template("watch.html", fight=fight, fight_id=fight_id, mode="replay",
+                           label=history.LABELS.get(fight.kind, "Battle"),
+                           frame=Markup(_viewer_view(fight, "replay", fight_id, fresh_from=0)),
+                           share_url=url_for("battles.replay", fight_id=fight_id, _external=True))
+
+
+# --------------------------------------------------------------------------- #
+# Team simulator
+# --------------------------------------------------------------------------- #
+def _sim_teams(user):
+    teams = [{"value": "", "label": "Current team", "team": user.main_characters}]
+    for name in sorted(user.teams):
+        members = []
+        for stand_uuid in user.teams.get(name) or []:
+            found = user.find_character_by_uuid(stand_uuid)[0] if isinstance(stand_uuid, str) else None
+            if found:
+                members.append(found)
+        if members:
+            teams.append({"value": name, "label": f"Preset: {name}", "team": members})
+    return teams
+
+
+@bp.get("/simulator")
+@player_required
+def simulator():
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    friends = sorted(({"id": f, "name": identity(f)["name"]} for f in social.friends(uid)), key=lambda f: f["name"].lower())
+    k = story.cleared(user)
+    return render_template("simulator.html", u=user, teams=_sim_teams(user), groups=simulate.opponents(),
+                           friends=friends, preset=request.args.get("vs") or f"story:{min(k, story.TOTAL - 1)}",
+                           runs=simulate.RUNS)
+
+
+@bp.post("/simulator/run")
+@player_required
+def simulator_run():
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    pick = next((t for t in _sim_teams(user) if t["value"] == request.form.get("team", "")), None)
+    vs = request.form.get("vs", "")
+    if vs == "player":
+        vs = f"player:{resolve_player(request.form.get('player', '')) or ''}"
+    foe = simulate.foe_for(vs, get_db())
+    if not pick or not pick["team"]:
+        return "<p class='notice error'>Put stands in that team first.</p>"
+    if not foe:
+        return "<p class='notice error'>Pick an opponent (a player needs a team to simulate against).</p>"
+    if not r().set(f"web:sim:{uid}", "1", nx=True, ex=3):
+        return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
+    result = simulate.run(pick["team"], foe)
+    return render_template("partials/sim_result.html", res=result, foe=foe, team_label=pick["label"])

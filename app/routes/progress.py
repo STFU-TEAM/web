@@ -284,3 +284,73 @@ def achievements():
     rows.sort(key=lambda a: (a["unlocked"], a["secret"] and not a["unlocked"], -a["progress"] / max(1, a["target"])))
     return render_template("achievements.html", u=user, rows=rows,
                            unlocked=sum(a["unlocked"] for a in rows))
+
+
+# --------------------------------------------------------------------------- #
+# Limited-time events
+# --------------------------------------------------------------------------- #
+@bp.get("/events")
+@player_required
+def events_page():
+    from app.game import events
+    user = get_db().get_user(session["uid"])
+    ev = events.current(r())
+    return render_template("events.html", u=user, ev=ev, E=events, next_ev=None if ev else events.upcoming(r()),
+                           tokens=events.tokens(user, ev), shop=events.shop_view(user, ev) if ev else [],
+                           boosted=sorted(events.boosted_ids(ev)) if ev else [], now=logic.now())
+
+
+@bp.post("/events/buy")
+@player_required
+def events_buy():
+    from app.game import events
+    got = _act(lambda u: events.buy(u, events.current(r()), request.form.get("key", "")))
+    if got:
+        flash(f"🎟️ Exchanged: {got}.", "ok")
+    return redirect(url_for("progress.events_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Stand Dex (collection sets) and titles
+# --------------------------------------------------------------------------- #
+@bp.get("/dex")
+@player_required
+def dex_page():
+    from app.filters import PLAYABLE
+    from app.game import dex
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    before = list(user.data.get("web_dex") or [])
+    sets = dex.view(user)
+    if user.data.get("web_dex") != before:  # remember newly owned stands (a quick save, skipped if busy)
+        try:
+            with user_lock(uid, ttl=5):
+                fresh = get_db().get_user(uid)
+                dex.seen(fresh)
+                fresh.update()
+        except Busy:
+            pass
+    known = set(user.data.get("web_dex") or [])
+    return render_template("dex.html", u=user, sets=sets, shown=request.args.get("set", ""), known=known, D=dex,
+                           stands={c["id"]: c for c in PLAYABLE}, total_known=len(known), total=len(PLAYABLE))
+
+
+@bp.post("/dex/claim")
+@player_required
+def dex_claim():
+    from app.game import dex
+    s = _act(lambda u: dex.claim(u, request.form.get("key", "")))
+    if s:
+        extra = f" and the title “{s['title']}”" if s["title"] else ""
+        flash(f"{s['name']} complete: {dex.reward_text(s['reward'])}{extra}.", "ok")
+    return redirect(url_for("progress.dex_page", set=request.form.get("key", "")))
+
+
+@bp.post("/titles")
+@player_required
+def choose_title():
+    from app.game import mastery, titles
+    title = request.form.get("title", "")
+    if _act(lambda u: titles.choose(u, title, mastery.titles(r(), u.id)) or True):
+        flash(f"Your title is now “{title}”." if title else "Title hidden.", "ok")
+    return redirect(url_for("main.profile", uid=session["uid"]))

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Team simulator | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <header class="player-bar">
+    <div><p class="kicker">Battle lab</p><h1 class="display sm">Team simulator</h1></div>
+  </header>
+  <p class="lede sim-lede">Before you spend energy, see how a team fares: it plays the fight {{ runs }} times through the real engine, with the best target picks made for you. Nothing is spent or saved.</p>
+
+  <form class="sim-form" hx-post="{{ url_for('battles.simulator_run') }}" hx-target="#sim-result" hx-swap="innerHTML"
+        hx-disabled-elt="find button" hx-indicator="#sim-busy">
+    <div class="sim-field">
+      <label for="sim-team">Your side</label>
+      <select id="sim-team" name="team">
+        {% for t in teams %}<option value="{{ t.value }}">{{ t.label }} ({{ t.team|map(attribute='name')|join(', ') or 'empty' }})</option>{% endfor %}
+      </select>
+    </div>
+    <div class="sim-field">
+      <label for="sim-vs">Opponent</label>
+      <select id="sim-vs" name="vs" data-sim-vs>
+        {% for g in groups %}
+          <optgroup label="{{ g.group }}">
+            {% for o in g.options %}<option value="{{ o.value }}" {% if o.value == preset %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+          </optgroup>
+        {% endfor %}
+        <optgroup label="Players"><option value="player" {% if preset == 'player' %}selected{% endif %}>Another player's team…</option></optgroup>
+      </select>
+    </div>
+    <div class="sim-field" data-sim-player {% if preset != 'player' %}hidden{% endif %}>
+      <label for="sim-player">Player (username, Discord ID or a friend)</label>
+      <input id="sim-player" name="player" list="sim-friends" autocapitalize="none" spellcheck="false" placeholder="Start typing a friend's name">
+      <datalist id="sim-friends">{% for f in friends %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}</datalist>
+    </div>
+    <div class="sim-go">
+      <button class="btn gold big">🧪 Simulate {{ runs }} fights</button>
+      <span id="sim-busy" class="sim-busy htmx-indicator" role="status"><span class="spinner" aria-hidden="true"></span> Fighting…</span>
+    </div>
+  </form>
+
+  <div id="sim-result" aria-live="polite"></div>
+  <p class="muted small-print">Results include the running event's boosts. Tower floors use this week's enemies; story stages use the same teams as the real fight. Real fights add your own target picks, so a good player beats these numbers.</p>
+</section>
+{% endblock %}

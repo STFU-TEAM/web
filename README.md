@@ -53,8 +53,29 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   `effects.py` / `characterabilities.py` by `app/wiki.py`. When a special starts checking a
   synergy, add its effect text to `SYNERGY_EFFECTS` (a test fails until you do)
 - Installable web app: `/manifest.webmanifest`, bottom tab bar and menu sheet below 1024px
-
-Not ported yet: multi-map dungeon progression, top.gg voting.
+- Ranked seasons (`app/game/seasons.py`): one calendar month each, a web-only season rating that starts
+  from half of the last season's (lifetime `global_elo` is the bot's and never resets), a Season tab on
+  the ladder, and rewards + titles by final tier for players with 5+ ranked duels
+- Battle history and replays (`app/game/history.py`): the last 30 fights per player, every finished fight
+  replayable for 14 days at `/battles/replay/<id>` (public link, 1x/2x/4x)
+- Live duels (`/battles?mode=watch`): ranked duels are public, friendly duels are visible to friends of
+  either player; the spectator view polls `/battles/watch/<id>/frame`
+- Limited-time events (`app/game/events.py`): admins schedule one at a time in `/admin/events` (Dust rush,
+  rarity or synergy spotlight); players earn tokens from PvE and ranked wins for the `/events` shop.
+  The shop is the only source of Sheer Heart Attack, Red stone of Aja and Polpo's lighter (one each per event)
+  The fight engine applies the boost in `Fight.__init__` (marked on the stand so tower teams never stack it)
+- Stand mastery (`app/game/mastery.py`): per-stand fights, wins, damage and specials, Bronze to Master,
+  shown on the stand panel and profile; Master unlocks a title. Titles (`app/game/titles.py`) come from
+  seasons, mastery, the Stand Dex and the event shop, and one is shown on the profile
+- Gang chat: on the gang page, polled every 4 s (`web:gang:chat:<gang_id>`), capos can delete messages
+- Friend gifts: one gift a day per friend (50 Meteor Dust or 2 energy), 5 received a day at most,
+  senders need 3 story stages
+- Notifications stay on the site (inbox + toasts, no bot involved). Journeys schedule a "your stand is home"
+  notification (`social.notify_later`, sent by page loads), gang wars notify every member
+- Team simulator (`/battles/simulator`, `app/game/simulate.py`): 40 fights through the real engine
+  against a story stage, a tower floor or another player's team
+- Stand Dex (`/dex`, `app/game/dex.py`): rarity and crew sets with rewards; a stand counts once ever
+  owned on the site (`web_dex`), so releasing or fusing never undoes progress
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:

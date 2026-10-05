@@ -76,6 +76,9 @@ def fmt_delta(td: datetime.timedelta) -> str:
     s = max(0, int(td.total_seconds()))
     h, rem = divmod(s, 3600)
     m, sec = divmod(rem, 60)
+    if h >= 48:  # long countdowns (seasons, events, raids) read better in days
+        d, h = divmod(h, 24)
+        return f"{d} d {h} h"
     if h:
         return f"{h} h {m:02d} min"
     if m:

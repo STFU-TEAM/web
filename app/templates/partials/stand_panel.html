@@ -13,6 +13,15 @@
       · {{ 'In your team' if in_team else 'In storage' }}
     </p>
 
+    {% set m = mastery %}
+    <div class="mastery-box lv{{ m.level }}">
+      <p class="mastery-head"><span class="mastery-medal" aria-hidden="true">{{ m.icon or '·' }}</span>
+        <strong>{{ m.rank }} mastery</strong>
+        <small class="muted">{{ m.points|num }} pts{% if m.next %} · {{ m.to_next|num }} to {{ m.next }}{% endif %}</small></p>
+      <div class="meter" role="meter" aria-label="Mastery progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ m.pct }}"><i style="width: {{ m.pct }}%"></i></div>
+      <p class="mastery-stats muted"><span>{{ m.g }} fights</span><span>{{ m.w }} wins</span><span>{{ m.d|stat }} damage</span><span>{{ m.s }} specials</span></p>
+    </div>
+
     <h3 class="h3">Special</h3>
     <p class="special-text">{{ special_text(c) }} <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
     {{ special_scaling(c) }}

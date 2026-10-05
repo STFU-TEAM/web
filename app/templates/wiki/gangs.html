@@ -9,12 +9,14 @@
 <p><a href="{{ url_for('gangs.index') }}">Gangs</a> are the clan system, shared with the bot. Founding one costs {{ facts.gang_cost|num }} Meteor Dust. Bosses and capos invite players by username or Discord ID.</p>
 <h2 class="wiki-h2">Ranks</h2>
 <ul class="wiki-list"><li><strong>Boss</strong>: promotes, demotes, pays from the vault, hands out stash items and edits the gang profile. Promoting a capo hands them the boss seat.</li><li><strong>Capo</strong>: invites and kicks soldiers, starts wars, recalls guardians.</li><li><strong>Soldier</strong>: deposits, adds guardians and attacks.</li></ul>
+<h2 class="wiki-h2">Gang chat</h2>
+<p>The gang page opens on a shared chat for members only. New messages show up by themselves every few seconds. Press Enter to send (Shift+Enter for a new line). Messages are up to {{ facts.chat_len }} characters, and the last {{ facts.chat_keep }} are kept. You can delete your own messages; capos and the boss can delete anyone's.</p>
 <h2 class="wiki-h2">Guardians and wars</h2>
 <p>Members lend up to 3 stands from storage as <strong>guardians</strong>. A capo queues a war; once matched, it lasts 2 days. Each member attacks the enemy guardians once; your score is the share of guardians you knock out. The gang with more damage per member wins elo and 10,000 Meteor Dust for the vault.</p>
 <h2 class="wiki-h2">Raids</h2>
 <p>Every week a new villain takes the raid: DIO, Kira, Diavolo, Pucci, Valentine, Toru and more. Each member gets <strong>one attack per day</strong>. The boss can't fall, so every point of damage counts toward the gang's weekly total.</p>
 <p>The total unlocks four reward tiers: Meteor Dust, crafting materials, Devil's Palms, Arrowheads and a Saint's Corpse part at the top. Everyone who attacked that week claims each tier the gang reaches, from the raid card on the gang page. Claim before the week resets on Monday.</p>
-<p>A capo or the boss looks for a war; the first two gangs looking are matched. A war lasts 48 hours. Each member attacks the enemy guardians once; the gang with more damage per member wins Elo and 10,000 Meteor Dust for its vault.</p>
+<p>A capo or the boss looks for a war; the first two gangs looking are matched. A war lasts 48 hours. Each member attacks the enemy guardians once; the gang with more damage per member wins Elo and 10,000 Meteor Dust for its vault. Every member gets a notification with the result.</p>
 <h2 class="wiki-h2">Player shops</h2>
 <p>Open a <a href="{{ url_for('social.shops') }}">player shop</a> for {{ facts.shop_cost|num }} Meteor Dust, list items at your own price, and buy from other players.</p>
 {% endblock %}

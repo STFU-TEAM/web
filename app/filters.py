@@ -120,6 +120,8 @@ def register(app):
                                  FULLART_STARS=FULLART_STARS)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
+    from app.game import events
+    app.jinja_env.globals.update(event_rule=events.describe)
     from app.game import characterabilities as abilities
     app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
                                  STAT_INFO=abilities.STAT_INFO, special_text=special_text)
@@ -301,7 +303,9 @@ def register(app):
             duel_waiting = pvp_waiting(uid)
             if not request.headers.get("HX-Request"):  # HTMX responses get theirs through HX-Trigger
                 toasts = social.take_toasts(uid)
+        from app.game import events
         return {
+            "live_event": events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],

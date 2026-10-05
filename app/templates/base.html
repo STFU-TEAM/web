@@ -29,16 +29,19 @@
   'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟', 'Your 3 fighters and every stand you own. Fuse, lock and equip here.'),
   'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', "Equipment, Devil's Palms, crafting and the shop."),
   'reforge': ('Reforge', url_for('play.reforge_page'), ep.startswith('play.reforge'), '⚒', 'Reroll a stand’s types and qualities. Lock the ones you like.'),
+  'dex': ('Stand Dex', url_for('progress.dex_page'), ep.startswith('progress.dex'), '📕', 'Collect whole sets of stands for Meteor Dust, Arrowheads and titles.'),
   'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend Arrowheads for 10 new stands. Pity guarantees SSR+.'),
   'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜', 'Travel Parts 3 to 8 beside each JoJo. The best rewards for new players.'),
   'altverse': ('Alternate Universe', url_for('progress.au_page'), ep.startswith('progress.au_'), '🌀', 'What if the villains had won? Custom chapters that open as you clear the story.'),
   'journey': ("Crusaders' Journey", url_for('journey.index'), ep.startswith('journey.'), '🐫', 'Send a stand from Tokyo to Cairo on its own. Stronger stands bring back more.'),
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'The six story bosses back to back, health carried over. Weekly leaderboard.'),
-  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.'), '⚔', 'Practice dummy, ranked duels and friend challenges.'),
+  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith('battles.simulator'), '⚔', 'Practice, ranked seasons, friend duels, live duels to watch and your replays.'),
+  'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'Six floors in a row. Clear them all to raise the tower.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'Wager energy, explore a map, open chests.'),
+  'events': ('Events', url_for('progress.events_page'), ep.startswith('progress.events'), '🎉', live_event.name ~ ' is on: a twist and a token shop.' if live_event else 'Limited-time twists with a token shop.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
   'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),
   'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑', 'Join a clan: shared vault, wars and raids.'),
@@ -53,8 +56,8 @@
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
-{%- set battle_keys = ['story', 'altverse', 'journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) -%}
-{%- set progress_keys = ['quests', 'achievements'] -%}
+{%- set battle_keys = ['story', 'altverse', 'journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
+{%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
@@ -69,8 +72,9 @@
 {%- endmacro -%}
 {%- macro menu_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}
-  <a class="menu-item{% if key == 'story' and story_hot %} hot{% endif %}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>
-    <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span><strong>{{ label }}{% if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% endif %}</strong><small>{{ why }}</small></span></a>
+  {%- set is_hot = (key == 'story' and story_hot) or (key == 'events' and live_event) -%}
+  <a class="menu-item{% if is_hot %} hot{% endif %}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span><strong>{{ label }}{% if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>{% endif %}</strong><small>{{ why }}</small></span></a>
 {%- endmacro -%}
 {%- macro nav_menu(title, keys, tour, hot=False) -%}
   <details class="nav-drop{% if hot %} hot{% endif %}" data-tour="{{ tour }}">
@@ -160,7 +164,7 @@
       <div class="sheet-grid">
         {% for k in keys %}
           {%- set label, href, active, icon, why = L[k] -%}
-          <a href="{{ href }}" class="{{ 'hot' if k == 'story' and story_hot }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span><span>{{ label }}<small>{{ why }}</small></span></a>
+          <a href="{{ href }}" class="{{ 'hot' if (k == 'story' and story_hot) or (k == 'events' and live_event) }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span><span>{{ label }}<small>{{ why }}</small></span></a>
         {% endfor %}
       </div>
     {% endfor %}

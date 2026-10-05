@@ -6,7 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 from app import social
 from app.accounts import resolve_player
 from app.auth import player_required
-from app.db import get_db, identity, r
+from app.db import Busy, get_db, identity, r, user_lock
 from app.game import story
 from app.game import trades as T
 from app.routes.battles import CHALLENGE_INBOX, CHALLENGE_KEY
@@ -61,7 +61,44 @@ def friends():
         outgoing=[_card(u, me, db) for u in social.outgoing(me)],
         invite_url=url_for("community.join", ref=me, _external=True),
         pending_refs=[identity(u)["name"] for u in social.referral_stats(me)["pending"]],
-        ref_stage=social.REFERRAL_STAGE)
+        ref_stage=social.REFERRAL_STAGE, gifted=social.gifted_today(me), gifts=social.pending_gifts(me),
+        gift_kinds=social.GIFTS, gift_cap=social.GIFT_RECEIVE_CAP,
+        can_gift=story.cleared(db.get_user(me)) >= social.REFERRAL_STAGE)
+
+
+@bp.post("/gift")
+@player_required
+def gift():
+    me = session["uid"]
+    other = resolve_player(request.form.get("user_id", ""))
+    if not other:
+        flash("That player doesn't exist.", "error")
+        return _back()
+    try:
+        sent = social.send_gift(me, other, request.form.get("kind", "dust"))
+        flash(f"🎁 {sent['label']} sent to {identity(other)['name']}.", "ok")
+    except social.SocialError as e:
+        flash(str(e), "error")
+    return _back()
+
+
+@bp.post("/gifts/open")
+@player_required
+def open_gifts():
+    me = session["uid"]
+    try:
+        with user_lock(me):
+            user = get_db().get_user(me)
+            got = social.open_gifts(user)
+            user.update()
+        parts = ([f"{got['fragments']:,} Meteor Dust"] if got["fragments"] else []) + \
+                ([f"{got['energy']} energy"] if got["energy"] else [])
+        flash(f"🎁 You opened {got['count']} gift{'s' if got['count'] > 1 else ''}: {' and '.join(parts) or 'your energy was already full'}.", "ok")
+    except social.SocialError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return _back()
 
 
 @bp.post("/friends/<verb>")
@@ -123,7 +160,7 @@ def _challenges(uid: str) -> list:
 def pending_count(uid: str) -> int:
     """Things waiting on the player (the bell badge): unread news plus open requests."""
     return (social.unread(uid) + r().scard(f"web:friendreq:in:{uid}") + r().scard(CHALLENGE_INBOX.format(uid))
-            + r().scard(f"web:trades:in:{uid}"))
+            + r().scard(f"web:trades:in:{uid}") + r().llen(f"web:gifts:{uid}"))
 
 
 @bp.get("/inbox")

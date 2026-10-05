@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% set a, b = fight.sides[0].name, fight.sides[1].name %}
+{% block title %}{{ a }} vs {{ b }} · {{ 'Replay' if mode == 'replay' else 'Live' }} | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  <header class="player-bar watch-head">
+    <div>
+      <p class="kicker">{% if mode == 'replay' %}Replay · {{ label }}{% else %}<span class="live-dot" aria-hidden="true"></span> Live · {{ 'Ranked' if fight.kind == 'ranked' else 'Friendly duel' }}{% endif %}</p>
+      <h1 class="display sm watch-title">{{ a }} <span class="watch-vs">vs</span> {{ b }}</h1>
+    </div>
+    {% if mode == 'replay' %}
+      <div class="replay-tools" role="group" aria-label="Replay controls">
+        <span class="replay-speed" role="radiogroup" aria-label="Replay speed">
+          {% for s in [1, 2, 4] %}<button type="button" class="btn small {{ 'gold' if s == 1 else 'ghost' }}" data-replay-speed="{{ s }}" role="radio" aria-checked="{{ 'true' if s == 1 else 'false' }}">{{ s }}×</button>{% endfor %}
+        </span>
+        <button type="button" class="btn small ghost" data-copy="{{ share_url }}">🔗 Share</button>
+      </div>
+    {% else %}
+      <p class="muted watch-note">You're watching: the fight updates by itself.</p>
+    {% endif %}
+  </header>
+  {% if mode == 'replay' %}<p class="muted small-print replay-hint">Tap the arena to skip to the end. Specials, crits and every hit play back as they happened.</p>{% endif %}
+  {{ frame }}
+</section>
+{% endblock %}

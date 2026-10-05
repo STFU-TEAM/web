@@ -9,6 +9,11 @@
     web:ref:<uid>                uid of the player who invited uid (set once, at save creation)
     web:ref:pending:<inviter>    set of invited uids waiting to clear REFERRAL_STAGE
     web:ref:ready:<inviter>      list of invited uids that cleared it, not yet counted in the inviter's quests
+    web:notif:due                zset "<uid>|<ref>" -> unix time: notifications to send later (a journey coming home)
+    web:notif:due:data           hash "<uid>|<ref>" -> JSON {kind, text, url}
+    web:gifts:<uid>              list of JSON {from, kind, at}: gifts from friends waiting to be opened
+    web:gift:sent:<day>:<uid>    set of friends uid already sent a gift today
+    web:gift:recv:<day>:<uid>    gifts uid received today (capped)
 """
 import json
 import time
@@ -19,8 +24,6 @@ from app.db import get_db, identity, r
 MAX_FRIENDS = 100
 NOTIF_KEEP = 60
 REFERRAL_STAGE = 3  # an invited player counts once it clears this many story stages (stops throwaway accounts)
-
-
 class SocialError(Exception):
     pass
 
@@ -42,6 +45,47 @@ def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: boo
         pipe.ltrim(f"web:toast:{uid}", -8, -1)
         pipe.expire(f"web:toast:{uid}", 7 * 86400)
     pipe.execute()
+
+
+def notify_later(uid: str, ref: str, when: float, kind: str, text: str, url: Optional[str] = None):
+    """Notify at a given time (sent by flush_due, which page loads run every few seconds)."""
+    key = f"{uid}|{ref}"
+    pipe = r().pipeline()
+    pipe.hset("web:notif:due:data", key, json.dumps({"kind": kind, "text": text, "url": url}))
+    pipe.zadd("web:notif:due", {key: when})
+    pipe.execute()
+
+
+def cancel_later(uid: str, ref: str):
+    key = f"{uid}|{ref}"
+    pipe = r().pipeline()
+    pipe.zrem("web:notif:due", key)
+    pipe.hdel("web:notif:due:data", key)
+    pipe.execute()
+
+
+def flush_due(now: Optional[float] = None, limit: int = 200) -> int:
+    """Send every notification whose time has come. Safe to call from many workers: each one is sent once."""
+    now = now or time.time()
+    sent = 0
+    for key in r().zrangebyscore("web:notif:due", "-inf", now, start=0, num=limit):
+        if not r().zrem("web:notif:due", key):  # another worker took it
+            continue
+        key = key.decode() if isinstance(key, bytes) else key
+        raw = r().hget("web:notif:due:data", key)
+        r().hdel("web:notif:due:data", key)
+        if not raw:
+            continue
+        data = json.loads(raw)
+        notify(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
+        sent += 1
+    return sent
+
+
+def tick(every: int = 10):
+    """From a page load: send what's due, at most once every few seconds across all workers."""
+    if r().set("web:notif:tick", "1", nx=True, ex=every):
+        flush_due()
 
 
 def feed(uid: str, limit: int = NOTIF_KEEP) -> List[dict]:
@@ -148,6 +192,94 @@ def remove_friend(me: str, other: str):
     pipe.srem(f"web:friends:{me}", other)
     pipe.srem(f"web:friends:{other}", me)
     pipe.execute()
+
+
+# ── Gifts ────────────────────────────────────────────────────────────────────
+# One gift per friend per day; each player opens at most GIFT_RECEIVE_CAP a day. Senders must have
+# cleared REFERRAL_STAGE story stages, so throwaway accounts can't farm their main.
+GIFTS = {"dust": {"label": "50 Meteor Dust", "icon": "✦", "fragments": 50},
+         "energy": {"label": "2 energy", "icon": "⚡", "energy": 2}}
+GIFT_RECEIVE_CAP = 5
+
+
+def _day() -> str:
+    from app.game.logic import now
+    return now().date().isoformat()
+
+
+def gifted_today(me: str) -> set:
+    return set(_ids(r().smembers(f"web:gift:sent:{_day()}:{me}")))
+
+
+def send_gift(me: str, other: str, kind: str, sender=None) -> dict:
+    from app.game import story
+    gift = GIFTS.get(kind)
+    if not gift:
+        raise SocialError("Pick a gift.")
+    if not are_friends(me, other):
+        raise SocialError("You can only send gifts to friends.")
+    sender = sender or get_db().get_user(me)
+    if not sender or story.cleared(sender) < REFERRAL_STAGE:
+        raise SocialError(f"Clear {REFERRAL_STAGE} story stages to start sending gifts.")
+    day = _day()
+    sent_key, recv_key = f"web:gift:sent:{day}:{me}", f"web:gift:recv:{day}:{other}"
+    if not r().sadd(sent_key, other):
+        raise SocialError(f"You already sent {identity(other)['name']} a gift today.")
+    r().expire(sent_key, 2 * 86400)
+    if r().incr(recv_key) > GIFT_RECEIVE_CAP:
+        r().decr(recv_key)
+        r().srem(sent_key, other)
+        raise SocialError(f"{identity(other)['name']} already got {GIFT_RECEIVE_CAP} gifts today. Try tomorrow.")
+    r().expire(recv_key, 2 * 86400)
+    r().rpush(f"web:gifts:{other}", json.dumps({"from": me, "kind": kind, "at": int(time.time())}))
+    notify(other, "gift", f"🎁 {identity(me)['name']} sent you {gift['label']}. Open it on your Friends page.",
+           "/community/friends")
+    return gift
+
+
+def pending_gifts(uid: str) -> List[dict]:
+    out = []
+    for raw in r().lrange(f"web:gifts:{uid}", 0, -1):
+        try:
+            g = json.loads(raw)
+        except ValueError:
+            continue
+        if g.get("kind") in GIFTS:
+            out.append({**g, "name": identity(g["from"])["name"], **{"label": GIFTS[g["kind"]]["label"],
+                                                                     "icon": GIFTS[g["kind"]]["icon"]}})
+    return out
+
+
+def open_gifts(user) -> dict:
+    """Open every waiting gift into the save (the caller holds the save lock and saves)."""
+    from app.game.logic import ENERGY_BANK, refill_energy
+    key = f"web:gifts:{user.id}"
+    pipe = r().pipeline()
+    pipe.lrange(key, 0, -1)
+    pipe.delete(key)
+    raw, _ = pipe.execute()
+    got = {"count": 0, "fragments": 0, "energy": 0, "from": []}
+    for item in raw:
+        try:
+            g = json.loads(item)
+        except ValueError:
+            continue
+        gift = GIFTS.get(g.get("kind"))
+        if not gift:
+            continue
+        got["count"] += 1
+        got["from"].append(identity(g["from"])["name"])
+        got["fragments"] += gift.get("fragments", 0)
+        got["energy"] += gift.get("energy", 0)
+    if not got["count"]:
+        raise SocialError("No gift is waiting.")
+    user.fragments += got["fragments"]
+    if got["energy"]:
+        refill_energy(user)
+        before = user.energy
+        user.energy = min(user.energy + got["energy"], user.total_energy * ENERGY_BANK)
+        got["energy"] = user.energy - before
+    return got
 
 
 def relation(me: str, other: str) -> str:
