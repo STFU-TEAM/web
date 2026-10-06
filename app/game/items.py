@@ -7,6 +7,10 @@ _DATA = os.path.join(os.path.dirname(__file__), "data")
 with open(os.path.join(_DATA, "items.json"), "r", encoding="utf-8") as item:
     item_file = json.load(item)["items"]
 
+TORN_DIARY_PAGE = 48
+# Bound to the account: can't be sold (price 0), traded, or listed in a player shop, and never drops.
+BOUND_ITEMS = {TORN_DIARY_PAGE}
+
 
 class Item:
     """This interface to jsoned data THIS CLASS IS NOT INTENDED TO BE CREATED MANUALLY
@@ -32,6 +36,7 @@ class Item:
         self.turn_for_ability = item_file[self.id-1]["turn_for_ability"]
         self.special_image = item_file[self.id-1]["special_image"]
         self.taunt: bool = item_file[self.id-1].get("taunt", False)  # the holder taunts like a tank stand
+        self.bound: bool = self.id in BOUND_ITEMS
         # Variable
         self.special_meter: int = 0
 

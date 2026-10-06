@@ -425,6 +425,9 @@ def _item_sources() -> dict:
     for a in ALL_ACHIEVEMENTS:
         for it in (a.get("reward") or {}).get("items", []):
             add(it["id"], "Achievement", a["name"])
+    from app.game.items import TORN_DIARY_PAGE
+    add(TORN_DIARY_PAGE, "Alternate Universe", "given the first time you face The World Over Heaven (bound: "
+                                               "can't be sold or traded)")
     return out
 
 

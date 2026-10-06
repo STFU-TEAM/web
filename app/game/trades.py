@@ -14,7 +14,7 @@ import datetime
 import json
 import secrets
 
-from app.game.items import item_file, item_from_dict
+from app.game.items import BOUND_ITEMS, item_file, item_from_dict
 from app.game.logic import GameError, free_slots
 
 OFFER_TTL = 3 * 24 * 3600
@@ -35,7 +35,7 @@ def parse_side(form, prefix: str) -> dict:
             item_id, count = (int(x) for x in raw.split(":"))
         except ValueError:
             continue
-        if 1 <= item_id <= len(item_file) and count > 0:
+        if 1 <= item_id <= len(item_file) and count > 0 and item_id not in BOUND_ITEMS:  # bound items never trade
             side["items"][str(item_id)] = side["items"].get(str(item_id), 0) + min(count, 999)
     try:
         side["fragments"] = max(0, min(MAX_FRAGMENTS, int(form.get(f"{prefix}_fragments") or 0)))

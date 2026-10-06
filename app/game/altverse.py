@@ -239,14 +239,23 @@ def difficulty(key: str, j: int) -> dict:
     return {"level": level, "awaken": awaken, "quality": quality, "mult": round(OVERFLOW ** maxed * ease, 2)}
 
 
-def enemy_team(key: str, j: int) -> list:
+OVER_HEAVEN_ID = 110  # The World Over Heaven: raid-boss numbers unless the player holds the Torn Diary Page
+
+
+def has_over_heaven(key: str, j: int) -> bool:
+    return OVER_HEAVEN_ID in BY_KEY[key]["stages"][j]["enemies"]
+
+
+def enemy_team(key: str, j: int, sealed: bool = False) -> list:
+    """sealed: the player holds the Torn Diary Page, so The World Over Heaven fights as a normal LR."""
     stage = BY_KEY[key]["stages"][j]
     d = difficulty(key, j)
     items = [{"id": 1}] * (2 + bool(stage.get("boss")))
     team = []
     for cid in stage["enemies"]:
         c = character_from_dict({"id": cid, "xp": d["level"] * 100, "awaken": d["awaken"], "types": ["BALANCE"],
-                                 "qualities": [d["quality"]], "items": items})
+                                 "qualities": [d["quality"]], "items": items,
+                                 **({"sealed": True} if sealed and cid == OVER_HEAVEN_ID else {})})
         if d["mult"] != 1:
             for stat in ("hp", "damage"):
                 value = int(getattr(c, f"start_{stat}") * d["mult"])

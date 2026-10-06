@@ -187,9 +187,20 @@ def au_fight():
                 flash(str(e), "error")
                 return redirect(url_for("progress.au_page", ch=key))
             stage = altverse.BY_KEY[key]["stages"][j]
-            foes = Side(f"AU · {stage['title']}", altverse.enemy_team(key, j), False)
+            from app.game.items import TORN_DIARY_PAGE, item_from_dict
+            facing = altverse.has_over_heaven(key, j)
+            if facing and not any(i.id == TORN_DIARY_PAGE for i in user.items):
+                # the first time DIO stands Over Heaven, the Arrow hands over a page of his diary (bound, never drops)
+                user.items.append(item_from_dict({"id": TORN_DIARY_PAGE}))
+                flash("📖 The Arrow tears a page from DIO's diary and gives it to you: while you hold it, "
+                      "The World Over Heaven fights as an ordinary stand.", "ok")
+            sealed = any(i.id == TORN_DIARY_PAGE for i in user.items)
+            foes = Side(f"AU · {stage['title']}", altverse.enemy_team(key, j, sealed=sealed), False)
             fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
                           foes, kind=AU_KIND, meta={"chapter": key, "stage": j})
+            if facing and sealed:
+                fight._log("📖 The Torn Diary Page burns: The World Over Heaven loses Heaven and fights as an "
+                           "ordinary stand.", "terrain")
             fight.advance()
             save_fight(uid, fight)
             user.update()  # replays spend energy

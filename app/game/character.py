@@ -30,6 +30,14 @@ DODGE_CHANCE_CAP = 20
 # (characterabilities.RARITY_SPECIAL_POWER). Raid bosses and the dummy keep their numbers.
 RARITY_TRIM = {"UR": {"hp": 0.97, "damage": 0.96, "speed": 0.7}, "LR": {"hp": 0.95, "damage": 0.93, "speed": 0.6}}
 UNTRIMMED = {110, 164}
+# A sealed stand (data["sealed"]) takes these base stats and the special of SEALED_SPECIAL: The World Over Heaven
+# (raid-boss numbers and a special that hits everyone for 1000x) fights like the other Mythics, with The World's
+# time stop. The Torn Diary Page seals it in the Alternate Universe (app/game/altverse.py).
+SEALED_FORMS = {110: {"base_hp": 510, "base_damage": 86, "base_speed": 20, "base_critical": 5, "base_armor": 100,
+                      "turn_for_ability": 3}}
+SEALED_SPECIAL = {110: 10}
+# Some saves hold stands past ★5 (the bot allowed it): they keep their stars, but stats scale as ★5 at most
+AWAKEN_SCALING_CAP = 5
 MIN_SPECIAL_TURNS = {"UR": 2, "LR": 2}
 # Giant Slayer (resonance): per rarity step a slayer deals more to higher-rarity stands and takes less from them
 SLAYER_STEP, SLAYER_GUARD, SLAYER_STEPS = 0.12, 0.08, 3
@@ -80,7 +88,12 @@ class Character:
         self.base_speed: int = character_file[self.id-1]["base_speed"]
         self.base_armor: int = character_file[self.id-1]["armor"]
         self.turn_for_ability: int = character_file[self.id-1]["turn_for_ability"]
-        trim = RARITY_TRIM.get(self.rarity) if self.id not in UNTRIMMED else None
+        # Sealed (the Torn Diary Page): The World Over Heaven fights as a normal LR, not a raid boss
+        self.sealed: bool = bool(data.get("sealed")) and self.id in SEALED_FORMS
+        if self.sealed:
+            for attr, value in SEALED_FORMS[self.id].items():
+                setattr(self, attr, value)
+        trim = RARITY_TRIM.get(self.rarity) if self.id not in UNTRIMMED or self.sealed else None
         if trim:
             self.base_hp = int(self.base_hp * trim["hp"])
             self.base_damage = int(self.base_damage * trim["damage"])
@@ -128,16 +141,17 @@ class Character:
             * (CRITICALSCALING / 100)
         )
 
-        # Define the starting STATS and variables
-        self.current_hp = int(self.base_hp + bonus_hp * (1 + self.awaken / 3))
+        # Define the starting STATS and variables (stars past AWAKEN_SCALING_CAP are kept but add nothing)
+        stars = min(max(self.awaken, 0), AWAKEN_SCALING_CAP)
+        self.current_hp = int(self.base_hp + bonus_hp * (1 + stars / 3))
         self.current_damage = int(
-            self.base_damage + bonus_damage * (1 + self.awaken / 3)
+            self.base_damage + bonus_damage * (1 + stars / 3)
         )
-        self.current_speed = int(self.base_speed + bonus_speed * (1 + self.awaken / 3))
+        self.current_speed = int(self.base_speed + bonus_speed * (1 + stars / 3))
         self.current_critical = self.base_critical + bonus_critical * (
-            1 + self.awaken / 3
+            1 + stars / 3
         )
-        self.current_armor = int(self.base_armor + bonus_armor * (1 + self.awaken / 3))
+        self.current_armor = int(self.base_armor + bonus_armor * (1 + stars / 3))
         
         #TYPE and qualities final multiplier
         
@@ -334,7 +348,8 @@ class Character:
         """
         # reset the meter
         self.special_meter = 0
-        special_func = specials.get(str(self.id), not_implemented)
+        special_id = SEALED_SPECIAL.get(self.id, self.id) if getattr(self, "sealed", False) else self.id
+        special_func = specials.get(str(special_id), not_implemented)
         from app.game import characterabilities as abilities
         abilities.begin_special(self)  # its stat and type set how strong it is
         try:

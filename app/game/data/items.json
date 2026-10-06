@@ -799,6 +799,23 @@
       "is_usable": true,
       "special_image": "",
       "turn_for_ability": 0
+    },
+    {
+      "id": 48,
+      "name": "Torn Diary Page",
+      "price": 0,
+      "emoji": "📖",
+      "bonus_hp": 0,
+      "bonus_damage": 0,
+      "bonus_speed": 0,
+      "bonus_critical": 0,
+      "bonus_armor": 0,
+      "is_equipable": false,
+      "is_active": false,
+      "prurchasable": false,
+      "is_usable": false,
+      "special_image": "",
+      "turn_for_ability": 0
     }
   ]
 }

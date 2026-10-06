@@ -100,6 +100,8 @@ def shop_list_item(shop_id):
                 item = next((item for item in user.items if item.id == item_id), None)
                 if not item:
                     flash("You no longer own that item.", "error")
+                elif item.bound:
+                    flash(f"{item.name} is bound to you: it can't be sold.", "error")
                 else:
                     user.items.remove(item)
                     shop.setdefault("items", []).append(item.to_dict())

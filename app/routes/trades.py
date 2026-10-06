@@ -13,6 +13,8 @@ bp = Blueprint("trades", __name__, url_prefix="/trades")
 def _grouped_items(user):
     counts = {}
     for it in user.items:
+        if it.bound:  # bound to its owner: never offered in a trade
+            continue
         counts.setdefault(it.id, [it, 0])[1] += 1
     return sorted(counts.values(), key=lambda x: x[0].name)
 
