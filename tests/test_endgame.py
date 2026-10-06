@@ -206,7 +206,7 @@ def test_over_heaven_opens_after_the_story_and_pays_once(client, monkeypatch):
     client.post("/over-heaven/attack", data={"log_len": len(fight.log)}, headers=h)
     client.post("/over-heaven/leave", headers=h)
     d = doc(client, "111")
-    assert d["web_over_heaven"] == {"tower": 1}
+    assert d["web_over_heaven"]["tower"] == 1 and d["web_over_heaven"]["paid"] == ["tower:Floor of Tides"]
     reward = overheaven.REWARDS[0]
     assert d["fragments"] == reward["fragments"] + _ach_dust(d) and d["super_fragments"] == reward["super"]
     assert "Floor of Ice" in client.get("/over-heaven?t=tower").data.decode()
@@ -217,10 +217,42 @@ def test_over_heaven_opens_after_the_story_and_pays_once(client, monkeypatch):
     assert "oh:tower:3" in sim and "Floor of Glass" in sim
 
 
+def test_old_progress_moves_to_the_longer_tracks_without_paying_twice():
+    from app.game import overheaven
+    from app.game.user import User, create_user
+    u = User(create_user("1"))
+    u.data["web_over_heaven"] = {"story": 4, "rush": 2}  # a save from the 4-fight tracks: story fully cleared
+    assert overheaven.cleared(u, "story") == 3 and overheaven.cleared(u, "rush") == 2
+    fights = overheaven.BY_KEY["story"]["fights"]
+    assert len(fights) == 6 and fights[-1]["title"] == "Calamity" and fights[3]["title"] == "The Road to Cairo"
+    before = (u.fragments, u.super_fragments)
+    for j in (3, 4):  # the two new fights pay
+        overheaven.win(u, "story", j)
+    assert u.fragments > before[0]
+    paid = (u.fragments, u.super_fragments, len(u.items))
+    res = overheaven.win(u, "story", 5)  # the old finale: progress, no second Requiem Arrow
+    assert overheaven.cleared(u, "story") == 6 and (u.fragments, u.super_fragments, len(u.items)) == paid
+    assert res["fragments"] == 0
+
+
+def test_part_synergies_need_a_whole_team_and_only_count_for_player_teams():
+    from app.game.characterabilities import active_synergies, part_of
+    from app.game.fight import Fight, Side
+    assert part_of(1) == 3 and part_of(49) == 4 and part_of(161) == 8
+    trio = [_stand(i) for i in (2, 3, 6)]       # three Part 3 stands
+    pair = [_stand(i) for i in (2, 50, 112)]   # Part 3, 4, 7
+    assert "part3" in active_synergies(trio) and "part3" not in active_synergies(trio, parts=False)
+    assert not any(g.startswith("part") for g in active_synergies(pair))
+    fight = Fight(Side("A", [_stand(i) for i in (2, 3, 6)], True), Side("B", [_stand(i) for i in (7, 8, 9)], False))
+    log = " ".join(e["text"] for e in fight.log)
+    assert "Part 3 · Stardust Crusaders synergy for A" in log and "Part 3 · Stardust Crusaders synergy for B" not in log
+
+
 def test_the_title_comes_with_the_last_track():
     from app.game import overheaven
     from app.game.user import User, create_user
     u = User(create_user("1"))
+    u.data["web_over_heaven"] = {"v": overheaven.SAVE_VERSION, "paid": []}
     for t in overheaven.TRACKS:
         u.data.setdefault("web_over_heaven", {})[t["key"]] = len(t["fights"])
     u.data["web_over_heaven"]["dungeon"] -= 1

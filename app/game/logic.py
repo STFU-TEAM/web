@@ -273,9 +273,19 @@ def spark_exchange(user: User, banner_id: int, stand_id: int) -> Character:
         raise GameError("Storage is full. Auto-fuse or release a few stands first.")
     user.data["web_sparks"] = sparks(user) - SPARK_COST
     types, qualities = roll_types_qualities()
-    char = get_character_from_template(template, types, qualities)
+    char = roll_shiny(get_character_from_template(template, types, qualities))
     where = add_to_available_storage(user, char, skip_main=True)
     _fill_team(user, [(char, where)])
+    return char
+
+
+SHINY_CHANCE = 1 / 1000  # every stand a player gets from a banner, a Devil's Palm, the spark shop, a chip or a gacha item
+
+
+def roll_shiny(char: Character) -> Character:
+    """A new stand has a SHINY_CHANCE of being shiny (a cosmetic variant: alternate colours, holo frame)."""
+    if random.random() < SHINY_CHANCE:
+        char.shiny = True
     return char
 
 
@@ -308,7 +318,7 @@ def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=
         rarity = "SR"
     template = _template_of(banner, rarity, exclude)
     user.pity = 0 if template["rarity"] in PITY_RESETS else user.pity + 1
-    return get_character_from_template(template, types, qualities)
+    return roll_shiny(get_character_from_template(template, types, qualities))
 
 
 def _arrow_draw(banner: dict, user: User, exclude=(), forced: Optional[str] = None) -> Character:
@@ -322,7 +332,7 @@ def _arrow_draw(banner: dict, user: User, exclude=(), forced: Optional[str] = No
         rarity = random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
     template = _template_of(banner, rarity, exclude)
     user.pity = 0 if template["rarity"] in PITY_RESETS else user.pity + 1
-    return get_character_from_template(template, types, qualities)
+    return roll_shiny(get_character_from_template(template, types, qualities))
 
 
 def _forced_at(force: Optional[dict], i: int, n: int) -> Optional[str]:
@@ -688,7 +698,7 @@ def best_team(user: User) -> dict:
     """Strongest 3 among the owned stands: raw power, +8% for each member of an active synergy,
     +5% for each native of a terrain the team itself sets. Tries every trio of the top 14."""
     from itertools import combinations
-    from app.game.characterabilities import SYNERGIES
+    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO, active_synergies
     from app.game.effects import TERRAIN_BENEFITS, TERRAIN_SETTERS
     owned = user.main_characters + user.storage_characters
     pool = sorted(owned, key=_power, reverse=True)[:14]
@@ -698,11 +708,9 @@ def best_team(user: User) -> dict:
         if len(ids) < len(trio):
             continue  # two copies of one stand: keep the slot for something else
         bonus, why = 0.0, []
-        for name, members in SYNERGIES.items():
-            active = ids & members
-            if len(active) >= 2:
-                bonus += 0.08 * len(active)
-                why.append(name.replace("_", " + ").title() + " synergy")
+        for name in active_synergies(list(trio)):
+            bonus += 0.08 * len(ids & SYNERGIES[name])
+            why.append(SYNERGY_INFO.get(name, (name, ""))[0] + " synergy")
         for c in trio:
             terrain = TERRAIN_SETTERS.get(c.id)
             natives = [o for o in trio if terrain in TERRAIN_BENEFITS.get(o.id, {})] if terrain else []
@@ -881,14 +889,14 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
             for c in CHARACTER_FILE
             if c["id"] not in SPECIAL_CHARACTERS and (item.id == 2 or c["id"] < 31)
         ]
-        drop = get_drop_from_list(pool)[0]
+        drop = roll_shiny(get_drop_from_list(pool)[0])
         where = add_to_available_storage(user, drop)
         if not where:
             refund("Every storage slot is full.")
         res = {"kind": "stand", "stand": drop, "where": where}
     elif item.id in CHIP_IDS:
         template = CHARACTER_FILE[CHIP_TEMPLATE_INDEX[CHIP_IDS.index(item.id)]]
-        c = get_character_from_template(template, [], [])
+        c = roll_shiny(get_character_from_template(template, [], []))
         where = add_to_available_storage(user, c)
         if not where:
             refund("Every storage slot is full.")
@@ -924,6 +932,8 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
             template = CHARACTER_FILE[REQUIEM_TEMPLATE_INDEX[REQUIEMABLE.index(char.id)]]
             new = get_character_from_template(template, [], [])
             new.items = char.items
+            if char.shiny:  # a shiny stays shiny through its evolution (reset() rebuilds from the data)
+                new.data["shiny"] = True
             new.reset()
             user.main_characters[idx] = new
             res = {"kind": "requiem", "stand": new}

@@ -517,13 +517,40 @@ def test_battle_modes_dummy_friend_and_ranked_share_fight_state(client):
 
     dbmod.clear_fight("111")
     dbmod.clear_fight("222")
+    # ranked: a roster of 5 different stands each, then ban 2 and order the 3 left
+    from app.game import draft as D
+    for uid, ids in (("111", (1, 2, 3, 4, 5)), ("222", (6, 7, 8, 9, 10))):
+        doc_ = create_user(uid)
+        doc_["storage_characters"] = [char(i, xp=100000) for i in ids]
+        put(client, doc_)
+        with client.session_transaction() as session:
+            session["uid"], session["name"] = uid, uid
+        client.post("/battles/ranked/roster", data={"uuid": [c["uuid"] for c in doc_["storage_characters"]]}, headers=headers)
     with client.session_transaction() as session:
         session["uid"], session["name"] = "111", "Jotaro"
     client.post("/battles/ranked/queue", headers=headers)
     with client.session_transaction() as session:
         session["uid"], session["name"] = "222", "Player Two"
     client.post("/battles/ranked/queue", headers=headers)
+    draft = D.of(client.fake, "111")
+    assert draft and draft["phase"] == "ban" and dbmod.load_fight("111") is None
+    assert b"Ban 2 of their stands" in client.get("/battles?mode=ranked").data
+    for uid in ("111", "222"):
+        with client.session_transaction() as session:
+            session["uid"] = uid
+        foe = D.opponent(draft, uid)
+        client.post("/battles/ranked/ban", data={"ban": draft["rosters"][foe][:2]}, headers=headers)
+    draft = D.of(client.fake, "111")
+    assert draft["phase"] == "compose" and draft["bans"]["111"] == draft["rosters"]["222"][:2]
+    for uid in ("111", "222"):
+        with client.session_transaction() as session:
+            session["uid"] = uid
+        left = D.remaining(draft, uid)[::-1]  # lock in the reverse order
+        client.post("/battles/ranked/compose", data={f"slot{i}": u for i, u in enumerate(left)}, headers=headers)
     ranked = dbmod.load_fight("111")
+    teams = {p: [c.id for c in side.chars] for p, side in zip(ranked.meta["players"], ranked.sides)}
+    assert teams == {"111": [5, 4, 3], "222": [10, 9, 8]}  # each banned the other's first 2, then reversed the rest
+    assert D.of(client.fake, "111") is None
     assert ranked.kind == "ranked"
     assert dbmod.load_fight("222").id == ranked.id
     ranked.sides[1].chars[0].current_hp = 0

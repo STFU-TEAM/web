@@ -318,7 +318,9 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     const el = state.el;
     el.classList.add("revealed");
     el.querySelector(".cine-card").classList.add("turned");
-    el.querySelector(".cine-title").textContent = TITLE[r] || "";
+    const shiny = src.dataset.shiny === "1";  // 1 in 1000: it gets its own title
+    el.classList.toggle("is-shiny", shiny);
+    el.querySelector(".cine-title").textContent = shiny ? "✨ SHINY ✨" : TITLE[r] || "";
     if (["SSR", "UR", "LR"].includes(r) && src.dataset.gif) {  // the special's animation fills the background
       const gif = document.createElement("img");
       gif.className = "cine-gif";
@@ -329,7 +331,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     }
     el.querySelector(".cine-caption").innerHTML = `
       <strong>${src.dataset.name}</strong>
-      <span class="cine-rar r-${r}">${r}</span>${src.dataset.new === "1" ? '<span class="new-tag">NEW</span>' : ""}
+      <span class="cine-rar r-${r}">${r}</span>${shiny ? '<span class="new-tag shiny-tag">✨ SHINY</span>' : ""}${src.dataset.new === "1" ? '<span class="new-tag">NEW</span>' : ""}
       ${["SSR", "UR", "LR"].includes(r) ? `<small>${src.dataset.special}</small>` : ""}`;
     flip(src);
     later(() => { state.busy = false; }, r === "LR" ? 900 : 350);
@@ -397,6 +399,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     const top = topOf(batch);
     const el = document.createElement("div");
     el.className = `summon s-${top}`;
+    if (batch.querySelector('[data-flip][data-shiny="1"]')) el.classList.add("has-shiny");  // a faint prismatic hint
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Summoning");
@@ -797,6 +800,7 @@ function playFight(root) {
   const showSpot = (f, line, special) => {
     if (!f) return;
     spot.classList.toggle("special", special);
+    spot.classList.toggle("shiny-art", !special && f.dataset.hue === "1");  // a shiny without its own art: colours shifted
     spotImg.onerror = special ? () => { spotImg.onerror = null; spotImg.src = f.dataset.img; } : null;
     spotImg.src = special ? f.dataset.gif : f.dataset.img;
     spotImg.alt = f.dataset.name;
@@ -933,6 +937,60 @@ document.addEventListener("focusin", (e) => playArt(e.target.closest?.(".card"),
 document.addEventListener("focusout", (e) => {
   const card = e.target.closest?.(".card");
   if (card && !card.contains(e.relatedTarget)) playArt(card, false);
+});
+
+// Ranked roster and bans: pick exactly N ([data-pick-max]); [data-pick-unique] allows one copy of each stand.
+function syncPicks(box) {
+  const max = Number(box.dataset.pickMax);
+  const boxes = [...box.querySelectorAll("input[type=checkbox]")];
+  const on = boxes.filter((b) => b.checked);
+  const taken = new Set(on.map((b) => b.dataset.stand));
+  boxes.forEach((b) => {
+    b.disabled = !b.checked && (on.length >= max || (box.hasAttribute("data-pick-unique") && taken.has(b.dataset.stand)));
+    b.closest("label")?.classList.toggle("picked", b.checked);
+  });
+  const submit = box.closest("form")?.querySelector("[data-pick-submit]");
+  if (submit) submit.disabled = on.length !== max;
+}
+document.addEventListener("change", (e) => {
+  const box = e.target.closest("[data-pick-max]");
+  if (box) syncPicks(box);
+});
+document.querySelectorAll("[data-pick-max]").forEach(syncPicks);
+document.addEventListener("input", (e) => {
+  if (!e.target.matches("[data-roster-search]")) return;
+  const q = e.target.value.trim().toLocaleLowerCase();
+  e.target.closest("form").querySelectorAll(".roster-list li").forEach((li) => { li.hidden = q && !li.dataset.name.includes(q); });
+});
+
+// Fight cosmetics: shiny and full-art stands fight with their own art, or everyone with the classic picture.
+// Every portrait carries both, so the switch is instant; the choice is saved for the next fight screens.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-cosmetics-toggle]");
+  if (!btn) return;
+  const on = btn.getAttribute("aria-pressed") !== "true";
+  btn.setAttribute("aria-pressed", String(on));
+  btn.textContent = `✨ Cosmetics ${on ? "on" : "off"}`;
+  const root = btn.closest("#fight") || document;
+  root.querySelectorAll(".fighter[data-art-classic]").forEach((f) => {
+    const d = f.dataset;
+    f.classList.toggle("shiny", on && d.artShiny === "1");
+    f.classList.toggle("fullart", on && d.artFull === "1");
+    const hue = on && d.artShiny === "1" && d.artOwn !== "1";
+    if (hue) d.hue = "1"; else delete d.hue;
+    d.img = on ? d.artSpot : d.artClassic;
+    const img = f.querySelector(".fighter-portrait img");
+    if (img) img.src = on ? d.artPortrait : d.artClassic;
+  });
+  const spot = root.querySelector(".spotlight");
+  const shown = spot && [...root.querySelectorAll(".fighter")].find((f) => f.dataset.name === spot.querySelector(".spotlight-name")?.textContent);
+  if (shown && !spot.classList.contains("special")) {
+    spot.querySelector(".spotlight-img").src = shown.dataset.img;
+    spot.classList.toggle("shiny-art", shown.dataset.hue === "1");
+  }
+  const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
+  fetch(btn.dataset.url, { method: "POST", headers: { "X-CSRF-Token": token }, body: new URLSearchParams({ on: on ? "1" : "0" }) })
+    .catch(() => {});
 });
 
 // Desktop sidebar: groups open and close (remembered per player), and the whole bar collapses to an icon rail.

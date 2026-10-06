@@ -26,6 +26,37 @@ def test_animated_art_shows_its_poster_in_grids_and_plays_on_the_big_card(client
         stills["shiny"].pop(sid, None)
 
 
+def test_pulled_stands_can_be_shiny_one_in_a_thousand(client, monkeypatch):
+    from app.game import logic
+    from test_app import doc, login
+    from test_features import player
+    assert logic.SHINY_CHANCE == 1 / 1000
+    monkeypatch.setattr(logic, "SHINY_CHANCE", 1.0)  # every stand shiny
+    player(client, "111", super_fragments=2)
+    h = login(client, "111")
+    r = client.post("/banners/0/pull", headers=h).data.decode()
+    d = doc(client, "111")
+    owned = d["main_characters"] + d["storage_characters"]
+    assert len(owned) == 10 and all(c.get("shiny") for c in owned)
+    assert 'data-shiny="1"' in r and "✨ 10 shiny!" in r
+    monkeypatch.setattr(logic, "SHINY_CHANCE", 0.0)
+    client.post("/banners/0/pull", headers=h)
+    d = doc(client, "111")
+    assert sum(bool(c.get("shiny")) for c in d["main_characters"] + d["storage_characters"]) == 10
+    assert "1 in 1 000" in client.get("/wiki/stands").data.decode()  # the site's thin-space thousands
+
+
+def test_a_shiny_stays_shiny_through_requiem(client):
+    from test_app import char, doc, login
+    from test_features import player
+    kq = char(49, xp=10_000, awaken=2)
+    kq["shiny"] = True
+    player(client, "111", main_characters=[kq], items=[{"id": 3}])
+    client.post("/items/use", data={"item": 3, "uuid": kq["uuid"], "mode": "requiem"}, headers=login(client, "111"))
+    evolved = doc(client, "111")["main_characters"][0]
+    assert evolved["id"] == 58 and evolved.get("shiny") is True
+
+
 def test_card_effects_only_animate_where_someone_is_looking():
     css = open(os.path.join(os.path.dirname(__file__), "..", "app", "static", "css", "app.css"), encoding="utf-8").read()
     rest = re.search(r"\.card\.shiny \{[^}]*\}", css).group(0)

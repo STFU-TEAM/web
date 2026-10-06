@@ -8,6 +8,7 @@ Fight rules (Fight.rules, read by the engine through the hooks below):
   heaven_tax    your UR and LR stands lose this share of their damage and max health
   ward          enemies take this much less from your stands that aren't in an active synergy
   native_ward   the same, but only natives of the locked terrain hit at full strength
+  part_ward     [part, share]: the same, but only stands from that part of the story hit at full strength
   heal_cut      your healing (specials, regeneration, lifesteal) is this much weaker
   stun_immune   enemies can't be stunned
   regen         enemies heal this share of their max health at the end of each of their turns
@@ -30,6 +31,7 @@ RULE_TEXT = {
     "heaven_tax": lambda v: f"Borrowed power: your UR and LR stands lose {v:.0%} of their damage and health.",
     "ward": lambda v: f"Ward: stands outside an active synergy deal {v:.0%} less to the enemy.",
     "native_ward": lambda v: f"Home ground: only the field's natives hit at full strength; everyone else deals {v:.0%} less.",
+    "part_ward": lambda v: f"Their own story: only Part {v[0]} stands hit at full strength; everyone else deals {v[1]:.0%} less.",
     "heal_cut": lambda v: ("Nothing on your side can heal." if v >= 1 else f"Your healing is {v:.0%} weaker."),
     "stun_immune": lambda v: "The enemy can't be stunned.",
     "regen": lambda v: f"The enemy heals {v:.0%} of its health every turn.",
@@ -76,6 +78,20 @@ TRACKS = [
              "text": "Pucci's guard moves faster than thought, and Weather Report floods the field.",
              "hint": "Their speed holds an Ocean field and turns your attacks into misses. Take the field back: "
                      "a Home Field team keeps its terrain whatever the speed (Gravity: nobody can dodge)."},
+            {"title": "The Road to Cairo", "power": 1.54,
+             "enemies": [(10, ["ATTACK"], [U], [42], {}), (25, ["ATTACK", "LUCK"], [U, S], [42], {}),
+                         (16, ["HEALTH"], [U], [46], {})],
+             "rules": {"part_ward": [3, 0.5], "pressure": 0.03},
+             "text": "Fifty days across the world, and DIO's assassins have learned every Crusader's trick.",
+             "hint": "Only Part 3 stands hit them at full strength, and the journey wears you down. Bring a whole "
+                     "Part 3 team: the Crusaders, DIO's Tarot, the Nine Gods (the Part 3 synergy needs all three)."},
+            {"title": "Morioh's Rules", "power": 1.7,
+             "enemies": [(58, ["HEALTH", "ATTACK"], [U, S], [37], {}), (53, ["SPEED"], [U], [44], {"speed": 15}),
+                         (56, ["DEFENSE"], [U], [43], {})],
+             "rules": {"part_ward": [4, 0.5], "enemy_first": True},
+             "text": "A quiet town that only answers to its own. Kira has made sure of it.",
+             "hint": "Only Part 4 stands hit them at full strength, and they move first. A Morioh team: Bow and "
+                     "Arrow, the townsfolk, Josuke & Okuyasu, Echoes, with the Part 4 synergy on top."},
             {"title": "Calamity", "power": 1.92,
              "enemies": [(161, ["HEALTH", "ATTACK"], [U, S], [37], {}), (154, ["ATTACK"], [U], [45], {}),
                          (149, ["ATTACK"], [U], [42], {})],
@@ -110,6 +126,20 @@ TRACKS = [
              "text": "Time accelerates every turn. Wait, and the universe resets without you.",
              "hint": "They grow 12% stronger every turn and you can't heal: you have a handful of turns. Burst, "
                      "Initiative (Fated Clash) and Dark Network's ambush to open the fight on your terms."},
+            {"title": "Passione Ascendant", "power": 2.11,
+             "enemies": [(75, ["ATTACK", "SPEED"], [U, S], [42], {}), (81, ["ATTACK"], [U], [45], {}),
+                         (82, ["SPEED"], [U], [5], {})],
+             "rules": {"part_ward": [5, 0.5], "regen": 0.04},
+             "text": "The Boss kept his throne, and his guard grows back faster than you can cut it.",
+             "hint": "Only Part 5 stands hit them at full strength, and they heal 4% a turn. A Naples team: "
+                     "Passione, La Squadra, the Boss's guard, Zucchero & Sale, with the Part 5 synergy."},
+            {"title": "Prison Without Walls", "power": 2.0,
+             "enemies": [(107, ["HEALTH"], [U], [43], {}), (104, ["ATTACK"], [U], [42], {}),
+                         (102, ["DEFENSE"], [U], [44], {})],
+             "rules": {"part_ward": [6, 0.5], "enrage": 0.06},
+             "text": "Green Dolphin Street never closed. Pucci rewrote the walls into the world itself.",
+             "hint": "Only Part 6 stands hit them at full strength, and they grow 6% stronger every turn. A "
+                     "Stone Ocean team: Jolyne's crew, Pucci's agents, DIO's sons, with the Part 6 synergy."},
             {"title": "The Saint's Corpse", "power": 1.45,
              "enemies": [(120, ["HEALTH", "ATTACK"], [U, S], [37], {}), (123, ["ATTACK"], [U], [42], {}),
                          (135, ["ATTACK"], [U], [42], {})],
@@ -144,6 +174,20 @@ TRACKS = [
              "text": "On a field where nothing can dodge, borrowed power is the first thing calamity finds.",
              "hint": "UR and LR fight at half strength, nobody dodges, and only Gravity natives hit at full "
                      "strength: C-Moon, Jumpin' Jack Flash, Ball Breaker, the Boom Boom family, I Am a Rock."},
+            {"title": "Three Kings of Time", "power": 2.14,
+             "enemies": [(10, ["ATTACK"], [U], [37], {}), (58, ["HEALTH"], [U], [43], {}),
+                         (75, ["ATTACK", "SPEED"], [U, S], [42], {})],
+             "rules": {"heaven_tax": 0.3, "stun_immune": True, "pressure": 0.03},
+             "text": "The World, Bites the Dust and King Crimson, together. Time itself is against you.",
+             "hint": "Three URs that can't be stunned while your health drains. Lower rarities with Giant Slayer "
+                     "(every enemy is a UR) and sustain: Lifesteal, Second Wind."},
+            {"title": "Requiem Gauntlet", "power": 2.3,
+             "enemies": [(84, ["HEALTH"], [U], [43], {}), (83, ["ATTACK"], [U], [42], {}),
+                         (109, ["SPEED"], [U], [5], {})],
+             "rules": {"reflect": 0.3, "enemy_first": True, "heal_cut": 0.5},
+             "text": "Every Requiem the Arrow ever made, waiting at the end of the run.",
+             "hint": "They act first, reflect 30% of basic hits and halve your healing. Win with specials and "
+                     "damage over time."},
             {"title": "The Final Stack", "power": 1.7,
              "enemies": [(109, ["ATTACK", "SPEED"], [U, U], [37], {}), (84, ["ATTACK", "HEALTH"], [U, U], [37], {}),
                          (114, ["ATTACK", "LUCK"], [U, U], [37], {})],
@@ -175,6 +219,21 @@ TRACKS = [
              "text": "The Sun never sets on this floor, and its guards heal in the heat.",
              "hint": "A locked Desert field (healing -30%, burns +50%) where they regenerate and only natives hit "
                      "at full strength. Burn them with Desert natives (Magician's Red, The Fool, the Nine Gods)."},
+            {"title": "Floor of Gravity", "power": 1.7,
+             "enemies": [(95, ["DEFENSE"], [U], [44], {}), (115, ["ATTACK"], [U], [42], {}),
+                         (148, ["ATTACK"], [U], [42], {})],
+             "rules": {"terrain": "GRAVITY", "native_ward": 0.6, "heaven_tax": 0.35},
+             "text": "A floor where everything falls toward you, and nothing can step aside.",
+             "hint": "A locked Gravity field (nobody dodges) where only natives hit at full strength, and UR / LR "
+                     "fight at 65%. Gravity natives of lower rarity: C-Moon, Jumpin' Jack Flash, Ball Breaker, the "
+                     "Boom Boom family, I Am a Rock."},
+            {"title": "Floor of Leaves", "power": 1.8,
+             "enemies": [(59, ["HEALTH"], [U], [43], {}), (81, ["ATTACK"], [U], [45], {}),
+                         (147, ["ATTACK"], [U], [42], {})],
+             "rules": {"terrain": "NATURE", "native_ward": 0.6, "regen": 0.03},
+             "text": "A floor overgrown with life, mold and leaves that heal whatever they cover.",
+             "hint": "A locked Nature field where only natives hit at full strength and they regenerate. Nature "
+                     "natives (Gold Experience, Purple Haze, Green Day, Harvest, Les Feuilles...) and poison."},
             {"title": "Floor of Glass", "power": 1.78,
              "enemies": [(68, ["DEFENSE"], [U], [44], {"armor": 300}), (30, ["DEFENSE"], [U], [43], {"armor": 300}),
                          (13, ["DEFENSE"], [U], [46], {"armor": 300})],
@@ -206,6 +265,20 @@ TRACKS = [
              "text": "Time runs out for everyone here; it just runs out faster for you.",
              "hint": "You lose 6% a turn, can't heal, and they grow 5% stronger: tanks lose. Pure burst: "
                      "Initiative, Resonant Strikes, high damage synergies (Squadra, Boom Boom, Tarot)."},
+            {"title": "The Steel Ball Run", "power": 1.9,
+             "enemies": [(117, ["SPEED", "ATTACK"], [U, S], [5], {}), (134, ["ATTACK"], [U], [42], {}),
+                         (121, ["ATTACK"], [U], [42], {})],
+             "rules": {"part_ward": [7, 0.5], "enemy_first": True},
+             "text": "Deep below, the race never ended. Diego is still in the lead.",
+             "hint": "Only Part 7 stands hit them at full strength, and they move first. A Steel Ball Run team: "
+                     "the Tusk acts, the racers, Valentine's agents, the Saint's Corpse, with the Part 7 synergy."},
+            {"title": "The Wall Eyes", "power": 1.56,
+             "enemies": [(161, ["HEALTH"], [U], [37], {}), (159, ["DEFENSE"], [U], [43], {}),
+                         (156, ["ATTACK"], [U], [42], {})],
+             "rules": {"part_ward": [8, 0.5], "heaven_tax": 0.4},
+             "text": "Where the earthquake raised the walls, something waits that takes as much as it gives.",
+             "hint": "Only Part 8 stands hit them at full strength, and UR / LR fight at 60%. A JoJolion team: "
+                     "the Higashikata family, the Rock Humans, the Wall Eyes duo, with the Part 8 synergy."},
             {"title": "The Abyss", "power": 4.7,
              "enemies": [(10, ["ATTACK", "HEALTH"], [U, U], [37], {"hp": 9000, "damage": 330})],
              "rules": {"enemy_first": True, "purge": True, "reflect": 0.2, "heaven_tax": 0.3},
@@ -223,7 +296,9 @@ TITLE = "Over Heaven"  # every track cleared
 REWARDS = [  # by stage within a track, paid on the first clear (at the economy's pace, economy.py)
     {"fragments": 5600, "super": 0, "items": [38]},
     {"fragments": 7000, "super": 1, "items": [39, 40]},
+    {"fragments": 7000, "super": 0, "items": [38, 40]},
     {"fragments": 8400, "super": 1, "items": [38, 39]},
+    {"fragments": 9800, "super": 0, "items": [39, 40, 38]},
     {"fragments": 14000, "super": 2, "items": [3]},  # a Requiem Arrow for the track's last fight
 ]
 REPLAY_ENERGY = 2
@@ -256,12 +331,33 @@ def foe_name(key: str, j: int) -> str:
 
 # ── Progress ─────────────────────────────────────────────────────────────
 
+# Tracks had 4 fights before the two per track inserted ahead of each finale. A save from then counts fights
+# cleared in the old order; it's moved once: the old fights before the finale stay cleared, and everything it was
+# paid for is remembered (paid), so the finale never pays twice.
+OLD_ORDER = {
+    "story": ["Stopped Time", "The Endless Morning", "Heaven's Acceleration", "Calamity"],
+    "alt_universe": ["The Diary of Heaven", "Requiem of All", "Heaven Reached", "The Saint's Corpse"],
+    "rush": ["Crimson Erasure", "Love Train", "Pursuit", "The Final Stack"],
+    "tower": ["Floor of Tides", "Floor of Ice", "Floor of Sand", "Floor of Glass"],
+    "dungeon": ["The Swarm", "Scorched Garden", "The Clock", "The Abyss"],
+}
+SAVE_VERSION = 2
+
+
 def progress(user) -> dict:
-    return user.data.setdefault("web_over_heaven", {})
+    p = user.data.setdefault("web_over_heaven", {})
+    if p.get("v") != SAVE_VERSION:
+        paid = []
+        for key, titles in OLD_ORDER.items():
+            done = int(p.get(key, 0))
+            paid += [f"{key}:{t}" for t in titles[:done]]
+            p[key] = min(done, len(titles) - 1)  # the old finale now comes after the new fights
+        p.update(v=SAVE_VERSION, paid=paid)
+    return p
 
 
 def cleared(user, key: str) -> int:
-    return int((user.data.get("web_over_heaven") or {}).get(key, 0))
+    return int(progress(user).get(key, 0))
 
 
 def total_cleared(user) -> int:
@@ -326,12 +422,20 @@ def win(user, key: str, j: int) -> dict:
     rewards = {"won": True, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
     if j != cleared(user, key):
         return rewards
+    p = progress(user)
+    p[key] = j + 1
+    tag = f"{key}:{BY_KEY[key]['fights'][j]['title']}"
+    if tag in p["paid"]:  # beaten before the tracks grew (OLD_ORDER): progress again, but no second reward
+        rewards["item"] = "no second reward: you cleared this fight before the track grew"
+        if total_cleared(user) >= TOTAL:
+            titles.grant(user, TITLE)
+        return rewards
+    p["paid"].append(tag)
     r = REWARDS[min(j, len(REWARDS) - 1)]
     user.fragments += r["fragments"]
     user.super_fragments += r["super"]
     items = [item_from_dict({"id": i}) for i in r["items"]]
     user.items.extend(items)
-    progress(user)[key] = j + 1
     names = [i.name for i in items] + ([f"{r['super']} Arrowhead{'s' if r['super'] > 1 else ''}"] if r["super"] else [])
     if total_cleared(user) >= TOTAL and titles.grant(user, TITLE):
         names.append(f"the title “{TITLE}”")
@@ -363,6 +467,13 @@ def apply_rules(fight) -> List[str]:
             c._bonded = any(c.id in SYNERGIES[g] for g in groups)
         for c in foe.chars:
             c._ward = rules["ward"]
+    elif rules.get("part_ward"):
+        from app.game.characterabilities import part_of
+        part, share = rules["part_ward"]
+        for c in me.chars:
+            c._bonded = part_of(c.id) == part
+        for c in foe.chars:
+            c._ward = share
     elif rules.get("native_ward"):
         from app.game.effects import is_native
         field = Terrain.from_string(rules.get("terrain", ""))

@@ -1,0 +1,61 @@
+{#- Ranked pick-and-ban (app/game/draft.py). dv: routes/battles.py draft_view(). The page polls; it reloads when
+    the phase moves, the opponent locks in, or the duel starts. -#}
+{% from "macros.html" import owned_card %}
+<section class="draft" aria-labelledby="draft-h">
+  <div hidden hx-get="{{ url_for('battles.ranked_draft_poll', state=dv.state) }}" hx-trigger="every 2s" hx-swap="none"></div>
+  <header class="draft-head">
+    <div>
+      <p class="kicker">Ranked · vs {{ dv.foe_name }}</p>
+      <h2 class="h2" id="draft-h">{{ 'Ban ' ~ dv.bans ~ ' of their stands' if dv.phase == 'ban' else 'Set your team order' }}</h2>
+    </div>
+    <p class="turn-clock" data-turn-clock="{{ dv.left }}" role="timer" aria-live="off">⏱️ <b>{{ dv.left }}</b>s</p>
+  </header>
+
+  {% if dv.phase == 'ban' %}
+    {% if not dv.my_bans_done %}
+      <form method="post" action="{{ url_for('battles.ranked_ban') }}" class="draft-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <p class="muted">Pick the {{ dv.bans }} stands of {{ dv.foe_name }}'s you least want to face. They're banning {{ dv.bans }} of yours at the same time. Out of time? Their strongest stands are banned for you.</p>
+        <div class="draft-row" data-pick-max="{{ dv.bans }}">
+          {% for c in dv.theirs %}
+            <label class="draft-pick ban">
+              <input type="checkbox" name="ban" value="{{ c.uuid }}" class="sr">
+              {{ owned_card(c, size='small', link=False) }}
+              <span class="draft-mark" aria-hidden="true">✕ BAN</span>
+            </label>
+          {% endfor %}
+        </div>
+        <button class="btn gold" data-pick-submit disabled>Ban these {{ dv.bans }}</button>
+      </form>
+    {% else %}
+      <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Bans locked in. {{ 'Revealing…' if dv.foe_bans_done else 'Waiting for ' ~ dv.foe_name ~ '…' }}</p>
+      <div class="draft-row">{% for c in dv.theirs %}<div class="draft-pick{{ ' banned' if c.uuid in dv.banned_theirs }}">{{ owned_card(c, size='small', link=False) }}{% if c.uuid in dv.banned_theirs %}<span class="draft-mark">✕ BANNED</span>{% endif %}</div>{% endfor %}</div>
+    {% endif %}
+    <h3 class="h3 draft-sub">Your roster</h3>
+    <div class="draft-row mine">{% for c in dv.mine %}<div class="draft-pick">{{ owned_card(c, size='small', link=False) }}</div>{% endfor %}</div>
+
+  {% elif dv.phase == 'compose' %}
+    <h3 class="h3 draft-sub">{{ dv.foe_name }} lost</h3>
+    <div class="draft-row compact">{% for c in dv.theirs if c.uuid in dv.banned_theirs %}<div class="draft-pick banned">{{ owned_card(c, size='small', link=False) }}<span class="draft-mark">✕ BANNED</span></div>{% endfor %}
+      {% for c in dv.mine if c.uuid in dv.banned_mine %}<div class="draft-pick banned yours">{{ owned_card(c, size='small', link=False) }}<span class="draft-mark">✕ YOURS</span></div>{% endfor %}</div>
+    <h3 class="h3 draft-sub">They fight with</h3>
+    <div class="draft-row">{% for c in dv.foe_left %}<div class="draft-pick">{{ owned_card(c, size='small', link=False) }}</div>{% endfor %}</div>
+    {% if not dv.my_order_done %}
+      <form method="post" action="{{ url_for('battles.ranked_compose') }}" class="draft-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <p class="muted">Your {{ dv.my_left|length }} stands attack in this order (taunts draw basic attacks wherever they stand). Out of time? Your roster order is used.</p>
+        <div class="draft-order">
+          {% for slot in range(dv.my_left|length) %}
+            <label>Slot {{ slot + 1 }}
+              <select name="slot{{ slot }}">{% for c in dv.my_left %}<option value="{{ c.uuid }}" {% if loop.index0 == slot %}selected{% endif %}>{{ c.name }} · Lv {{ c.level }}{% if c.taunt %} · 🎯{% endif %}</option>{% endfor %}</select>
+            </label>
+          {% endfor %}
+        </div>
+        <div class="draft-row mine">{% for c in dv.my_left %}<div class="draft-pick">{{ owned_card(c, size='small', link=False) }}</div>{% endfor %}</div>
+        <button class="btn gold">Lock in and fight</button>
+      </form>
+    {% else %}
+      <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Team locked in. {{ 'Starting the duel…' if dv.foe_order_done else 'Waiting for ' ~ dv.foe_name ~ '…' }}</p>
+    {% endif %}
+  {% endif %}
+</section>

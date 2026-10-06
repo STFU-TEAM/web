@@ -1,14 +1,21 @@
 {% macro fighter(c, side, idx, targetable, acting, hit=None) %}
 {% set hp = [c.current_hp, 0]|max %}
-<li class="fighter {% if not c.is_alive() %}down{% endif %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}"
+{#- cosmetics: a shiny or ★3+ copy fights with its own art (unless the player turned it off); both pictures ride
+    along as data so the toggle can switch without a reload -#}
+{% set art = fighter_art(c) %}
+{% set cos = fight_cosmetics and (art.shiny or art.full) %}
+<li class="fighter {% if not c.is_alive() %}down{% endif %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}{% if cos and art.shiny %} shiny{% endif %}{% if cos and art.full %} fullart{% endif %}"
     data-side="{{ side }}" data-idx="{{ idx }}" data-name="{{ c.name }}" data-max="{{ [c.start_hp, 1]|max }}"
-    data-img="{{ c.id|stand_img }}" data-gif="{{ c.id|special_gif }}">
+    data-img="{{ art.spot if cos else art.classic }}" data-gif="{{ c.id|special_gif }}"{% if cos and art.shiny and not art.own %} data-hue="1"{% endif %}
+    {% if art.shiny or art.full %}data-art-classic="{{ art.classic }}" data-art-portrait="{{ art.portrait }}" data-art-spot="{{ art.spot }}"
+    data-art-shiny="{{ 1 if art.shiny else 0 }}" data-art-full="{{ 1 if art.full else 0 }}" data-art-own="{{ 1 if art.own else 0 }}"{% endif %}>
   {% if targetable %}
   <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}{% if hit is not none %}, about {{ hit }} damage{% endif %}"
           {% if hit is not none %}data-hit="~{{ hit }}{% if hit >= c.current_hp %} · KO{% endif %}"{% endif %}></button>
   {% endif %}
   <div class="fighter-portrait">
-    <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+    <img src="{{ art.portrait if cos else art.classic }}" alt="" loading="lazy" decoding="async"{% if art.own %} class="own-art"{% endif %} onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+    {% if art.shiny %}<span class="fighter-shiny" title="Shiny" aria-label="Shiny">✨</span>{% endif %}
     {% if c.taunt %}<span class="fighter-badge" title="Taunt">🎯</span>{% endif %}
   </div>
   <h3>{{ c.name }}</h3>
@@ -162,10 +169,12 @@
          hx-vals='{"log_len": {{ fight.log|length }}}'></div>
   {% endif %}
 
-  <aside class="spotlight" aria-label="Spotlight">
+  {% set star_art = fighter_art(star) %}
+  {% set star_cos = fight_cosmetics and (star_art.shiny or star_art.full) %}
+  <aside class="spotlight{% if star_cos and star_art.shiny and not star_art.own %} shiny-art{% endif %}" aria-label="Spotlight">
     <figure>
       <div class="spotlight-frame">
-        <img class="spotlight-img" src="{{ star.id|stand_img }}" alt="{{ star.name }}" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+        <img class="spotlight-img" src="{{ star_art.spot if star_cos else star_art.classic }}" alt="{{ star.name }}" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
         <span class="menacing" aria-hidden="true">ゴ<br>ゴ<br>ゴ</span>
       </div>
       <figcaption>
@@ -176,7 +185,11 @@
   </aside>
 
   <section class="log" id="fight-log">
-    <h2 class="log-title">Combat log <button type="button" class="log-toggle" data-log-toggle aria-expanded="false" aria-controls="fight-log">Show full log</button></h2>
+    {% set any_cos = namespace(on=false) %}
+    {% for s in fight.sides %}{% for c in s.chars %}{% set a = fighter_art(c) %}{% if a.shiny or a.full %}{% set any_cos.on = true %}{% endif %}{% endfor %}{% endfor %}
+    <h2 class="log-title">Combat log <button type="button" class="log-toggle" data-log-toggle aria-expanded="false" aria-controls="fight-log">Show full log</button>
+      {% if any_cos.on %}<button type="button" class="log-toggle" data-cosmetics-toggle data-url="{{ url_for('main.pref_fight_cosmetics') }}"
+              aria-pressed="{{ 'true' if fight_cosmetics else 'false' }}" title="Show shiny and full-art stands with their own art, or everyone's classic picture">✨ Cosmetics {{ 'on' if fight_cosmetics else 'off' }}</button>{% endif %}</h2>
     <ol reversed>
       {% for e in fight.log|reverse %}
         {% set i = fight.log|length - 1 - loop.index0 %}

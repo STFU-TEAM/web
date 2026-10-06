@@ -93,11 +93,11 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   folder (originals kept in `art/_originals`); then "Update the game's lists" and upload
 - Card effects: shiny and full-art animations only run on the hovered/focused card, the big stand card, reveals
   and the pull cinematic, so collections of hundreds of cards stay smooth
-- Over Heaven (`/over-heaven`, `app/game/overheaven.py`): after the story, one track of four hand-made level 100
+- Over Heaven (`/over-heaven`, `app/game/overheaven.py`): after the story, one track of six hand-made level 100
   fights per PvE mode, each built around rules (`Fight.rules`: locked terrain, wards, heal cuts, reflect,
   enrage...) that need a team prepared for them. Each fight's `power` was calibrated with the simulator so raw
   UR/LR stacks lose and a team built for the rule wins; recalibrate if the engine changes. Saves in
-  `web_over_heaven`, title "Over Heaven" for all 20
+  `web_over_heaven` (with `paid`: fights already rewarded, so tracks can grow), title "Over Heaven" for all 30. Part synergies (a whole team from one part) count for player-built teams only
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:

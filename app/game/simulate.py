@@ -45,7 +45,8 @@ def foe_for(value: str, db=None) -> Optional[dict]:
         if other and other.main_characters:
             from app.db import identity
             name = identity(arg)["name"]
-            return {"name": name, "team": other.main_characters, "ai": "smart", "label": f"{name}'s team"}
+            return {"name": name, "team": other.main_characters, "ai": "smart", "label": f"{name}'s team",
+                    "player": True}  # a player's team: its part synergy counts, as in a real duel
     return None
 
 
@@ -54,7 +55,7 @@ def run(team, foe: dict, runs: int = RUNS) -> dict:
     rounds, hp_left = [], []
     per = [{"id": c.id, "name": c.name, "dmg": 0, "alive": 0, "specials": 0} for c in team]
     for _ in range(runs):
-        enemies = Side(foe["name"], fighting_copy(foe["team"]), False)
+        enemies = Side(foe["name"], fighting_copy(foe["team"]), False, parts=foe.get("player", False))
         enemies.ai = foe.get("ai", "smart")
         f = Fight(Side("You", fighting_copy(team), True), enemies, kind="simulation",
                   meta={"rules": foe["rules"]} if foe.get("rules") else None)

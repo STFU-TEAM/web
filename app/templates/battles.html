@@ -15,7 +15,10 @@
       <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
     </header>
     {% include "partials/event_ribbon.html" %}
-    {% if story_stage %}
+    {% if mode == 'ranked' and dv %}
+      {#- a 20 s pick-and-ban: first thing on the page, nothing else in the way -#}
+      {% include "partials/ranked_draft.html" %}
+    {% elif story_stage %}
       <a class="story-cta" href="{{ url_for('progress.story_page') }}">
         <span class="story-cta-icon" aria-hidden="true">📜</span>
         <span><small>Story mode · {{ story_cleared }}/{{ story_total }} · {{ story_stage.part_title }}</small>
@@ -79,14 +82,37 @@
           <p class="muted small-print">Each month starts from half your last season's rating. Lifetime Elo (shown above) never resets. <a href="{{ url_for('main.leaderboard', by='season') }}">Season ladder</a></p>
         </details>
       </section>
+      {% if not dv %}
       <section class="battle-panel">
-        <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2><p>Queue against another web player. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
+        <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2>
+          <p>Bring a roster of {{ roster_size }} different stands. Once matched, each player bans 2 of the other's ({{ ban_seconds }} s), then orders the 3 left into a team. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
         {% if waiting %}
-          <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Searching the ranked queue… The duel opens by itself as soon as an opponent is found.</p>
+          <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Searching the ranked queue… The draft opens by itself as soon as an opponent is found.</p>
           <form method="post" action="{{ url_for('battles.ranked_cancel') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn danger">Leave queue</button></form>
-        {% elif not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
+        {% elif not roster_ready %}<p class="notice">Pick your {{ roster_size }} ranked stands below first.</p>
         {% else %}<form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Join ranked queue</button></form>{% endif %}
       </section>
+      {% if not waiting %}
+        <section class="roster-panel" aria-labelledby="roster-h">
+          <h2 class="h3" id="roster-h">Ranked roster <small class="muted">{{ roster|length }}/{{ roster_size }}</small></h2>
+          <p class="muted">{{ roster_size }} different stands from your whole collection. Your opponent will ban 2, so bring depth, not just your three best. The order here is your fallback team order.</p>
+          <form method="post" action="{{ url_for('battles.ranked_roster') }}" class="roster-form">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <label class="search roster-search"><span class="sr">Find a stand</span><input type="search" placeholder="Find a stand" data-roster-search autocomplete="off"></label>
+            <ul class="roster-list" data-pick-max="{{ roster_size }}" data-pick-unique>
+              {% for c in collection %}
+                <li data-name="{{ c.name|lower }}"><label>
+                  <input type="checkbox" name="uuid" value="{{ c.uuid }}" data-stand="{{ c.id }}" {% if c.uuid in roster_ids %}checked{% endif %}>
+                  <span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> {{ '✨ ' if c.shiny }}{{ c.name }}
+                  <small class="muted">Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.taunt %} · 🎯{% endif %}</small>
+                </label></li>
+              {% endfor %}
+            </ul>
+            <button class="btn" data-pick-submit>Save roster</button>
+          </form>
+        </section>
+      {% endif %}
+      {% endif %}
     {% elif mode == 'watch' %}
       <section class="watch-panel" hx-get="{{ url_for('battles.index', mode='watch') }}" hx-trigger="every 10s [document.visibilityState === 'visible']"
                hx-select=".watch-panel" hx-swap="outerHTML">

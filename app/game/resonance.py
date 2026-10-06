@@ -68,19 +68,19 @@ def home_terrain(team: list):
     return None
 
 
-def crossings(team: list) -> List[set]:
+def crossings(team: list, parts: bool = True) -> List[set]:
     """The team's active synergies as distinct crossings: groups that cover exactly the same stands on this
     team (Tusk, Joestar and the SBR racers for the three Tusk acts) only cross once. Each entry is the set
     of group names sharing those stands."""
     ids = {c.id for c in team}
     by_members = {}
-    for name in active_synergies(team):
+    for name in active_synergies(team, parts):
         by_members.setdefault(frozenset(SYNERGIES[name] & ids), set()).add(name)
     return list(by_members.values())
 
 
-def active(team: list) -> List[str]:
-    crossed = crossings(team)
+def active(team: list, parts: bool = True) -> List[str]:
+    crossed = crossings(team, parts)
     heroes = [g for g in crossed if g & HEROES]
     villains = [g for g in crossed if g & VILLAINS]
     duos = [g for g in crossed if g & DUOS]
@@ -102,6 +102,12 @@ def active(team: list) -> List[str]:
     return out
 
 
+def uses_parts(side) -> bool:
+    """Part synergies count for teams players built (yours, a PvP opponent's), not for computer PvE enemies."""
+    parts = getattr(side, "parts", None)
+    return side.is_human if parts is None else parts
+
+
 def _reset(team: list) -> None:
     for c in team:
         c._slayer = False
@@ -115,7 +121,7 @@ def apply(fight) -> Dict[int, List[str]]:
     lit = {}
     for s, side in enumerate(fight.sides):
         _reset(side.chars)
-        lit[s] = active(side.chars)
+        lit[s] = active(side.chars, parts=uses_parts(side))
     fight.home = {}
     for s, side in enumerate(fight.sides):
         team, foes = side.chars, fight.sides[1 - s].chars

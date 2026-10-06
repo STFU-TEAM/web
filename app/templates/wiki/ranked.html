@@ -8,7 +8,7 @@
 </header>
 
 <h2 class="wiki-h2">Ranked matchmaking</h2>
-<p>Queue from <a href="{{ url_for('battles.index', mode='ranked') }}">Battle → Ranked</a> to be matched against a player close to your ELO. The duel opens by itself as soon as someone is found. A win adds {{ facts.season_win }} ELO and a loss takes {{ facts.season_loss }} (never below zero). If both teams fall together it's a draw and nobody's ELO moves.</p>
+<p>Queue from <a href="{{ url_for('battles.index', mode='ranked') }}">Battle → Ranked</a> to be matched against a player close to your ELO. First pick your <strong>ranked roster</strong>: 5 different stands from your whole collection. Once someone is found, a <strong>pick-and-ban</strong> opens: you each ban 2 of the other's stands (20 seconds; run out and their 2 strongest are banned for you), then put your 3 survivors in fighting order (20 seconds; run out and your roster order is used). Then the duel starts. Bring depth, not just your three best. A win adds {{ facts.season_win }} ELO and a loss takes {{ facts.season_loss }} (never below zero). If both teams fall together it's a draw and nobody's ELO moves.</p>
 <p>Every pick has a turn clock. When it runs out, your stand picks a target on its own; run out twice in a row and you lose the duel.</p>
 
 <h2 class="wiki-h2">Rank tiers</h2>

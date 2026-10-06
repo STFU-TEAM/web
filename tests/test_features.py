@@ -19,6 +19,35 @@ def player(c, uid, **fields):
     return d
 
 
+RANKED_IDS = (1, 2, 3, 4, 5)
+
+
+def ranked_player(c, uid, ids=RANKED_IDS, **fields):
+    """A player with a ready ranked roster: ids (5 different stands) in storage, saved as the roster."""
+    stands = [char(i, xp=3000) for i in ids]
+    d = player(c, uid, main_characters=stands[:1], storage_characters=stands[1:], **fields)
+    d["web_ranked_roster"] = [s["uuid"] for s in stands]
+    put(c, d)
+    return d
+
+
+def finish_draft(c, ignore_clock=True):
+    """Run the ranked draft that's waiting (both players' clocks run out: auto bans, roster order)."""
+    import time as _time
+    from app.game import draft as D
+    for _ in range(2):
+        for key in list(c.fake.scan_iter("web:draft:of:*")):
+            uid = key.decode().rsplit(":", 1)[-1]
+            d = D.of(c.fake, uid)
+            if d:
+                d["deadline"] = _time.time() - 10
+                D.save(c.fake, d)
+                with c.session_transaction() as s:
+                    s["uid"] = uid
+                c.get("/battles/ranked/draft/poll")
+                break
+
+
 # --------------------------------------------------------------------------- #
 # Engine fixes
 # --------------------------------------------------------------------------- #
@@ -1125,8 +1154,8 @@ def test_pvp_waiting_auto_refreshes_and_the_turn_clock_stops_stalling(client, mo
     import time as _time
     from app.db import load_fight
     from app.routes import battles as B
-    player(client, "111", main_characters=[char(1, xp=3000)])
-    player(client, "222", main_characters=[char(2, xp=3000)])
+    ranked_player(client, "111")
+    ranked_player(client, "222", ids=(6, 7, 8, 9, 10))
     # ranked: the first player waits; the page polls /battles/ping, which matches once someone else queues
     h1 = login(client, "111")
     client.post("/battles/ranked/queue", headers=h1)
@@ -1135,7 +1164,9 @@ def test_pvp_waiting_auto_refreshes_and_the_turn_clock_stops_stalling(client, mo
     client.fake.zadd(B.RANKED_QUEUE, {"222": _time.time()})
     client.fake.hset(B.RANKED_ELO, "222", 0)
     r = client.get("/battles/ping", headers=h1)
-    assert r.headers.get("HX-Redirect", "").endswith("/battles")
+    assert r.headers.get("HX-Redirect", "").endswith("/battles?mode=ranked")  # matched: the pick-and-ban
+    assert load_fight("111") is None
+    finish_draft(client)  # both clocks run out: auto bans, then roster order
     fight = load_fight("111")
     assert fight and fight.kind == "ranked" and fight.meta["deadline"] > _time.time()
     # the clock: a miss picks for you, a second miss in a row loses the duel

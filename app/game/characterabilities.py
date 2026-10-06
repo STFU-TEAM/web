@@ -128,6 +128,20 @@ SYNERGIES["passione"] |= {62, 70}
 SYNERGIES["stone_ocean"] |= {89, 91}
 SYNERGIES["squadra"] |= {71, 80}
 
+# ── Part synergies: a whole team from one part of the story ──
+# They need all three fighters (SYNERGY_MIN), and only teams built by players get them: computer-controlled
+# PvE enemies are each part's own villains, and the PvE curves were tuned without them.
+PARTS = {3: set(range(1, 32)) | {163}, 4: set(range(32, 59)), 5: set(range(59, 86)), 6: set(range(86, 110)),
+         7: set(range(111, 137)), 8: set(range(137, 163))}
+PART_GROUPS = {f"part{p}": p for p in PARTS}
+for _key, _part in PART_GROUPS.items():
+    SYNERGIES[_key] = set(PARTS[_part])
+SYNERGY_MIN = {key: 3 for key in PART_GROUPS}  # members needed on the team (2 for every other group)
+
+
+def part_of(stand_id: int):
+    return next((p for p, ids in PARTS.items() if stand_id in ids), None)
+
 # (label, icon) for the wiki, cards and the fight log
 SYNERGY_INFO = {
     "crusaders": ("Stardust Crusaders", "⭐"),
@@ -168,6 +182,12 @@ SYNERGY_INFO = {
     "corpse": ("The Saint's Corpse", "✝️"),
     "higashikata": ("Higashikata family", "🍑"),
     "rock_humans": ("Rock Humans", "🪨"),
+    "part3": ("Part 3 · Stardust Crusaders", "③"),
+    "part4": ("Part 4 · Diamond is Unbreakable", "④"),
+    "part5": ("Part 5 · Golden Wind", "⑤"),
+    "part6": ("Part 6 · Stone Ocean", "⑥"),
+    "part7": ("Part 7 · Steel Ball Run", "⑦"),
+    "part8": ("Part 8 · JoJolion", "⑧"),
 }
 
 # Team bonus: every member of a group gets these for the whole fight while 2+ members are on the team
@@ -214,6 +234,13 @@ SYNERGY_BONUS = {
     "corpse": [("hp_pct", 0.10), ("armor_pct", 0.08)],
     "higashikata": [("hp_pct", 0.10), ("speed_pct", 0.08)],
     "rock_humans": [("armor_pct", 0.14), ("hp_pct", 0.06)],
+    # parts: easy to fill from ~25 stands each, so smaller than the crews'
+    "part3": [("damage_pct", 0.06), ("speed_pct", 0.06)],
+    "part4": [("hp_pct", 0.08), ("armor_pct", 0.06)],
+    "part5": [("damage_pct", 0.08), ("crit_flat", 5)],
+    "part6": [("hp_pct", 0.06), ("damage_pct", 0.06)],
+    "part7": [("speed_pct", 0.08), ("crit_flat", 5)],
+    "part8": [("armor_pct", 0.08), ("hp_pct", 0.06)],
 }
 FULL_SET = 3        # members of one group that make a full set...
 FULL_SET_MULT = 1.5  # ...and what it does to that group's bonus
@@ -232,10 +259,12 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
     return len(group & ids) >= 2
 
 
-def active_synergies(team: list) -> list:
-    """Names of the synergy groups with 2+ members on this team."""
+def active_synergies(team: list, parts: bool = True) -> list:
+    """Names of the synergy groups with enough members on this team (2, or SYNERGY_MIN). parts=False leaves
+    out the part synergies (computer-controlled PvE enemies don't get them)."""
     ids = _ally_ids(team)
-    return [name for name, group in SYNERGIES.items() if len(group & ids) >= 2]
+    return [name for name, group in SYNERGIES.items()
+            if len(group & ids) >= SYNERGY_MIN.get(name, 2) and (parts or name not in PART_GROUPS)]
 
 
 def synergy_scale(name: str, team: list, c) -> float:
@@ -245,11 +274,11 @@ def synergy_scale(name: str, team: list, c) -> float:
     return leverage(c) * (FULL_SET_MULT if full else 1)
 
 
-def apply_synergy_bonuses(team: list) -> list:
+def apply_synergy_bonuses(team: list, parts: bool = True) -> list:
     """Give each member of an active group its team bonus, once per fighter (tower teams fight many floors).
     Returns [(group name, [member names])] for the fight log."""
     out = []
-    groups = active_synergies(team)
+    groups = active_synergies(team, parts)
     # bigger groups on the team first (full sets), so a stand's decayed shares fall on its smaller groups
     groups.sort(key=lambda g: -len(SYNERGIES[g] & _ally_ids(team)))
     rank = {}

@@ -72,7 +72,7 @@
             <tr><th scope="row">10-pull</th>{% for r in ['R', 'SR', 'SSR', 'UR'] %}<td>{{ pct(BANNER_ODDS[r]) }}</td>{% endfor %}</tr>
             <tr><th scope="row">{{ PALM }}</th><td>0%</td>{% for r in ['SR', 'SSR', 'UR'] %}<td>{{ pct(ARROW_ODDS[r]) }}</td>{% endfor %}</tr>
           </table>
-          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. After {{ PITY_LIMIT }} pulls without a UR or LR, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR instead (a banner without an LR gives a UR). Only a UR or LR resets it: SSRs don't. {{ PALMS }} count toward the same pity.</p>
+          <p class="muted">Every 10-pull holds at least one SR, and the same stand never shows up twice in one pull while others of its rarity remain. After {{ PITY_LIMIT }} pulls without a UR or LR, pity guarantees a UR, with a {{ pct(PITY_ODDS['LR']) }} chance of an LR instead (a banner without an LR gives a UR). Only a UR or LR resets it: SSRs don't. {{ PALMS }} count toward the same pity. Any stand can come out ✨ shiny: 1 in {{ SHINY_ODDS|num }}.</p>
         </details>
         {% set ssrs = pool|selectattr('rarity', 'equalto', 'SSR')|list %}
         {% if sparks >= SPARK_COST and ssrs %}

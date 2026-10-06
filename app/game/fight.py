@@ -26,10 +26,12 @@ COUNTER_CRIT_PER_GAP, COUNTER_CRIT_MAX = 1, 15  # +1 critical per point of team 
 
 
 class Side:
-    def __init__(self, name: str, chars: List[Character], is_human: bool, avatar: Optional[str] = None):
+    def __init__(self, name: str, chars: List[Character], is_human: bool, avatar: Optional[str] = None,
+                 parts: Optional[bool] = None):
         self.name = name
         self.chars = chars
         self.is_human = is_human
+        self.parts = parts  # part synergies: None = only if a player built the team (is_human)
         self.ai = "smart"  # "easy" for gentle PvE opponents
         self.avatar = avatar
 
@@ -143,8 +145,9 @@ class Fight:
     def _apply_synergies(self) -> None:
         from app.game.characterabilities import SYNERGY_BONUS, SYNERGY_INFO, apply_synergy_bonuses
         from app.game.effects import fmt_perk
+        from app.game.resonance import uses_parts
         for s, side in enumerate(self.sides):
-            for name, members in apply_synergy_bonuses(side.chars):
+            for name, members in apply_synergy_bonuses(side.chars, parts=uses_parts(side)):
                 label, icon = SYNERGY_INFO.get(name, (name, "✶"))
                 perks = ", ".join(fmt_perk(stat, v) for stat, v in SYNERGY_BONUS.get(name, []))
                 self._log(f"{icon} {label} synergy for {side.name}: {', '.join(members)} gain {perks} "

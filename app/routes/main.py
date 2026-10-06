@@ -113,6 +113,13 @@ def service_worker():
     return resp
 
 
+@bp.post("/prefs/fight-cosmetics")
+def pref_fight_cosmetics():
+    """Draw fighters with their shiny / full art (on) or their classic picture (off). Kept in the session."""
+    session["fight_cosmetics"] = request.form.get("on") == "1"
+    return "", 204
+
+
 @bp.get("/stands")
 def stands():
     q = request.args.get("q", "").strip()

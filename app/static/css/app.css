@@ -541,6 +541,14 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .shiny-title { display: inline-block; animation: twinkle 1.8s ease-in-out infinite; }
 @keyframes twinkle { 50% { transform: scale(1.25) rotate(15deg); } }  /* transform only: the GPU runs it alone */
 @keyframes shiny-sheen { to { background-position: 300% 300%, 46px 46px, 34px 34px; } }
+/* a shiny drop (1 in 1000): its tag in the pull, its title in the cinematic, a hint in the summon */
+.shiny-tag { background: linear-gradient(90deg, #FF5EAE, #FFD45E, #6EF2C9, #6EA8FF); color: #120821; font-weight: 700; }
+span.shiny-tag:not(.new-tag) { padding: 0 .4rem; border-radius: 4px; }
+.cine.is-shiny .cine-title { background: linear-gradient(90deg, #FF5EAE, #FFD45E, #6EF2C9, #6EA8FF, #FF5EAE); background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent; animation: cine-stamp .45s cubic-bezier(.2, .9, .3, 1.6) both, cine-rainbow 3s linear infinite; }
+.summon.has-shiny .sum-gather i:nth-child(4n) { background: #FF5EAE; box-shadow: 0 0 6px #FF5EAE; }
+.summon.has-shiny .sum-gather i:nth-child(4n + 1) { background: #6EF2C9; box-shadow: 0 0 6px #6EF2C9; }
+.summon.has-shiny .sum-gather i:nth-child(4n + 2) { background: #FFD45E; box-shadow: 0 0 6px #FFD45E; }
 @media (prefers-reduced-motion: reduce) { .card.shiny, .card.shiny .card-face::after, .shiny-badge, .shiny-title { animation: none !important; } }
 
 .card.big { max-width: 320px; }
@@ -620,6 +628,35 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .chips span { display: inline-block; padding: .35rem .75rem; border: 2px solid var(--night-3); border-radius: 999px; font-weight: 700; cursor: pointer; }
 .chips input:checked + span { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 .chips input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+/* Ranked: the roster picker and the pick-and-ban */
+.roster-panel { padding: 1.2rem 0; }
+.roster-search { display: block; max-width: 320px; margin: .4rem 0 .6rem; }
+.roster-list { list-style: none; margin: 0 0 .8rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .3rem;
+  max-height: 420px; overflow-y: auto; }
+.roster-list label { display: flex; align-items: center; gap: .45rem; padding: .4rem .6rem; border-radius: var(--radius-ui); background: var(--night-2);
+  border: 1px solid var(--night-3); cursor: pointer; }
+.roster-list label.picked { border-color: var(--gold); background: rgb(244 197 66 / .1); }
+.roster-list label:has(input:disabled) { opacity: .45; cursor: not-allowed; }
+.roster-list small { margin-left: auto; white-space: nowrap; }
+.draft { padding: 1rem 0; }
+.draft-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.draft-head .turn-clock { font-size: var(--step-1); font-weight: 700; margin: 0; }
+.draft-sub { margin-top: 1rem; }
+.draft-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .7rem; margin: .4rem 0 1rem; }
+.draft-row.mine { opacity: .85; }
+.draft-pick { position: relative; display: grid; border-radius: var(--radius-card); }
+label.draft-pick { cursor: pointer; }
+label.draft-pick:has(input:focus-visible) { outline: 3px solid var(--gold); outline-offset: 3px; }
+.draft-mark { position: absolute; left: 50%; top: 40%; translate: -50% -50%; padding: .2rem .6rem; border-radius: 6px; font: 700 .85rem/1.3 var(--body);
+  background: var(--magenta); color: #fff; letter-spacing: .05em; box-shadow: 0 4px 12px rgb(0 0 0 / .4); pointer-events: none; }
+label.draft-pick .draft-mark { opacity: 0; transition: opacity .15s; }
+label.draft-pick.picked .draft-mark { opacity: 1; }
+label.draft-pick.picked .card, .draft-pick.banned .card { filter: grayscale(.85) brightness(.6); }
+label.draft-pick:has(input:disabled) { opacity: .55; cursor: not-allowed; }
+.draft-pick.banned.yours .draft-mark { background: var(--night-3); }
+.draft-order { display: flex; flex-wrap: wrap; gap: .6rem 1rem; margin: .4rem 0 .8rem; }
+.draft-order label { display: grid; gap: .2rem; font-weight: 700; font-size: var(--step--1); }
+
 /* Stands page: preview every card as a full art / shiny */
 .look-chips { align-items: center; }
 .look-chips legend { float: left; margin-right: .4rem; color: var(--muted); font-size: var(--step--1); font-weight: 700; }
@@ -1037,6 +1074,14 @@ details.menu[open] summary::before { content: "− "; }
 .fighter-portrait { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border: 3px solid var(--ring); border-radius: var(--radius-ui); background: var(--night-3); }
 .fighter-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
 .fighter-badge { position: absolute; right: 4px; bottom: 4px; font-size: .9rem; filter: drop-shadow(0 1px 2px rgb(0 0 0 / .6)); }
+/* Fight cosmetics (the "✨ Cosmetics" toggle): a shiny fights in its colours with a rainbow frame, a ★3+ copy with
+   its full art. All still: a fight already animates plenty. */
+.fighter-shiny { position: absolute; left: 4px; top: 3px; font-size: .8rem; filter: drop-shadow(0 0 3px #FFD45E); }
+.fighter.shiny .fighter-portrait { border-color: transparent;
+  background: linear-gradient(var(--night-3), var(--night-3)) padding-box, conic-gradient(#FF5EAE, #FFD45E, #6EF2C9, #6EA8FF, #C77DFF, #FF5EAE) border-box; }
+.fighter.shiny .fighter-portrait img:not(.own-art), .spotlight.shiny-art .spotlight-img { filter: hue-rotate(150deg) saturate(1.35) brightness(1.05); }
+.fighter.fullart .fighter-portrait img { object-position: center 18%; }
+.fighter.fullart .fighter-portrait { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .35), 0 0 10px color-mix(in srgb, var(--ring) 45%, transparent); }
 .fighter h3 { margin: .1rem 0 0; font-size: var(--step--1); line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fighter-meta { margin: 0; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; gap: .3rem; justify-content: center; flex-wrap: wrap; }
 .fighter .charge { margin: 0; font-size: .7rem; color: var(--muted); }

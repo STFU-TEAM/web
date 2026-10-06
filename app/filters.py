@@ -5,7 +5,7 @@ from flask import abort, current_app, request, session
 from markupsafe import Markup, escape
 
 from app.game.character import CHARACTER_FILE, MAX_LEVEL, STXPTOLEVEL, Qualities, Types
-from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, PITY_ODDS, fmt_delta, rank_name
+from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, PITY_ODDS, SHINY_CHANCE, fmt_delta, rank_name
 
 RARITY = {"R": "common", "SR": "rare", "SSR": "epic", "UR": "legend", "LR": "mythic"}
 RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
@@ -188,6 +188,17 @@ def register(app):
             return still, True, url
         return url, True, None
 
+    @app.template_global("fighter_art")
+    def fighter_art(c):
+        """A fighter's pictures: the classic one and, for a shiny or ★3+ copy, its cosmetic one (a still poster
+        in the portrait, the animation in the spotlight). {"classic", "portrait", "spot", "shiny", "full", "own"}."""
+        classic = stand_img(c.id)
+        shiny, full = bool(getattr(c, "shiny", False)), (getattr(c, "awaken", 0) or 0) >= FULLART_STARS
+        if not (shiny or full):
+            return {"classic": classic, "portrait": classic, "spot": classic, "shiny": False, "full": False, "own": False}
+        url, own, anim = card_art(c.id, full, shiny)
+        return {"classic": classic, "portrait": url, "spot": anim or url, "shiny": shiny, "full": full, "own": own}
+
     @app.template_filter("special_gif")
     def special_gif(stand_id):
         """The special's animation: a custom one from art/special if uploaded, else the original."""
@@ -337,11 +348,13 @@ def register(app):
         from app.game import events
         return {
             "live_event": events.cached(),
-            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
+            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked,
+            "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
+            "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),
-            "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS,
+            "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS, "SHINY_ODDS": round(1 / SHINY_CHANCE),
         }
 
     @app.before_request

@@ -11,7 +11,7 @@ import re
 from app.game import character as character_mod
 from app.game import logic
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
-from app.game.characterabilities import AFFINITY, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
+from app.game.characterabilities import AFFINITY, PART_GROUPS, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
 from app.game import fight as fight_mod
 from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain, fmt_perk
 
@@ -199,7 +199,9 @@ def synergy_rows():
         users = SYNERGY_USERS.get(key, set())
         rows.append({
             "key": key, "name": label, "icon": icon,
-            "rule": "Both stands on the team." if len(members) == 2 else "Any 2 of these on the team.",
+            "rule": ("A whole team from this part (all 3 fighters). Only teams players build get it, not "
+                     "computer-controlled enemies." if key in PART_GROUPS
+                     else "Both stands on the team." if len(members) == 2 else "Any 2 of these on the team."),
             "bonus": [fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, [])],
             "members": [{"stand": _stand(c), "effect": effects.get(c) if c in users else None}
                         for c in sorted(members)],

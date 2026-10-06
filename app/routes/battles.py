@@ -10,7 +10,7 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import events, history, logic, seasons, simulate, story
+from app.game import draft as draft_mod, events, history, logic, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, ai_choice, fighting_copy
@@ -93,15 +93,20 @@ def _fight_view(fight, uid, fresh_from=None):
                            fight_label={"dummy": "Practice", "ranked": "Ranked", "friend": "Friendly duel"}.get(fight.kind, "Battle"))
 
 
-def _create_duel(uid_a, uid_b, kind):
+def _create_duel(uid_a, uid_b, kind, teams=None):
+    """teams: {uid: [stands, in fighting order]} (the ranked draft's); otherwise each player's team."""
     db = get_db()
     if load_fight(uid_a) or load_fight(uid_b):
         return None
     user_a, user_b = db.get_user(uid_a), db.get_user(uid_b)
-    if not user_a or not user_b or not user_a.main_characters or not user_b.main_characters:
+    if not user_a or not user_b:
         return None
-    fight = Fight(Side(identity(uid_a)["name"], fighting_copy(user_a.main_characters), True),
-                  Side(identity(uid_b)["name"], fighting_copy(user_b.main_characters), True),
+    team_a = teams[uid_a] if teams else user_a.main_characters
+    team_b = teams[uid_b] if teams else user_b.main_characters
+    if not team_a or not team_b:
+        return None
+    fight = Fight(Side(identity(uid_a)["name"], fighting_copy(team_a), True),
+                  Side(identity(uid_b)["name"], fighting_copy(team_b), True),
                   kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False})
     fight.advance()
     arm_timer(fight)
@@ -131,8 +136,14 @@ def index():
     mode = request.args.get("mode", "dummy")
     extra = {}
     if mode == "ranked":
+        from app.filters import power_score
+        roster = draft_mod.roster(user)
+        collection = sorted(user.main_characters + user.storage_characters, key=lambda c: -power_score(c))
         extra = {"season": seasons.standing(r(), uid, user.global_elo), "season_claims": seasons.unclaimed(r(), user),
-                 "season_rewards": seasons.reward_table(), "season_min": seasons.MIN_GAMES}
+                 "season_rewards": seasons.reward_table(), "season_min": seasons.MIN_GAMES,
+                 "dv": draft_view(uid), "roster": roster, "roster_ready": len(roster) == draft_mod.ROSTER_SIZE,
+                 "roster_ids": {c.uuid for c in roster}, "collection": collection, "roster_size": draft_mod.ROSTER_SIZE,
+                 "ban_seconds": draft_mod.BAN_SECONDS}
     elif mode == "watch":
         extra = {"live": live_duels(uid)}
     elif mode == "history":
@@ -223,13 +234,160 @@ def accept_friend(challenge_id):
 def ranked_queue():
     uid = session["uid"]
     user = get_db().get_user(uid)
-    if not user or not user.main_characters:
-        flash("Add a stand to your team before ranked combat.", "error")
+    if not user or not draft_mod.roster_ready(user):
+        flash(f"Pick your {draft_mod.ROSTER_SIZE} ranked stands first.", "error")
         return redirect(url_for("battles.index", mode="ranked"))
-    if load_fight(uid):
+    if load_fight(uid) or draft_mod.of(r(), uid):
         return redirect(url_for("battles.index", mode="ranked"))
     _try_match(uid, user.global_elo)
     return redirect(url_for("battles.index", mode="ranked", waiting=1))
+
+
+# --------------------------------------------------------------------------- #
+# Ranked draft: roster of 5, each player bans 2 of the other's, then orders the 3 left (app/game/draft.py)
+# --------------------------------------------------------------------------- #
+@bp.post("/ranked/roster")
+@player_required
+def ranked_roster():
+    uid = session["uid"]
+    if r().zscore(RANKED_QUEUE, uid) is not None or draft_mod.of(r(), uid):
+        flash("You can't change your roster while queued or drafting.", "error")
+        return redirect(url_for("battles.index", mode="ranked"))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            draft_mod.set_roster(user, request.form.getlist("uuid"))
+            user.update()
+            flash("Ranked roster saved.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("battles.index", mode="ranked"))
+
+
+def _strongest(uid, uuids):
+    """A player's stands, strongest first (the bans a player runs out of time for)."""
+    from app.filters import power_score
+    user = get_db().get_user(uid)
+    chars = [(u, user.find_character_by_uuid(u)[0]) for u in uuids] if user else []
+    return [u for u, c in sorted(chars, key=lambda uc: -(power_score(uc[1]) if uc[1] else 0))]
+
+
+def _create_draft(uid_a, uid_b):
+    db = get_db()
+    if load_fight(uid_a) or load_fight(uid_b) or draft_mod.of(r(), uid_a) or draft_mod.of(r(), uid_b):
+        return None
+    users = {u: db.get_user(u) for u in (uid_a, uid_b)}
+    if not all(users.values()) or not all(draft_mod.roster_ready(u) for u in users.values()):
+        return None
+    rosters = {u: [c.uuid for c in draft_mod.roster(user)] for u, user in users.items()}
+    draft = draft_mod.create(r(), [uid_a, uid_b], rosters)
+    for u in (uid_a, uid_b):
+        social.notify(u, "fight", f"Ranked match found against {identity(draft_mod.opponent(draft, u))['name']}: "
+                                  f"ban {draft_mod.BANS} of their stands!", url_for("battles.index", mode="ranked"))
+    return draft
+
+
+def _draft_tick(draft, force=False):
+    """Apply deadlines and, once both teams are set, start the duel. Call under both players' locks."""
+    if not draft_mod.step(draft, _strongest, force=force):
+        return None
+    if draft["phase"] != "ready":
+        draft_mod.save(r(), draft)
+        return None
+    db = get_db()
+    teams = {}
+    for uid in draft["players"]:
+        user = db.get_user(uid)
+        teams[uid] = [c for c in (user.find_character_by_uuid(u)[0] for u in draft["order"][uid]) if c is not None]
+    draft_mod.finish(r(), draft)
+    return _create_duel(*draft["players"], "ranked", teams=teams)
+
+
+def _draft_action(fn):
+    uid = session["uid"]
+    draft = draft_mod.of(r(), uid)
+    if not draft:
+        return redirect(url_for("battles.index", mode="ranked"))
+    try:
+        with users_lock(*draft["players"], ttl=5):
+            draft = draft_mod.of(r(), uid)
+            if draft:
+                try:
+                    fn(draft, uid)
+                except GameError as e:
+                    flash(str(e), "error")
+                draft_mod.save(r(), draft)
+                _draft_tick(draft)
+    except Busy:
+        flash("Hold on, your opponent is locking in too. Try again.", "error")
+    return redirect(url_for("battles.index", mode="ranked"))
+
+
+@bp.post("/ranked/ban")
+@player_required
+def ranked_ban():
+    return _draft_action(lambda d, uid: draft_mod.ban(d, uid, request.form.getlist("ban")))
+
+
+@bp.post("/ranked/compose")
+@player_required
+def ranked_compose():
+    order = [request.form.get(f"slot{i}", "") for i in range(draft_mod.TEAM_SIZE)]
+    return _draft_action(lambda d, uid: draft_mod.compose(d, uid, [o for o in order if o]))
+
+
+@bp.get("/ranked/draft/poll")
+@player_required
+def ranked_draft_poll():
+    """The draft page asks every 2 s: 204 while nothing changed; a refresh when the phase moved, the opponent
+    locked in, or the duel started. Whoever polls past a deadline applies it."""
+    uid = session["uid"]
+    draft = draft_mod.of(r(), uid)
+    if draft is None:
+        resp = Response(status=204)
+        resp.headers["HX-Refresh"] = "true"  # the duel started (or the draft expired)
+        return resp
+    if time.time() >= draft["deadline"] + draft_mod.GRACE:
+        try:
+            with users_lock(*draft["players"], ttl=5):
+                draft = draft_mod.of(r(), uid)
+                if draft:
+                    _draft_tick(draft)
+        except Busy:
+            pass
+        draft = draft_mod.of(r(), uid)
+    state = f"{draft['phase']}:{sum(bool(v) for v in draft['bans'].values())}:{sum(bool(v) for v in draft['order'].values())}" \
+        if draft else "done"
+    if state != request.args.get("state"):
+        resp = Response(status=204)
+        resp.headers["HX-Refresh"] = "true"
+        return resp
+    return Response(status=204)
+
+
+def draft_view(uid):
+    """Everything the draft panel draws, from uid's point of view."""
+    draft = draft_mod.of(r(), uid)
+    if not draft:
+        return None
+    db = get_db()
+    foe = draft_mod.opponent(draft, uid)
+    stands = {}
+    for p in draft["players"]:
+        user = db.get_user(p)
+        stands[p] = {u: user.find_character_by_uuid(u)[0] for u in draft["rosters"][p]}
+    state = f"{draft['phase']}:{sum(bool(v) for v in draft['bans'].values())}:{sum(bool(v) for v in draft['order'].values())}"
+    return {"draft": draft, "phase": draft["phase"], "left": draft_mod.seconds_left(draft), "state": state,
+            "foe_name": identity(foe)["name"], "me": uid, "foe": foe,
+            "mine": [stands[uid][u] for u in draft["rosters"][uid]], "theirs": [stands[foe][u] for u in draft["rosters"][foe]],
+            "banned_mine": set(draft_mod.banned_from(draft, uid)), "banned_theirs": set(draft_mod.banned_from(draft, foe)),
+            "my_bans_done": draft["bans"][uid] is not None, "foe_bans_done": draft["bans"][foe] is not None,
+            "my_order_done": draft["order"][uid] is not None, "foe_order_done": draft["order"][foe] is not None,
+            "my_left": [stands[uid][u] for u in draft_mod.remaining(draft, uid)],
+            "foe_left": [stands[foe][u] for u in draft_mod.remaining(draft, foe)],
+            "bans": draft_mod.BANS, "team_size": draft_mod.TEAM_SIZE}
 
 
 def _try_match(uid, elo):
@@ -261,7 +419,7 @@ def _try_match(uid, elo):
         opponent = min(nearby)[1] if nearby else None
         if opponent:
             with users_lock(uid, opponent):
-                fight = _create_duel(uid, opponent, "ranked")
+                fight = _create_draft(uid, opponent)  # ranked starts with the pick-and-ban
                 if fight:
                     r().zrem(RANKED_QUEUE, uid, opponent)
                     r().hdel(RANKED_ELO, uid, opponent)
@@ -295,13 +453,17 @@ def ping():
         resp = Response(status=204)
         resp.headers["HX-Redirect"] = url_for("battles.index")
         return resp
+    if draft_mod.of(r(), uid):  # matched: straight to the pick-and-ban
+        resp = Response(status=204)
+        resp.headers["HX-Redirect"] = url_for("battles.index", mode="ranked")
+        return resp
     if r().zscore(RANKED_QUEUE, uid) is not None:
         user = get_db().get_user(uid)
-        if user and user.main_characters:
+        if user and draft_mod.roster_ready(user):
             _try_match(uid, user.global_elo)
-            if load_fight(uid):
+            if load_fight(uid) or draft_mod.of(r(), uid):
                 resp = Response(status=204)
-                resp.headers["HX-Redirect"] = url_for("battles.index")
+                resp.headers["HX-Redirect"] = url_for("battles.index", mode="ranked")
                 return resp
         return Response(status=204)
     if r().exists(CHALLENGE_WAIT.format(uid)):

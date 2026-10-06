@@ -8,6 +8,7 @@
 
 <h2 class="wiki-h2">Summoning</h2>
 <p>Stands come from <a href="{{ url_for('play.banners') }}">banners</a>. An Arrowhead buys a 10-pull from one banner's pool. Every pull without a UR or LR adds 1 pity, and only a UR or LR resets it (SSRs don't). At <strong>{{ PITY_LIMIT }} pity</strong> the next stand is a guaranteed UR, or an LR {{ (PITY_ODDS['LR'] * 100)|round|int }}% of the time. Every 10-pull also holds at least one SR.</p>
+<p>✨ <strong>Shiny:</strong> every stand you get (banners, {{ PALMS }}, the spark shop, Stand Chips) has a <strong>1 in {{ SHINY_ODDS|num }}</strong> chance to be shiny, a rare colour variant with a holo frame. It's purely cosmetic, it stays shiny through fusion and Requiem, and a fused copy passes its shine on.</p>
 <p>Every 10-pull also earns a <strong>spark</strong>. With {{ facts.spark_cost }} sparks you can pick any SSR from a banner's pool on its banner page, so a long bad streak still ends with the stand you wanted.</p>
 <div class="wiki-table-wrap"><table class="wiki-table">
   <thead><tr><th scope="col">Rarity</th><th scope="col">10-pull</th><th scope="col">Devil's Palm (5 stands)</th></tr></thead>

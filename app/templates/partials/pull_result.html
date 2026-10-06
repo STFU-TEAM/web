@@ -43,20 +43,21 @@
         {% set rar = e.stand.rarity|rarity %}
         <div class="slot">
           <div class="flip rar-{{ rar }}" role="button" tabindex="0" aria-label="Reveal card {{ loop.index }}" data-flip data-rank="{{ order[e.stand.rarity] }}"
-               data-rarity="{{ e.stand.rarity }}" data-name="{{ e.stand.name }}" data-new="{{ 1 if e.new else 0 }}"
+               data-rarity="{{ e.stand.rarity }}" data-name="{{ e.stand.name }}" data-new="{{ 1 if e.new else 0 }}" data-shiny="{{ 1 if e.stand.shiny else 0 }}"
                data-gif="{{ e.stand.id|special_gif }}" data-special="{{ e.stand.special_description|replace('`', '') }}">
             <div class="flip-inner">
               <div class="flip-front">{{ owned_card(e.stand, size='small') }}</div>
               <div class="flip-back" aria-hidden="true"><span>？</span></div>
             </div>
           </div>
-          <p class="where" data-where>{% if e.new %}<span class="new-tag">NEW</span>{% endif %}<span class="muted">{{ e.where }}</span></p>
+          <p class="where" data-where>{% if e.stand.shiny %}<span class="new-tag shiny-tag">✨ SHINY</span>{% endif %}{% if e.new %}<span class="new-tag">NEW</span>{% endif %}<span class="muted">{{ e.where }}</span></p>
         </div>
       {% endfor %}
     </div>
     <p class="pull-summary" hidden data-pull-summary>
       {% for r in ['LR', 'UR', 'SSR', 'SR', 'R'] %}{% set n = res.cards|selectattr('stand.rarity', 'equalto', r)|list|length %}{% if n %}<span class="rar-tag {{ r|rarity }}">{{ n }} {{ r }}</span> {% endif %}{% endfor %}
       {% set fresh = res.cards|selectattr('new')|list|length %}{% if fresh %}· {{ fresh }} new stand{{ 's' if fresh > 1 }}{% endif %}
+      {% set shinies = res.cards|selectattr('stand.shiny')|list|length %}{% if shinies %}· <span class="shiny-tag">✨ {{ shinies }} shiny!</span>{% endif %}
     </p>
     <p><a class="btn ghost" href="{{ url_for('play.team') }}#storage">Go to my storage</a></p>
   </section>
