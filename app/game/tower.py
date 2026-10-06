@@ -97,12 +97,13 @@ def floor_ids(floor: int, week: Optional[str] = None) -> List[int]:
     return ids[::-1] if is_boss(floor) else ids  # the boss leads
 
 
-def floor_team(floor: int, week: Optional[str] = None) -> list:
+def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] = None) -> list:
+    """The enemies of a floor; ids: other stands at that floor's strength (the dungeon picks its own)."""
     lvl, aw, mult = level_for(floor), awaken_for(floor), overflow_for(floor)
     quality = ("BAD" if floor < 5 else "SUB_PAR" if floor < 10 else "GOOD" if floor < 18 else "GREAT" if floor < 30
                else "SUPREME" if floor < 45 else "UNIVERSAL")
     team = []
-    for cid in floor_ids(floor, week):
+    for cid in ids or floor_ids(floor, week):
         c = character_from_dict({"id": cid, "xp": lvl * 100, "awaken": aw, "types": ["BALANCE"],
                                  "qualities": [quality], "items": [{"id": 1}] if floor >= 8 else []})
         if mult > 1:

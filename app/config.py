@@ -12,8 +12,8 @@ _BOT_GIVE_CHARACTER_ADMINS = (
 
 
 class Config:
-    # The adventure dungeon is closed for now; its pages redirect to Battles.
-    DUNGEON_ENABLED = os.environ.get("DUNGEON_ENABLED", "0") == "1"
+    # The daily dungeon; DUNGEON_ENABLED=0 closes it (its pages then redirect to Battles).
+    DUNGEON_ENABLED = os.environ.get("DUNGEON_ENABLED", "1") == "1"
     KOFI_URL = os.environ.get("KOFI_URL", "https://ko-fi.com/eirblast")
     MAX_CONTENT_LENGTH = 4 * 1024 * 1024  # news cover uploads are the only file uploads
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")

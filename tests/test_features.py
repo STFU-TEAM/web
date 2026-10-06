@@ -451,6 +451,11 @@ def test_pity_floor_and_new_tags(client):
     user.pity = 10
     logic._banner_draw(banner, user, forced="SSR")
     assert user.pity == 11  # an SSR no longer resets pity
+    # Devil's Palms share the same pity: they count toward it and it can land on them
+    logic._arrow_draw(banner, user, forced="SR")
+    assert user.pity == 12
+    user.pity = logic.PITY_LIMIT - 1
+    assert logic._arrow_draw(banner, user).rarity in ("UR", "LR") and user.pity == 0
     # ten pulls always include an SR or better
     for seed in range(40):
         random.seed(seed)

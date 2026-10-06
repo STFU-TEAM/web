@@ -310,11 +310,18 @@ def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=
     return get_character_from_template(template, types, qualities)
 
 
-def _arrow_draw(banner: dict, exclude=(), forced: Optional[str] = None) -> Character:
-    """Arrow: no pity, SR floor."""
+def _arrow_draw(banner: dict, user: User, exclude=(), forced: Optional[str] = None) -> Character:
+    """Devil's Palm: SR floor, and it shares the banners' pity (counts toward it, and pity can land on it)."""
     types, qualities = roll_types_qualities()
-    rarity = forced or random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
-    return get_character_from_template(_template_of(banner, rarity, exclude), types, qualities)
+    if forced:
+        rarity = forced
+    elif user.pity >= PITY_LIMIT - 1:
+        rarity = random.choices(list(PITY_ODDS), weights=list(PITY_ODDS.values()), k=1)[0]
+    else:
+        rarity = random.choices(list(ARROW_ODDS), weights=list(ARROW_ODDS.values()), k=1)[0]
+    template = _template_of(banner, rarity, exclude)
+    user.pity = 0 if template["rarity"] in PITY_RESETS else user.pity + 1
+    return get_character_from_template(template, types, qualities)
 
 
 def _forced_at(force: Optional[dict], i: int, n: int) -> Optional[str]:
@@ -460,7 +467,7 @@ def arrow_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dict
     user.items.remove(arrow)
     drawn = []
     for i in range(5):
-        c = _arrow_draw(banner, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 5))
+        c = _arrow_draw(banner, user, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 5))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")

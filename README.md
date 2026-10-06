@@ -36,7 +36,7 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - News feed (`app/news.py`): admins post from /admin/news with an uploaded or linked cover image
 - Crafting: materials (Meteorite Shard, Rokakaka Fruit, Arrow Fragment) and craftable gear in
   `items.json` / `recipes.json`; gear specials live in `itemabilities.py`
-- The adventure dungeon is closed for now: set `DUNGEON_ENABLED=1` to bring it back
+- The daily dungeon (free, one run a day, no energy) is open: set `DUNGEON_ENABLED=0` to close it
 - Logins: Discord OAuth or username + password (app/accounts.py). Password saves get an `acc…` id;
   linking Discord later moves the save to the Discord id so the bot sees it
 - Story mode, achievements page, trades (async offers of stands/items/fragments), item selling
@@ -46,7 +46,7 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   save), gangs, shops, banner on/off, filterable audit log
 - Player shops: list, buy and return items with locked buyer/seller transfers
 - Tower: six sequential PvE floors, persisted progress and shared fight UI
-- Adventure dungeon: map exploration with battles, weighted chests, bombs and energy wager
+- Daily dungeon: a free fogged 3-floor delve with persistent team health, a loot bag and a cash-out-or-go-deeper choice
 - Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
 - Public stand encyclopedia, leaderboards, player profiles
 - Wiki (`/wiki`): the bot's `/wiki` topics plus terrain and synergy explorers, built from

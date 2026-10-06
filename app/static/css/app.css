@@ -1323,19 +1323,30 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .battle-panel h2 { margin-bottom: .35rem; }
 .battle-panel p { margin-block: .25rem; }
 .battle-panel > form { margin: 0; }
-.dungeon-layout { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 1.5rem; align-items: start; }
-.dungeon-map { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 3px; width: min(100%, 680px); aspect-ratio: 10 / 9; padding: 8px; background: var(--night-2); border: 2px solid var(--night-3); }
+.dungeon-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 1.5rem; align-items: start; }
+.dungeon-map { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 3px; width: min(100%, 680px); aspect-ratio: 11 / 9; padding: 8px; background: var(--night-2); border: 2px solid var(--night-3); }
 .dungeon-cell { display: grid; place-items: center; min-width: 0; color: var(--paper); background: #345b4f; border: 1px solid rgb(255 255 255 / .08); font: 700 clamp(.55rem, 2vw, 1rem)/1 var(--body); }
+.dungeon-cell.fog { background: #0c0915; border-color: transparent; }
 .dungeon-cell.wall { background: #171323; border-color: #2c2438; }
+.dungeon-cell:not(.visited):not(.fog):not(.wall) { background: #26443b; }
 .dungeon-cell.current { background: var(--gold); color: var(--ink); box-shadow: inset 0 0 0 3px var(--gold-deep); }
-.dungeon-cell.exit { background: var(--teal); color: var(--ink); }
 .dungeon-cell.event-fight { color: #ff8db9; }
+.dungeon-cell.event-elite { color: #ff5c8a; background: #4a2236; }
+.dungeon-cell.event-boss { color: var(--gold); background: #5a1f3a; }
 .dungeon-cell.event-chest { color: var(--gold); }
-.dungeon-cell.event-bomb { color: #ff665c; }
-.dungeon-cell.seen:not(.current) { filter: brightness(.7); }
-.dungeon-controls { padding: 1rem; border-left: 2px solid var(--night-3); }
-.dungeon-count { margin: .25rem 0 1rem; color: var(--muted); }
-.dungeon-count strong { color: var(--gold); font: 2rem var(--display); }
+.dungeon-cell.event-trap { color: #ff665c; }
+.dungeon-cell.event-camp { color: #ffb35c; }
+.dungeon-cell.event-stairs { background: var(--teal); color: var(--ink); }
+.dungeon-cell.done:not(.current):not(.event-stairs) { filter: brightness(.75); }
+.dungeon-controls { padding: 1rem; border-left: 2px solid var(--night-3); display: grid; gap: .6rem; align-content: start; }
+.dungeon-controls .kicker { margin: .4rem 0 0; }
+.dungeon-stairs { display: grid; gap: .5rem; }
+.dungeon-stairs .btn { width: 100%; }
+.dungeon-bag { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .3rem .8rem; }
+.dungeon-team li { width: 70px; font-size: .7rem; }
+.dungeon-legend ul { list-style: none; padding: 0; margin: .4rem 0 0; display: grid; gap: .3rem; }
+.dungeon-legend .dungeon-cell { display: inline-grid; width: 1.4rem; height: 1.4rem; vertical-align: middle; }
+.dungeon-last { padding: 1rem 0; }
 .move-pad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 48px); gap: 5px; justify-content: center; margin-block: 1rem; }
 .move-pad form:first-child { grid-column: 2; }
 .move-pad form:nth-child(2) { grid-column: 1; grid-row: 2; }
@@ -1346,9 +1357,6 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .move-button:disabled { opacity: .3; cursor: not-allowed; }
 .dungeon-start { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap; padding-block: 1.5rem; border-block: 1px solid var(--night-3); }
 .dungeon-start h2, .dungeon-start p { margin-top: 0; }
-.dungeon-entry { align-items: end; }
-.dungeon-entry label { display: grid; gap: .3rem; color: var(--muted); font-size: var(--step--1); font-weight: 700; }
-.dungeon-entry input { width: 7rem; }
 @media (max-width: 760px) { .dungeon-layout { grid-template-columns: 1fr; } .dungeon-controls { border-left: 0; border-top: 2px solid var(--night-3); } }
 
 .social-panel { margin: 1.2rem 0 2rem; padding: 1.2rem 0; border-block: 1px solid var(--night-3); }

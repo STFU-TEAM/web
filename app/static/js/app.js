@@ -1021,3 +1021,11 @@ document.addEventListener("change", (e) => {
     e.target.form.requestSubmit();
   });
 })();
+
+// Dungeon: arrow keys / WASD press the matching move button.
+document.addEventListener("keydown", (e) => {
+  if (e.target.closest?.("input, textarea, select") || e.ctrlKey || e.metaKey || e.altKey) return;
+  const dir = {ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right"}[e.key];
+  const btn = dir && document.querySelector(`.move-button[data-move="${dir}"]:not(:disabled)`);
+  if (btn) { e.preventDefault(); btn.click(); }
+});

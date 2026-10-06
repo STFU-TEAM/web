@@ -40,7 +40,7 @@
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'Six floors in a row. Clear them all to raise the tower.'),
-  'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'Wager energy, explore a map, open chests.'),
+  'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'A free daily delve: explore, loot, and choose when to get out.'),
   'events': ('Events', url_for('progress.events_page'), ep.startswith('progress.events'), '🎉', live_event.name ~ ' is on: a twist and a token shop.' if live_event else 'Limited-time twists with a token shop.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
   'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),

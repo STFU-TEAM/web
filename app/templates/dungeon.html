@@ -1,58 +1,108 @@
 {% extends "base.html" %}
-{% block title %}Adventure Dungeon | STFU Requiem{% endblock %}
+{% block title %}Dungeon | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page dungeon-page">
+  <header class="player-bar dungeon-head">
+    <div><p class="kicker">Daily delve · free · a new dungeon every midnight</p><h1 class="display sm">Dungeon</h1>
+      <p class="muted">Three floors under a fog. Fights and chests fill a loot bag that's only paid when you get out: take it home on the stairs, or go deeper for more. If your team falls, half the bag is lost.</p></div>
+    <div class="rush-best"><small>{% if run %}Floor{% else %}Runs left today{% endif %}</small><strong>{% if run %}{{ run.depth }}/{{ D.DEPTHS }}{% else %}{{ runs_left }}{% endif %}</strong>
+      <span class="muted">deepest today {{ s.best }}</span></div>
+  </header>
+
   {% if fight %}
     {% include "partials/fight.html" %}
-  {% else %}
-    <header class="player-bar dungeon-head">
-      <div><p class="kicker">Adventure · Map 0</p><h1 class="display sm">Dungeon</h1>
-        <p class="muted">Explore, fight the monsters, search chests and find the exit.</p></div>
-      <div class="dungeon-energy">Energy <strong>{{ u.energy }}</strong> / {{ u.total_energy }}</div>
-    </header>
-    {% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+  {% endif %}
 
-    {% if state %}
-      <div class="dungeon-layout">
-        <section class="dungeon-map" aria-label="Dungeon map">
-          {% for cell in cells %}
-            <div class="dungeon-cell{% if cell.wall %} wall{% endif %}{% if cell.current %} current{% endif %}{% if cell.exit %} exit{% endif %}{% if cell.event and not cell.seen %} event-{{ cell.event }}{% endif %}{% if cell.seen %} seen{% endif %}"
-                 style="--x: {{ cell.x }}; --y: {{ cell.y }}" title="{% if cell.current %}You are here{% elif cell.exit %}Exit{% elif cell.event and not cell.seen %}{{ cell.event|title }}{% elif cell.wall %}Wall{% else %}Passage{% endif %}">
-              {% if cell.current %}<span aria-hidden="true">◆</span>{% elif cell.exit %}<span aria-hidden="true">⇧</span>{% elif cell.event and not cell.seen %}<span aria-hidden="true">{{ {"fight": "!", "chest": "◇", "bomb": "×"}[cell.event] }}</span>{% endif %}
-            </div>
-          {% endfor %}
-        </section>
-        <aside class="dungeon-controls">
-          <p class="kicker">Wager remaining</p>
-          <p class="dungeon-count"><strong>{{ state.energy }}</strong> energy</p>
+  {% if message and not (fight and not fight.finished) %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+
+  {% if other_fight %}
+    <p class="notice">Your {{ other_fight }} fight is still on. Finish it first.</p>
+  {% elif run and not (fight and not fight.finished) %}
+    <div class="dungeon-layout">
+      <section class="dungeon-map" aria-label="Dungeon map, floor {{ run.depth }}" style="--cols: {{ D.W }}; --rows: {{ D.H }}">
+        {% for cell in cells %}
+          {% set label = 'You are here' if cell.current else ('Unexplored' if cell.fog else ('Wall' if cell.wall else (D.NAMES[cell.event] if cell.event else ('Cleared' if cell.done else 'Passage')))) %}
+          <div class="dungeon-cell{% if cell.fog %} fog{% elif cell.wall %} wall{% endif %}{% if cell.current %} current{% endif %}{% if cell.visited %} visited{% endif %}{% if cell.event %} event-{{ cell.event }}{% endif %}{% if cell.done %} done{% endif %}" title="{{ label }}">
+            {% if cell.current %}<span aria-hidden="true">◆</span>{% elif cell.event %}<span aria-hidden="true">{{ D.ICONS[cell.event] }}</span>{% endif %}
+          </div>
+        {% endfor %}
+      </section>
+
+      <aside class="dungeon-controls">
+        {% if waiting %}
+          <p class="kicker">{{ D.NAMES[waiting] }}</p>
+          <p>Enemies block the way.</p>
+          <form method="post" action="{{ url_for('play.dungeon_fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn gold">Fight →</button></form>
+        {% else %}
           <div class="move-pad" aria-label="Move one tile">
             {% for direction, symbol, label in [("up", "↑", "Move up"), ("left", "←", "Move left"), ("down", "↓", "Move down"), ("right", "→", "Move right")] %}
               <form method="post" action="{{ url_for('play.dungeon_move') }}">
                 <input type="hidden" name="csrf" value="{{ csrf_token }}">
                 <input type="hidden" name="direction" value="{{ direction }}">
-                <button class="move-button" aria-label="{{ label }}" {% if direction not in moves %}disabled{% endif %}>{{ symbol }}</button>
+                <button class="move-button" data-move="{{ direction }}" aria-label="{{ label }}" {% if direction not in moves %}disabled{% endif %}>{{ symbol }}</button>
               </form>
             {% endfor %}
           </div>
-          <p class="muted">Every move spends one wagered energy. Bombs cost two more; remaining energy returns when you exit.</p>
-        </aside>
-      </div>
-    {% else %}
-      <section class="dungeon-start">
-        <div><h2 class="h2">Enter the dungeon</h2><p>Choose how much energy to wager. Unspent energy is returned when you reach the exit.</p></div>
-        {% if not u.main_characters %}
-          <p class="notice">Set a team before entering. <a href="{{ url_for('play.team') }}">Manage your team</a>.</p>
-        {% elif u.energy < 1 %}
-          <p class="notice">You need at least 1 energy.</p>
-        {% else %}
-          <form class="inline dungeon-entry" method="post" action="{{ url_for('play.dungeon_start') }}">
-            <input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <label>Energy wager <input type="number" name="energy" min="1" max="{{ u.energy }}" value="{{ [u.energy, 8]|min }}" required></label>
-            <button class="btn gold">Enter dungeon</button>
-          </form>
+          <p class="muted small">Arrow keys or WASD move too.</p>
         {% endif %}
+
+        {% if on_stairs and not waiting %}
+          <div class="dungeon-stairs">
+            {% if run.depth < D.DEPTHS %}
+              <form method="post" action="{{ url_for('play.dungeon_descend') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <button class="btn gold">⇩ Go deeper (floor {{ run.depth + 1 }})</button></form>
+            {% endif %}
+            <form method="post" action="{{ url_for('play.dungeon_cashout') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="btn">Take the bag home</button></form>
+          </div>
+        {% endif %}
+
+        <p class="kicker">Loot bag</p>
+        <ul class="dungeon-bag">
+          <li><strong>{{ bag.fragments|dust }}</strong></li>
+          {% for name in bag['items'] %}<li>{{ name }}</li>{% endfor %}
+        </ul>
+
+        {% if team %}
+          <p class="kicker">Your team</p>
+          <ul class="rush-team dungeon-team">
+            {% for c in team %}
+              <li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }}</span>
+                <div class="hp"><i style="width: {{ ([100 * c.current_hp / c.start_hp, 100]|min)|round }}%"></i></div><small>{{ c.current_hp|int }}/{{ c.start_hp|int }}</small></li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        <details class="dungeon-legend"><summary>Legend</summary>
+          <ul>{% for k in ['fight', 'elite', 'chest', 'trap', 'camp', 'stairs', 'boss'] %}<li><span class="dungeon-cell event-{{ k }}">{{ D.ICONS[k] }}</span> {{ D.NAMES[k] }}</li>{% endfor %}</ul>
+        </details>
+        <form method="post" action="{{ url_for('play.dungeon_giveup') }}" onsubmit="return confirm('Leave now? Only half the loot bag comes home.')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn small ghost">Give up (keep half)</button></form>
+      </aside>
+    </div>
+  {% elif not run %}
+    {% if s.last %}
+      <section class="dungeon-last">
+        <h2 class="h3">{{ {'cleared': '♛ Dungeon cleared!', 'left': 'You got out safely', 'lost': 'The expedition fell'}[s.last.how] }}</h2>
+        <p>Floor {{ s.last.depth }}. Brought home <strong>{{ s.last.fragments|dust }}</strong>{% if s.last['items'] %} and {{ s.last['items']|join(', ') }}{% endif %}.
+          {% if s.last.lost or s.last.lost_items %}<span class="muted">Left behind: {{ s.last.lost|dust }}{% if s.last.lost_items %} and {{ s.last.lost_items }} item{{ 's' if s.last.lost_items != 1 }}{% endif %}.</span>{% endif %}</p>
       </section>
     {% endif %}
+    <section class="dungeon-start">
+      <div><h2 class="h2">Enter today's dungeon</h2>
+        <p>Free: no energy, no Dust. {{ D.RUNS_PER_DAY }} run a day. Enemies are matched to your team's level, so bring your best three.</p></div>
+      {% if not u.main_characters %}
+        <p class="notice">Set a team before entering. <a href="{{ url_for('play.team') }}">Manage your team</a>.</p>
+      {% elif runs_left < 1 %}
+        <p class="notice">You've been down today. A new dungeon opens at midnight.</p>
+      {% else %}
+        <form method="post" action="{{ url_for('play.dungeon_start') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold big">Enter the dungeon</button>
+        </form>
+      {% endif %}
+    </section>
   {% endif %}
 </section>
 {% endblock %}

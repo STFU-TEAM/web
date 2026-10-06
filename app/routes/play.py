@@ -795,128 +795,131 @@ def tower_leave():
     return redirect(url_for("play.tower"))
 
 
+# --------------------------------------------------------------------------- #
+# Dungeon: the free daily delve (app/game/dungeon.py)
+# --------------------------------------------------------------------------- #
 @bp.get("/adventure/dungeon")
 @player_required
 def dungeon():
+    uid = session["uid"]
     user = _user()
-    state = user.data.get("web_dungeon")
-    fight = load_fight(session["uid"])
-    if fight and fight.kind != "dungeon":
-        fight = None
-    return render_template("dungeon.html", u=user, state=state,
-                           cells=dungeon_logic.map_cells(state["position"], state["triggered"]) if state else [],
-                           moves=dungeon_logic.allowed_moves(state["position"]) if state else [],
-                           message=user.data.pop("web_dungeon_message", None),
-                           fight=fight, fight_action=url_for("play.dungeon_attack"),
+    s = dungeon_logic.state(user)
+    run = s.get("run")
+    fight = load_fight(uid)
+    other_fight = fight.kind if fight and fight.kind != "dungeon" and not fight.finished else None
+    fight = fight if fight and fight.kind == "dungeon" else None
+    plan = dungeon_logic.floor_plan(run["day"], run["depth"]) if run else None
+    return render_template("dungeon.html", u=user, s=s, run=run, fight=fight, other_fight=other_fight,
+                           team=dungeon_logic.load_team(r(), uid) if run else None,
+                           cells=dungeon_logic.cells(run) if run else [],
+                           moves=dungeon_logic.allowed_moves(run) if run else [],
+                           on_stairs=bool(run and tuple(run["pos"]) == plan["stairs"]),
+                           waiting=dungeon_logic.fight_tile(user), bag=dungeon_logic.bag_view(run["bag"]) if run else None,
+                           message=user.data.pop("web_dungeon_message", None), runs_left=dungeon_logic.runs_left(user),
+                           D=dungeon_logic, fight_action=url_for("play.dungeon_attack"),
                            fight_leave_action=url_for("play.dungeon_leave"), fight_label="Dungeon")
+
+
+def _dungeon_fight(user, kind, enemies):
+    team = dungeon_logic.load_team(r(), user.id)
+    names = {"fight": "Dungeon monsters", "elite": "Dungeon elite", "boss": "Dungeon boss"}
+    fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
+                  Side(names[kind], enemies, False), kind="dungeon", meta={"event": kind})
+    fight.advance()
+    save_fight(session["uid"], fight)
+
+
+def _dungeon_busy():
+    fight = load_fight(session["uid"])
+    if fight and not fight.finished:
+        flash("Finish the fight you're in first.", "error")
+        return True
+    return False
 
 
 @bp.post("/adventure/dungeon/start")
 @player_required
 def dungeon_start():
-    wager = _int("energy")
+    if _dungeon_busy():
+        return redirect(url_for("play.dungeon"))
 
     def start(user):
-        if not user.main_characters:
-            raise GameError("Set up a team before entering the dungeon.")
-        if user.data.get("web_dungeon"):
-            raise GameError("You are already exploring the dungeon.")
-        if wager is None or wager < 1:
-            raise GameError("Choose a valid energy wager.")
-        logic.spend_energy(user, wager, "Choose a valid energy wager.")
-        user.data.pop("web_dungeon_message", None)
-        user.data["web_dungeon"] = {
-            "position": list(dungeon_logic.START), "energy": wager,
-            "triggered": [f"{dungeon_logic.START[0]}:{dungeon_logic.START[1]}"],
-        }
-        return wager
+        dungeon_logic.start(user, r(), fighting_copy(user.main_characters))
 
-    user, _, error = action(start)
-    if error:
-        flash(error, "error")
-    else:
-        flash("Dungeon entered. Reach the exit before your wager runs out.", "ok")
+    _, _, error = action(start)
+    flash(error or "You step into the dark. Find the stairs.", "error" if error else "ok")
     return redirect(url_for("play.dungeon"))
 
 
 @bp.post("/adventure/dungeon/move")
 @player_required
 def dungeon_move():
+    if _dungeon_busy():
+        return redirect(url_for("play.dungeon"))
     direction = request.form.get("direction", "")
 
     def move(user):
-        state = user.data.get("web_dungeon")
-        if not state:
-            raise GameError("Start a dungeon run first.")
-        user.data.pop("web_dungeon_message", None)
-        position = tuple(state["position"])
-        target = dungeon_logic.moved_position(position, direction)
-        if target is None:
-            raise GameError("That tile is blocked.")
-        state["position"] = list(target)
-        state["energy"] -= 1
-        key = f"{target[0]}:{target[1]}"
-        event = dungeon_logic.event_at(target) if key not in state["triggered"] else None
-        if event:
-            state["triggered"].append(key)
-        if event == "fight":
-            return {"kind": "fight", "position": target, "enemy_ids": dungeon_logic.FIGHTS[target]}
-        if event == "chest":
-            item = item_from_dict({"id": dungeon_logic.chest_item(target)})
-            user.items.append(item)
-            user.data["web_dungeon_message"] = f"Chest found: {item.name} {item.emoji}."
-        elif event == "bomb":
-            state["energy"] -= 2
-            user.data["web_dungeon_message"] = "A bomb costs 2 more energy."
-        elif event == "exit":
-            user.energy += max(0, state["energy"])
-            user.data.pop("web_dungeon", None)
-            user.data["web_dungeon_completions"] = int(user.data.get("web_dungeon_completions", 0)) + 1
-            user.data["web_dungeon_message"] = "Dungeon cleared. Unspent wagered energy was returned."
-            logic.track_quest_progress(user, "dungeon_complete")
-            logic.check_achievements(user, "dungeon_complete")
-            return {"kind": "complete"}
-        if state["energy"] <= 0:
-            user.data.pop("web_dungeon", None)
-            user.data["web_dungeon_message"] = "The expedition ran out of energy before reaching the exit."
-            return {"kind": "exhausted"}
-        return {"kind": event or "move"}
+        result = dungeon_logic.move(user, r(), direction)
+        if result["message"]:
+            user.data["web_dungeon_message"] = result["message"]
+        if result["kind"] == "fight":
+            _dungeon_fight(user, result["event"], result["enemies"])
+        return result
 
-    user, result, error = action(move)
+    _, _, error = action(move)
     if error:
         flash(error, "error")
-        return redirect(url_for("play.dungeon"))
-    if result and result["kind"] == "fight":
-        enemies = []
-        for char_id in result["enemy_ids"]:
-            enemies.append(character_from_dict({"id": char_id, "xp": 100, "types": [], "qualities": [],
-                                                "awaken": 3, "items": [{"id": 1}, {"id": 1}, {"id": 1}]}))
-        fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True,
-                           session.get("avatar")),
-                      Side("Dungeon monsters", enemies, False), kind="dungeon",
-                      meta={"position": list(result["position"])})
-        fight.advance()
-        save_fight(session["uid"], fight)
     return redirect(url_for("play.dungeon"))
 
 
+@bp.post("/adventure/dungeon/fight")
+@player_required
+def dungeon_fight():
+    """Fight the enemies on your tile again (after a reload, or a fight that expired)."""
+    if _dungeon_busy():
+        return redirect(url_for("play.dungeon"))
+
+    def fight(user):
+        kind = dungeon_logic.fight_tile(user)
+        if not kind:
+            raise GameError("Nothing to fight here.")
+        run = dungeon_logic.state(user)["run"]
+        _dungeon_fight(user, kind, dungeon_logic.enemies(run, tuple(run["pos"]), kind))
+
+    _, _, error = action(fight)
+    if error:
+        flash(error, "error")
+    return redirect(url_for("play.dungeon"))
+
+
+def _dungeon_step(fn, done_message):
+    if _dungeon_busy():
+        return redirect(url_for("play.dungeon"))
+    _, _, error = action(lambda user: fn(user, r()))
+    flash(error or done_message, "error" if error else "ok")
+    return redirect(url_for("play.dungeon"))
+
+
+@bp.post("/adventure/dungeon/descend")
+@player_required
+def dungeon_descend():
+    return _dungeon_step(dungeon_logic.descend, "Deeper you go. The monsters grow stronger, and so does the loot.")
+
+
+@bp.post("/adventure/dungeon/cashout")
+@player_required
+def dungeon_cashout():
+    return _dungeon_step(dungeon_logic.cash_out, "You climb out with the whole loot bag.")
+
+
+@bp.post("/adventure/dungeon/giveup")
+@player_required
+def dungeon_giveup():
+    return _dungeon_step(dungeon_logic.give_up, "You fled the dungeon with half the loot bag.")
+
+
 def _dungeon_settle(user, fight):
-    won = fight.winner == 0
-    for char in user.main_characters:
-        char.xp += 10
-    user.xp += 100
-    state = user.data.get("web_dungeon")
-    if state and not won:
-        state["energy"] -= 2
-    exhausted = bool(state and state["energy"] <= 0)
-    if exhausted:
-        user.data.pop("web_dungeon", None)
-        user.data["web_dungeon_message"] = "The expedition ran out of energy before reaching the exit."
-    elif won:
-        user.data["web_dungeon_message"] = "Monsters defeated. Continue toward the exit."
-    else:
-        user.data["web_dungeon_message"] = "The team was defeated and lost 2 more energy."
-    return {"won": won, "fragments": 0, "xp": 100, "stand_xp": 10, "item": None, "dungeon_exhausted": exhausted}
+    return dungeon_logic.finish_fight(user, fight, r())
 
 
 @bp.post("/adventure/dungeon/attack")
@@ -924,6 +927,7 @@ def _dungeon_settle(user, fight):
 def dungeon_attack():
     return play_turn("dungeon", url_for("play.dungeon"), "Dungeon", "play.dungeon_attack", "play.dungeon_leave",
                      _dungeon_settle)
+
 
 @bp.post("/adventure/dungeon/leave")
 @player_required

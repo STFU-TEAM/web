@@ -389,9 +389,12 @@ def _item_sources() -> dict:
                 add(real, "Gang raid", f"tier at {tier['damage']:,} damage" + (" (one part at random)" if i == "corpse" else ""))
     for i in journey.ITEM_POOL:
         add(i, "Crusaders' Journey", "chance on any trip; better with longer trips and stronger stands")
-    for entries in dungeon.CHESTS.values():
-        for i, _w in entries:
-            add(i, "Dungeon", "chests (when the dungeon is open)")
+    for i, _w in dungeon.CHEST_ITEMS:
+        if i:
+            add(i, "Dungeon", "chests and elites in the daily dungeon")
+    for i in dungeon.BOSS_ITEMS:
+        add(i, "Dungeon", "the daily dungeon's boss")
+    add(2, "Dungeon", f"the daily dungeon's boss ({round(dungeon.BOSS_PALM * 100)}% chance)")
     from app.game.events import SHOP as EVENT_SHOP
     for offer in EVENT_SHOP:
         for i in offer["give"].get("items", []):

@@ -321,61 +321,165 @@ def test_tower_victory_unlocks_next_floor(client):
     assert b"Floor 2" in client.get("/tower").data
 
 
-def test_dungeon_is_closed_by_default(client):
+def test_dungeon_can_be_closed(client):
+    client.application.config["DUNGEON_ENABLED"] = False
     player = create_user("555")
     player["main_characters"] = [char(1)]
     put(client, player)
     login(client, "555")
     r = client.get("/adventure/dungeon")
     assert r.status_code == 302 and r.headers["Location"].startswith("/battles")
-
-
-def test_adventure_dungeon_starts_and_blocks_walls(client):
     client.application.config["DUNGEON_ENABLED"] = True
+
+
+def _walk_to(client, headers, uid, goal, avoid_fights=False):
+    """Walk the day's map (breadth-first over open tiles) to goal; "fight" if a fight stopped the walk."""
+    from collections import deque
+    from app.game import dungeon
+    run = doc(client, uid)["web_delve"]["run"]
+    plan = dungeon.floor_plan(run["day"], run["depth"])
+    start = tuple(run["pos"])
+    blocked = {t for t, k in plan["events"].items() if k in dungeon.FIGHTS and t != goal} if avoid_fights else set()
+    prev, queue = {start: None}, deque([start])
+    while queue:
+        t = queue.popleft()
+        for d, (dx, dy) in dungeon.MOVES.items():
+            n = (t[0] + dx, t[1] + dy)
+            if n in plan["open"] and n not in prev and n not in blocked:
+                prev[n] = (t, d)
+                queue.append(n)
+    if goal not in prev:
+        return False
+    steps, t = [], goal
+    while prev[t]:
+        t, d = prev[t]
+        steps.append(d)
+    for d in reversed(steps):
+        client.post("/adventure/dungeon/move", data={"direction": d}, headers=headers)
+        fight = dbmod.load_fight(uid)
+        if fight and not fight.finished:
+            return "fight"
+    return True
+
+
+def _win_dungeon_fight(client, headers, uid):
+    fight = dbmod.load_fight(uid)
+    for c in fight.sides[1].chars:
+        c.current_hp = 0
+    dbmod.save_fight(uid, fight)
+    client.post("/adventure/dungeon/attack", headers=headers)
+    client.post("/adventure/dungeon/leave", headers=headers)
+
+
+def test_dungeon_is_free_daily_and_blocks_walls(client):
     user = create_user("444")
-    user["energy"] = 8
+    user["energy"] = 0
+    user["fragments"] = 0
     user["main_characters"] = [char(1, xp=10000)]
     put(client, user)
     headers = login(client, "444")
 
     page = client.get("/adventure/dungeon")
-    assert page.status_code == 200 and b"Enter dungeon" in page.data
-    response = client.post("/adventure/dungeon/start", data={"energy": "8"}, headers=headers)
-    assert response.status_code == 302
+    assert page.status_code == 200 and b"Enter the dungeon" in page.data
+    assert client.post("/adventure/dungeon/start", headers=headers).status_code == 302
     saved = doc(client, "444")
-    assert saved["energy"] == 0 and saved["web_dungeon"]["energy"] == 8
+    run = saved["web_delve"]["run"]
+    assert saved["energy"] == 0 and saved["fragments"] == 0  # costs nothing
+    assert run["depth"] == 1 and run["pos"] == [0, 0] and saved["web_delve"]["runs"] == 1
 
-    response = client.post("/adventure/dungeon/move", data={"direction": "up"}, headers=headers)
-    assert response.status_code == 302
+    client.post("/adventure/dungeon/move", data={"direction": "up"}, headers=headers)  # off the map
+    assert doc(client, "444")["web_delve"]["run"]["pos"] == [0, 0]
+    assert b"Loot bag" in client.get("/adventure/dungeon").data
+
+    # one run a day: giving up keeps half the bag and closes the door until tomorrow
+    client.post("/adventure/dungeon/giveup", headers=headers)
     saved = doc(client, "444")
-    assert saved["web_dungeon"]["position"] == [0, 0]
-    assert saved["web_dungeon"]["energy"] == 8
-    assert b"Dungeon" in client.get("/adventure/dungeon").data
+    assert saved["web_delve"]["run"] is None and saved["web_delve"]["last"]["how"] == "lost"
+    client.post("/adventure/dungeon/start", headers=headers)
+    assert doc(client, "444")["web_delve"]["run"] is None
+    assert b"been down today" in client.get("/adventure/dungeon").data
 
 
-def test_adventure_dungeon_fight_and_chest_events(client):
-    client.application.config["DUNGEON_ENABLED"] = True
+def test_dungeon_floor_plans_are_daily_and_reachable():
+    from collections import deque
+    from app.game import dungeon
+    for day in ("2026-10-05", "2026-10-06", "2027-01-01"):
+        for depth in range(1, dungeon.DEPTHS + 1):
+            plan = dungeon.floor_plan(day, depth)
+            seen, queue = {dungeon.START}, deque([dungeon.START])
+            while queue:
+                t = queue.popleft()
+                for dx, dy in dungeon.MOVES.values():
+                    n = (t[0] + dx, t[1] + dy)
+                    if n in plan["open"] and n not in seen:
+                        seen.add(n)
+                        queue.append(n)
+            assert set(plan["events"]) <= seen and plan["stairs"] in seen
+            assert plan["events"][plan["stairs"]] == ("boss" if depth == dungeon.DEPTHS else "stairs")
+            assert sum(k == "chest" for k in plan["events"].values()) == 3
+    assert dungeon.floor_plan("2026-10-05", 1) != dungeon.floor_plan("2026-10-06", 1)
+
+
+def test_dungeon_fight_fills_the_bag_and_stairs_cash_out(client):
+    from app.game import dungeon
     user = create_user("555")
-    user["energy"] = 20
     user["main_characters"] = [char(1, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
                                char(10, xp=1000000, awaken=3, quals=("UNIVERSAL",)),
                                char(31, xp=1000000, awaken=3, quals=("UNIVERSAL",))]
     put(client, user)
     headers = login(client, "555")
-    client.post("/adventure/dungeon/start", data={"energy": "12"}, headers=headers)
+    client.post("/adventure/dungeon/start", headers=headers)
+    run = doc(client, "555")["web_delve"]["run"]
+    plan = dungeon.floor_plan(run["day"], 1)
 
-    for _ in range(7):
-        client.post("/adventure/dungeon/move", data={"direction": "down"}, headers=headers)
+    # step on a monster tile: a fight starts, and the team keeps its wounds afterwards
+    target = next(t for t, k in sorted(plan["events"].items())
+                  if k in dungeon.FIGHTS and _walk_to(client, headers, "555", t, avoid_fights=True))
+    assert dbmod.load_fight("555").kind == "dungeon"
     fight = dbmod.load_fight("555")
     assert fight.kind == "dungeon" and len(fight.sides[1].chars) == 3
-    response = client.post("/adventure/dungeon/attack", data={"forfeit": "1"}, headers=headers)
-    assert response.status_code == 200 and dbmod.load_fight("555").finished
-    client.post("/adventure/dungeon/leave", headers=headers)
-
-    client.post("/adventure/dungeon/move", data={"direction": "down"}, headers=headers)
+    assert b"Dungeon" in client.get("/adventure/dungeon").data
+    fight.sides[0].chars[0].current_hp = fight.sides[0].chars[0].start_hp // 2
+    dbmod.save_fight("555", fight)
+    _win_dungeon_fight(client, headers, "555")
     saved = doc(client, "555")
-    assert saved["web_dungeon"]["position"] == [0, 8]
-    assert len(saved["items"]) == 1
+    run = saved["web_delve"]["run"]
+    assert f"{target[0]}:{target[1]}" in run["done"] and run["bag"]["fragments"] > 0
+    team = dungeon.load_team(client.fake, "555")
+    assert team[0].current_hp < team[0].start_hp
+
+    # the stairs: take the bag home in full
+    before = saved["fragments"]
+    while (walked := _walk_to(client, headers, "555", plan["stairs"])) == "fight":
+        _win_dungeon_fight(client, headers, "555")
+    assert walked is True
+    bag = doc(client, "555")["web_delve"]["run"]["bag"]["fragments"]
+    client.post("/adventure/dungeon/cashout", headers=headers)
+    saved = doc(client, "555")
+    assert saved["web_delve"]["run"] is None and saved["web_delve"]["last"]["how"] == "left"
+    assert saved["fragments"] == before + bag and saved["web_dungeon_completions"] == 1
+
+
+def test_dungeon_loss_keeps_half_the_bag(client):
+    from app.game import dungeon
+    user = create_user("556")
+    user["main_characters"] = [char(1, xp=10000)]
+    put(client, user)
+    headers = login(client, "556")
+    client.post("/adventure/dungeon/start", headers=headers)
+    saved = doc(client, "556")
+    saved["web_delve"]["run"]["bag"] = {"fragments": 1000, "items": [38, 39]}
+    put(client, saved)
+    run = saved["web_delve"]["run"]
+    plan = dungeon.floor_plan(run["day"], 1)
+    target = next(t for t, k in sorted(plan["events"].items())
+                  if k in dungeon.FIGHTS and _walk_to(client, headers, "556", t, avoid_fights=True))
+    assert dbmod.load_fight("556").kind == "dungeon"
+    before = doc(client, "556")["fragments"]
+    client.post("/adventure/dungeon/attack", data={"forfeit": "1"}, headers=headers)
+    saved = doc(client, "556")
+    assert saved["web_delve"]["run"] is None and saved["fragments"] == before + 500
+    assert [i["id"] for i in saved["items"]][-1:] == [38]
 
 
 def test_battle_modes_dummy_friend_and_ranked_share_fight_state(client):
