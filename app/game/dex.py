@@ -11,10 +11,10 @@ from typing import List
 from app.game.character import CHARACTER_FILE
 
 PLAYABLE_IDS = {c["id"] for c in CHARACTER_FILE if c["universe"] != "Dummy"}
-RARITY_REWARDS = {"R": {"fragments": 1500}, "SR": {"fragments": 3000, "super": 1},
-                  "SSR": {"fragments": 5000, "super": 2}, "UR": {"fragments": 8000, "super": 3},
-                  "LR": {"fragments": 12000, "super": 5}}
-GROUP_REWARD_PER_STAND = 250  # synergy sets pay Meteor Dust by size
+RARITY_REWARDS = {"R": {"fragments": 1050}, "SR": {"fragments": 2100},  # at the economy's pace (economy.py)
+                  "SSR": {"fragments": 3500, "super": 1}, "UR": {"fragments": 5600, "super": 2},
+                  "LR": {"fragments": 8400, "super": 3}}
+GROUP_REWARD_PER_STAND = 175  # synergy sets pay Meteor Dust by size
 MIN_GROUP = 3
 RARITY_NAMES = {"R": "Common", "SR": "Rare", "SSR": "Epic", "UR": "Legend", "LR": "Mythic"}
 

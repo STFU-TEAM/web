@@ -10,13 +10,17 @@ RUNS = 40
 MAX_STEPS = 400
 
 
-def opponents() -> List[dict]:
-    """The PvE groups the picker offers."""
+def opponents(heaven: bool = True) -> List[dict]:
+    """The PvE groups the picker offers (Over Heaven only once it's open for the player)."""
     stages = [{"value": f"story:{k}", "label": f"{s['part_title'].split('·')[0].strip()} · {s['title']}"
                + (" (boss)" if s.get("boss") else "")} for k, s in enumerate(story.STAGES)]
     floors = [{"value": f"tower:{f}", "label": f"Floor {f}" + (" (boss)" if tower.is_boss(f) else "")}
               for f in range(1, 61)]
-    return [{"group": "Story", "options": stages}, {"group": "Tower (this week)", "options": floors}]
+    from app.game import overheaven
+    heaven_options = [{"value": f"oh:{t['key']}:{j}", "label": f"{t['mode']} · {f['title']}"}
+              for t in overheaven.TRACKS for j, f in enumerate(t["fights"])]
+    groups = [{"group": "Story", "options": stages}, {"group": "Tower (this week)", "options": floors}]
+    return groups + ([{"group": "Over Heaven", "options": heaven_options}] if heaven else [])
 
 
 def foe_for(value: str, db=None) -> Optional[dict]:
@@ -29,6 +33,13 @@ def foe_for(value: str, db=None) -> Optional[dict]:
     if kind == "tower" and arg.isdigit() and 1 <= int(arg) <= 200:
         f = int(arg)
         return {"name": f"Floor {f}", "team": tower.floor_team(f), "ai": "smart", "label": f"Tower · floor {f}"}
+    if kind == "oh":
+        from app.game import overheaven
+        key, _, j = arg.partition(":")
+        if key in overheaven.BY_KEY and j.isdigit() and int(j) < len(overheaven.BY_KEY[key]["fights"]):
+            fight = overheaven.BY_KEY[key]["fights"][int(j)]
+            return {"name": fight["title"], "team": overheaven.enemy_team(key, int(j)), "ai": "smart",
+                    "rules": fight["rules"], "label": f"Over Heaven · {fight['title']}"}
     if kind == "player" and arg and db is not None:
         other = db.get_user(arg)
         if other and other.main_characters:
@@ -45,7 +56,8 @@ def run(team, foe: dict, runs: int = RUNS) -> dict:
     for _ in range(runs):
         enemies = Side(foe["name"], fighting_copy(foe["team"]), False)
         enemies.ai = foe.get("ai", "smart")
-        f = Fight(Side("You", fighting_copy(team), True), enemies, kind="simulation")
+        f = Fight(Side("You", fighting_copy(team), True), enemies, kind="simulation",
+                  meta={"rules": foe["rules"]} if foe.get("rules") else None)
         steps = 0
         while not f.finished and steps < MAX_STEPS:
             pick = ai_choice(f.sides[1].chars, f.acting_char) if f.awaiting_input else None

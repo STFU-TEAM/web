@@ -23,11 +23,11 @@ TOKENS_PVP = 5
 KINDS = {"dust": "Meteor Dust rush", "rarity": "Rarity spotlight", "synergy": "Synergy spotlight"}
 
 SHOP = [  # key, label, cost, per-event limit, what it gives
-    {"key": "dust", "label": "1,000 Meteor Dust", "cost": 10, "limit": 20, "give": {"fragments": 1000}},
+    {"key": "dust", "label": "700 Meteor Dust", "cost": 10, "limit": 20, "give": {"fragments": 700}},
     {"key": "energy", "label": "Can of Energy", "cost": 6, "limit": 10, "give": {"items": [47]}},
     {"key": "coins", "label": "Bag of coins", "cost": 8, "limit": 5, "give": {"items": [13]}},
     {"key": "palm", "label": "Devil's Palm", "cost": 40, "limit": 3, "give": {"items": [2]}},
-    {"key": "head", "label": "Arrowhead", "cost": 60, "limit": 2, "give": {"super": 1}},
+    {"key": "head", "label": "Arrowhead", "cost": 60, "limit": 1, "give": {"super": 1}},
     # Gear nothing else hands out: events are the only way to get it (one of each per event)
     {"key": "aja", "label": "Red stone of Aja", "cost": 55, "limit": 1, "give": {"items": [6]}, "exclusive": True},
     {"key": "sha", "label": "Sheer Heart Attack", "cost": 45, "limit": 1, "give": {"items": [5]}, "exclusive": True},

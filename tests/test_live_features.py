@@ -180,7 +180,7 @@ def test_admin_event_boosts_fights_and_pays_tokens(client):
     client.post("/events/buy", data={"key": "dust"}, headers=h)
     client.post("/events/buy", data={"key": "title"}, headers=h)
     d = doc(client, ADMIN)
-    assert d["fragments"] == 1000 and d["web_event"][ev["id"]]["tokens"] == 50 - 10 - 30
+    assert d["fragments"] == 700 and d["web_event"][ev["id"]]["tokens"] == 50 - 10 - 30
     assert "SR Week veteran" in d["web_titles"]
     client.post("/events/buy", data={"key": "title"}, headers=h)  # one per event
     assert doc(client, ADMIN)["web_event"][ev["id"]]["tokens"] == 10

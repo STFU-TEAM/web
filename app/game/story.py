@@ -319,9 +319,18 @@ def quality_for(k: int) -> str:
     return CURVE[min(k, len(CURVE) - 1)][2]
 
 
+# Parts 7 and 8 lost some reach for maxed teams when UR/LR were trimmed and villain crews gained rarity
+# leverage; their enemies' health and damage are eased to keep the end of the journey where it was.
+LATE_EASE = {7: 0.88, 8: 0.85}
+# Stages whose enemies share one of the newer synergy groups (Bow and Arrow, Kira family, Pucci's agents, the
+# Higashikata family, the Rock Humans...): eased so the team that used to clear them on the edge still does.
+STAGE_EASE = {6: 0.92, 8: 0.96, 9: 0.92, 16: 0.95, 17: 0.92, 27: 0.93, 28: 0.92}
+
+
 def enemy_team(k: int) -> list:
     stage = STAGES[k]
     lvl, awaken, quality = level_for(k), awaken_for(k), quality_for(k)
+    ease = LATE_EASE.get(stage["part"], 1) * STAGE_EASE.get(k, 1)
     team = []
     for cid in stage["enemies"]:
         items = [{"id": 1}] * (
@@ -339,6 +348,12 @@ def enemy_team(k: int) -> list:
                 }
             )
         )
+        if ease != 1:
+            c = team[-1]
+            for stat in ("hp", "damage"):
+                value = int(getattr(c, f"start_{stat}") * ease)
+                setattr(c, f"start_{stat}", value)
+                setattr(c, f"current_{stat}", value)
     return team
 
 
@@ -348,14 +363,18 @@ def ai_level(k: int) -> str:
     return "easy" if k < boss else "smart"
 
 
+HEAD_PARTS = (3, 5, 8)  # the bosses whose first clear pays an Arrowhead (economy.py: every other part)
+
+
 def reward_for(k: int) -> dict:
-    """First clear only. Meteor Dust grows with the stage; boss stages add an Arrowhead."""
+    """First clear only. Meteor Dust grows with the stage; the bosses of HEAD_PARTS add an Arrowhead."""
+    from app.game.economy import dust
     stage = STAGES[k]
     reward = {
-        "fragments": int(round(150 * 1.12**k, -1)),
+        "fragments": dust(150 * 1.12**k),
         "xp": 100 + 40 * k,
         "stand_xp": 20 + 5 * k,
-        "super_fragments": 1 if stage.get("boss") else 0,
+        "super_fragments": 1 if stage.get("boss") and stage["part"] in HEAD_PARTS else 0,
         "items": [],
     }
     if k % 3 == 2:

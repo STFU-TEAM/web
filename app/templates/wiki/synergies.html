@@ -6,10 +6,27 @@
   <h1 class="display sm">Synergy explorer</h1>
   <p>Put <strong>at least two members</strong> of a group in your team of three and the synergy wakes up. Fallen teammates still count. Two things happen:</p>
   <ul>
-    <li><strong>Team bonus:</strong> every member of the group on your team gets the group's stat bonus for the whole fight. A stand in two active groups gets both.</li>
+    <li><strong>Team bonus:</strong> every member of the group on your team gets the group's stat bonus for the whole fight. A stand in several active groups gets its biggest group in full, then 60%, then 40% of the others.</li>
     <li><strong>Special upgrades:</strong> the members marked <span class="syn-on">special+</span> also get a stronger special.</li>
   </ul>
+  <p><strong>Weaker stands gain more.</strong> Each member's team bonus, and its terrain bonus as a native, is multiplied by its rarity:
+    {% for l in leverage %}{{ l.name }} ({{ l.rarity }}) ×{{ l.mult }}{{ ', ' if not loop.last else '.' }}{% endfor %}
+    With 3 members of one group on the team (a full set), that group's bonus is ×1.5 on top. The numbers below are the base, before rarity.</p>
 </header>
+
+<section class="wiki-body-section" id="resonances">
+  <h2 class="h3">Resonances: crossing synergies</h2>
+  <p>Light two or more synergies on one team and they resonate. Lower rarities sit in more groups (Tarot, the Nine Gods, La Squadra, Morioh...), so a team of commons can light several at once. Resonances are what let a prepared team beat a stack of UR and LR stands.</p>
+  <div class="wiki-table-wrap"><table class="wiki-table">
+    <thead><tr><th>Resonance</th><th>Lit by</th><th>Effect</th></tr></thead>
+    <tbody>
+      {% for r in resonances %}
+        <tr id="res-{{ r.key }}"><td>{{ r.icon }} <strong>{{ r.name }}</strong></td><td>{{ r.needs }}</td><td>{{ r.effect }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  <p class="muted">Hero groups: Joestar, Kujo, Crusaders, Morioh, Passione, Jolyne's crew, the duos of Morioh, Echoes, Wall Eyes, the Spin, Tusk, Steel Ball Run. Villain groups: Tarot, Nine Gods, La Squadra, Kira, Valentine's agents, Boom Boom, Pucci, Hol Horse, Clash + Talking Head. Duos are the two-stand groups.</p>
+</section>
 
 <div class="explorer-tools" data-explorer>
   <div class="filter-row" role="group" aria-label="Show synergy">

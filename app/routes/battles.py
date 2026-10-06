@@ -569,7 +569,8 @@ def simulator():
     user = get_db().get_user(uid)
     friends = sorted(({"id": f, "name": identity(f)["name"]} for f in social.friends(uid)), key=lambda f: f["name"].lower())
     k = story.cleared(user)
-    return render_template("simulator.html", u=user, teams=_sim_teams(user), groups=simulate.opponents(),
+    from app.game import overheaven
+    return render_template("simulator.html", u=user, teams=_sim_teams(user), groups=simulate.opponents(overheaven.unlocked(user)),
                            friends=friends, preset=request.args.get("vs") or f"story:{min(k, story.TOTAL - 1)}",
                            runs=simulate.RUNS)
 
@@ -583,6 +584,9 @@ def simulator_run():
     vs = request.form.get("vs", "")
     if vs == "player":
         vs = f"player:{resolve_player(request.form.get('player', '')) or ''}"
+    from app.game import overheaven
+    if vs.startswith("oh:") and not overheaven.unlocked(user):
+        vs = ""  # Over Heaven isn't open for this player yet
     foe = simulate.foe_for(vs, get_db())
     if not pick or not pick["team"]:
         return "<p class='notice error'>Put stands in that team first.</p>"

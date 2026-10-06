@@ -152,7 +152,8 @@ def enemies(run, tile, kind: str) -> list:
 # ── Loot ────────────────────────────────────────────────────────────────
 
 def dust_for(floor: int) -> int:
-    return int(round(40 * 1.07 ** floor, -1))
+    from app.game.economy import dust
+    return dust(40 * 1.07 ** floor)
 
 
 def _roll(rng, table) -> Optional[int]:

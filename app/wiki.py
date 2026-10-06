@@ -208,6 +208,18 @@ def synergy_rows():
     return rows
 
 
+def resonance_rows():
+    from app.game.resonance import RESONANCES
+    return [{"key": k, "name": label, "icon": icon, "needs": needs, "effect": effect}
+            for k, (label, icon, needs, effect) in RESONANCES.items()]
+
+
+def leverage_rows():
+    from app.game.dex import RARITY_NAMES
+    from app.game.effects import RARITY_LEVERAGE
+    return [{"rarity": r, "name": RARITY_NAMES.get(r, r), "mult": m} for r, m in RARITY_LEVERAGE.items()]
+
+
 def effect_rows():
     negative = {e.name for e in NEGATIVE_EFFECTS}
     return [{"key": e.name, "emoji": Emoji[e.name], "name": EFFECT_INFO[e.name][0],
@@ -277,7 +289,10 @@ def facts():
     """Engine numbers quoted across the guide pages."""
     return {
         "xp_per_level": character_mod.STXPTOLEVEL, "catch_up": logic.CATCH_UP_LEVEL, "max_level": character_mod.MAX_LEVEL,
-        "dodge_cap": character_mod.DODGE_CHANCE_CAP, "crit_multiplier": character_mod.CRITMULTIPLIER,
+        "dodge_cap": character_mod.DODGE_CHANCE_CAP, "dodge_per": character_mod.DODGENERF,
+        "crit_multiplier": character_mod.CRITMULTIPLIER,
+        "counter_armor": round(fight_mod.COUNTER_ARMOR * 100), "counter_damage": round(fight_mod.COUNTER_DAMAGE * 100),
+        "counter_turns": fight_mod.COUNTER_TURNS, "counter_crit": fight_mod.COUNTER_CRIT_MAX,
         "crit_cap": character_mod.CRIT_CHANCE_CAP, "armor_cap": character_mod.ARMOR_CAP,
         "armor_floor": round(200 / (100 + character_mod.ARMOR_CAP) * 100),
         "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),

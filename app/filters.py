@@ -117,7 +117,8 @@ def register(app):
                                  PALM=branding.PALM, PALMS=branding.PALMS)
     from app.game import logic
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
-                                 FULLART_STARS=FULLART_STARS)
+                                 FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form,
+                                 MAX_STARS=logic.MAX_AWAKEN)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
     from app.game import events
@@ -148,17 +149,44 @@ def register(app):
         return files
     art_files = {"artwork": _files("fullart.json"), "shiny": _files("shiny.json"), "special": _files("special.json")}
 
+    def _stills(name):
+        """{stand id: poster file}: the still frame of an animated artwork / shiny (scripts/art_helper.py)."""
+        path = _os.path.join(_os.path.dirname(__file__), "game", "data", name)
+        if not _os.path.exists(path):
+            return {}
+        with open(path, encoding="utf-8") as fh:
+            return {int(k): v for k, v in (_json.load(fh).get("stills") or {}).items()}
+    art_stills = {"artwork": _stills("fullart.json"), "shiny": _stills("shiny.json")}
+    app.extensions["art_stills"] = art_stills
+    app.extensions["art_files"] = art_files  # the stands page filters on "has its own art"
+
+    @app.template_global("own_art")
+    def own_art(stand_id):
+        """Which unique cosmetics a stand has: {"artwork": bool, "shiny": bool}."""
+        return {k: int(stand_id) in art_files[k] for k in ("artwork", "shiny")}
+
     def art_url(kind, stand_id):
         name = art_files[kind].get(int(stand_id))
         cfg = current_app.config
         return f"{cfg['IMAGE_BASE_URL']}{cfg['ART_PATH']}/{kind}/{name}" if name else None
 
+    def _art_still(kind, stand_id):
+        name = art_stills[kind].get(int(stand_id))
+        cfg = current_app.config
+        return f"{cfg['IMAGE_BASE_URL']}{cfg['ART_PATH']}/{kind}/{name}" if name else None
+
     @app.template_global("card_art")
-    def card_art(stand_id, full=False, shiny=False):
-        """(url, own art?) for a card: a dedicated shiny or full-art illustration if one was uploaded, else the
-        regular image (shiny copies then get their colours shifted by CSS)."""
-        url = (shiny and art_url("shiny", stand_id)) or (full and art_url("artwork", stand_id))
-        return (url, True) if url else (stand_img(stand_id), False)
+    def card_art(stand_id, full=False, shiny=False, animate=False):
+        """(url, own art?, animation or None) for a card: a dedicated shiny or full-art illustration if one was
+        uploaded, else the regular image (shiny copies then get their colours shifted by CSS). Animated art
+        shows its still poster unless animate=True (the big card); the animation then plays on hover."""
+        kind = "shiny" if shiny and art_url("shiny", stand_id) else "artwork" if full and art_url("artwork", stand_id) else None
+        if not kind:
+            return stand_img(stand_id), False, None
+        url, still = art_url(kind, stand_id), _art_still(kind, stand_id)
+        if still and not animate:
+            return still, True, url
+        return url, True, None
 
     @app.template_filter("special_gif")
     def special_gif(stand_id):
@@ -292,7 +320,10 @@ def register(app):
         uid = session.get("uid")
         story_hot = tour_pending = False
         inbox_count, toasts, duel_waiting = 0, [], False
+        nav_unlocked = {"altverse": False, "overheaven": False}
         if uid and request.endpoint != "static":
+            from app.routes.progress import unlocks
+            nav_unlocked = unlocks(uid)
             from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
             from app import social
             from app.routes.community import pending_count
@@ -306,7 +337,7 @@ def register(app):
         from app.game import events
         return {
             "live_event": events.cached(),
-            "story_hot": story_hot, "tour_pending": tour_pending, "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
+            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),

@@ -245,6 +245,16 @@ TERRAIN_BENEFITS = {
 }
 
 
+# Rarity leverage: terrain and synergy bonuses multiply by this, so the weaker a stand is, the more a good
+# team and a good field lift it. A Common in its element nearly doubles its bonus; a Mythic barely notices.
+RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+RARITY_LEVERAGE = {"R": 1.6, "SR": 1.35, "SSR": 1.0, "UR": 0.6, "LR": 0.35}
+
+
+def leverage(c) -> float:
+    return RARITY_LEVERAGE.get(getattr(c, "rarity", "SSR"), 1.0)
+
+
 PERK_LABEL = {"damage_pct": "damage", "speed_pct": "speed", "armor_pct": "armor", "hp_pct": "max health",
               "crit_flat": "critical", "regen_pct": "regen / turn"}
 
@@ -285,7 +295,9 @@ def apply_terrain_bonuses(all_characters: list, terrain: Terrain) -> None:
     for c in all_characters:
         if not c.is_alive():
             continue
-        benefits = list(TERRAIN_BENEFITS.get(c.id, {}).get(terrain, []))
+        # native bonuses scale with rarity (and Home Field); the field rules below hit everyone the same
+        scale = leverage(c) * getattr(c, "_home_mult", 1)
+        benefits = [(stat, value * scale) for stat, value in TERRAIN_BENEFITS.get(c.id, {}).get(terrain, [])]
         if terrain in TERRAIN_SPEED_PENALTY and not is_native(c, terrain):
             benefits.append(("speed_pct", -TERRAIN_SPEED_PENALTY[terrain]))
         if terrain in TERRAIN_CRIT_BONUS:

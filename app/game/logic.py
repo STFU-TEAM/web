@@ -27,15 +27,16 @@ with open(os.path.join(_DATA, "recipes.json"), encoding="utf-8") as f:
 # globals/variables.py
 PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
-FRAGMENTSGAIN = 300
+FRAGMENTSGAIN = 210  # at the economy's pace (economy.py; was 300)
 CHANCEITEM = 15
 MIRROR_ITEM_DROPS = {13: 0.20, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.08, 2: 0.08, 3: 0.04, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll
 DAILY_ITEM_CHANCE = 60
+DAILY_DUST = 70  # at the economy's pace (was 100)
 DAILY_ITEM_DROPS = {13: 0.26, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.04, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
-DONOR_WH_WAIT_TIME = 10 / 60  # Mirror World: 10 minutes for everyone
+DONOR_WH_WAIT_TIME = 14 / 60  # Mirror World: 14 minutes for everyone (economy.TIME_RATE)
 NORMAL_WH_WAIT_TIME = 0
-DONOR_ADV_WAIT_TIME = 6
-NORMAL_ADV_WAIT_TIME = 6
+DONOR_ADV_WAIT_TIME = 8  # the daily: 16 h, 8 h for supporters (economy.TIME_RATE)
+NORMAL_ADV_WAIT_TIME = 8
 STXPTOLEVEL = 100
 
 STORAGE_SIZE = 25
@@ -373,8 +374,8 @@ def begin(user: User):
 
 # Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over.
 STREAK_REWARDS = [
-    {"fragments": 100, "items": [47]}, {"fragments": 150}, {"items": [13]}, {"fragments": 250, "items": [47]},
-    {"items": [2]}, {"fragments": 400}, {"super": 1},
+    {"fragments": 70, "items": [47]}, {"fragments": 100}, {"items": [13]}, {"fragments": 180, "items": [47]},
+    {"items": [2]}, {"fragments": 280}, {"super": 1},
 ]
 
 
@@ -414,8 +415,8 @@ def daily(user: User) -> dict:
         raise GameError(f"Your daily reward is back in {fmt_delta(left)}.")
     user.last_adventure = now()
     roll = random.randint(1, 100)
-    res = {"fragments": 100, "item": None, "super": 0}
-    user.fragments += 100
+    res = {"fragments": DAILY_DUST, "item": None, "super": 0}
+    user.fragments += DAILY_DUST
     if roll < DAILY_ITEM_CHANCE:
         item_id = random.choices(list(DAILY_ITEM_DROPS), weights=list(DAILY_ITEM_DROPS.values()), k=1)[0]
         item = item_from_dict({"id": item_id})
@@ -847,7 +848,22 @@ def unequip(user: User, uuid: str, slot: int):
     return char, item
 
 
-def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
+def requiem_form(char: Character) -> Optional[dict]:
+    """A stand's Requiem evolution, if it has one: {"name", "stars", "ready", "need"}. ready: level 100 and the
+    stars it needs (more stars, up to ★5, never block it, so a stand can be maxed first and evolved later)."""
+    if char.id not in REQUIEMABLE:
+        return None
+    template = CHARACTER_FILE[REQUIEM_TEMPLATE_INDEX[REQUIEMABLE.index(char.id)]]
+    stars = REQUIEM_STARS[char.id]
+    ready = char.level >= 100 and char.awaken >= stars
+    need = [] if ready else [x for x in (f"level 100 (now {char.level})" if char.level < 100 else "",
+                                         f"★{stars} (now ★{char.awaken})" if char.awaken < stars else "") if x]
+    return {"name": template["name"], "stars": stars, "ready": ready, "need": " and ".join(need)}
+
+
+def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optional[str] = None) -> dict:
+    """mode, for a Requiem Arrow: "awaken" adds a star (even to a stand that could evolve), "requiem" evolves it;
+    without one, an evolvable stand evolves (the bot's behaviour)."""
     item = _take_item(user, item_id)
     if item.is_equipable:
         user.items.append(item)
@@ -899,7 +915,12 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None) -> dict:
         if char is None:
             refund("Pick a stand from your team.")
         idx = user.main_characters.index(char)
-        if char.id in REQUIEMABLE and char.awaken >= REQUIEM_STARS[char.id] and char.level >= 100:
+        form = requiem_form(char)
+        if mode == "requiem" and not form:
+            refund(f"{char.name} has no Requiem form.")
+        if mode == "requiem" and not form["ready"]:
+            refund(f"{char.name} needs {form['need']} to become {form['name']}.")
+        if form and form["ready"] and mode != "awaken":
             template = CHARACTER_FILE[REQUIEM_TEMPLATE_INDEX[REQUIEMABLE.index(char.id)]]
             new = get_character_from_template(template, [], [])
             new.items = char.items
@@ -938,7 +959,7 @@ def craft(user: User, recipe_name: str) -> Item:
     return crafted
 
 
-SHOP_HEADS_PER_WEEK = 3  # summons (Arrowheads and Devil's Palms together) the shop sells each player per week
+SHOP_HEADS_PER_WEEK = 2  # summons (Arrowheads and Devil's Palms together) the shop sells each player per week
 
 
 def shop_heads_left(user: User) -> int:
@@ -1020,8 +1041,8 @@ def team_delete(user: User, name: str):
 # --------------------------------------------------------------------------- #
 # Energy comes back one point at a time. The save's last_full_energy (shared with the bot) is the
 # moment the next point started charging; spending from a full bar restarts that clock.
-ENERGY_REGEN_MINUTES = 4
-DONOR_ENERGY_REGEN_MINUTES = 3
+ENERGY_REGEN_MINUTES = 6  # economy.TIME_RATE (was 4, 3 for supporters)
+DONOR_ENERGY_REGEN_MINUTES = 4
 ENERGY_CAN = 47            # Can of Energy
 ENERGY_CAN_AMOUNT = 5
 ENERGY_BANK = 2            # cans can push energy up to this many times the max; regen stops at the max

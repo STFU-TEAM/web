@@ -93,7 +93,40 @@ SYNERGIES = {
     "josuke_okuyasu": {32, 34},
     # Rohan and Koichi
     "rohan_koichi": {45, 50},
+    # ── Groups built around the common and rare stands (most of their members are R and SR) ──
+    # Stands awakened by the Nijimura bow and arrow (Part 4)
+    "bow_arrow": {33, 35, 37, 38, 39, 46, 52, 53, 55, 56, 57},
+    # The friendly side of Morioh: Yukako, Tonio, Shizuka, Shigechi, Aya Tsuji
+    "townsfolk": {40, 43, 44, 47, 48},
+    # Yoshikage Kira, his father's photo and the cat
+    "kira_family": {49, 51, 54},
+    # Daniel and Telence D'Arby
+    "darby": {28, 29},
+    # Oingo and Boingo
+    "oingo_boingo": {23, 24},
+    # DIO's mansion in Cairo: The World, Pet Shop, Telence, Vanilla Ice
+    "dio_mansion": {10, 27, 28, 30},
+    # The Boss's personal guard: Squalo, Tiziano, Carne, Cioccolata, Secco
+    "boss_guard": {76, 77, 78, 81, 82},
+    # Cioccolata and Secco
+    "cioccolata_secco": {81, 82},
+    # Mario Zucchero and Sale
+    "zucchero_sale": {63, 65},
+    # Pucci's agents in Green Dolphin Street
+    "pucci_agents": {88, 90, 93, 95, 96, 98, 99, 100, 102, 106},
+    # DIO's sons: Giorno, Ungalo, Rikiel, Donatello Versus
+    "dio_sons": {59, 103, 104, 105},
+    # Those drawn to the Saint's Corpse: Johnny, Diego, Hot Pants, Lucy, Valentine, the Sugar Mountain spring
+    "corpse": {111, 117, 118, 119, 120, 128},
+    # The Higashikata family: Joshu, Tsurugi, Norisuke IV, Jobin, Daiya
+    "higashikata": {140, 141, 142, 143, 145},
+    # The Rock Humans
+    "rock_humans": {139, 148, 156, 158, 159},
 }
+# Members who were missing from their crew: Abbacchio and Coco Jumbo, Ermes and Emporio, Pesci and Risotto
+SYNERGIES["passione"] |= {62, 70}
+SYNERGIES["stone_ocean"] |= {89, 91}
+SYNERGIES["squadra"] |= {71, 80}
 
 # (label, icon) for the wiki, cards and the fight log
 SYNERGY_INFO = {
@@ -121,37 +154,72 @@ SYNERGY_INFO = {
     "spin": ("The Spin", "🌀"),
     "josuke_okuyasu": ("Josuke & Okuyasu", "💎"),
     "rohan_koichi": ("Rohan & Koichi", "📖"),
+    "bow_arrow": ("Bow and Arrow", "🏹"),
+    "townsfolk": ("Morioh townsfolk", "🏡"),
+    "kira_family": ("Kira family", "🐱"),
+    "darby": ("The D'Arby brothers", "🎲"),
+    "oingo_boingo": ("Oingo & Boingo", "📕"),
+    "dio_mansion": ("DIO's mansion", "🏚️"),
+    "boss_guard": ("The Boss's guard", "🛡️"),
+    "cioccolata_secco": ("Cioccolata & Secco", "🦠"),
+    "zucchero_sale": ("Zucchero & Sale", "🎈"),
+    "pucci_agents": ("Pucci's agents", "💿"),
+    "dio_sons": ("DIO's sons", "🌙"),
+    "corpse": ("The Saint's Corpse", "✝️"),
+    "higashikata": ("Higashikata family", "🍑"),
+    "rock_humans": ("Rock Humans", "🪨"),
 }
 
 # Team bonus: every member of a group gets these for the whole fight while 2+ members are on the team
 # (fallen ones count). It comes on top of the special upgrades some members get (_has_synergy).
 # stats: "damage_pct", "armor_pct", "speed_pct", "hp_pct" (shares of the stat), "crit_flat" (points)
+# Each member's share is multiplied by its rarity leverage (effects.RARITY_LEVERAGE: a Common gets x1.6, a
+# Mythic x0.35), and by FULL_SET_MULT when 3+ members of the group stand together.
 SYNERGY_BONUS = {
-    "crusaders": [("damage_pct", 0.08), ("speed_pct", 0.08)],
-    "kira": [("damage_pct", 0.08), ("crit_flat", 10)],
-    "squadra": [("damage_pct", 0.12)],
-    "passione": [("speed_pct", 0.10), ("hp_pct", 0.06)],
-    "morioh": [("armor_pct", 0.10), ("hp_pct", 0.08)],
+    "crusaders": [("damage_pct", 0.12), ("speed_pct", 0.10)],
+    "kira": [("damage_pct", 0.12), ("crit_flat", 12)],
+    "squadra": [("damage_pct", 0.16)],
+    "passione": [("speed_pct", 0.12), ("hp_pct", 0.10)],
+    "morioh": [("armor_pct", 0.12), ("hp_pct", 0.10)],
     "pucci": [("speed_pct", 0.12)],
-    "tusk": [("damage_pct", 0.06), ("crit_flat", 8)],
-    "clash_talking": [("speed_pct", 0.12)],
-    "joestar": [("hp_pct", 0.08), ("damage_pct", 0.06)],
-    "tarot": [("damage_pct", 0.08)],
-    "nine_gods": [("armor_pct", 0.10), ("crit_flat", 5)],
-    "echoes": [("crit_flat", 10)],
-    "stone_ocean": [("hp_pct", 0.08), ("armor_pct", 0.08)],
-    "sbr_racers": [("speed_pct", 0.12)],
-    "president": [("armor_pct", 0.08), ("damage_pct", 0.06)],
-    "boom_boom": [("damage_pct", 0.12)],
+    "tusk": [("damage_pct", 0.08), ("crit_flat", 8)],
+    "clash_talking": [("speed_pct", 0.15), ("damage_pct", 0.08)],
+    "joestar": [("hp_pct", 0.10), ("damage_pct", 0.08)],
+    "tarot": [("damage_pct", 0.12), ("crit_flat", 6)],
+    "nine_gods": [("armor_pct", 0.14), ("crit_flat", 8)],
+    "echoes": [("crit_flat", 12), ("damage_pct", 0.08)],
+    "stone_ocean": [("hp_pct", 0.12), ("armor_pct", 0.10)],
+    "sbr_racers": [("speed_pct", 0.15)],
+    "president": [("armor_pct", 0.12), ("damage_pct", 0.08)],
+    "boom_boom": [("damage_pct", 0.16)],
     "wall_eyes": [("hp_pct", 0.12), ("speed_pct", 0.10), ("damage_pct", 0.10)],
     "time_masters": [("speed_pct", 0.08), ("crit_flat", 8)],
-    "requiem": [("damage_pct", 0.15)],
-    "hol_horse": [("crit_flat", 10)],
+    "requiem": [("damage_pct", 0.10)],
+    "hol_horse": [("crit_flat", 14), ("damage_pct", 0.06)],
     "kujo": [("damage_pct", 0.08), ("armor_pct", 0.08)],
-    "spin": [("damage_pct", 0.10), ("crit_flat", 5)],
-    "josuke_okuyasu": [("hp_pct", 0.10)],
-    "rohan_koichi": [("speed_pct", 0.10)],
+    "spin": [("damage_pct", 0.10), ("crit_flat", 6)],
+    "josuke_okuyasu": [("hp_pct", 0.14), ("damage_pct", 0.06)],
+    "rohan_koichi": [("speed_pct", 0.12), ("crit_flat", 6)],
+    "bow_arrow": [("damage_pct", 0.10), ("crit_flat", 8)],
+    "townsfolk": [("hp_pct", 0.12), ("armor_pct", 0.08)],
+    "kira_family": [("damage_pct", 0.12), ("hp_pct", 0.06)],
+    "darby": [("crit_flat", 12), ("speed_pct", 0.08)],
+    "oingo_boingo": [("speed_pct", 0.12), ("crit_flat", 8)],
+    "dio_mansion": [("damage_pct", 0.10), ("armor_pct", 0.08)],
+    "boss_guard": [("damage_pct", 0.10), ("speed_pct", 0.08)],
+    "cioccolata_secco": [("damage_pct", 0.12), ("hp_pct", 0.08)],
+    "zucchero_sale": [("armor_pct", 0.12), ("damage_pct", 0.08)],
+    "pucci_agents": [("hp_pct", 0.08), ("damage_pct", 0.08)],
+    "dio_sons": [("damage_pct", 0.10), ("crit_flat", 8)],
+    "corpse": [("hp_pct", 0.10), ("armor_pct", 0.08)],
+    "higashikata": [("hp_pct", 0.10), ("speed_pct", 0.08)],
+    "rock_humans": [("armor_pct", 0.14), ("hp_pct", 0.06)],
 }
+FULL_SET = 3        # members of one group that make a full set...
+FULL_SET_MULT = 1.5  # ...and what it does to that group's bonus
+# A stand in several active groups gets each group's bonus at a falling share (strongest group first), so
+# crossing synergies pays mostly through resonances instead of piling up raw stats.
+STACK_DECAY = (1.0, 0.6, 0.4, 0.3)
 
 
 def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) -> bool:
@@ -170,14 +238,29 @@ def active_synergies(team: list) -> list:
     return [name for name, group in SYNERGIES.items() if len(group & ids) >= 2]
 
 
+def synergy_scale(name: str, team: list, c) -> float:
+    """What member c makes of group `name`'s bonus: its rarity leverage, x1.5 for a full set."""
+    from app.game.effects import leverage
+    full = len(SYNERGIES[name] & _ally_ids(team)) >= FULL_SET
+    return leverage(c) * (FULL_SET_MULT if full else 1)
+
+
 def apply_synergy_bonuses(team: list) -> list:
     """Give each member of an active group its team bonus, once per fighter (tower teams fight many floors).
     Returns [(group name, [member names])] for the fight log."""
     out = []
-    for name in active_synergies(team):
+    groups = active_synergies(team)
+    # bigger groups on the team first (full sets), so a stand's decayed shares fall on its smaller groups
+    groups.sort(key=lambda g: -len(SYNERGIES[g] & _ally_ids(team)))
+    rank = {}
+    for name in groups:
         members = [c for c in team if c.id in SYNERGIES[name] and not getattr(c, "_synergy_done", False)]
         for c in members:
+            k = rank.get(id(c), 0)
+            rank[id(c)] = k + 1
+            scale = synergy_scale(name, team, c) * STACK_DECAY[min(k, len(STACK_DECAY) - 1)]
             for stat, value in SYNERGY_BONUS.get(name, []):
+                value *= scale
                 if stat == "hp_pct":
                     added = int(c.start_hp * value)
                     c.start_hp += added
@@ -209,6 +292,7 @@ STAT_INFO = {"damage": ("⚔️", "Damage", "ATTACK"), "armor": ("🛡️", "Arm
              "critical": ("🍀", "Luck", "LUCK")}
 AFFINITY = {"UNIVERSAL": 0.25, "SUPREME": 0.18, "GREAT": 0.12, "GOOD": 0.06, "SUB_PAR": 0.0, "BAD": -0.06}
 POWER_RANGE = (0.6, 2.5)
+RARITY_SPECIAL_POWER = {"UR": 0.95, "LR": 0.9}  # the top rarities' specials are strong, not game-defining
 DEBUFF_CAP = 0.75
 HEALING_STATS = ("health",)
 ARMOR_BASE = 100
@@ -244,7 +328,7 @@ def special_power(char) -> dict:
         if (type_ == wanted or type_ == "BALANCE") and (via is None or bonus > affinity):
             affinity, via = bonus, f"{type_.title()} {quality.replace('_', ' ').title()}"
     lo, hi = POWER_RANGE
-    power = max(lo, min(hi, (1 + invest) * (1 + affinity)))
+    power = max(lo, min(hi, (1 + invest) * (1 + affinity))) * RARITY_SPECIAL_POWER.get(char.rarity, 1)
     return {"stat": stat, "power": power, "invest": invest, "affinity": affinity, "type": via}
 
 

@@ -19,6 +19,10 @@ SUDDEN_DEATH_ROUND = 10
 SUDDEN_DEATH_STEP = 0.05
 SUDDEN_DEATH_HEAL = 0.5
 MAX_ROUNDS = 18
+# The side that moves second: its specials start one turn closer, and it opens in a counter stance
+# (more armor and damage for its first turns), so a faster team wins the tempo, not the fight.
+COUNTER_ARMOR, COUNTER_DAMAGE, COUNTER_TURNS = 0.05, 0.05, 2
+COUNTER_CRIT_PER_GAP, COUNTER_CRIT_MAX = 1, 15  # +1 critical per point of team speed it gave up, for the fight
 
 
 class Side:
@@ -100,14 +104,41 @@ class Fight:
             self._log(f"🎉 {ev['name']}: {', '.join(boosted)} {'is' if len(boosted) == 1 else 'are'} in the spotlight "
                       f"(+{events.BOOST:.0%} damage and speed).", "terrain")
 
-        s0 = sum(c.current_speed for c in human.chars)
-        s1 = sum(c.current_speed for c in opponent.chars)
-        self.order = [0, 1]
-        if s1 > s0 or (s1 == s0 and random.random() < 0.5):
-            self.order = [1, 0]
-        for c in self.sides[self.order[1]].chars:
-            c.special_meter += 1
+        self.rules = dict(self.meta.get("rules") or {})  # Over Heaven fight rules (app/game/overheaven.py)
         self._apply_synergies()
+        self._apply_resonances()
+        if self.rules:
+            from app.game import overheaven
+            for text in overheaven.apply_rules(self):
+                self._log(text, "terrain")
+
+        # Who moves first is decided after synergies and ambushes, so slowing a fast team can steal the tempo.
+        s0 = sum(c.current_speed for c in human.chars if c.is_alive())
+        s1 = sum(c.current_speed for c in opponent.chars if c.is_alive())
+        self.order = [0, 1]
+        if self.rules.get("enemy_first"):
+            self.order = [1 - human_side, human_side]
+        elif s1 > s0 or (s1 == s0 and random.random() < 0.5):
+            self.order = [1, 0]
+        self._counter_stance(self.order[1], abs(s1 - s0))
+        self._down = set()
+
+    def _counter_stance(self, s: int, gap: float) -> None:
+        from app.game.effects import Effect, EffectType
+        side = self.sides[s]
+        crit = min(COUNTER_CRIT_MAX, int(gap * COUNTER_CRIT_PER_GAP))
+        for c in side.chars:
+            c.special_meter += 1
+            if not c.is_alive():
+                continue
+            c.add_effect(Effect(EffectType.ARMORUP, COUNTER_TURNS, int(c.current_armor * COUNTER_ARMOR)))
+            c.add_effect(Effect(EffectType.DAMAGEUP, COUNTER_TURNS, int(c.current_damage * COUNTER_DAMAGE)))
+            if crit:
+                c.add_effect(Effect(EffectType.CRITUP, MAX_ROUNDS + 2, crit))
+        extra = f", +{crit} critical for the speed it gave up" if crit else ""
+        self._log(f"🛡️ {side.name} moves second and opens in a counter stance: specials one turn closer, "
+                  f"+{COUNTER_ARMOR:.0%} armor and +{COUNTER_DAMAGE:.0%} damage for {COUNTER_TURNS} turns{extra}.",
+                  "terrain", side=s)
 
     def _apply_synergies(self) -> None:
         from app.game.characterabilities import SYNERGY_BONUS, SYNERGY_INFO, apply_synergy_bonuses
@@ -116,7 +147,31 @@ class Fight:
             for name, members in apply_synergy_bonuses(side.chars):
                 label, icon = SYNERGY_INFO.get(name, (name, "✶"))
                 perks = ", ".join(fmt_perk(stat, v) for stat, v in SYNERGY_BONUS.get(name, []))
-                self._log(f"{icon} {label} synergy for {side.name}: {', '.join(members)} gain {perks}.", "terrain", side=s)
+                self._log(f"{icon} {label} synergy for {side.name}: {', '.join(members)} gain {perks} "
+                          f"(more for lower rarities).", "terrain", side=s)
+
+    def _apply_resonances(self) -> None:
+        from app.game import resonance
+        self.resonances = resonance.apply(self)
+        for s, keys in self.resonances.items():
+            for key in keys:
+                label, icon, _needs, effect = resonance.RESONANCES[key]
+                self._log(f"{icon} {label} resonates for {self.sides[s].name}! {effect}", "terrain", side=s)
+
+    def _check_falls(self) -> None:
+        """Golden Spirit: rally the survivors of a side whenever one of its stands falls."""
+        from app.game import resonance
+        down = getattr(self, "_down", set())
+        for s, side in enumerate(self.sides):
+            for i, c in enumerate(side.chars):
+                if c.is_alive() or (s, i) in down:
+                    continue
+                down.add((s, i))
+                if "golden_spirit" in getattr(self, "resonances", {}).get(s, ()) and side.alive():
+                    rallied = resonance.second_wind(side.chars, c)
+                    if rallied:
+                        self._log(f"✨ {c.name} falls, and {', '.join(rallied)} rally with a Second Wind!", "terrain", side=s)
+        self._down = down
 
     @property
     def acting_side(self) -> int:
@@ -185,17 +240,36 @@ class Fight:
         everyone = self.sides[0].chars + self.sides[1].chars
         before = self.terrain
         remove_terrain_bonuses(everyone)
-        self.terrain = get_active_terrain(everyone)
+        self.terrain = self._field(everyone)
         apply_terrain_bonuses(everyone, self.terrain)
         if self.terrain != before:
             self._log(f"{self.terrain.emoji} The field becomes {self.terrain.display_name}. {self.terrain.rule}"
                       if self.terrain != Terrain.DEFAULT else "🏞️ The field returns to neutral ground.", "terrain")
         self.round_started = True
 
+    def _field(self, everyone: List[Character]) -> Terrain:
+        """A locked field (Over Heaven) beats Home Field, which beats the fastest setter."""
+        if self.__dict__.get("rules", {}).get("terrain"):
+            return Terrain.from_string(self.rules["terrain"])
+        from app.game.effects import TERRAIN_SETTERS
+        held = []
+        for s, terrain in getattr(self, "home", {}).items():
+            setters = [c for c in self.sides[s].chars if c.is_alive() and TERRAIN_SETTERS.get(c.id) == terrain]
+            if setters:
+                held.append((max(c.current_speed for c in setters), terrain))
+        if held:
+            return max(held, key=lambda h: h[0])[1]
+        return get_active_terrain(everyone)
+
     def _end_turn(self, p: int) -> None:
         side = self.sides[p]
         for c in side.chars:
             c.end_turn()
+        if self.__dict__.get("rules"):
+            from app.game import overheaven
+            text = overheaven.end_turn(self, p)
+            if text:
+                self._log(text, "terrain", side=p)
         if self.sudden_death and side.alive():
             pct = SUDDEN_DEATH_STEP * (self.round - SUDDEN_DEATH_ROUND + 1)
             for c in side.chars:
@@ -246,6 +320,13 @@ class Fight:
                     else:
                         self._log(f"{char.name} hits {targeted.name} for {data['damage']}.", "hit", char, p,
                                   dmg=data["damage"], **hit)
+                    if data["damage"] and getattr(char, "_lifesteal", 0):
+                        char.heal(data["damage"] * char._lifesteal)
+                    if data["damage"] and self.__dict__.get("rules"):
+                        from app.game import overheaven
+                        text = overheaven.after_hit(self, char, targeted, data["damage"])
+                        if text:
+                            self._log(text, "terrain", side=1 - p)
                 if char.is_alive() and not stunned and char.as_special():
                     payload, message = char.special(player.chars, watcher.chars)
                     if payload["is_a_special"]:
@@ -257,9 +338,11 @@ class Fight:
                             message = item.special(char, player.chars, watcher.chars)
                             if message and message != "None":
                                 self._log(message, "item", char, p, src=[p, self.si])
+                self._check_falls()
                 self.si += 1
 
             self._end_turn(p)
+            self._check_falls()
             step = 2 if self.king_crimson else 1
             self.king_crimson = False
             self.turn += step

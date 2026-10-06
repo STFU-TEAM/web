@@ -23,8 +23,16 @@ SPEEDSCALING = 1
 CRITICALSCALING = 1
 CRITMULTIPLIER = 1.5  # bot's globals/variables.py value; character.py shadowed it with 1
 CRIT_CHANCE_CAP = 75
-DODGENERF = 1
-DODGE_CHANCE_CAP = 25
+DODGENERF = 2  # two points of speed gap per percent of dodge: speed decides who moves first, it shouldn't also be armor
+DODGE_CHANCE_CAP = 20
+# UR and LR are strong, not game-defining: their natural stats are trimmed toward the SSR line (speed most of all,
+# since it decides who moves first), their specials need 2+ turns, and their specials hit a little softer
+# (characterabilities.RARITY_SPECIAL_POWER). Raid bosses and the dummy keep their numbers.
+RARITY_TRIM = {"UR": {"hp": 0.97, "damage": 0.96, "speed": 0.7}, "LR": {"hp": 0.95, "damage": 0.93, "speed": 0.6}}
+UNTRIMMED = {110, 164}
+MIN_SPECIAL_TURNS = {"UR": 2, "LR": 2}
+# Giant Slayer (resonance): per rarity step a slayer deals more to higher-rarity stands and takes less from them
+SLAYER_STEP, SLAYER_GUARD, SLAYER_STEPS = 0.12, 0.08, 3
 ARMOR_CAP = 400  # damage taken never drops below 200 / (100 + 400) = 40%
 GROWTH_CAP = 1.0
 TAUNT_HP = 0  # taunt already draws every basic attack; keep the extra bulk modest
@@ -72,6 +80,12 @@ class Character:
         self.base_speed: int = character_file[self.id-1]["base_speed"]
         self.base_armor: int = character_file[self.id-1]["armor"]
         self.turn_for_ability: int = character_file[self.id-1]["turn_for_ability"]
+        trim = RARITY_TRIM.get(self.rarity) if self.id not in UNTRIMMED else None
+        if trim:
+            self.base_hp = int(self.base_hp * trim["hp"])
+            self.base_damage = int(self.base_damage * trim["damage"])
+            self.base_speed = self.base_speed * trim["speed"]
+            self.turn_for_ability = max(self.turn_for_ability, MIN_SPECIAL_TURNS[self.rarity])
         self.special_description: str = character_file[self.id-1]["special_description"]
         self.special_url:str = character_file[self.id-1]["special_url"]
         self.items: List[Item] = [item_from_dict(s) for s in data.get("items", [])]
@@ -191,9 +205,12 @@ class Character:
             multi *= max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0))
             atck["critical"] = True
             pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
-        # Armor: 100 is neutral, 0 doubles damage, 400 (the cap) takes 40%.
+        multi *= slayer_mult(self, ennemy_character)
+        if getattr(ennemy_character, "_ward", 0) and not getattr(self, "_bonded", False):
+            multi *= 1 - ennemy_character._ward  # Over Heaven ward: only stands in a synergy hit at full strength
+        # Armor: 100 is neutral, 0 doubles damage, 400 (the cap) takes 40%. Resonant strikes ignore a share of it.
         if not pierce:
-            armor = min(max(ennemy_character.current_armor, 0), ARMOR_CAP)
+            armor = min(max(ennemy_character.current_armor, 0), ARMOR_CAP) * (1 - getattr(self, "_armor_pierce", 0))
             multi *= 200 / (100 + armor)
         # A faster target may dodge: one percent per point of speed gap.
         if ennemy_character.current_speed > self.current_speed and terrain not in TERRAIN_NO_DODGE:
@@ -210,7 +227,7 @@ class Character:
         """Heal up to max health (start_hp). Returns what was actually restored."""
         if not self.is_alive() or amount <= 0:
             return 0
-        amount *= TERRAIN_HEAL_MULT.get(self.terrain, 1) * getattr(self, "_heal_mult", 1)
+        amount *= TERRAIN_HEAL_MULT.get(self.terrain, 1) * getattr(self, "_heal_mult", 1) * getattr(self, "_heal_cut", 1)
         gained = int(min(amount, self.start_hp - self.current_hp))
         if gained <= 0:
             return 0
@@ -226,6 +243,9 @@ class Character:
     def add_effect(self, effect: Effect) -> Effect:
         """Attach an effect. Stat effects change the stat right away and undo it when they expire."""
         effect.fresh = bool(getattr(self, "_my_turn", False))
+        if effect.type == EffectType.STUN and getattr(self, "_stun_immune", False):
+            effect.duration = 0  # cleaned up at its end of turn without ever counting
+            return effect
         if effect.type in STAT_EFFECTS:
             attr, sign = STAT_EFFECTS[effect.type]
             if sign < 0:  # never take a stat below its floor, so the revert stays exact
@@ -347,6 +367,18 @@ class Character:
         self.data["awaken"] = self.awaken
         self.data["items"] = [s.to_dict() for s in self.items]
         self.__init__(self.data)
+
+
+def slayer_mult(attacker, target) -> float:
+    """Giant Slayer: a slayer hits higher-rarity stands harder and takes less from them."""
+    from app.game.effects import RARITY_RANK
+    gap = RARITY_RANK.get(getattr(target, "rarity", ""), 2) - RARITY_RANK.get(getattr(attacker, "rarity", ""), 2)
+    steps = min(abs(gap), SLAYER_STEPS)
+    if gap > 0 and getattr(attacker, "_slayer", False):
+        return 1 + SLAYER_STEP * steps
+    if gap < 0 and getattr(target, "_slayer", False):
+        return 1 - SLAYER_GUARD * steps
+    return 1
 
 
 def character_from_dict(data: dict) -> Character:

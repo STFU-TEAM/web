@@ -5,7 +5,8 @@
     python scripts/dev.py --port 5001
 
 Log in at http://127.0.0.1:5000/auth/login with  admin / admin.
-The admin has a game save (a team, storage, fragments, items) and can open /admin.
+The admin has a game save (every stand at level 100, top awakening and shiny, fragments, items) and can
+open /admin. A kept save (--redis) keeps its progress but gets the full maxed collection again on each start.
 
 By default this never connects to a real Redis, even if REDIS_URL is set in your
 shell, so it can't touch the bot's data. Pass --redis explicitly to use one; don't
@@ -53,21 +54,33 @@ def seed_admin():
     r().delete(f"web:login_fail:user:{ADMIN_USERNAME}")
     remember_identity(ADMIN_UID, ADMIN_USERNAME, None, ttl=None)
 
-    if r().hexists("users", ADMIN_UID):
-        return "kept the existing save"
+    from app.game.character import MAX_LEVEL
+    from app.game.logic import MAX_AWAKEN
 
-    def stand(cid, level, types=("ATTACK",), quals=("GREAT",)):
-        doc = get_character_from_template(CHARACTER_FILE[cid - 1], list(types), list(quals)).to_dict()
-        doc["xp"] = level * 100
+    def stand(cid):
+        """Maxed and shiny: level 100, the top awakening, two Universal types."""
+        doc = get_character_from_template(CHARACTER_FILE[cid - 1], ["ATTACK", "HEALTH"], ["UNIVERSAL", "UNIVERSAL"]).to_dict()
+        doc.update(xp=MAX_LEVEL * 100, awaken=MAX_AWAKEN, shiny=True)
         return doc
+
+    # every stand a player can own, once: the team leads with three of them, the rest wait in storage
+    ids = [c["id"] for c in CHARACTER_FILE if c["universe"] != "Dummy"]
+    team_ids = [1, 2, 5]
+    collection = dict(main_characters=[stand(i) for i in team_ids],
+                      storage_characters=[stand(i) for i in ids if i not in team_ids],
+                      web_dex=sorted(ids))
+
+    if r().hexists("users", ADMIN_UID):  # a kept save (--redis): refresh the collection, keep the rest
+        doc = pickle.loads(r().hget("users", ADMIN_UID))
+        doc.update(collection)
+        r().hset("users", ADMIN_UID, pickle.dumps(doc, protocol=PICKLE_PROTOCOL))
+        return f"kept the existing save, every stand ({len(ids)}) maxed and shiny"
 
     doc = create_user(ADMIN_UID)
     doc.update(fragments=1_000_000, super_fragments=500, xp=250_000,
-               main_characters=[stand(1, 50), stand(2, 50, ("BALANCE",)), stand(5, 50, ("DEFENSE",))],
-               storage_characters=[stand(cid, 30) for cid in (10, 59, 49, 32, 74, 71, 108, 114)],
-               items=[{"id": 2}] * 5 + [{"id": 1}, {"id": 5}, {"id": 6}])
+               items=[{"id": 2}] * 5 + [{"id": 1}, {"id": 5}, {"id": 6}], **collection)
     r().hset("users", ADMIN_UID, pickle.dumps(doc, protocol=PICKLE_PROTOCOL))
-    return "created a fresh save"
+    return f"created a fresh save, every stand ({len(ids)}) maxed and shiny"
 
 
 def main():

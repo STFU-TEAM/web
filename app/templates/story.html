@@ -56,7 +56,12 @@
     </article>
   {% endif %}
 
-  <p class="notice">🌀 Every part you clear opens a new <a href="{{ url_for('progress.au_page') }}">Alternate Universe</a> chapter: what if the villains had won?</p>
+  {% if nav_unlocked.overheaven %}
+    <p class="notice">☁ The story is done, and <a href="{{ url_for('progress.oh_page') }}">Over Heaven</a> is open: the endgame fights of every mode.</p>
+  {% endif %}
+  {% if nav_unlocked.altverse %}
+    <p class="notice">🌀 Every part you clear opens a new <a href="{{ url_for('progress.au_page') }}">Alternate Universe</a> chapter: what if the villains had won?</p>
+  {% endif %}
 
   <h2 class="h3 story-map-title">The journey</h2>
   <ol class="story-map">

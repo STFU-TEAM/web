@@ -15,6 +15,13 @@
         <label><input type="radio" name="rarity" value="{{ r }}" {% if rarity == r %}checked{% endif %}><span>{{ r }}</span></label>
       {% endfor %}
     </fieldset>
+    <fieldset class="chips look-chips">
+      <legend>Cosmetics</legend>
+      {% for key, label in looks.items() %}
+        <label title="{{ 'Show each card as a ★' ~ FULLART_STARS ~ ' full art, a shiny, or both' if key else 'The plain card' }}"><input type="radio" name="look" value="{{ key }}" {% if look == key %}checked{% endif %}><span>{{ '✨ ' if 'shiny' in key or key == 'both' }}{{ label }}</span></label>
+      {% endfor %}
+      <label class="unique-toggle" title="Only stands with a hand-made illustration for this look"><input type="checkbox" name="unique" value="1" {% if unique %}checked{% endif %}><span>🎨 Unique art only</span></label>
+    </fieldset>
   </form>
   <div id="grid">{% include "partials/stand_grid.html" %}</div>
 </section>

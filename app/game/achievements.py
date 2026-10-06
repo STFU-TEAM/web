@@ -8,6 +8,10 @@ _DATA = os.path.join(os.path.dirname(__file__), "data")
 with open(os.path.join(_DATA, "achievements.json"), "r", encoding="utf-8") as f:
     ALL_ACHIEVEMENTS = json.load(f)["achievements"]
 
+from app.game.economy import scale_rewards  # noqa: E402  (rewards at the economy's pace: one-time milestones)
+for _ach in ALL_ACHIEVEMENTS:
+    _ach["reward"] = scale_rewards(_ach.get("reward") or {})
+
 ACHIEVEMENT_BY_ID = {a["id"]: a for a in ALL_ACHIEVEMENTS}
 
 DEFAULT_ACHIEVEMENT_DATA = {

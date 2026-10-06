@@ -191,6 +191,21 @@ def ascend():
     return _collection(user, f"{res.name} reached awakening {res.awaken}." if res else None, err)
 
 
+@bp.post("/team/arrow")
+@player_required
+def arrow():
+    """A Requiem Arrow from the stand panel: mode "awaken" (+1 star, keeps the stand) or "requiem" (evolve)."""
+    uuid, mode = request.form.get("uuid"), request.form.get("mode")
+    if mode not in ("awaken", "requiem"):
+        return _collection(_user(), None, "Choose to awaken it or to make it Requiem.")
+    user, res, err = action(lambda u: logic.use_item(u, 3, uuid, mode))
+    msg = None
+    if res:
+        msg = (f"✧ Requiem! It became {res['stand'].name}." if res["kind"] == "requiem"
+               else f"{res['stand'].name} reached awakening {res['stand'].awaken}.")
+    return _collection(user, msg, err)
+
+
 @bp.post("/team/fuse")
 @player_required
 def fuse():
@@ -488,8 +503,8 @@ def items():
 @bp.post("/items/use")
 @player_required
 def use():
-    item_id, uuid = _int("item"), request.form.get("uuid")
-    user, res, err = action(lambda u: logic.use_item(u, item_id, uuid))
+    item_id, uuid, mode = _int("item"), request.form.get("uuid"), request.form.get("mode")
+    user, res, err = action(lambda u: logic.use_item(u, item_id, uuid, mode if mode in ("awaken", "requiem") else None))
     return render_template("partials/use_result.html", res=res, error=err, **_items_ctx(user))
 
 

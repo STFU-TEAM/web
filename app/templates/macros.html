@@ -18,11 +18,12 @@
   </p>
 {%- endmacro %}
 
-{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None) %}
+{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None, look='') %}
 {% set rar = s.rarity|rarity %}
 {% set b = badges or {} %}
-{% set full = owned and awaken >= FULLART_STARS %}{# ★3: the art takes the whole card #}
-{% set shiny = owned and owned.shiny %}
+{# look: '' as owned, or a cosmetic preview for the encyclopedia: 'full', 'shiny' or 'both' #}
+{% set full = (owned and awaken >= FULLART_STARS) or look in ('full', 'both') %}{# ★3: the art takes the whole card #}
+{% set shiny = (owned and owned.shiny) or look in ('shiny', 'both') %}
 <article class="card {{ rar }} {{ size }}{% if reveal %} reveal{% endif %}{% if b.locked %} locked{% endif %}{% if full %} fullart{% endif %}{% if shiny %} shiny{% endif %}">
   {% if link %}<a class="card-link" href="{{ href or url_for('main.stand', stand_id=s.id) }}" aria-label="{{ s.name }}"></a>{% endif %}
   <div class="card-face">
@@ -34,8 +35,8 @@
       {% if awaken %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>{% endif %}
     </header>
     <div class="card-window">
-      {% set art, own_art = card_art(s.id, full, shiny) %}
-      <img src="{{ art }}" alt="{{ s.name }}" loading="lazy"{% if own_art %} class="own-art"{% endif %}
+      {% set art, own_art, anim = card_art(s.id, full, shiny, animate=(size == 'big')) %}
+      <img src="{{ art }}" alt="{{ s.name }}" loading="lazy" decoding="async"{% if own_art %} class="own-art"{% endif %}{% if anim %} data-anim="{{ anim }}"{% endif %}
            onload="if(this.naturalWidth / this.naturalHeight > 0.84) this.classList.add('cover')"
            onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
       {% if level is not none %}<span class="lvl">Lv {{ level }}</span>{% endif %}
@@ -70,8 +71,8 @@
 </article>
 {% endmacro %}
 
-{% macro template_card(t, size='', link=True) -%}
-  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link) }}
+{% macro template_card(t, size='', link=True, look='') -%}
+  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link, look=look) }}
 {%- endmacro %}
 
 {% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None) -%}

@@ -20,14 +20,14 @@ from app.game.logic import RANK_TIERS, fmt_delta, now, rank_name
 MIN_GAMES = 5
 WIN, LOSS = 25, 20  # same as the lifetime Elo
 # What the final tier of a season pays (fragments = Meteor Dust, super = Arrowheads)
-REWARDS = {
-    "ACT 1": {"fragments": 500},
-    "ACT 2": {"fragments": 1000},
-    "ACT 3": {"fragments": 2000, "super": 1},
-    "ACT 4": {"fragments": 3000, "super": 2},
-    "Requiem": {"fragments": 4500, "super": 3},
-    "Love Train": {"fragments": 6000, "super": 4},
-    "Over Heaven": {"fragments": 8000, "super": 5},
+REWARDS = {  # at the economy's pace (economy.py)
+    "ACT 1": {"fragments": 350},
+    "ACT 2": {"fragments": 700},
+    "ACT 3": {"fragments": 1400},
+    "ACT 4": {"fragments": 2100, "super": 1},
+    "Requiem": {"fragments": 3150, "super": 1},
+    "Love Train": {"fragments": 4200, "super": 2},
+    "Over Heaven": {"fragments": 5600, "super": 3},
 }
 TIER_ICONS = {"ACT 1": "Ⅰ", "ACT 2": "Ⅱ", "ACT 3": "Ⅲ", "ACT 4": "Ⅳ", "Requiem": "🏹", "Love Train": "🚂",
               "Over Heaven": "☀"}

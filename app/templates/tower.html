@@ -72,7 +72,7 @@
           {% else %}
             <p class="kicker">New climb</p>
             <h2 class="h2">Start from floor 1</h2>
-            <p class="muted">A climb costs {{ cost|num }} Meteor Dust. Floors pay out the first time you clear them each week; every 10th floor adds an Arrowhead. Bring a levelled team: the tower is harder than the story.</p>
+            <p class="muted">A climb costs {{ cost|num }} Meteor Dust. Floors pay out the first time you clear them each week; every 20th floor adds an Arrowhead. Bring a levelled team: the tower is harder than the story.</p>
             {% if not u.main_characters %}<p class="notice">Put stands in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
             {% elif u.fragments < cost %}<p class="notice">You need {{ cost|num }} Meteor Dust to climb.</p>
             {% else %}
@@ -84,7 +84,7 @@
       {% endif %}
       <section class="tower-panel">
         <h2 class="h3">Rewards ahead</h2>
-        <p class="muted">Every floor pays Meteor Dust and stand XP the first time you clear it each week. Every 5th floor adds a crafting material and every 10th an Arrowhead.</p>
+        <p class="muted">Every floor pays Meteor Dust and stand XP the first time you clear it each week. Every 5th floor adds a crafting material and every 20th an Arrowhead.</p>
         <ul class="tower-milestones">
           {% for m in milestones %}
             <li class="{{ 'boss' if m.super }}"><strong>Floor {{ m.floor }}</strong><span>{{ reward_chips(m) }}</span></li>

@@ -18,13 +18,13 @@ from app.game.logic import GameError, now
 
 BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
 PATCH_UP = 0.20
-REWARDS = [
-    {"fragments": 500, "items": []},
-    {"fragments": 1000, "items": [40, 47]},
-    {"fragments": 2000, "items": [38]},
-    {"fragments": 3000, "items": [39, 40]},
-    {"fragments": 4000, "super": 1, "items": [38, 38]},
-    {"fragments": 6000, "super": 2, "items": [34]},
+REWARDS = [  # weekly, at the economy's pace (economy.py)
+    {"fragments": 350, "items": []},
+    {"fragments": 700, "items": [40, 47]},
+    {"fragments": 1400, "items": [38]},
+    {"fragments": 2100, "items": [39, 40]},
+    {"fragments": 2800, "items": [38, 38]},
+    {"fragments": 4200, "super": 1, "items": [34]},
 ]
 
 

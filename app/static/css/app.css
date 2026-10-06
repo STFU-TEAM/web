@@ -159,11 +159,19 @@ a:hover { color: #fff; }
 @keyframes dot-ping { 70% { box-shadow: 0 0 0 7px rgb(214 36 110 / 0); } 100% { box-shadow: 0 0 0 0 rgb(214 36 110 / 0); } }
 
 /* New-player tour */
-.tour { position: fixed; inset: 0; z-index: 80; }
+.tour { position: fixed; inset: 0; z-index: 80; animation: tour-fade .35s ease-out; }
 .tour[hidden] { display: none; }
-.tour-spot { position: fixed; border-radius: var(--radius-ui); box-shadow: 0 0 0 4px var(--gold), 0 0 0 9999px rgb(14 7 24 / .72); transition: all .25s ease; pointer-events: none; }
-.tour-spot[hidden] { display: block; left: 50%; top: 50%; width: 0; height: 0; box-shadow: 0 0 0 9999px rgb(14 7 24 / .72); }
-.tour-card { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 1rem 1.1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--gold); box-shadow: 0 16px 40px rgb(0 0 0 / .5); animation: pull-arrive .25s ease-out; }
+/* The spotlight only ever moves and resizes: its shadow keeps the same three layers in every state (a soft ring,
+   a faint glow, the dim), so nothing can interpolate the ring into a screen-wide flash. */
+.tour-spot { position: fixed; border-radius: var(--radius-ui); pointer-events: none;
+  box-shadow: 0 0 0 2px rgb(244 197 66 / .5), 0 0 16px 2px rgb(244 197 66 / .14), 0 0 0 9999px rgb(14 7 24 / .6);
+  transition: left .35s ease, top .35s ease, width .35s ease, height .35s ease; }
+.tour-spot.is-off { box-shadow: 0 0 0 0 rgb(244 197 66 / 0), 0 0 0 0 rgb(244 197 66 / 0), 0 0 0 9999px rgb(14 7 24 / .6); }
+.tour-card { position: fixed; width: min(340px, calc(100vw - 24px)); padding: 1rem 1.1rem; border-radius: var(--radius-card); background: var(--night-2);
+  border: 1px solid rgb(244 197 66 / .45); box-shadow: 0 12px 32px rgb(0 0 0 / .45); animation: tour-card-in .3s ease-out; }
+@keyframes tour-fade { from { opacity: 0; } }
+@keyframes tour-card-in { from { opacity: 0; translate: 0 6px; } }
+@media (prefers-reduced-motion: reduce) { .tour, .tour-card { animation: none; } .tour-spot { transition: none; } }
 .tour-card .h3 { margin: 0 0 .35rem; color: var(--gold); }
 .tour-text { margin: 0 0 .9rem; line-height: 1.5; }
 .tour-count { margin: 0 0 .2rem; font-size: .75rem; }
@@ -183,6 +191,57 @@ body.touring .nav-drop[open] > .nav-menu { display: none; }
 /* Bottom dock + menu sheet: hidden on desktop. */
 .dock { display: none; }
 .sheet { display: none; }
+
+/* Desktop sidebar (signed in, >= 1024px): every page in collapsible groups; collapses to an icon rail.
+   The top bar keeps only the inbox and the account menu. */
+:root { --side-w: 232px; }
+.sidenav { display: none; }
+@media (min-width: 1024px) {
+  html.side-mini { --side-w: 64px; }
+  body.has-side { padding-left: var(--side-w); }
+  body.has-side .topbar > .nav, body.has-side .topbar > .wordmark { display: none; }
+  body.has-side .topbar { min-height: 58px; padding-inline: 1.25rem; }
+  body.has-side .install-hint { left: calc(var(--side-w) + .6rem); }
+  .sidenav { position: fixed; inset: 0 auto 0 0; z-index: 25; display: flex; flex-direction: column; width: var(--side-w);
+    background: rgb(36 19 60 / .97); border-right: 2px solid var(--night-3); }
+  .side-brand { min-height: 58px; padding: .6rem .85rem; border-bottom: 2px solid var(--night-3); font-size: 1.02rem; }
+  .side-brand > img { width: 34px; height: 34px; }
+  .side-brand .side-label { overflow: visible; }
+  .side-brand .brand-suffix { display: inline; font-size: .85em; }
+  .side-scroll { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: .5rem .5rem 1rem;
+    scrollbar-width: thin; scrollbar-color: var(--night-3) transparent; }
+  .side-group + .side-group { margin-top: .3rem; }
+  .side-pinned { padding-bottom: .4rem; margin-bottom: .3rem; border-bottom: 1px solid var(--night-3); }
+  .side-head, .side-collapse { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; width: 100%;
+    padding: .45rem .6rem; border-radius: var(--radius-ui); cursor: pointer; color: var(--muted); }
+  .side-head { font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .side-head::after { content: "▾"; margin-left: auto; font-size: .8rem; transition: transform .2s; }
+  .side-group:not(.open) .side-head::after { transform: rotate(-90deg); }
+  .side-head:hover, .side-collapse:hover { color: var(--paper); background: var(--night-3); }
+  .side-head:focus-visible, .side-collapse:focus-visible { outline: 3px solid var(--gold); outline-offset: -3px; }
+  .side-links { display: grid; gap: 1px; }
+  .side-group:not(.open) .side-links { display: none; }
+  .side-link { position: relative; display: flex; align-items: center; gap: .6rem; padding: .4rem .6rem; border-radius: var(--radius-ui);
+    color: var(--paper); text-decoration: none; font-size: .93rem; font-weight: 500; white-space: nowrap; }
+  .side-link:hover { color: #fff; background: var(--night-3); }
+  .side-link[aria-current] { color: var(--gold); font-weight: 700; background: rgb(244 197 66 / .12); box-shadow: inset 3px 0 0 var(--gold); }
+  .side-link.hot:not([aria-current]) { box-shadow: inset 0 0 0 1px rgb(244 197 66 / .45); }
+  .side-link.nav-gang .side-label { color: #FF8DB9; }
+  .side-link .nav-badge { margin-left: auto; }
+  .side-icon { flex: none; width: 1.5rem; text-align: center; color: var(--gold); opacity: .85; }
+  .side-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .side-collapse { width: auto; margin: .4rem .5rem calc(.5rem + env(safe-area-inset-bottom)); font-size: .85rem; }
+  .side-collapse .side-icon { transition: transform .2s; }
+
+  /* the icon rail: every link stays one click away, names show on hover (title) */
+  .side-mini .sidenav .side-label, .side-mini .sidenav .side-link .nav-badge, .side-mini .side-head { display: none; }
+  .side-mini .side-group .side-links { display: grid; }
+  .side-mini .side-group + .side-group { margin-top: .4rem; padding-top: .4rem; border-top: 1px solid var(--night-3); }
+  .side-mini .side-link, .side-mini .side-collapse, .side-mini .side-brand { justify-content: center; padding-inline: 0; }
+  .side-mini .side-icon { width: auto; font-size: 1.1rem; }
+  .side-mini .side-collapse .side-icon { transform: rotate(180deg); }
+  .side-mini .side-link.hot::after { content: ""; position: absolute; top: 5px; right: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--magenta); }
+}
 
 @media (max-width: 1180px) {
   .brand-suffix { display: none; }
@@ -454,28 +513,35 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .card.fullart .xp { background: rgb(255 255 255 / .2); }
 .card.fullart::after { content: ""; position: absolute; inset: 7px; z-index: 2; border-radius: calc(var(--radius-card) - 5px); pointer-events: none;
   background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / .28) 45%, rgb(160 240 255 / .18) 50%, transparent 62%) -120% 0 / 250% 100% no-repeat;
-  mix-blend-mode: screen; animation: foil 4.5s ease-in-out infinite; }
-.card.fullart:hover::after, .card.fullart:focus-within::after { animation-duration: 1.6s; }
+  mix-blend-mode: screen; background-position: 40% 0; }
+/* Performance: a grid can hold 200 full arts and shinies. At rest every card is still (a fixed sheen); the
+   animated effects, which repaint the card on every frame, only run on the card you point at, the big stand
+   card and reveals. */
+.card.fullart:is(:hover, :focus-within, .big, .reveal)::after { animation: foil 4.5s ease-in-out infinite; }
+.card.fullart:is(:hover, :focus-within)::after { animation-duration: 1.6s; }
 @keyframes foil { 0%, 35% { background-position: -120% 0; } 75%, 100% { background-position: 220% 0; } }
-@media (prefers-reduced-motion: reduce) { .card.fullart::after { animation: none; background-position: 40% 0; } }
+@media (prefers-reduced-motion: reduce) { .card.fullart::after { animation: none !important; background-position: 40% 0; } }
 
 /* Shiny: alternate colours on the art, a rainbow holo frame, a twinkling badge (stacks with full art) */
 .card.shiny {
   --frame: conic-gradient(from var(--spin, 0deg), #FF5EAE, #FFD45E, #6EF2C9, #6EA8FF, #C77DFF, #FF5EAE);
-  animation: holo 4s linear infinite;
 }
+/* the spinning frame and the drifting sparkles repaint the card each frame: only where someone is looking */
+.card.shiny:is(:hover, :focus-within, .big):not(.reveal) { animation: holo 4s linear infinite; }  /* .reveal keeps its flip-in */
+.card.shiny:is(:hover, :focus-within, .big, .reveal) .card-face::after { animation: shiny-sheen 6s linear infinite; }
+.card.shiny:is(:hover, :focus-within, .big) .shiny-badge { animation: twinkle 1.8s ease-in-out infinite; }
 .card.shiny .card-window img:not(.own-art) { filter: hue-rotate(150deg) saturate(1.35) brightness(1.05); }
 .card.shiny .card-face::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; mix-blend-mode: color-dodge; opacity: .35;
   background: repeating-linear-gradient(125deg, rgb(255 94 174 / .5) 0 8%, rgb(255 212 94 / .5) 8% 16%, rgb(110 242 201 / .5) 16% 24%, rgb(110 168 255 / .5) 24% 32%),
               radial-gradient(circle at 20% 15%, #fff 0 1.5px, transparent 2.5px) 0 0 / 46px 46px,
               radial-gradient(circle at 70% 60%, #fff 0 1px, transparent 2px) 0 0 / 34px 34px;
-  background-size: 300% 300%, 46px 46px, 34px 34px; animation: shiny-sheen 6s linear infinite; }
+  background-size: 300% 300%, 46px 46px, 34px 34px; }
 .card.shiny .card-face { position: relative; }
-.shiny-badge { margin-right: auto; margin-left: 3px; font-size: .9rem; line-height: 1; filter: drop-shadow(0 0 4px #FFD45E); animation: twinkle 1.8s ease-in-out infinite; }
+.shiny-badge { display: inline-block; margin-right: auto; margin-left: 3px; font-size: .9rem; line-height: 1; filter: drop-shadow(0 0 4px #FFD45E); }
 .shiny-title { display: inline-block; animation: twinkle 1.8s ease-in-out infinite; }
-@keyframes twinkle { 50% { transform: scale(1.25) rotate(15deg); filter: drop-shadow(0 0 8px #FFD45E); } }
+@keyframes twinkle { 50% { transform: scale(1.25) rotate(15deg); } }  /* transform only: the GPU runs it alone */
 @keyframes shiny-sheen { to { background-position: 300% 300%, 46px 46px, 34px 34px; } }
-@media (prefers-reduced-motion: reduce) { .card.shiny, .card.shiny .card-face::after, .shiny-badge, .shiny-title { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .card.shiny, .card.shiny .card-face::after, .shiny-badge, .shiny-title { animation: none !important; } }
 
 .card.big { max-width: 320px; }
 .card.big .card-name { font-size: 1.35rem; }
@@ -554,6 +620,13 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .chips span { display: inline-block; padding: .35rem .75rem; border: 2px solid var(--night-3); border-radius: 999px; font-weight: 700; cursor: pointer; }
 .chips input:checked + span { background: var(--gold); color: var(--ink); border-color: var(--gold); }
 .chips input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+/* Stands page: preview every card as a full art / shiny */
+.look-chips { align-items: center; }
+.look-chips legend { float: left; margin-right: .4rem; color: var(--muted); font-size: var(--step--1); font-weight: 700; }
+.look-chips .unique-toggle span { border-style: dashed; }
+.look-cell { position: relative; display: grid; }
+.look-tag { position: absolute; z-index: 3; left: 50%; bottom: -.6rem; transform: translateX(-50%); white-space: nowrap; padding: .1rem .5rem;
+  border-radius: 999px; background: var(--night-2); border: 1px solid var(--gold); color: var(--gold); font: 700 .7rem/1.5 var(--body); pointer-events: none; }
 
 .stand-detail { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: 2.5rem; align-items: start; }
 @media (max-width: 760px) { .stand-detail { grid-template-columns: 1fr; } }
@@ -1496,6 +1569,11 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .wiki-table { border-collapse: collapse; min-width: 300px; font-variant-numeric: tabular-nums; }
 .wiki-table th, .wiki-table td { padding: .45rem 1.2rem .45rem 0; border-bottom: 1px solid var(--night-3); text-align: left; }
 .wiki-table thead th { color: var(--muted); font-size: var(--step--1); }
+
+/* Over Heaven: the rule list on a fight card and the team's resonances */
+.oh-rules { list-style: none; padding: 0; margin: .6rem 0; display: grid; gap: .35rem; }
+.oh-rules li { padding: .4rem .6rem; border-left: 3px solid var(--part, var(--gold, currentColor)); background: var(--night-2, transparent); }
+.oh-team { margin-top: 1rem; }
 .wiki-defs { display: grid; gap: .1rem; list-style: none; margin: 0; padding: 0; }
 .wiki-defs li { display: grid; grid-template-columns: 2rem 9rem minmax(0, 1fr); align-items: baseline; gap: .6rem; padding: .55rem 0; border-bottom: 1px solid var(--night-3); }
 .wiki-defs li > span:last-child { color: var(--muted); }
@@ -1965,6 +2043,10 @@ body.cine-open { overflow: hidden; }
 .cine-card.turned .cine-back { opacity: 0; transition: opacity 0s .3s; }
 .cine-face { display: grid; pointer-events: none; }  /* the card's own link would leave the page: a tap means "next" */
 .cine-face .card { width: 100%; height: 100%; }
+/* one card on screen at a time: the cinematic plays the full shiny / full art effects */
+.cine-face .card.shiny { animation: holo 4s linear infinite; }
+.cine-face .card.shiny .card-face::after { animation: shiny-sheen 6s linear infinite; }
+.cine-face .card.fullart::after { animation: foil 4.5s ease-in-out infinite; }
 .cine-back { transform: rotateY(180deg); border-radius: 22px; display: grid; place-items: center; border: 4px solid var(--c);
   background: radial-gradient(circle, color-mix(in srgb, var(--c) 25%, #1C0F2E), #1C0F2E 70%); box-shadow: 0 0 40px color-mix(in srgb, var(--c) 60%, transparent); }
 .cine-back span { font: 400 6rem/1 var(--display); color: var(--c); text-shadow: 0 0 24px var(--c); }
@@ -2038,6 +2120,95 @@ body.cine-open { overflow: hidden; }
   .cine *, .cine { animation: none !important; }
   .cine-card { transition: transform .2s; }
 }
+
+/* Summon (app.js): a slow, dim build-up before the cards. Light gathers and a silver Arrow descends and hovers;
+   for SSR and above the core beats and each beat upgrades the colour (.t1 gold, .t2 magenta, .t3 cyan); then the
+   Arrow strikes and a soft portal opens. No flashes and no shaking: the hype is in the waiting and the colour. */
+.summon { position: fixed; inset: 0; z-index: 81; display: grid; place-items: center; overflow: hidden; cursor: pointer;
+  --c: #C9D3E8; --c2: #2E3352; user-select: none; -webkit-tap-highlight-color: transparent; color: var(--paper); }
+.summon.t1 { --c: #F4C542; --c2: #6E4A0C; }
+.summon.t2 { --c: #FF4DA0; --c2: #7A1046; }
+.summon.t3 { --c: #5FF2E4; --c2: #4B2A8C; }
+.summon.impact.s-SR { --c: #A77BFF; --c2: #4A2486; }
+.summon.out { opacity: 0; transition: opacity .45s ease; }
+.sum-bg { position: absolute; inset: 0; animation: tour-fade .6s ease-out;
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c2) 32%, #0B0514) 0%, #07030D 68%); transition: background .8s ease; }
+
+/* the Arrow: a slow descent, a hover, then the strike */
+.sum-arrow { position: absolute; left: 50%; top: 50%; width: 4px; height: 26vmin; margin: -32vmin 0 0 -2px; border-radius: 2px;
+  background: linear-gradient(transparent, var(--c)); box-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
+  animation: sum-descend 1.5s cubic-bezier(.25, .1, .2, 1) both, sum-hover 1.6s ease-in-out 1.5s infinite; transition: background .6s, box-shadow .6s; }
+.sum-arrow::after { content: ""; position: absolute; left: 50%; bottom: -12px; translate: -50% 0; border: 7px solid transparent;
+  border-top: 13px solid var(--c); border-bottom: 0; filter: drop-shadow(0 0 4px var(--c)); transition: border-color .6s; }
+.summon.impact .sum-arrow { animation: sum-strike .5s cubic-bezier(.6, 0, .9, .5) forwards; }
+
+/* light gathering toward the centre while the Arrow comes down */
+.sum-gather, .sum-sparks { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.sum-gather i { position: absolute; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: var(--c); opacity: 0;
+  box-shadow: 0 0 6px var(--c); animation: sum-gather var(--t) ease-in var(--w) infinite; transition: background .6s; }
+.summon.impact .sum-gather { opacity: 0; transition: opacity .4s; }
+
+/* the core: a faint glow that breathes, then beats on each colour upgrade */
+.sum-portal { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.sum-portal::before { content: ""; position: absolute; width: 18vmin; height: 18vmin; translate: -50% -50%; border-radius: 50%; opacity: .35;
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 45%, transparent), transparent 70%); animation: sum-breathe 2.4s ease-in-out infinite;
+  transition: opacity .6s, background .6s; }
+.summon.pulse .sum-portal::before { animation: sum-beat .85s ease-out; }
+.summon.impact .sum-portal::before { opacity: .6; width: 26vmin; height: 26vmin; animation: sum-breathe 2s ease-in-out infinite; }
+.sum-portal i { position: absolute; width: 10px; height: 10px; translate: -50% -50%; border-radius: 50%; border: 1.5px solid var(--c); opacity: 0;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 50%, transparent); }
+.summon.pulse .sum-portal i:first-child { animation: sum-ring .85s ease-out; }
+.summon.impact .sum-portal i { animation: sum-ring 1.8s cubic-bezier(.2, .6, .3, 1) forwards; }
+.summon.impact .sum-portal i:nth-child(2) { animation-delay: .25s; }
+.summon.impact .sum-portal i:nth-child(3) { animation-delay: .5s; }
+.summon.s-R .sum-portal i:nth-child(n+2), .summon.s-SR .sum-portal i:nth-child(3) { display: none; }
+
+/* after the strike: a light bloom of sparks drifting out */
+.sum-sparks i { position: absolute; width: 2px; height: 10px; margin-left: -1px; border-radius: 2px; background: var(--c);
+  box-shadow: 0 0 5px var(--c); opacity: 0; transform: rotate(var(--a)); animation: sum-spark var(--t) cubic-bezier(.2, .7, .3, 1) var(--w) forwards; }
+.sum-sparks i.mote { width: 4px; height: 4px; border-radius: 50%; animation-name: sum-mote; }
+.summon.s-LR .sum-sparks i:nth-child(3n) { background: #FF4DA0; box-shadow: 0 0 5px #FF4DA0; }
+.summon.s-LR .sum-sparks i:nth-child(3n + 1) { background: #F4C542; box-shadow: 0 0 5px #F4C542; }
+
+/* SSR and up: slow, faint rays once the portal opens */
+.sum-rays { position: absolute; inset: -50%; opacity: 0; transition: opacity 1.2s ease; animation: cine-spin 40s linear infinite;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 14%, transparent) 0 4deg, transparent 4deg 18deg); }
+.summon.burst.s-SSR .sum-rays, .summon.burst.s-UR .sum-rays { opacity: .65; }
+.summon.burst.s-LR .sum-rays { opacity: .18; animation-duration: 24s;
+  background: repeating-conic-gradient(#FF4DA0 0 3deg, transparent 3deg 10deg, #F4C542 10deg 13deg, transparent 13deg 20deg, #5FF2E4 20deg 23deg, transparent 23deg 32deg); }
+
+/* UR and LR: distant lightning, a faint slow flicker */
+.sum-bolts { position: absolute; inset: 0; pointer-events: none; }
+.sum-bolts i { display: none; position: absolute; top: -5%; width: 10vmin; height: 50vh; opacity: 0; background: var(--c);
+  filter: drop-shadow(0 0 8px var(--c)); clip-path: polygon(45% 0, 60% 0, 52% 38%, 68% 38%, 40% 100%, 48% 55%, 32% 55%); }
+.summon.beat.t2 .sum-bolts i { display: block; animation: sum-bolt 2.6s ease-in-out infinite; }
+.sum-bolts i:nth-child(1) { left: 14%; }
+.sum-bolts i:nth-child(2) { left: 72%; transform: scaleX(-1); animation-delay: .9s; }
+.sum-bolts i:nth-child(3) { left: 44%; height: 30vh; animation-delay: 1.7s; }
+
+/* LR: on its last beat time stops (the world drains to grey for a moment) before the colour floods back */
+.summon.t3 .sum-bg { animation: sum-timestop 1.4s ease-in-out; }
+
+.sum-word { position: absolute; top: 12%; right: 8%; margin: 0; writing-mode: vertical-rl; opacity: 0; transition: opacity 1s ease;
+  font: 400 clamp(1.4rem, 5vw, 2.6rem)/1 var(--display); color: var(--c); text-shadow: 2px 2px 0 #000; }
+.summon.beat .sum-word { opacity: .7; animation: cine-menace 1.6s ease-in-out infinite; }
+.summon.s-LR .sum-word { font-size: clamp(1.8rem, 7vw, 3.6rem); }
+.sum-hint { position: absolute; bottom: calc(1rem + env(safe-area-inset-bottom)); margin: 0; color: var(--muted); font-size: var(--step--1); opacity: .7; }
+
+@keyframes sum-descend { from { transform: translateY(-60vh); opacity: 0; } 30% { opacity: 1; } to { transform: translateY(0); } }
+@keyframes sum-hover { 50% { transform: translateY(-1.2vmin); } }
+@keyframes sum-strike { to { transform: translateY(8vmin) scaleY(.15); opacity: 0; } }
+@keyframes sum-gather { from { transform: rotate(var(--a)) translateY(calc(-1 * var(--d))); opacity: 0; } 30% { opacity: .7; }
+  to { transform: rotate(var(--a)) translateY(-1vmin); opacity: 0; } }
+@keyframes sum-breathe { 50% { scale: 1.1; opacity: .5; } }
+@keyframes sum-beat { 0% { scale: 1; } 18% { scale: 1.45; opacity: .85; } 100% { scale: 1; opacity: .4; } }
+@keyframes sum-ring { from { width: 10px; height: 10px; opacity: .7; } to { width: 56vmin; height: 56vmin; opacity: 0; } }
+@keyframes sum-spark { from { transform: rotate(var(--a)) translateY(-2vmin); opacity: .9; }
+  to { transform: rotate(var(--a)) translateY(calc(-1 * var(--d))); opacity: 0; } }
+@keyframes sum-mote { from { transform: rotate(var(--a)) translateY(-3vmin); opacity: .8; } to { transform: rotate(var(--a)) translateY(calc(-.5 * var(--d))); opacity: 0; } }
+@keyframes sum-bolt { 0%, 100% { opacity: 0; } 8% { opacity: .35; } 14% { opacity: .08; } 20% { opacity: .25; } 30% { opacity: 0; } }
+@keyframes sum-timestop { 40% { filter: saturate(0) brightness(.55); } }
+@media (prefers-reduced-motion: reduce) { .summon, .summon * { animation: none !important; } }
 
 /* Special descriptions: numbers that grow with the stand's stats vs fixed ones */
 .sp-fixed { font-weight: 700; }

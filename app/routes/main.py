@@ -2,7 +2,7 @@
 import datetime
 import random
 
-from flask import Blueprint, Response, abort, jsonify, render_template, request, session, url_for
+from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, session, url_for
 
 from app import social
 from app.db import get_db, identity, leaderboard as lb
@@ -117,14 +117,26 @@ def service_worker():
 def stands():
     q = request.args.get("q", "").strip()
     rarity = request.args.get("rarity", "")
+    look = request.args.get("look", "")
+    look = look if look in LOOKS else ""
+    unique = bool(request.args.get("unique"))
     result = PLAYABLE
     if rarity in RARITY_ORDER:
         result = [c for c in result if c["rarity"] == rarity]
     if q:
         ql = q.lower()
         result = [c for c in result if ql in c["name"].lower() or ql in c["special_description"].lower()]
+    if unique:  # only stands with their own illustration for the look (any of them for "classic")
+        art = current_app.extensions.get("art_files", {})
+        kinds = {"": ("artwork", "shiny"), "full": ("artwork",), "shiny": ("shiny",), "both": ("artwork", "shiny")}[look]
+        result = [c for c in result if any(c["id"] in art.get(k, {}) for k in kinds)]
     tpl = "partials/stand_grid.html" if request.headers.get("HX-Request") else "stands.html"
-    return render_template(tpl, stands=result, q=q, rarity=rarity, rarities=RARITY_ORDER)
+    return render_template(tpl, stands=result, q=q, rarity=rarity, rarities=RARITY_ORDER, look=look, unique=unique,
+                           looks=LOOKS)
+
+
+# Cosmetic previews on the stands page: how each card looks at ★3 (full art), shiny, or both
+LOOKS = {"": "Classic", "full": "Full art", "shiny": "Shiny", "both": "Shiny full art"}
 
 
 def _wiki_ctx(topic: str) -> dict:
@@ -135,6 +147,7 @@ def _wiki_ctx(topic: str) -> dict:
         ctx["terrains"] = wiki_data.terrain_rows()
     elif topic == "synergies":
         ctx["synergies"] = wiki_data.synergy_rows()
+        ctx["resonances"], ctx["leverage"] = wiki_data.resonance_rows(), wiki_data.leverage_rows()
     elif topic == "combat":
         ctx["effects"] = wiki_data.effect_rows()
     elif topic == "types":

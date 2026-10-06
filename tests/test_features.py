@@ -861,6 +861,28 @@ def test_requiem_arrow_rules_for_ger_and_the_star_cap(client):
     assert d["main_characters"][0]["awaken"] == MAX_AWAKEN and d["items"] == [{"id": 3}] and b"5" in r.data
 
 
+def test_requiem_is_a_choice_so_the_original_can_reach_five_stars(client):
+    from app.game.logic import MAX_AWAKEN
+    kq = char(49, xp=10_000, awaken=2)  # Killer Queen, level 100, ★2: could evolve right now
+    player(client, "111", main_characters=[kq], items=[{"id": 3}] * 5)
+    h = login(client, "111")
+    panel = client.get(f"/team/stand/{kq['uuid']}", headers=h).data.decode()
+    assert "Evolve into Killer Queen bite the dust" in panel and "★3 with an Arrow" in panel
+    for _ in range(MAX_AWAKEN - 2):  # awaken on purpose: it stays Killer Queen
+        client.post("/team/arrow", data={"uuid": kq["uuid"], "mode": "awaken"}, headers=h)
+    d = doc(client, "111")
+    assert d["main_characters"][0]["id"] == 49 and d["main_characters"][0]["awaken"] == MAX_AWAKEN
+    assert "★6" not in client.get(f"/team/stand/{kq['uuid']}", headers=h).data.decode()  # no star past the cap
+    # still free to make it Requiem later, from the inventory's own button
+    r = client.post("/items/use", data={"item": 3, "uuid": kq["uuid"], "mode": "requiem"}, headers=h)
+    assert b"Requiem" in r.data and doc(client, "111")["main_characters"][0]["id"] == 58
+    # Requiem on a stand that isn't ready is refused and the arrow comes back
+    sc = char(6, xp=5_000, awaken=2)
+    player(client, "222", main_characters=[sc], items=[{"id": 3}])
+    r = client.post("/items/use", data={"item": 3, "uuid": sc["uuid"], "mode": "requiem"}, headers=login(client, "222"))
+    assert b"needs level 100" in r.data and doc(client, "222")["items"] == [{"id": 3}]
+
+
 def test_reforge_locks_pairs_charges_by_rarity_and_lets_the_player_choose(client):
     from app.game.logic import REFORGE_LOCK_MULT, REFORGE_PRICE
     stand = char(1, types=["ATTACK", "SPEED", "LUCK"], quals=["UNIVERSAL", "BAD", "GOOD"])
@@ -1218,7 +1240,7 @@ def test_admins_can_grant_and_toggle_shiny_and_fusing_keeps_it(client):
 
 def test_short_cooldowns_open_when_the_timer_hits_zero():
     import datetime
-    assert logic.wormhole_wait(User(create_user("cd"))) == 10 / 60
+    assert logic.wormhole_wait(User(create_user("cd"))) == 14 / 60
     just_over = logic.now() - datetime.timedelta(minutes=10, seconds=5)
     assert logic.cooldown_left(just_over, 10 / 60) is None          # used to stay locked for the whole hour
     left = logic.cooldown_left(logic.now() - datetime.timedelta(minutes=4), 10 / 60)
@@ -1228,8 +1250,10 @@ def test_short_cooldowns_open_when_the_timer_hits_zero():
 
 def test_tower_floors_show_their_rewards():
     from app.game import tower
+    view = tower.preview(20)["reward"]  # every 20th floor pays an Arrowhead
+    assert view["fragments"] == tower.reward_for(20)["fragments"] and view["super"] == 1
+    assert tower.preview(10)["reward"]["super"] == 0
     view = tower.preview(10)["reward"]
-    assert view["fragments"] == tower.reward_for(10)["fragments"] and view["super"] == 1
     assert view["items"] and view["stand_xp"] == tower.stand_xp_for(10)
     assert [m["floor"] for m in tower.milestones(3)] == [5, 10, 15, 20]
     assert [m["floor"] for m in tower.milestones(10)] == [15, 20, 25, 30]
@@ -1242,11 +1266,17 @@ def test_synergy_team_bonus_applies_once_and_logs():
     jotaro, avdol, loner = _stand(1), _stand(2), _stand(92)
     dmg, spd = jotaro.current_damage, jotaro.current_speed
     team = [jotaro, avdol, loner]
+    def bare(c, attr):  # the stat without temporary effects (the second mover's counter stance)
+        from app.game.effects import STAT_EFFECTS
+        return getattr(c, attr) - sum(sign * e.value for e in c.effects if e.type in STAT_EFFECTS
+                                      for a, sign in [STAT_EFFECTS[e.type]] if a == attr)
     fight = Fight(Side("A", team, True), Side("B", [_stand(150)], False))
-    assert jotaro.current_damage == pytest.approx(dmg * 1.08) and jotaro.current_speed == pytest.approx(spd * 1.08)
+    # Star Platinum is an SSR (leverage x1), two Crusaders aren't a full set: the base +12% damage, +10% speed
+    assert bare(jotaro, "current_damage") == pytest.approx(dmg * 1.12)
+    assert bare(jotaro, "current_speed") == pytest.approx(spd * 1.10)
     assert any("Stardust Crusaders" in e["text"] for e in fight.log)
     Fight(Side("A", team, True), Side("B", [_stand(150)], False))  # the tower reuses its fighters
-    assert jotaro.current_damage == pytest.approx(dmg * 1.08)
+    assert bare(jotaro, "current_damage") == pytest.approx(dmg * 1.12)
 
 
 def test_new_terrain_setters_are_natives():
@@ -1262,14 +1292,17 @@ def test_alternate_universe_opens_with_the_story_and_pays_once(client):
     d = doc(client, "111")
     d["main_characters"] = [char(1)]
     put(client, d)
-    page = client.get("/alternate-universe").data.decode()
-    assert "No universe has split off yet" in page and "Opens after Part 3" in page
+    # locked: hidden from the nav, and the page sends you back to the story
+    assert client.get("/alternate-universe").headers["Location"].endswith("/story")
+    assert "/alternate-universe" not in client.get("/story").data.decode()
     client.post("/alternate-universe/fight", data={"chapter": "world_unbroken"}, headers=h)
     assert client.fake.get("web:fight:111") is None  # locked until Part 3's boss falls
 
     d = doc(client, "111")
     d["web_story"] = {"cleared": altverse._boss_index(3) + 1}
     put(client, d)
+    client.fake.delete("web:story_cleared:111")  # a story win refreshes the nav's copy; this test edits the save
+    assert "/alternate-universe" in client.get("/story").data.decode()
     assert "Cairo Under Night" in client.get("/alternate-universe").data.decode()
     client.post("/alternate-universe/fight", data={"chapter": "world_unbroken"}, headers=h)
     fight = dbmod.load_fight("111")
@@ -1363,7 +1396,7 @@ def test_team_page_puts_the_gang_up_front(client):
     login(client, "111")
     page = client.get("/team").data.decode()
     assert "not in a gang yet" in page and "Crusaders" in page and "Plan a trip" in page
-    assert page.index('class="nav-gang"') < page.index("Summon")
+    assert page.index("nav-gang") < page.index("Summon")  # the sidebar pins Team, Gangs, Summon on top
     assert client.get("/journey").status_code == 200
 
 

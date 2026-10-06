@@ -187,6 +187,7 @@ def _edit(uid, fn, kind, ok, **details):
                 return
             msg = fn(target)
             target.update()
+            r().delete(f"web:story_cleared:{uid}")  # the nav's cached story progress (routes/progress.unlocks)
             audit(kind, uid, **details)
             flash(msg or ok, "ok")
     except logic.GameError as e:

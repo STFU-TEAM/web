@@ -7,13 +7,13 @@
 </header>
 
 <h2 class="wiki-h2">Turn order</h2>
-<p>Teams take turns; the faster team goes first. On your turn every stand attacks once, in team order, and <strong>you choose each target</strong>. Taunt stands must be hit first. A stand whose special is charged fires it right after its attack, and <strong>single-target specials strike the enemy you just picked</strong>, so aim your specials. <a href="{{ url_for('main.wiki', topic='terrains') }}">Terrain</a> is re-checked at the start of every turn.</p>
+<p>Teams take turns; the faster team goes first (checked after synergies and ambushes, so slowing a fast team can steal the first move). The team that moves second opens in a <strong>counter stance</strong>: every special starts one turn closer, +{{ facts.counter_armor }}% armor and +{{ facts.counter_damage }}% damage for its first {{ facts.counter_turns }} turns, and +1 critical for every point of speed it gave up (up to +{{ facts.counter_crit }}) for the whole fight. Speed wins the tempo, not the fight. On your turn every stand attacks once, in team order, and <strong>you choose each target</strong>. Taunt stands must be hit first. A stand whose special is charged fires it right after its attack, and <strong>single-target specials strike the enemy you just picked</strong>, so aim your specials. <a href="{{ url_for('main.wiki', topic='terrains') }}">Terrain</a> is re-checked at the start of every turn.</p>
 
 <h2 class="wiki-h2">Stats</h2>
 <ul class="wiki-defs">
   <li><span class="def-icon" aria-hidden="true">❤️</span><strong>Health</strong><span>At 0 the stand is out. Nothing heals past max health.</span></li>
   <li><span class="def-icon" aria-hidden="true">⚔️</span><strong>Damage</strong><span>Base power of attacks and most specials. Health and damage grow at the same rate with levels, so fights take about as long at level 1 as at level {{ facts.max_level }}.</span></li>
-  <li><span class="def-icon" aria-hidden="true">💨</span><strong>Speed</strong><span>Dodging and terrain control. A faster defender dodges with a chance equal to the speed gap, capped at {{ facts.dodge_cap }}%.</span></li>
+  <li><span class="def-icon" aria-hidden="true">💨</span><strong>Speed</strong><span>Dodging and terrain control. A faster defender dodges with a chance of 1% per {{ facts.dodge_per }} points of speed gap, capped at {{ facts.dodge_cap }}%.</span></li>
   <li><span class="def-icon" aria-hidden="true">🛡️</span><strong>Armor</strong><span>Damage taken is multiplied by 200 ÷ (100 + armor): 100 armor is neutral, 0 takes double, and the cap of {{ facts.armor_cap }} takes {{ facts.armor_floor }}%.</span></li>
   <li><span class="def-icon" aria-hidden="true">🎯</span><strong>Critical</strong><span>Percent chance to crit, up to {{ facts.crit_cap }}%. A crit deals ×{{ facts.crit_multiplier }}.</span></li>
   <li><span class="def-icon" aria-hidden="true">🪧</span><strong>Taunt</strong><span>Tank stands draw basic attacks and get +{{ facts.taunt_armor }} armor.</span></li>

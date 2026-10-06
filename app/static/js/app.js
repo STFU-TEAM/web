@@ -303,6 +303,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     const face = el.querySelector(".cine-face");
     face.innerHTML = src.querySelector(".flip-front").innerHTML;
     face.querySelectorAll("a, button").forEach((x) => x.setAttribute("tabindex", "-1"));
+    face.querySelectorAll("img[data-anim]").forEach((img) => { img.src = img.dataset.anim; img.removeAttribute("data-anim"); });
     const card = el.querySelector(".cine-card");
     card.className = "cine-card";
     void card.offsetWidth;  // restart the entrance animation
@@ -366,6 +367,81 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     const box = batch?.querySelector("[data-cinematic-auto]");
     if (box) box.checked = pref();
   }
+
+  // Summon: a slow build before any card. Light gathers, a silver Arrow descends and hovers; for SSR and
+  // above the core beats like a heart and each beat upgrades its colour (gold, then magenta, then cyan), the
+  // tease; then the Arrow strikes and a soft portal opens. Everything stays dim: the hype is in the waiting.
+  const RANK = { R: 0, SR: 1, SSR: 2, UR: 3, LR: 4 };
+  const BEATS = { SSR: ["t1"], UR: ["t1", "t2"], LR: ["t1", "t2", "t3"] };  // colour upgrades before the strike
+  const GATHER_MS = 1600, BEAT_MS = 850, AFTER_MS = { R: 1000, SR: 1200, SSR: 1600, UR: 1800, LR: 2300 };
+  const SPARKS = { SR: [10, "mote"], SSR: [16, ""], UR: [20, ""], LR: [28, ""] };
+  let summoning = null;
+  const topOf = (batch) => [...batch.querySelectorAll("[data-flip]")].map((c) => c.dataset.rarity)
+    .sort((a, b) => (RANK[b] ?? 0) - (RANK[a] ?? 0))[0] || "R";
+
+  function sparks(el, n, cls, box = ".sum-sparks") {
+    const host = el.querySelector(box);
+    for (let k = 0; k < n; k++) {
+      const s = document.createElement("i");
+      if (cls) s.className = cls;
+      s.style.setProperty("--a", `${(360 / n) * k + Math.random() * 10}deg`);
+      s.style.setProperty("--d", `${22 + Math.random() * 20}vmin`);
+      s.style.setProperty("--t", `${1.2 + Math.random() * 0.8}s`);
+      s.style.setProperty("--w", `${Math.random() * (cls === "gather" ? 1.2 : 0.3)}s`);
+      host.append(s);
+    }
+  }
+
+  function summon(batch, done) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return done();
+    const top = topOf(batch);
+    const el = document.createElement("div");
+    el.className = `summon s-${top}`;
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-modal", "true");
+    el.setAttribute("aria-label", "Summoning");
+    el.innerHTML = `
+      <div class="sum-bg"></div><div class="sum-rays"></div>
+      <div class="sum-portal"><i></i><i></i><i></i></div>
+      <div class="sum-bolts" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="sum-gather" aria-hidden="true"></div><div class="sum-sparks" aria-hidden="true"></div>
+      <div class="sum-arrow" aria-hidden="true"></div>
+      <p class="sum-word" aria-hidden="true">${MENACE[top] || ""}</p>
+      <p class="sum-hint">Tap to skip</p>`;
+    document.body.append(el);
+    document.body.classList.add("cine-open");
+    sparks(el, 18, "gather", ".sum-gather");
+    const timers = [];
+    const finish = () => {
+      if (summoning?.el !== el) return;
+      timers.forEach(clearTimeout);
+      summoning = null;
+      el.classList.add("out");
+      setTimeout(() => { el.remove(); if (!state) document.body.classList.remove("cine-open"); }, 250);
+      done();
+    };
+    summoning = { el, finish };
+    let t = GATHER_MS;
+    (BEATS[top] || []).forEach((beat) => {  // each heartbeat upgrades the colour: the tease
+      timers.push(setTimeout(() => {
+        el.classList.add(beat, "beat");
+        el.classList.remove("pulse");
+        void el.offsetWidth;  // restart the pulse animation
+        el.classList.add("pulse");
+      }, t));
+      t += BEAT_MS;
+    });
+    timers.push(setTimeout(() => {
+      el.classList.add("impact");
+      if (SPARKS[top]) sparks(el, ...SPARKS[top]);
+    }, t));
+    timers.push(setTimeout(() => el.classList.add("burst"), t + 350));
+    timers.push(setTimeout(finish, t + (AFTER_MS[top] || 1000)));
+  }
+  document.addEventListener("click", (e) => { if (summoning && e.target.closest(".summon")) summoning.finish(); });
+  document.addEventListener("keydown", (e) => {
+    if (summoning && [" ", "Enter", "Escape", "ArrowRight"].includes(e.key)) { e.preventDefault(); summoning.finish(); }
+  });
   // a fresh pull opens straight into the cinematic when the player chose it
   document.addEventListener("htmx:afterSwap", (e) => {
     if (e.detail.target.id !== "pull-result") return;
@@ -374,8 +450,11 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     if (batch.dataset.cineSeen) return;  // htmx fires this once per out-of-band swap too
     batch.dataset.cineSeen = "1";
     syncBox(batch);
-    if (pref()) start(batch);  // at once, before the grid ever paints
-    else delete batch.dataset.cineWait;
+    // the summon plays first (the grid stays hidden behind it), then the cinematic or the grid
+    summon(batch, () => {
+      if (pref()) start(batch);
+      else delete batch.dataset.cineWait;
+    });
   });
 })();
 
@@ -837,6 +916,48 @@ document.addEventListener("click", (e) => {
   });
 });
 
+// Animated card art (a shiny from a GIF...) sits as a still poster in grids, so 200 cards don't all decode
+// animations at once: it plays while the card is pointed at or focused, and in the pull cinematic.
+function playArt(card, on) {
+  const img = card?.querySelector("img[data-anim]");
+  if (!img) return;
+  if (on && !img.dataset.still) { img.dataset.still = img.src; img.src = img.dataset.anim; }
+  else if (!on && img.dataset.still) { img.src = img.dataset.still; delete img.dataset.still; }
+}
+document.addEventListener("pointerover", (e) => playArt(e.target.closest?.(".card"), true));
+document.addEventListener("pointerout", (e) => {
+  const card = e.target.closest?.(".card");
+  if (card && !card.contains(e.relatedTarget)) playArt(card, false);
+});
+document.addEventListener("focusin", (e) => playArt(e.target.closest?.(".card"), true));
+document.addEventListener("focusout", (e) => {
+  const card = e.target.closest?.(".card");
+  if (card && !card.contains(e.relatedTarget)) playArt(card, false);
+});
+
+// Desktop sidebar: groups open and close (remembered per player), and the whole bar collapses to an icon rail.
+document.addEventListener("click", (e) => {
+  const head = e.target.closest("[data-side-head]");
+  if (head) {
+    const group = head.closest("[data-side-group]");
+    const open = group.classList.toggle("open");
+    head.setAttribute("aria-expanded", String(open));
+    try {
+      const saved = JSON.parse(localStorage.getItem("side-open") || "{}");
+      saved[group.dataset.sideGroup] = open;
+      localStorage.setItem("side-open", JSON.stringify(saved));
+    } catch (err) { /* storage blocked */ }
+    return;
+  }
+  const toggle = e.target.closest("[data-side-toggle]");
+  if (toggle) {
+    const mini = document.documentElement.classList.toggle("side-mini");
+    toggle.setAttribute("aria-label", mini ? "Expand the sidebar" : "Collapse the sidebar");
+    toggle.title = toggle.getAttribute("aria-label");
+    try { localStorage.setItem("side-mini", mini ? "1" : "0"); } catch (err) { /* storage blocked */ }
+  }
+});
+
 // New-player tour: spotlight each nav tab (desktop bar or mobile dock) with a card saying why it matters.
 (() => {
   const tour = document.getElementById("tour");
@@ -857,13 +978,14 @@ document.addEventListener("click", (e) => {
   };
   const place = () => {
     const el = targetOf(steps[i]);
-    if (!el) {
-      spot.hidden = true;
-      Object.assign(card.style, { left: "50%", top: "50%", transform: "translate(-50%, -50%)" });
+    if (!el) {  // no target: the spotlight shrinks to the middle, ringless (never toggled hidden: see .tour-spot)
+      spot.classList.add("is-off");
+      Object.assign(spot.style, { left: "50%", top: "50%", width: "0px", height: "0px" });
+      Object.assign(card.style, { left: "50%", top: "50%", bottom: "auto", transform: "translate(-50%, -50%)" });
       return;
     }
     const r = el.getBoundingClientRect();
-    spot.hidden = false;
+    spot.classList.remove("is-off");
     Object.assign(spot.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
     const w = Math.min(340, innerWidth - 24);
     const left = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2));

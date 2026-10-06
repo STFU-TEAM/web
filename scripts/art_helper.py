@@ -1,14 +1,21 @@
 """Art helper: find artwork for a stand, then save it into the right folder in one click.
 
     python scripts/art_helper.py          then open http://127.0.0.1:5055
+    python scripts/art_helper.py --optimize   re-encode every artwork / shiny for cards (originals kept in art/_originals)
+
+Artwork and shiny files are saved for cards: stills as WebP at most 1000 px tall; animations (Tenor GIFs...)
+as small animated WebP plus a <id>.still.webp poster that grids show until the card is hovered.
 
 Folders (next to this repo's app/, ignored by git); upload their contents to the image server root:
     art/artwork/{id}.webp   full-art cards (★3+)        -> https://images.stfurequiem.com/artwork/{id}.webp
     art/shiny/{id}.webp     shiny cards                  -> .../shiny/{id}.webp
     art/special/{id}.gif    the special's animation      -> .../special/{id}.gif (replaces the original)
 
-Candidates come from the stand's page on the JoJo wiki (jojo.fandom.com); any other image can be saved
-by pasting its URL or dropping the file. Still images are converted to WebP (Pillow) and can be cropped
+Candidates come from, in this order: Google Images, Tenor GIFs, then the stand's page on the JoJo wiki
+(jojo.fandom.com); any other image can be saved by pasting its URL or dropping the file.
+    Google Images needs its official API (Google blocks scraping): set GOOGLE_API_KEY and GOOGLE_CSE_ID
+    (a Programmable Search Engine with image search on, searching the whole web).
+    Tenor uses TENOR_API_KEY (or GOOGLE_API_KEY) with its v2 API, and reads tenor.com's search page without one. Still images are converted to WebP (Pillow) and can be cropped
 to the card's 7:12 shape. "Update the game's lists" writes app/game/data/fullart.json, shiny.json and
 special.json (each file's exact name) and tells you which files aren't on the image server yet.
 A card preview draws the stand with the game's own stylesheet: classic, full art (★3), shiny and both,
@@ -38,6 +45,8 @@ UA = {"User-Agent": "STFU-Requiem-art-helper/1.0 (fan game asset tool)"}
 MAX_BYTES = 40 * 1024 * 1024
 CARD_RATIO = 7 / 12
 IMAGE_BASE = os.environ.get("IMAGE_BASE_URL", "https://images.stfurequiem.com").rstrip("/")
+GOOGLE_KEY, GOOGLE_CX = os.environ.get("GOOGLE_API_KEY", ""), os.environ.get("GOOGLE_CSE_ID", "")
+TENOR_KEY = os.environ.get("TENOR_API_KEY", "") or GOOGLE_KEY
 
 with open(os.path.join(DATA, "characters.json"), encoding="utf-8") as fh:
     STANDS = [c for c in json.load(fh)["characters"] if c.get("universe") != "Dummy"]
@@ -100,12 +109,76 @@ def fetch(url: str) -> bytes:
     return data
 
 
-def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
-    """Write the image into art/<kind>/<id>.<ext>; returns the file name."""
+# Card art is drawn at most ~320 px wide (the big stand card); grids hold up to 200 cards at once.
+# Stills: WebP, at most STILL_MAX_H tall. Animations (shinies from Tenor...): animated WebP at most
+# ANIM_MAX_H tall and ANIM_MAX_FRAMES frames, plus a still poster (<id>.still.webp) that grids show
+# until the card is hovered.
+STILL_MAX_H, STILL_Q = 1000, 82
+ANIM_MAX_H, ANIM_Q, ANIM_MAX_FRAMES = 420, 72, 120
+STILL_SUFFIX = ".still.webp"
+
+
+def _webp(img, quality) -> bytes:
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=quality, method=6)
+    return buf.getvalue()
+
+
+def optimize_still(img, max_h: int = STILL_MAX_H) -> bytes:
+    img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "P") or "transparency" in img.info else "RGB")
+    if img.height > max_h:
+        img = img.resize((max(1, round(img.width * max_h / img.height)), max_h), Image.LANCZOS)
+    return _webp(img, STILL_Q)
+
+
+def optimize_anim(img) -> tuple:
+    """(animated WebP, still poster WebP) from an animated GIF/WebP/PNG."""
+    from PIL import ImageSequence
+    frames, durations = [], []
+    for frame in ImageSequence.Iterator(img):
+        frames.append(frame.convert("RGBA"))
+        durations.append(max(20, frame.info.get("duration", img.info.get("duration", 80)) or 80))
+    step = -(-len(frames) // ANIM_MAX_FRAMES)  # keep every step-th frame, each lasting as long as the ones it covers
+    if step > 1:
+        frames = frames[::step]
+        durations = [sum(durations[i:i + step]) for i in range(0, len(durations), step)][:len(frames)]
+    scale = min(1, ANIM_MAX_H / frames[0].height)
+    if scale < 1:
+        size = (max(1, round(frames[0].width * scale)), ANIM_MAX_H)
+        frames = [f.resize(size, Image.LANCZOS) for f in frames]
+    buf = io.BytesIO()
+    frames[0].save(buf, "WEBP", save_all=True, append_images=frames[1:], duration=durations, loop=0,
+                   quality=ANIM_Q, method=4)
+    poster = frames[len(frames) // 3]  # a frame a little in: first frames are often blank or a fade-in
+    return buf.getvalue(), optimize_still(poster)
+
+
+def _clear(kind: str, stand_id: int):
     out_dir = folder(kind)
     old = existing(kind, stand_id)
     if old:
         os.remove(os.path.join(out_dir, old))
+    still = os.path.join(out_dir, f"{stand_id}{STILL_SUFFIX}")
+    if os.path.exists(still):
+        os.remove(still)
+
+
+def write_optimized(kind: str, stand_id: int, img) -> str:
+    """Artwork and shiny files, optimized for cards (see STILL_MAX_H). Returns the main file's name."""
+    out_dir = folder(kind)
+    if getattr(img, "is_animated", False):
+        anim, poster = optimize_anim(img)
+        open(os.path.join(out_dir, f"{stand_id}.webp"), "wb").write(anim)
+        open(os.path.join(out_dir, f"{stand_id}{STILL_SUFFIX}"), "wb").write(poster)
+    else:
+        open(os.path.join(out_dir, f"{stand_id}.webp"), "wb").write(optimize_still(img))
+    return f"{stand_id}.webp"
+
+
+def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
+    """Write the image into art/<kind>/<id>.<ext>; returns the file name."""
+    out_dir = folder(kind)
+    _clear(kind, stand_id)
     if Image is None:
         ext = ".gif" if data[:3] == b"GIF" else ".webp" if data[8:12] == b"WEBP" else ".png" if data[:4] == b"\x89PNG" else ".jpg"
         name = f"{stand_id}{ext}"
@@ -113,11 +186,13 @@ def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
         return name
     img = Image.open(io.BytesIO(data))
     animated = getattr(img, "is_animated", False)
-    if kind == "special" or animated:
-        if animated or img.format == "GIF":  # keep animations as they are
+    if kind == "special":  # the special's animation plays alone, full screen: keep it as it is
+        if animated or img.format == "GIF":
             name = f"{stand_id}.gif" if img.format == "GIF" else f"{stand_id}.webp"
             open(os.path.join(out_dir, name), "wb").write(data)
             return name
+    elif animated:  # an animated card art: a small animated WebP and a still poster for grids
+        return write_optimized(kind, stand_id, img)
     img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "P") else "RGB")
     if crop:  # the card's 7:12 shape, keeping the top (faces) in frame
         w, h = img.size
@@ -127,6 +202,8 @@ def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
             img = img.crop((left, 0, left + nw, h))
         else:
             img = img.crop((0, 0, w, int(w / CARD_RATIO)))
+    if kind in ("artwork", "shiny"):
+        return write_optimized(kind, stand_id, img)
     if img.height > 1600:
         img = img.resize((int(img.width * 1600 / img.height), 1600), Image.LANCZOS)
     name = f"{stand_id}.webp"
@@ -165,6 +242,91 @@ def candidates(query: str, page: str = None, limit: int = 60):
                     "w": info.get("width", 0), "h": info.get("height", 0), "gif": mime == "image/gif",
                     "tall": info.get("height", 0) >= info.get("width", 1)})
     return sorted(out, key=lambda c: (not c["gif"] if query.endswith(" gif") else 0, -(c["w"] * c["h"])))
+
+
+# ── Google Images and Tenor (searched first) ────────────────────────────────
+
+def _json(url: str) -> dict:
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def google_images(query: str, limit: int = 20) -> list:
+    """Google Images through the Custom Search JSON API (10 a request). Needs GOOGLE_API_KEY + GOOGLE_CSE_ID."""
+    if not (GOOGLE_KEY and GOOGLE_CX):
+        raise LookupError("Google Images needs GOOGLE_API_KEY and GOOGLE_CSE_ID (Google blocks scraping); "
+                          "the Google Images button above opens it in a tab.")
+    out = []
+    for start in range(1, limit + 1, 10):
+        params = dict(key=GOOGLE_KEY, cx=GOOGLE_CX, q=query, searchType="image", num=min(10, limit - start + 1),
+                      start=start, safe="active")
+        for it in _json("https://www.googleapis.com/customsearch/v1?" + urllib.parse.urlencode(params)).get("items", []):
+            img, mime = it.get("image", {}), it.get("mime", "")
+            w, h = img.get("width", 0), img.get("height", 0)
+            out.append({"title": it.get("title", ""), "url": it["link"], "thumb": img.get("thumbnailLink", it["link"]),
+                        "w": w, "h": h, "gif": mime == "image/gif" or it["link"].lower().endswith(".gif"),
+                        "tall": h >= w, "source": "Google"})
+    return out
+
+
+def tenor_gifs(query: str, limit: int = 24) -> list:
+    """Tenor GIFs: the v2 API with a key, else the links on tenor.com's own search page."""
+    if TENOR_KEY:
+        params = dict(q=query, key=TENOR_KEY, client_key="stfu-art-helper", limit=limit, media_filter="gif,tinygif",
+                      contentfilter="medium")
+        out = []
+        for r in _json("https://tenor.googleapis.com/v2/search?" + urllib.parse.urlencode(params)).get("results", []):
+            gif, tiny = r["media_formats"].get("gif", {}), r["media_formats"].get("tinygif", {})
+            if not gif.get("url"):
+                continue
+            w, h = (gif.get("dims") or [0, 0])[:2]
+            out.append({"title": r.get("content_description") or query, "url": gif["url"], "thumb": tiny.get("url", gif["url"]),
+                        "w": w, "h": h, "gif": True, "tall": h >= w, "source": "Tenor"})
+        return out
+    import re
+    slug = re.sub(r"[^a-z0-9]+", "-", query.lower()).strip("-")
+    html = _curl(f"https://tenor.com/search/{slug}-gifs", "https://tenor.com/").decode("utf-8", "replace")
+    html = html.replace("\\u002F", "/")  # the page's data is JSON with escaped slashes
+    # every format of a GIF shares its id; the last five characters say which: AAAAC the full GIF, AAAAM a small one
+    seen, out = set(), []
+    for base, name in re.findall(r"https://media\d?\.tenor\.com/(?:m/)?([A-Za-z0-9_-]{6,})[A-Za-z0-9]{5}/([^/\"'\s<>?]+?)\.(?:gif|webp|png|mp4)", html):
+        if base in seen:
+            continue
+        seen.add(base)
+        out.append({"title": urllib.parse.unquote(name).replace("-", " "), "url": f"https://media.tenor.com/{base}AAAAC/{name}.gif",
+                    "thumb": f"https://media.tenor.com/{base}AAAAM/{name}.gif", "w": 0, "h": 0, "gif": True,
+                    "tall": False, "source": "Tenor"})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def search_all(name: str, query: str = ""):
+    """Every source, best first: [(label, candidates, error or None, page title)]. Google and Tenor search the
+    query (or "<stand> jojo"); the wiki searches its files for a custom query, else reads the stand's page."""
+    from concurrent.futures import ThreadPoolExecutor
+    web_query = query or f"{name} jojo"
+
+    def wiki_source():
+        if query:
+            return candidates(query), None
+        page_title = wiki_page(name)
+        return (candidates(name, page=page_title) if page_title else []), page_title
+
+    jobs = [("Google Images", lambda: (google_images(web_query), None)),
+            ("Tenor GIFs", lambda: (tenor_gifs(web_query), None)),
+            ("JoJo wiki", wiki_source)]
+    groups = []
+    with ThreadPoolExecutor(len(jobs)) as pool:
+        futures = [(label, pool.submit(job)) for label, job in jobs]
+        for label, fut in futures:
+            try:
+                cands, page_title = fut.result()
+                groups.append((label, cands, None, page_title))
+            except Exception as exc:  # offline, no key, or the site changed
+                groups.append((label, [], str(exc), None))
+    return groups
 
 
 # ── pages ───────────────────────────────────────────────────────────────────
@@ -274,9 +436,9 @@ STAND = """<p><a href="{{ url_for('index') }}">← All stands</a></p>
 <iframe id="preview" class="preview" src="{{ url_for('preview', stand_id=s.id) }}" title="Card preview"></iframe>
 
 <h3>Search</h3>
-<form method="get" class="row"><input name="query" value="{{ query }}" size="40" placeholder="Search the JoJo wiki's files">
-  <button>Search the wiki</button>
-  <a class="btn ghost" href="{{ url_for('stand', stand_id=s.id) }}">Back to its wiki page</a></form>
+<form method="get" class="row"><input name="query" value="{{ query }}" size="40" placeholder="Search Google Images, Tenor and the wiki">
+  <button>Search</button>
+  <a class="btn ghost" href="{{ url_for('stand', stand_id=s.id) }}">Reset to “{{ s.name }} jojo”</a></form>
 <p class="row muted">Elsewhere (opens a tab):
   {% for label, url in links %}<a class="btn ghost" target="_blank" rel="noopener" href="{{ url }}">{{ label }}</a>{% endfor %}</p>
 
@@ -292,16 +454,19 @@ STAND = """<p><a href="{{ url_for('index') }}">← All stands</a></p>
   <button type="button" class="ghost" id="drop-edit">✂ Edit</button>
   <label class="muted"><input type="checkbox" name="crop" value="1" checked> crop to the card</label></div></form>
 
-<h3>Candidates {% if page %}from the wiki page “{{ page }}”{% else %}for “{{ query }}”{% endif %} <small class="muted">{{ cands|length }}</small></h3>
+{% for label, cands, error, page in groups %}
+<h3 id="src-{{ loop.index }}">{{ label }} {% if page %}<small class="muted">from the wiki page “{{ page }}”</small>{% endif %} <small class="muted">{{ cands|length }}</small></h3>
 {% if error %}<p class="flash error">{{ error }}</p>{% endif %}
 <div class="grid">{% for c in cands %}
-  <div class="cand"><a href="{{ url_for('proxy', u=c.url) }}" target="_blank" rel="noopener"><img src="{{ url_for('proxy', u=c.thumb) }}" alt="" loading="lazy"></a>
-    <small>{{ c.title }} · {{ c.w }}×{{ c.h }}{{ ' · GIF' if c.gif }}{{ ' · tall' if c.tall }}</small>
+  <div class="cand"><a href="{{ url_for('proxy', u=c.url) }}" target="_blank" rel="noopener"><img src="{{ url_for('proxy', u=c.thumb) }}" alt="" loading="lazy"
+      onerror="if(!this.dataset.full){this.dataset.full=1;this.src='{{ url_for('proxy', u=c.url) }}'}"></a>
+    <small>{{ c.title }}{% if c.w %} · {{ c.w }}×{{ c.h }}{% endif %}{{ ' · GIF' if c.gif }}{{ ' · tall' if c.tall }}</small>
     <form method="post" action="{{ url_for('save_url', stand_id=s.id) }}"><input type="hidden" name="url" value="{{ c.url }}"><input type="hidden" name="crop" value="1">
       {% for k in kinds %}<button name="kind" value="{{ k }}">→ {{ k }}</button>{% endfor %}
       <button type="button" class="ghost" data-preview="{{ url_for('proxy', u=c.url) }}" data-label="{{ c.title }}">👁 Preview</button>
       {% if not c.gif %}<button type="button" class="ghost" data-edit="{{ url_for('proxy', u=c.url) }}" data-label="{{ c.title }}">✂ Edit</button>{% endif %}</form></div>
-{% else %}<p class="muted">Nothing found. Try another search, or one of the links above.</p>{% endfor %}</div>
+{% else %}{% if not error %}<p class="muted">Nothing found here. Try another search, or one of the links above.</p>{% endif %}{% endfor %}</div>
+{% endfor %}
 <script>
 const drop = document.getElementById("drop"), input = drop.querySelector("input[type=file]");
 ["dragover", "dragenter"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
@@ -488,24 +653,16 @@ def index():
 def stand(stand_id):
     s = BY_ID.get(stand_id) or abort(404)
     query = request.args.get("query", "").strip()
-    cands, page_title, error = [], None, None
-    try:
-        if query:
-            cands = candidates(query)
-        else:
-            page_title = wiki_page(s["name"])
-            cands = candidates(s["name"], page=page_title) if page_title else []
-    except Exception as exc:  # offline, or the wiki is down
-        error = f"The JoJo wiki didn't answer ({exc}). Use the links or paste a URL."
+    groups = search_all(s["name"], query)
     q = urllib.parse.quote_plus
-    links = [("Google Images", f"https://www.google.com/search?tbm=isch&q={q(s['name'] + ' jojo stand')}"),
+    web_query = query or f"{s['name']} jojo"
+    links = [("Google Images", f"https://www.google.com/search?tbm=isch&q={q(web_query)}"),
+             ("Tenor GIFs", f"https://tenor.com/search/{q(web_query.lower().replace(' ', '-'))}-gifs"),
              ("Danbooru", f"https://danbooru.donmai.us/posts?tags={q(s['name'].lower().replace(' ', '_') + '_(stand)')}"),
              ("Pixiv", f"https://www.pixiv.net/en/tags/{q(s['name'])}/artworks"),
-             ("DeviantArt", f"https://www.deviantart.com/search?q={q(s['name'] + ' jojo')}"),
-             ("Tenor GIFs", f"https://tenor.com/search/{q(s['name'].lower().replace(' ', '-'))}-gifs")]
+             ("DeviantArt", f"https://www.deviantart.com/search?q={q(s['name'] + ' jojo')}")]
     have = {k: existing(k, stand_id) for k in KINDS}
-    return page(STAND, s=s, cands=cands, page=page_title, query=query or s["name"], links=links, have=have,
-                error=error, image_base=IMAGE_BASE)
+    return page(STAND, s=s, groups=groups, query=query or web_query, links=links, have=have, image_base=IMAGE_BASE)
 
 
 @app.post("/stand/<int:stand_id>/url")
@@ -668,11 +825,12 @@ def save_crop(stand_id):
         data = _crop_request()
     except Exception as exc:
         return Response(str(exc), status=400, mimetype="text/plain")
-    old = existing(kind, stand_id)
-    if old:
-        os.remove(os.path.join(folder(kind), old))
-    name = f"{stand_id}{_ext(data)}"
-    open(os.path.join(folder(kind), name), "wb").write(data)
+    _clear(kind, stand_id)
+    if Image is not None:  # sized for cards like every saved artwork / shiny
+        name = write_optimized(kind, stand_id, Image.open(io.BytesIO(data)))
+    else:
+        name = f"{stand_id}{_ext(data)}"
+        open(os.path.join(folder(kind), name), "wb").write(data)
     flash(f"Saved the crop to art/{kind}/{name}.")
     return Response("ok", mimetype="text/plain")
 
@@ -753,6 +911,14 @@ def sync():
                             "Written by scripts/art_helper.py from the art/ folder.")
         data.pop("ids", None)
         data["files"] = {str(sid): name for sid, name, _up in rows}
+        # animated art: the still poster grids show until the card is hovered
+        stills = {sid: f"{sid}{STILL_SUFFIX}" for sid in local if os.path.exists(os.path.join(folder(kind), f"{sid}{STILL_SUFFIX}"))}
+        data["stills"] = {str(sid): name for sid, name in sorted(stills.items())}
+        if not data["stills"]:
+            data.pop("stills")
+        with ThreadPoolExecutor(12) as pool:
+            missing += [f"{kind}/{name}" for name, up in zip(stills.values(), pool.map(lambda n: on_server(kind, n), stills.values()))
+                        if not up]
         open(path, "w", encoding="utf-8").write(json.dumps(data, indent=4, ensure_ascii=False) + "\n")
         done.append(f"{kind} {len(rows)}")
         missing += [f"{kind}/{name}" for _sid, name, up in rows if not up]
@@ -765,7 +931,50 @@ def sync():
     return redirect(url_for("index"))
 
 
+def optimize_folders(kinds=("artwork", "shiny")) -> None:
+    """Re-encode every saved artwork / shiny for cards (python scripts/art_helper.py --optimize). The originals
+    move to art/_originals/<kind>/ first, so nothing is lost. Then press "Update the game's lists" and upload."""
+    import shutil
+    if Image is None:
+        sys.exit("--optimize needs Pillow: pip install pillow")
+    before = after = 0
+    for kind in kinds:
+        src_dir, keep = folder(kind), os.path.join(ART, "_originals", kind)
+        os.makedirs(keep, exist_ok=True)
+        for name in sorted(os.listdir(src_dir)):
+            stem = os.path.splitext(name)[0]
+            path = os.path.join(src_dir, name)
+            if not stem.isdigit() or not os.path.isfile(path):
+                continue
+            size = os.path.getsize(path)
+            # the first run keeps the original; later runs start again from it (never from an optimized copy)
+            kept = [n for n in os.listdir(keep) if os.path.splitext(n)[0] == stem]
+            original = os.path.join(keep, kept[0] if kept else name)
+            if not kept:
+                shutil.copy2(path, original)
+            try:
+                with Image.open(original) as img:
+                    img.load()
+                    os.remove(path)
+                    new = write_optimized(kind, int(stem), img)
+            except Exception as exc:  # keep the file as it was
+                if not os.path.exists(path):
+                    shutil.copy2(original, path)
+                print(f"  {kind}/{name}: skipped ({exc})")
+                continue
+            out = os.path.getsize(os.path.join(src_dir, new))
+            still = os.path.join(src_dir, f"{stem}{STILL_SUFFIX}")
+            out += os.path.getsize(still) if os.path.exists(still) else 0
+            before, after = before + size, after + out
+            print(f"  {kind}/{name} {size / 1e3:,.0f} KB -> {new} {out / 1e3:,.0f} KB")
+    print(f"Done: {before / 1e6:.1f} MB -> {after / 1e6:.1f} MB. Originals are in {os.path.join(ART, '_originals')}.")
+    print("Next: run the helper, press \"Update the game's lists\", upload the new files, restart the site.")
+
+
 if __name__ == "__main__":
+    if "--optimize" in sys.argv:
+        optimize_folders()
+        sys.exit()
     if Image is None:
         print("Pillow isn't installed: images are saved as downloaded (pip install pillow to convert to WebP).")
     print("Art helper on http://127.0.0.1:5055  (files go to", ART + ")")

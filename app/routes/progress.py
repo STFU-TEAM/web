@@ -28,6 +28,31 @@ def _act(fn):
         return None
 
 
+CLEARED_TTL = 600  # the nav's copy of story progress; refreshed on every story win, re-read after this
+
+
+def _cleared_key(uid) -> str:
+    return f"web:story_cleared:{uid}"
+
+
+def remember_cleared(uid, cleared: int) -> None:
+    r().set(_cleared_key(uid), int(cleared), ex=CLEARED_TTL)
+
+
+def unlocks(uid) -> dict:
+    """Which story-gated modes the nav shows: {"altverse": bool, "overheaven": bool}. Reads a small cached
+    count instead of the whole save on every page."""
+    raw = r().get(_cleared_key(uid))
+    if raw is None:
+        user = get_db().get_user(uid)
+        cleared = story.cleared(user) if user else 0
+        remember_cleared(uid, cleared)
+    else:
+        cleared = int(raw)
+    first_au = min(altverse._boss_index(c["after"]) for c in altverse.CHAPTERS)
+    return {"altverse": cleared > first_au, "overheaven": cleared >= story.TOTAL}
+
+
 def _story_ctx(user, fight=None, error=None):
     return {"u": user, "fight": fight, "journey": story.journey(user), "stage": story.current(user),
             "cleared": story.cleared(user), "total": story.TOTAL, "error": error,
@@ -89,6 +114,7 @@ def _story_settle(user, fight):
     logic.check_achievements(user, "fight_win")
     logic.track_quest_progress(user, "story_win")
     rewards = story.win(user, int(fight.meta["stage"]))
+    remember_cleared(user.id, story.cleared(user))  # may open the Alternate Universe or Over Heaven in the nav
     logic.track_quest_progress(user, "reach_story", story.cleared(user))
     from app import social
     social.referral_progress(str(user.id), story.cleared(user))
@@ -128,9 +154,12 @@ def _au_fight(uid):
 def au_page():
     uid = session["uid"]
     user = get_db().get_user(uid)
+    fight = _au_fight(uid)
+    if not fight and not any(altverse.unlocked(user, c["key"]) for c in altverse.CHAPTERS):
+        flash("The Alternate Universe opens when you beat DIO at the end of Part 3.", "error")
+        return redirect(url_for("progress.story_page"))
     other = load_fight(uid)
     error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != AU_KIND and not other.finished else None
-    fight = _au_fight(uid)
     chosen = request.args.get("ch") or (fight.meta.get("chapter") if fight else None)
     return render_template("alt_universe.html", u=user, fight=fight, error=error, chapters=altverse.chapters(user),
                            stage=altverse.current(user, chosen), cleared=altverse.total_cleared(user),
@@ -192,6 +221,98 @@ def au_leave():
     if fight and fight.finished:
         clear_fight(session["uid"])
     return redirect(url_for("progress.au_page", ch=key) if key else url_for("progress.au_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Over Heaven: the endgame puzzle fights, one track per PvE mode (app/game/overheaven.py)
+# --------------------------------------------------------------------------- #
+OH_KIND = "over_heaven"
+
+
+def _oh_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == OH_KIND else None
+
+
+@bp.get("/over-heaven")
+@player_required
+def oh_page():
+    from app.game import overheaven
+    from app.game.resonance import RESONANCES, active as lit
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    fight = _oh_fight(uid)
+    if not fight and not overheaven.unlocked(user):
+        flash("Over Heaven opens once you finish the story.", "error")
+        return redirect(url_for("progress.story_page"))
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != OH_KIND and not other.finished else None
+    tracks = overheaven.tracks(user)
+    shown = request.args.get("t") or (fight.meta.get("track") if fight else None) or tracks[0]["key"]
+    track = next((t for t in tracks if t["key"] == shown), tracks[0])
+    return render_template("over_heaven.html", u=user, fight=fight, error=error, tracks=tracks, track=track,
+                           unlocked=overheaven.unlocked(user), cleared=overheaven.total_cleared(user),
+                           total=overheaven.TOTAL, resonances=[RESONANCES[k] for k in lit(user.main_characters)],
+                           replay_energy=overheaven.REPLAY_ENERGY, title=overheaven.TITLE,
+                           fight_action=url_for("progress.oh_attack"), fight_leave_action=url_for("progress.oh_leave"),
+                           fight_label="Over Heaven")
+
+
+@bp.post("/over-heaven/fight")
+@player_required
+def oh_fight():
+    from app.game import overheaven
+    uid = session["uid"]
+    key = request.form.get("track", "")
+    existing = load_fight(uid)
+    if existing and not (existing.kind == OH_KIND and existing.finished):
+        return redirect(url_for("progress.oh_page", t=key))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            j = request.form.get("stage", type=int)
+            j = overheaven.cleared(user, key) if j is None and key in overheaven.BY_KEY else (j or 0)
+            try:
+                overheaven.check_can_fight(user, key, j)
+            except GameError as e:
+                flash(str(e), "error")
+                return redirect(url_for("progress.oh_page", t=key))
+            rules = overheaven.BY_KEY[key]["fights"][j]["rules"]
+            fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
+                          Side(overheaven.foe_name(key, j), overheaven.enemy_team(key, j), False),
+                          kind=OH_KIND, meta={"track": key, "stage": j, "rules": rules})
+            fight.advance()
+            save_fight(uid, fight)
+            user.update()  # replays spend energy
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.oh_page", t=key))
+
+
+def _oh_settle(user, fight):
+    from app.game import overheaven
+    if fight.winner != 0:
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    logic.check_achievements(user, "fight_win")
+    return overheaven.win(user, fight.meta["track"], int(fight.meta["stage"]))
+
+
+@bp.post("/over-heaven/attack")
+@player_required
+def oh_attack():
+    return play_turn(OH_KIND, url_for("progress.oh_page"), "Over Heaven", "progress.oh_attack", "progress.oh_leave",
+                     _oh_settle)
+
+
+@bp.post("/over-heaven/leave")
+@player_required
+def oh_leave():
+    fight = _oh_fight(session["uid"])
+    key = fight.meta.get("track") if fight else None
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.oh_page", t=key) if key else url_for("progress.oh_page"))
 
 
 # --------------------------------------------------------------------------- #

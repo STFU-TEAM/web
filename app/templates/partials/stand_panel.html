@@ -79,6 +79,18 @@
         {% if c.level >= 100 and c.awaken < 3 %}
           <button class="btn small gold" hx-post="{{ url_for('play.ascend') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }} hx-confirm="Ascend {{ c.name }}? Its level resets to 0.">Ascend</button>
         {% endif %}
+        {#- Requiem Arrow: the player chooses. A star keeps the stand (up to ★5); Requiem evolves it, and stays
+            open at any star count past the one it needs, so a stand can be maxed first and evolved later. -#}
+        {% set heads3 = u['items']|selectattr('id', 'equalto', 3)|list|length %}
+        {% set rq = requiem_form(c) %}
+        {% if heads3 and c.awaken < MAX_STARS %}
+          <button class="btn small" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "awaken"}' {{ acts|safe }}
+                  title="Uses a Requiem Arrow: +1 star, {{ c.name }} stays {{ c.name }}{{ ' (it can still become ' ~ rq.name ~ ' later)' if rq }}">🏹 ★{{ c.awaken + 1 }} with an Arrow</button>
+        {% endif %}
+        {% if rq and rq.ready and heads3 %}
+          <button class="btn small gold" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "requiem"}' {{ acts|safe }}
+                  hx-confirm="Make {{ c.name }} Requiem? It becomes {{ rq.name }} at level 0 and ★0; its items carry over.">✧ Evolve into {{ rq.name }}</button>
+        {% endif %}
         <a class="btn small ghost" href="{{ url_for('play.reforge_page', uuid=c.uuid) }}">⚒ Reforge</a>
       {% else %}
         {% if u.main_characters|length < 3 %}
@@ -90,6 +102,10 @@
             <button class="btn small gold">Swap in</button>
           </form>
         {% endif %}
+      {% endif %}
+      {% set rq = requiem_form(c) %}
+      {% if rq %}
+        <p class="fuse-path {{ 'ready' if rq.ready }}">✧ Requiem: {{ rq.name }}{% if rq.ready %}: ready, with a Requiem Arrow{% if not in_team %} (in your team){% endif %}. It's your call: you can keep adding stars instead and evolve it later.{% else %} once it has {{ rq.need }}, with a Requiem Arrow.{% endif %}</p>
       {% endif %}
       {% set gate = awaken_gate(c) %}
       {% if gate is not none %}

@@ -10,6 +10,27 @@ _DATA = os.path.join(os.path.dirname(__file__), "data")
 with open(os.path.join(_DATA, "quests.json"), "r", encoding="utf-8") as f:
     ALL_QUESTS = json.load(f)["quests"]
 
+
+def _paced(quests):
+    """Rewards at the economy's pace: dust x DUST_RATE; Arrowheads cut, and only every other weekly quest
+    that paid one still does."""
+    from app.game.economy import heads, scale_rewards
+    weekly_heads = 0
+    for q in quests:
+        rewards = q.get("rewards") or {}
+        recurring = q.get("category") in ("daily", "weekly")
+        paced = scale_rewards(rewards, recurring=recurring)
+        if recurring and rewards.get("super_fragments") == 1:
+            weekly_heads += 1
+            paced["super_fragments"] = 1 if weekly_heads % 2 == 0 else 0
+        elif recurring and rewards.get("super_fragments"):
+            paced["super_fragments"] = heads(rewards["super_fragments"])
+        q["rewards"] = paced
+    return quests
+
+
+ALL_QUESTS = _paced(ALL_QUESTS)
+
 QUEST_BY_ID = {q["id"]: q for q in ALL_QUESTS}
 
 DEFAULT_QUEST_DATA = {

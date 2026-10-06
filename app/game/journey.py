@@ -19,7 +19,7 @@ from app.game.items import item_file, item_from_dict
 from app.game.logic import GameError, add_to_available_storage, take_stand, train
 
 SLOTS = 3
-DUST_BASE, DUST_PER_POWER = 25, 0.05   # Meteor Dust per hour: base + power x this
+DUST_BASE, DUST_PER_POWER = 17.5, 0.035  # Meteor Dust per hour: base + power x this (economy pace: was 25, 0.05)
 LONG_TRIP_BONUS = 0.03                 # each hour of the trip adds 3% to the per-hour rate
 STAND_XP_PER_HOUR = 25
 ITEM_POOL = [13, 47, 1, 4, 15, 38, 39, 40, 2]
@@ -97,7 +97,7 @@ def roll_loot(route: dict, power: int, rng: random.Random) -> dict:
 
 def super_chance(power: int) -> float:
     """Chance of an Arrowhead from DIO's mansion, in percent."""
-    return min(25.0, 3 + power / 200)
+    return min(14.0, 2 + power / 350)  # economy pace (was min(25, 3 + power / 200))
 
 
 def estimate(route: dict, power: int) -> dict:

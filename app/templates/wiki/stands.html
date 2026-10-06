@@ -20,9 +20,11 @@
 
 <h2 class="wiki-h2">Earning Arrowheads</h2>
 <ul class="wiki-list">
-  <li>The daily reward on your <a href="{{ url_for('play.team') }}">team page</a>, every {{ facts.daily_hours|int }} h ({{ facts.daily_hours_donor|int }} h for supporters).</li>
-  <li><a href="{{ url_for('play.quests') }}">Quests</a> and achievements.</li>
-  <li>Buying one for 5,000 Meteor Dust in the <a href="{{ url_for('play.items') }}">shop</a>.</li>
+  <li>The 7th day of your daily streak, and rarely the daily reward itself (every {{ facts.daily_hours|int }} h, {{ facts.daily_hours_donor|int }} h for supporters).</li>
+  <li>The bosses of Parts 3, 5 and 8 in the story, Alternate Universe bosses and Over Heaven.</li>
+  <li>Every 20th tower floor and the last boss rush boss, once a week; gang raid tiers.</li>
+  <li><a href="{{ url_for('play.quests') }}">Quests</a>, achievements, Stand Dex sets and ranked seasons.</li>
+  <li>The <a href="{{ url_for('play.items') }}">shop</a>, a few a week.</li>
 </ul>
 
 <h2 class="wiki-h2">Levels</h2>
@@ -33,7 +35,7 @@
 
 <h2 class="wiki-h2">Ascension</h2>
 <p>A team stand at level {{ facts.max_level }} with fewer than 3 awakenings can ascend: it gains an awakening and its XP resets to 0 so it can level again.</p>
-<p>Past ★3, only a <strong>Requiem Arrow</strong> raises awakening further, up to <strong>★5</strong>, the cap for every stand. At level {{ facts.max_level }}, a Requiem Arrow instead evolves Killer Queen (★2), Silver Chariot (★2) and Gold Experience (★3) into Bites the Dust, Chariot Requiem and Gold Experience Requiem.</p>
+<p>Past ★3, only a <strong>Requiem Arrow</strong> raises awakening further, up to <strong>★5</strong>, the cap for every stand. At level {{ facts.max_level }}, a Requiem Arrow can instead evolve Killer Queen (★2+), Silver Chariot (★2+) and Gold Experience (★3+) into Bites the Dust, Chariot Requiem and Gold Experience Requiem. It's your choice each time (<strong>★ Awaken</strong> or <strong>✧ Requiem</strong>, in your items or on the stand's panel), so you can keep the original and take it to ★5, and still evolve it later. Evolving starts the Requiem form at level 0 and ★0; items carry over.</p>
 
 <p class="wiki-next"><a class="btn small" href="{{ url_for('main.wiki', topic='types') }}">Next: types & qualities →</a></p>
 {% endblock %}

@@ -76,6 +76,28 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   against a story stage, a tower floor or another player's team
 - Stand Dex (`/dex`, `app/game/dex.py`): rarity and crew sets with rewards; a stand counts once ever
   owned on the site (`web_dex`), so releasing or fusing never undoes progress
+- Endgame balance: team preparation beats UR/LR stacking. Synergy and terrain bonuses scale with rarity
+  (`effects.RARITY_LEVERAGE`, R x1.6 down to LR x0.35, full sets x1.5, falling shares for a stand in several
+  groups); two or more synergies on different stands light resonances (`app/game/resonance.py`: Giant Slayer,
+  Second Wind, Ambush, Initiative, Lifesteal, Home Field, Resonant Strikes); the side moving second opens in a
+  counter stance (`fight.COUNTER_*`); UR/LR natural stats are trimmed (`character.RARITY_TRIM`). Story Parts 7-8,
+  late AU chapters and tower floors 25+ are eased to keep their curves (`LATE_EASE`, `tower.EASE`)
+- Progression pace (`app/game/economy.py`): Meteor Dust from playing x0.7 (applied where each reward is defined,
+  so pages show what is paid), Arrowheads cut source by source (story bosses of Parts 3/5/8, every 20th tower
+  floor, smaller Dex/season/raid/Over Heaven tables, half the weekly quest Arrowheads, 2 shop summons a week),
+  and longer time gates in `logic.py` (16 h daily, 6 min energy, 14 min Mirror World)
+- Art helper (`scripts/art_helper.py`): searches Google Images (needs `GOOGLE_API_KEY` + `GOOGLE_CSE_ID`),
+  then Tenor (`TENOR_API_KEY`, or tenor.com's search page without one), then the JoJo wiki. Saved artwork and
+  shinies are sized for cards (WebP, 1000 px tall at most; animations as small animated WebP plus a
+  `<id>.still.webp` poster that grids show until a card is hovered). `--optimize` re-encodes the whole art
+  folder (originals kept in `art/_originals`); then "Update the game's lists" and upload
+- Card effects: shiny and full-art animations only run on the hovered/focused card, the big stand card, reveals
+  and the pull cinematic, so collections of hundreds of cards stay smooth
+- Over Heaven (`/over-heaven`, `app/game/overheaven.py`): after the story, one track of four hand-made level 100
+  fights per PvE mode, each built around rules (`Fight.rules`: locked terrain, wards, heal cuts, reflect,
+  enrage...) that need a team prepared for them. Each fight's `power` was calibrated with the simulator so raw
+  UR/LR stacks lose and a team built for the rule wins; recalibrate if the engine changes. Saves in
+  `web_over_heaven`, title "Over Heaven" for all 20
 
 ## Game code
 `app/game/` is vendored from stfu-reborn with Discord imports removed:

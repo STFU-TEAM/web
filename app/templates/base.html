@@ -18,6 +18,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  {#- the desktop sidebar's collapsed (icon rail) state, set before the first paint so nothing jumps -#}
+  <script>try { if (localStorage.getItem("side-mini") === "1") document.documentElement.classList.add("side-mini"); } catch (e) {}</script>
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
@@ -33,6 +35,7 @@
   'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend Arrowheads for 10 new stands. Pity guarantees SSR+.'),
   'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜', 'Travel Parts 3 to 8 beside each JoJo. The best rewards for new players.'),
   'altverse': ('Alternate Universe', url_for('progress.au_page'), ep.startswith('progress.au_'), '🌀', 'What if the villains had won? Custom chapters that open as you clear the story.'),
+  'overheaven': ('Over Heaven', url_for('progress.oh_page'), ep.startswith('progress.oh_'), '☁', 'The endgame: puzzle fights in every mode that only the right team preparation beats.'),
   'journey': ("Crusaders' Journey", url_for('journey.index'), ep.startswith('journey.'), '🐫', 'Send a stand from Tokyo to Cairo on its own. Stronger stands bring back more.'),
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'The six story bosses back to back, health carried over. Weekly leaderboard.'),
@@ -56,7 +59,8 @@
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
-{%- set battle_keys = ['story', 'altverse', 'journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
+{#- the Alternate Universe and Over Heaven only appear once the story has opened them -#}
+{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
 {%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
@@ -83,8 +87,58 @@
   </details>
 {%- endmacro -%}
 {%- macro any_active(keys) -%}{% for k in keys if L[k][2] %}1{% endfor %}{%- endmacro -%}
-<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+{#- Desktop sidebar (>= 1024px, signed in): the same destinations in collapsible groups. Collection and Battle,
+    and the group of the page you're on, start open; the player's own choices are remembered (app.js). -#}
+{%- set side_pinned = ['team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
+{%- set side_groups = [('Collection', 'collection', ['items', 'reforge', 'dex'], True),
+                       ('Battle', 'battle', battle_keys, True), ('Progress', 'progress', progress_keys, False),
+                       ('Community', 'community', community_keys|reject('in', ['inbox', 'gangs'])|list, False),
+                       ('Explore', 'explore', explore_keys, False)] -%}
+{%- macro side_link(key) -%}
+  {%- set label, href, active, icon, why = L[key] -%}
+  {%- set is_hot = (key == 'story' and story_hot) or (key == 'events' and live_event) -%}
+  <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot %} hot{% endif %}" href="{{ href }}" data-tour="{{ key }}" title="{{ label }}: {{ why }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>
+    {%- if key == 'story' and story_hot %}<em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %}<em class="nav-badge">Live</em>{% endif %}</a>
+{%- endmacro -%}
+<body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
   <a class="skip" href="#main">Skip to content</a>
+  {% if me.id %}
+  <aside class="sidenav" aria-label="Main">
+    <a class="wordmark side-brand" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">
+      <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="36" height="36">
+      <span class="side-label"><span class="brand-name">STFU</span> <span class="brand-suffix">Requiem</span></span>
+    </a>
+    <nav class="side-scroll" aria-label="Pages">
+      <div class="side-links side-pinned">{% for k in side_pinned %}{{ side_link(k) }}{% endfor %}</div>
+      {% for title, key, keys, default_open in side_groups %}
+        {%- set open = default_open or any_active(keys) or (key == 'battle' and story_hot) -%}
+        <section class="side-group{% if open %} open{% endif %}" data-side-group="{{ key }}" data-default="{{ 1 if open else 0 }}" data-tour="{{ key }}">
+          <button type="button" class="side-head" data-side-head aria-expanded="{{ 'true' if open else 'false' }}">
+            <span class="side-label">{{ title }}</span>{% if key == 'battle' and story_hot %}<span class="nav-dot" aria-label="New story stage"></span>{% endif %}
+          </button>
+          <div class="side-links">{% for k in keys %}{{ side_link(k) }}{% endfor %}</div>
+        </section>
+      {% endfor %}
+    </nav>
+    <button type="button" class="side-collapse" data-side-toggle aria-label="Collapse the sidebar" title="Collapse the sidebar">
+      <span class="side-icon" aria-hidden="true">«</span><span class="side-label">Collapse</span>
+    </button>
+  </aside>
+  <script>  /* apply the player's remembered open groups before the first paint (the active page's group stays open) */
+    try {
+      const saved = JSON.parse(localStorage.getItem("side-open") || "{}");
+      document.querySelectorAll("[data-side-group]").forEach((g) => {
+        const k = g.dataset.sideGroup, keep = g.querySelector("[aria-current]");
+        if (k in saved && !keep) { g.classList.toggle("open", saved[k]); g.querySelector("[data-side-head]").setAttribute("aria-expanded", String(saved[k])); }
+      });
+      if (document.documentElement.classList.contains("side-mini")) {
+        const t = document.querySelector("[data-side-toggle]");
+        t.setAttribute("aria-label", "Expand the sidebar"); t.title = "Expand the sidebar";
+      }
+    } catch (e) {}
+  </script>
+  {% endif %}
   <header class="topbar">
     <a class="wordmark" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">
       <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="40" height="40">

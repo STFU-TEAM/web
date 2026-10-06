@@ -30,6 +30,7 @@ OVERFLOW = 1.05        # past floor 60, health and damage multiply by this per f
 REST_EVERY, REST_HEAL = 5, 0.60
 FLOOR_HEAL = 0.30      # a breather after every floor; rest stops heal more
 BOSS_EVERY = 10
+HEAD_EVERY = 20        # every other boss floor pays an Arrowhead (economy.py)
 TRANSIENT = ("_focus", "_my_turn", "_heal_mult", "_skipped", "_stun_guard", "_active_terrain", "_terrain_bonus")
 POOLS = {r: [c["id"] for c in CHARACTER_FILE if c["rarity"] == r and c["universe"] != "Dummy" and c["id"] != 110]
          for r in ("R", "SR", "SSR", "UR", "LR")}
@@ -57,10 +58,17 @@ def awaken_for(floor: int) -> int:
     return sum(floor >= f for f in AWAKEN_FLOORS)
 
 
+EASE_FROM, EASE = 25, 0.94  # from here enemies field UR/LR-era teams; eased to keep the climb where it was
+
+
 def overflow_for(floor: int) -> float:
     """Health/damage multiplier once level and awakenings are maxed."""
     extra = floor - AWAKEN_FLOORS[-1]
     return OVERFLOW ** extra if extra > 0 else 1.0
+
+
+def ease_for(floor: int) -> float:
+    return EASE if floor >= EASE_FROM else 1.0
 
 
 def is_boss(floor: int) -> bool:
@@ -99,14 +107,14 @@ def floor_ids(floor: int, week: Optional[str] = None) -> List[int]:
 
 def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] = None) -> list:
     """The enemies of a floor; ids: other stands at that floor's strength (the dungeon picks its own)."""
-    lvl, aw, mult = level_for(floor), awaken_for(floor), overflow_for(floor)
+    lvl, aw, mult = level_for(floor), awaken_for(floor), overflow_for(floor) * ease_for(floor)
     quality = ("BAD" if floor < 5 else "SUB_PAR" if floor < 10 else "GOOD" if floor < 18 else "GREAT" if floor < 30
                else "SUPREME" if floor < 45 else "UNIVERSAL")
     team = []
     for cid in ids or floor_ids(floor, week):
         c = character_from_dict({"id": cid, "xp": lvl * 100, "awaken": aw, "types": ["BALANCE"],
                                  "qualities": [quality], "items": [{"id": 1}] if floor >= 8 else []})
-        if mult > 1:
+        if mult != 1:
             for stat in ("hp", "damage"):
                 value = getattr(c, f"start_{stat}") * mult
                 setattr(c, f"start_{stat}", int(value))
@@ -130,12 +138,13 @@ def stand_xp_for(floor: int) -> int:
 
 def reward_for(floor: int) -> dict:
     """Paid the first time each week you clear a floor."""
-    reward = {"fragments": int(round(80 * 1.08 ** floor, -1)), "items": [], "super": 0}
+    from app.game.economy import dust
+    reward = {"fragments": dust(80 * 1.08 ** floor), "items": [], "super": 0}
     if floor % 5 == 0:
         reward["items"].append([40, 38, 39][(floor // 5) % 3])
     elif floor % 5 == 3:
         reward["items"].append(47)  # a Can of Energy keeps the climb going
-    if is_boss(floor):
+    if floor % HEAD_EVERY == 0:
         reward["super"] = 1
     return reward
 
@@ -148,7 +157,7 @@ def reward_view(floor: int) -> dict:
 
 
 def milestones(after: int, count: int = 4) -> list:
-    """The next floors past `after` that pay more than dust: items every 5th floor, an Arrowhead every 10th."""
+    """The next floors past `after` that pay more than dust: items every 5th floor, an Arrowhead every 20th."""
     first = (after // REST_EVERY + 1) * REST_EVERY
     return [{"floor": f, **reward_view(f)} for f in range(first, first + REST_EVERY * count, REST_EVERY)]
 

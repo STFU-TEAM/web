@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Over Heaven | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page story au over-heaven">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Endgame · Over Heaven</p>
+      <h1 class="display sm">Over Heaven</h1>
+      <p class="muted">Every mode has an Over Heaven track: hand-made fights at level 100 ★5, each one built around a rule. A stack of UR and LR stands won't brute-force them. Read the rule, then build the team that breaks it.</p>
+    </div>
+    <div class="story-progress" title="Over Heaven fights cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} fights
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+  </header>
+  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+
+  <nav class="tabs scroll-tabs" aria-label="Tracks">
+    {% for t in tracks %}
+      <a href="{{ url_for('progress.oh_page', t=t.key) }}" class="tab{% if t.key == track.key %} active{% endif %}"{% if t.key == track.key %} aria-current="page"{% endif %}>{{ t.mode }} <small>{{ t.cleared }}/{{ t.total }}</small></a>
+    {% endfor %}
+  </nav>
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    {% set current = track.fights|selectattr('state', 'equalto', 'current')|first %}
+    {% if current %}
+      <article class="story-stage boss" style="--part: {{ track.color }}">
+        <div class="story-stage-text">
+          <p class="kicker">{{ track.title }} · fight {{ current.index + 1 }} of {{ track.total }}</p>
+          <h2 class="h2">{{ current.title }}</h2>
+          {% if current.index == 0 %}<p class="story-intro">{{ track.intro }}</p>{% endif %}
+          <p class="story-text">{{ current.text }}</p>
+          <ul class="oh-rules">
+            {% for line in current.rules %}<li>☁️ {{ line }}</li>{% endfor %}
+          </ul>
+          <p class="notice">🧩 <strong>Preparation:</strong> {{ current.hint }}</p>
+          <p class="story-reward">🎁 First clear: {{ current.reward|join(', ') }}</p>
+          {% if unlocked and u.main_characters %}
+            <form method="post" action="{{ url_for('progress.oh_fight') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="track" value="{{ track.key }}">
+              <button class="btn gold big">Ascend →</button>
+            </form>
+            <p class="muted"><a href="{{ url_for('battles.simulator', vs='oh:' ~ track.key ~ ':' ~ current.index) }}">🧪 Test your team in the simulator first</a></p>
+          {% elif unlocked %}
+            <p class="notice">Put at least one stand in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+          {% endif %}
+        </div>
+        <div class="story-foes" aria-label="Enemies">
+          <p class="muted">Enemies · level 100 · ★5</p>
+          <ul>
+            {% for e in current.enemies %}
+              <li class="rar-{{ e.stand.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=e.stand.id) }}">
+                <img src="{{ e.stand.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                <span>{{ e.stand.name }}</span><small>{{ e.stand.rarity }} · {{ e.build }}{% if e.gear %} · {{ e.gear|join(', ') }}{% endif %}</small></a></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </article>
+    {% else %}
+      <article class="story-stage done">
+        <h2 class="h2">{{ track.title }} conquered</h2>
+        <p class="story-text">Every fight on this track is cleared. Replay any of them below for {{ replay_energy }} energy, or take on another track.{% if cleared >= total %} You have reached Heaven: the title “{{ title }}” is yours.{% endif %}</p>
+      </article>
+    {% endif %}
+  {% endif %}
+
+  <aside class="story-stage done oh-team">
+    <h2 class="h3">Your team's resonances</h2>
+    {% if resonances %}
+      <ul class="oh-rules">
+        {% for label, icon, needs, effect in resonances %}<li>{{ icon }} <strong>{{ label }}</strong>: {{ effect }}</li>{% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">Your team lights no resonance. Two or more active synergies on one team unlock one. See the <a href="{{ url_for('main.wiki', topic='synergies') }}#resonances">synergy wiki</a>.</p>
+    {% endif %}
+  </aside>
+
+  <h2 class="h3 story-map-title">{{ track.title }}</h2>
+  <ol class="story-map">
+    <li class="story-part{% if track.cleared >= track.total %} complete{% endif %}" style="--part: {{ track.color }}">
+      <header><strong>{{ track.mode }}</strong><span class="muted">{{ track.cleared }}/{{ track.total }}</span></header>
+      <ol class="story-nodes">
+        {% for s in track.fights %}
+          <li class="node {{ s.state }}{% if loop.last %} boss{% endif %}" title="{{ s.title }}: {{ s.rules|join(' ') }}">
+            <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if loop.last else s.index + 1) }}</span>
+            <span class="node-label">{{ s.title }}</span>
+            {% if s.state == 'cleared' and not fight and unlocked %}
+              <form method="post" action="{{ url_for('progress.oh_fight') }}" class="node-replay">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="track" value="{{ track.key }}"><input type="hidden" name="stage" value="{{ s.index }}">
+                <button class="btn small ghost" title="Replay (no reward)">↻ {{ replay_energy }}⚡</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </li>
+  </ol>
+  <p class="muted wiki-note">Over Heaven fights pay once, on the first clear: Meteor Dust, Arrowheads and materials, and each track's last fight drops a Requiem Arrow. Clear all {{ total }} for the title “{{ title }}”. Replays cost {{ replay_energy }} energy and pay nothing; they're for testing a team.</p>
+</section>
+{% endblock %}

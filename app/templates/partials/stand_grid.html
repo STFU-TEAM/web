@@ -1,7 +1,17 @@
 {% from "macros.html" import template_card %}
-<p class="count" role="status">{{ stands|length }} stand{{ '' if stands|length == 1 else 's' }}</p>
+<p class="count" role="status">{{ stands|length }} stand{{ '' if stands|length == 1 else 's' }}{% if look %} · shown as {{ looks[look]|lower }}{% endif %}</p>
 {% if stands %}
-<div class="grid">{% for t in stands %}{{ template_card(t) }}{% endfor %}</div>
+<div class="grid">{% for t in stands %}
+  {% if look %}
+    {% set art = own_art(t.id) %}
+    <div class="look-cell">
+      {{ template_card(t, look=look) }}
+      {% if (look == 'full' and art.artwork) or (look == 'shiny' and art.shiny) or (look == 'both' and (art.shiny or art.artwork)) %}
+        <span class="look-tag" title="This stand has its own illustration for this look">🎨 Unique art</span>
+      {% endif %}
+    </div>
+  {% else %}{{ template_card(t) }}{% endif %}
+{% endfor %}</div>
 {% else %}
-<p class="notice">No stand matches. Try a shorter name, or clear the rarity filter.</p>
+<p class="notice">No stand matches. Try a shorter name, or clear the rarity{{ ' or unique art' if unique }} filter.</p>
 {% endif %}

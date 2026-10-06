@@ -225,12 +225,18 @@ def _base(key: str, j: int) -> tuple:
     return level, awaken, quality
 
 
+# Like story.LATE_EASE: the later chapters' villain crews gained rarity leverage while UR/LR were trimmed,
+# so their health and damage are eased to keep them where they were for a maxed team. By source part.
+LATE_EASE = {6: 0.9, 7: 0.85, 8: 0.85}
+
+
 def difficulty(key: str, j: int) -> dict:
     """Enemy level, awakening, quality and overflow for stage j of a chapter."""
     level, awaken, quality = _base(key, j)
     # past level 100 and ★5 there is nothing left to raise: health and damage grow each stage instead
     maxed = sum(_base(key, i)[:2] == (100, 5) for i in range(j + 1))
-    return {"level": level, "awaken": awaken, "quality": quality, "mult": round(OVERFLOW ** maxed, 2)}
+    ease = LATE_EASE.get(BY_KEY[key]["after"], 1)
+    return {"level": level, "awaken": awaken, "quality": quality, "mult": round(OVERFLOW ** maxed * ease, 2)}
 
 
 def enemy_team(key: str, j: int) -> list:
@@ -241,7 +247,7 @@ def enemy_team(key: str, j: int) -> list:
     for cid in stage["enemies"]:
         c = character_from_dict({"id": cid, "xp": d["level"] * 100, "awaken": d["awaken"], "types": ["BALANCE"],
                                  "qualities": [d["quality"]], "items": items})
-        if d["mult"] > 1:
+        if d["mult"] != 1:
             for stat in ("hp", "damage"):
                 value = int(getattr(c, f"start_{stat}") * d["mult"])
                 setattr(c, f"start_{stat}", value)
