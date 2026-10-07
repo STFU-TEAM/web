@@ -27,8 +27,9 @@ def _lobby_ctx(uid):
         inside = {m["uid"] for m in lb["members"]}
         friends = sorted(({"id": f, "name": identity(f)["name"]} for f in social.friends(uid) if f not in inside),
                          key=lambda f: f["name"].lower())
-    stands = sorted(user.main_characters + user.storage_characters, key=lambda c: -power_score(c)) if user else []
-    return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands[:60],
+    used = coop.used_today(user) if user else set()
+    stands = sorted(user.main_characters + user.storage_characters, key=lambda c: (c.uuid in used, -power_score(c))) if user else []
+    return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands[:60], "used": used,
             "tiers": coop.TIERS, "boss": coop.boss_view(), "party": (coop.PARTY_MIN, coop.PARTY_MAX),
             "wins_left": coop.wins_left(user) if user else 0, "daily": coop.DAILY_WINS,
             "join_code": request.args.get("join", "")}
@@ -143,14 +144,18 @@ def start():
                 flash("Someone in the party is still in another fight.", "error")
                 return redirect(url_for("coop.index"))
             db = get_db()
-            stands = []
+            stands, users = [], []
             for m in lb["members"]:
                 user = db.get_user(m["uid"])
                 char, _, _ = user.find_character_by_uuid(m["stand"]) if user else (None, None, None)
                 if char is None:
                     flash(f"{m['name']}'s stand isn't in their collection any more.", "error")
                     return redirect(url_for("coop.index"))
+                if m["stand"] in coop.used_today(user):
+                    flash(f"{m['name']}'s {char.name} already raided today: they need to pick another stand.", "error")
+                    return redirect(url_for("coop.index"))
                 stands.append(char)
+                users.append((user, m["stand"]))
             names = {m["uid"]: m["name"] for m in lb["members"]}
             boss = coop.boss_view()
             fight = Fight(Side("Raid party", fighting_copy(stands), True),
@@ -161,6 +166,9 @@ def start():
             coop.arm_timer(fight)
             for p in players:
                 save_fight(p, fight)
+            for user, uuid in users:  # each stand raids once a day, win or lose
+                coop.mark_used(user, uuid)
+                user.update()
             coop.close(lb)
     except Busy:
         flash("Someone in the party is busy. Try again in a moment.", "error")

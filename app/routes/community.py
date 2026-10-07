@@ -44,6 +44,8 @@ def players():
         ids = ([exact] if exact else []) + [u for u in social.search(q) if u != exact]
         db = get_db()
         found = [_card(u, me, db) for u in ids if u != me][:20]
+    if request.headers.get("HX-Request"):
+        return render_template("community/_player_results.html", q=q, found=found)
     return render_template("community/players.html", q=q, found=found)
 
 

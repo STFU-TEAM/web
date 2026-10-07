@@ -305,36 +305,75 @@ def relation(me: str, other: str) -> str:
 
 # ── Player search ────────────────────────────────────────────────────────────
 
-def search(query: str, limit: int = 20) -> List[dict]:
-    """Players whose username or display name contains the query (web accounts and Discord players)."""
-    q = (query or "").strip().lower().lstrip("@")
-    if len(q) < 2:
-        return []
-    found, seen = [], set()
-    db = get_db()
-    for key in r().scan_iter("web:identity:*", count=500):
-        uid = key.decode().split(":", 2)[2] if isinstance(key, bytes) else key.split(":", 2)[2]
+INDEX_BUILT = "web:names:built"  # set once the index was backfilled from the older identity and account keys
+
+
+def _fold(text: str) -> str:
+    """Lower case without accents, so "jose" finds "José"."""
+    import unicodedata
+    return "".join(ch for ch in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(ch)).casefold()
+
+
+def build_index(force: bool = False) -> int:
+    """Fill the search index from what older code left behind: remembered identities and web accounts. Once."""
+    from app.db import NAMES, index_name
+    if not force and r().exists(INDEX_BUILT):
+        return 0
+    n = 0
+    for key in r().scan_iter("web:identity:*", count=1000):
+        key = key.decode() if isinstance(key, bytes) else key
         try:
             name = json.loads(r().get(key) or "{}").get("name", "")
         except ValueError:
             continue
-        if uid not in seen and q in name.lower() and db.user_exists(uid):
-            seen.add(uid)
+        if name:
+            index_name(key.split(":", 2)[2], name=name)
+            n += 1
+    for key in r().scan_iter("web:account:*", count=1000):
+        try:
+            account = json.loads(r().get(key) or "{}")
+        except ValueError:
+            continue
+        if account.get("uid"):
+            index_name(account["uid"], username=account.get("name"))
+            n += 1
+    r().set(INDEX_BUILT, "1")
+    return r().hlen(NAMES) if n else 0
+
+
+def search(query: str, limit: int = 20) -> List[str]:
+    """Players whose display name or username matches: exact, then prefix, then a word start, then anywhere.
+    Accents and case don't matter. Only players with a save are returned."""
+    from app.db import NAMES
+    q = _fold((query or "").strip().lstrip("@"))
+    if len(q) < 2:
+        return []
+    build_index()
+    ranked = []
+    for uid, raw in r().hscan_iter(NAMES, count=1000):
+        try:
+            entry = json.loads(raw)
+        except ValueError:
+            continue
+        best = None
+        for text in (entry.get("name"), entry.get("user")):
+            t = _fold(text)
+            if not t or q not in t:
+                continue
+            words = t.replace(".", " ").replace("_", " ").replace("-", " ").split()
+            rank = 0 if t == q else 1 if t.startswith(q) else 2 if any(w.startswith(q) for w in words) else 3
+            best = rank if best is None else min(best, rank)
+        if best is not None:
+            uid = uid.decode() if isinstance(uid, bytes) else uid
+            ranked.append((best, len(entry.get("name") or entry.get("user") or ""), (entry.get("name") or "").lower(), uid))
+    ranked.sort()
+    db = get_db()
+    found = []
+    for *_, uid in ranked:
+        if db.user_exists(uid):
             found.append(uid)
             if len(found) >= limit:
                 break
-    if len(found) < limit:
-        for key in r().scan_iter(f"web:account:*{q}*", count=500):
-            raw = r().get(key)
-            try:
-                uid = json.loads(raw or "{}").get("uid")
-            except ValueError:
-                continue
-            if uid and uid not in seen and db.user_exists(uid):
-                seen.add(uid)
-                found.append(uid)
-                if len(found) >= limit:
-                    break
     return found
 
 

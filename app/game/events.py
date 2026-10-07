@@ -157,6 +157,38 @@ def describe(ev: dict) -> str:
     return f"{name} stands deal {BOOST:.0%} more damage and are {BOOST:.0%} faster in every fight."
 
 
+KIND_HELP = {
+    "dust": {"icon": "✦", "who": "Every player",
+             "does": [f"PvE wins pay {DUST_BONUS:.0%} more Meteor Dust (story, Alternate Universe, Over Heaven, Mirror World, "
+                      "tower, boss rush, dungeon, training, co-op).",
+                      "Only the dust a win already pays is boosted: first-clear-only rewards still pay once."],
+             "pick": None},
+    "rarity": {"icon": "★", "who": "Every stand of one rarity",
+               "does": [f"Those stands get +{BOOST:.0%} damage and +{BOOST:.0%} speed in every fight.",
+                        "Enemies of that rarity get it too, so PvE gets harder where they show up.",
+                        "Applied once per fighter: tower and rush teams that carry over never stack it."],
+               "pick": "rarity"},
+    "synergy": {"icon": "⚑", "who": "The members of one synergy group",
+                "does": [f"Those stands get +{BOOST:.0%} damage and +{BOOST:.0%} speed in every fight, on top of their "
+                         "normal synergy bonus.",
+                         "Enemies in the group get it too. Pick a crew with a few common stands so everyone can join in."],
+                "pick": "synergy"},
+}
+
+
+def target_view() -> dict:
+    """For the admin form: how many stands each rarity / synergy target boosts, and who."""
+    from app.game.character import CHARACTER_FILE
+    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO
+    from app.game.logic import RARITIES
+    playable = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
+    names = {c["id"]: c["name"] for c in playable}
+    rar = {r: sum(c["rarity"] == r for c in playable) for r in RARITIES}
+    syn = {k: {"label": SYNERGY_INFO.get(k, (k, ""))[0], "members": [names[i] for i in sorted(ids) if i in names]}
+           for k, ids in SYNERGIES.items()}
+    return {"rarity": rar, "synergy": syn}
+
+
 def boosted_ids(ev: Optional[dict]) -> set:
     if not ev:
         return set()

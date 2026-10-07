@@ -10,7 +10,8 @@ BOSS_HP times the health. The first DAILY_WINS wins of each player's day pay rew
 
 Redis:  web:coop:lobby:<code>  JSON {code, host, tier, members: [{uid, name, stand}], at}, expires LOBBY_TTL
         web:coop:of:<uid>      the code of the lobby uid is in
-Save:   data["web_coop"] = {"day", "wins"}
+Save:   data["web_coop"] = {"day", "wins", "used": [stand uuids]}: a stand raids once a day (marked when the raid
+        starts, win or lose)
 """
 import json
 import random
@@ -180,6 +181,27 @@ def leave(uid):
         _save(lb)
 
 
+def today(user) -> dict:
+    """Today's co-op record for a player: {"day", "wins", "used"} (a fresh one on a new day)."""
+    s = user.data.get("web_coop") or {}
+    day = now().date().isoformat()
+    if s.get("day") != day:
+        s = {"day": day, "wins": 0, "used": []}
+    s.setdefault("used", [])
+    return s
+
+
+def used_today(user) -> set:
+    return set(today(user)["used"])
+
+
+def mark_used(user, uuid: str):
+    s = today(user)
+    if uuid not in s["used"]:
+        s["used"].append(uuid)
+    user.data["web_coop"] = s
+
+
 def pick(user, uuid: str) -> dict:
     lb = lobby_of(user.id)
     if not lb:
@@ -187,6 +209,8 @@ def pick(user, uuid: str) -> dict:
     char, _, _ = user.find_character_by_uuid(uuid)
     if char is None:
         raise GameError("That stand isn't in your collection.")
+    if uuid in used_today(user):
+        raise GameError(f"{char.name} already raided today. Pick another stand; it can raid again tomorrow.")
     with _locked(lb["code"]):
         lb = lobby(lb["code"])
         for m in lb["members"]:
@@ -280,12 +304,9 @@ def settle(fight, users: dict) -> dict:
     from app.game.logic import check_achievements, track_quest_progress, train
     t = TIERS[fight.meta["tier"]]
     won = fight.winner == 0
-    day = now().date().isoformat()
     out = {}
     for uid, user in users.items():
-        s = user.data.get("web_coop") or {}
-        if s.get("day") != day:
-            s = {"day": day, "wins": 0}
+        s = today(user)
         rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None, "capped": False}
         if won and s["wins"] < DAILY_WINS:
             s["wins"] += 1
@@ -301,6 +322,8 @@ def settle(fight, users: dict) -> dict:
                         rewards["item"] = f"a {chips.view(chip)['label']} chip ({chip['tier']})"
             track_quest_progress(user, "fight_win")
             check_achievements(user, "fight_win")
+            from app.game import events
+            rewards = events.pve_win(user, rewards)  # event tokens, and the Dust rush bonus
         elif won:
             rewards["capped"] = True
         rewards["wins_left"] = max(0, DAILY_WINS - s["wins"])
@@ -310,5 +333,4 @@ def settle(fight, users: dict) -> dict:
 
 
 def wins_left(user) -> int:
-    s = user.data.get("web_coop") or {}
-    return DAILY_WINS - (s.get("wins", 0) if s.get("day") == now().date().isoformat() else 0)
+    return DAILY_WINS - today(user)["wins"]

@@ -75,6 +75,8 @@ def create_account(username: str, password: str, uid: Optional[str] = None) -> d
     if not r().set(_key(username), json.dumps(account), nx=True):
         raise AccountError("That username is taken.")
     r().set(f"web:account_uid:{account['uid']}", username.lower())
+    from app.db import index_name
+    index_name(account["uid"], username=username)
     if is_local(account["uid"]):
         remember_identity(account["uid"], username, None, ttl=None)
     return account

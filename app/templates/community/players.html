@@ -1,22 +1,17 @@
 {% extends "base.html" %}
-{% from "community/_macros.html" import player_row with context %}
 {% block title %}Find players | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page narrow community">
   <p class="kicker">Community</p>
   <h1 class="display sm">Find players</h1>
-  <p class="muted">Search by username or display name, then add them as a friend, challenge them to a friendly duel or send a trade.</p>
+  <p class="muted">Search by display name, username or Discord ID, then add them as a friend, challenge them to a friendly duel or send a trade.</p>
   <form class="player-search" method="get" role="search">
-    <label class="sr" for="player-q">Username or name</label>
-    <input id="player-q" type="search" name="q" value="{{ q }}" placeholder="Username or name (2 letters or more)" minlength="2" autocapitalize="none" spellcheck="false" autofocus>
+    <label class="sr" for="player-q">Name, username or Discord ID</label>
+    <input id="player-q" type="search" name="q" value="{{ q }}" placeholder="Name, username or Discord ID" autocapitalize="none" spellcheck="false" autofocus
+           autocomplete="off" hx-get="{{ url_for('community.players') }}" hx-trigger="input changed delay:300ms, search"
+           hx-target="#player-results" hx-swap="outerHTML" hx-push-url="true" hx-sync="this:replace">
     <button class="btn gold">Search</button>
   </form>
-  {% if q %}
-    {% if found %}
-      <ul class="player-list">{% for p in found %}{{ player_row(p) }}{% endfor %}</ul>
-    {% else %}
-      <p class="notice">Nobody matches “{{ q }}”. Players show up here once they have a save.</p>
-    {% endif %}
-  {% endif %}
+  {% include "community/_player_results.html" %}
 </section>
 {% endblock %}

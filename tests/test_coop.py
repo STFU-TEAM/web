@@ -127,3 +127,30 @@ def test_host_leaving_closes_the_lobby_and_invites_notify(client):
     client.post("/coop/leave", headers=_as(client, uids[0]))
     assert coop.lobby(code) is None and coop.lobby_of(uids[1]) is None
     assert "This lobby has closed" in client.get("/coop/lobby", headers=_as(client, uids[1])).data.decode()
+
+
+def test_a_stand_raids_once_a_day(client):
+    uids = _players(client, 2)
+    _lobby_with_party(client, uids)
+    client.post("/coop/start", headers=_as(client, uids[0]))
+    stand = doc(client, uids[0])["main_characters"][0]["uuid"]
+    assert stand in doc(client, uids[0])["web_coop"]["used"]  # marked when the raid starts, win or lose
+    for u in uids:  # end the raid for everyone
+        f = dbmod.load_fight(u)
+        f.finished = True
+        dbmod.save_fight(u, f)
+        client.post("/coop/fight/leave", headers=_as(client, u))
+    h = _as(client, uids[0])
+    client.post("/coop/create", data={"tier": "normal"}, headers=h)
+    page = client.get("/coop", headers=h).data.decode()
+    assert "Raided today" in page
+    client.post("/coop/pick", data={"uuid": stand}, headers=h)
+    me = next(m for m in coop.lobby_of(uids[0])["members"] if m["uid"] == uids[0])
+    assert not me["stand"]  # refused
+    # a new day frees it
+    d = doc(client, uids[0])
+    d["web_coop"]["day"] = "2000-01-01"
+    put(client, d)
+    client.post("/coop/pick", data={"uuid": stand}, headers=h)
+    me = next(m for m in coop.lobby_of(uids[0])["members"] if m["uid"] == uids[0])
+    assert me["stand"] == stand

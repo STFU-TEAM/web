@@ -1,0 +1,12 @@
+{% from "community/_macros.html" import player_row with context %}
+<div id="player-results">
+  {% if q and q|length >= 2 %}
+    {% if found %}
+      <ul class="player-list">{% for p in found %}{{ player_row(p) }}{% endfor %}</ul>
+    {% else %}
+      <p class="notice">Nobody matches “{{ q }}”. Try part of their name, their username or their Discord ID. Players show up once they have a save and have logged in on the site.</p>
+    {% endif %}
+  {% elif q %}
+    <p class="muted">Type at least 2 letters.</p>
+  {% endif %}
+</div>

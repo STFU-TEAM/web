@@ -9,7 +9,7 @@
       <div>
         <p class="kicker">Co-op raid · {{ party[0] }} to {{ party[1] }} players</p>
         <h1 class="display sm">{{ boss.title }}</h1>
-        <p class="muted">This week's raid boss from {{ boss.part }}. Each player brings one stand and picks its targets; the boss brings one henchman per player and far more health. Run out of time and your stand picks on its own. Your first {{ daily }} wins of the day pay Meteor Dust, XP for your stand and often a stand chip.</p>
+        <p class="muted">This week's raid boss from {{ boss.part }}. Each player brings one stand and picks its targets; the boss brings one henchman per player and far more health. Run out of time and your stand picks on its own. Your first {{ daily }} wins of the day pay Meteor Dust, XP for your stand and often a stand chip, and each stand can raid once a day.</p>
       </div>
       <div class="rush-best"><small>Rewarded wins left today</small><strong>{{ wins_left }}/{{ daily }}</strong></div>
     </header>
@@ -48,15 +48,23 @@
 
         <section class="coop-panel">
           <h2 class="h3">Your stand{% if me_member and me_member.stand %} <small class="muted">· {{ me_member.stand_name }}</small>{% endif %}</h2>
+          <p class="muted small-print">Each stand raids once a day, win or lose.{% if used %} {{ used|length }} of yours already did today.{% endif %}</p>
           <ul class="coop-stands">
             {% for c in stands %}
               <li>
+                {% if c.uuid in used %}
+                <span class="coop-stand used" title="Already raided today: it can raid again tomorrow">
+                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                  <span><strong>{{ c.name }}</strong><small class="muted">Raided today · back tomorrow</small></span>
+                </span>
+                {% else %}
                 <button type="button" class="coop-stand{{ ' picked' if me_member and me_member.stand == c.uuid }}"
                         hx-post="{{ url_for('coop.pick') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#coop-members" hx-swap="outerHTML"
                         onclick="this.closest('ul').querySelectorAll('.picked').forEach(b => b.classList.remove('picked')); this.classList.add('picked')">
                   <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
                   <span><strong>{{ c.name }}</strong><small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}</small></span>
                 </button>
+                {% endif %}
               </li>
             {% endfor %}
           </ul>

@@ -242,6 +242,23 @@ def clear_fight(user_id: str):
 # --------------------------------------------------------------------------- #
 def remember_identity(user_id: str, name: str, avatar: Optional[str], ttl: Optional[int] = 30 * 24 * 3600):
     _redis.set(f"web:identity:{user_id}", json.dumps({"name": name, "avatar": avatar}), ex=ttl)
+    index_name(user_id, name=name)
+
+
+NAMES = "web:names"  # hash uid -> JSON {"name": display name, "user": username}: the player search index, never expires
+
+
+def index_name(user_id: str, name: Optional[str] = None, username: Optional[str] = None):
+    """Remember a player's real display name and/or username for the search (placeholders are left out)."""
+    user_id = str(user_id)
+    raw = _redis.hget(NAMES, user_id)
+    entry = json.loads(raw) if raw else {}
+    if name and not name.startswith("Player "):
+        entry["name"] = name
+    if username:
+        entry["user"] = username.lower()
+    if entry:
+        _redis.hset(NAMES, user_id, json.dumps(entry))
 
 
 def identity(user_id: str) -> dict:
@@ -263,6 +280,7 @@ def identity(user_id: str) -> dict:
             if resp.ok:
                 u = resp.json()
                 data = {"name": u.get("global_name") or u["username"], "avatar": avatar_url(u)}
+                index_name(user_id, name=data["name"], username=u.get("username"))
         except requests.RequestException:
             pass
     _redis.set(f"web:identity:{user_id}", json.dumps(data), ex=24 * 3600)

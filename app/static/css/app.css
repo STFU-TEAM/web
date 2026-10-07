@@ -2802,6 +2802,7 @@ body.cine-open { overflow: hidden; }
 .coop-stand { display: flex; align-items: center; gap: .55rem; width: 100%; padding: .4rem .5rem; text-align: left; color: inherit; font: inherit;
   border: 2px solid var(--night-3); border-radius: var(--radius-ui); background: var(--night); cursor: pointer; }
 .coop-stand:hover, .coop-stand:focus-visible { border-color: var(--gold); }
+.coop-stand.used { cursor: not-allowed; opacity: .45; filter: grayscale(.7); }
 .coop-stand.picked { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, var(--night)); }
 .coop-stand img { flex: none; border-radius: 6px; object-fit: cover; }
 .coop-stand span { display: grid; min-width: 0; }
@@ -2811,3 +2812,49 @@ body.cine-open { overflow: hidden; }
 .coop-crew { list-style: none; margin: 0; padding: 0; display: flex; gap: .5rem; }
 .coop-crew img { border-radius: 8px; object-fit: cover; border: 2px solid var(--magenta); }
 .fighter-owner { margin: -.15rem 0 .15rem; font-size: .7rem; font-weight: 700; color: var(--teal); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Admin events: what each modifier does */
+.event-help { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: .8rem; margin-bottom: 1rem; }
+.event-help-card { padding: .9rem 1rem; border: 2px solid var(--night-3); border-radius: var(--radius-card); background: var(--night-2); }
+.event-help-card h3 { margin: 0; }
+.event-help-card > p { margin: .1rem 0 .5rem; font-size: var(--step--1); }
+.event-help-card ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .3rem; font-size: var(--step--1); }
+.event-shop-details { margin: 0 0 1.4rem; }
+.event-shop-details summary { cursor: pointer; font-weight: 700; padding: .3rem 0; }
+.event-preview { padding: .7rem .9rem; border-left: 4px solid var(--gold); border-radius: var(--radius-ui); background: rgb(244 197 66 / .08); }
+.event-preview p { margin: 0; }
+.event-preview p + p { margin-top: .3rem; }
+[data-event-pick][hidden] { display: none; }
+
+/* Admin: new players graph. Series colours validated on --night-2 (dataviz validator, dark mode). */
+.signups { position: relative; --series-discord: #22A399; --series-web: #BF8A1F; }
+.signups-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: .6rem 1rem; }
+.signups-head h2 { margin: 0; }
+.signups-head p { margin: .2rem 0 0; }
+.signup-tiles { grid-template-columns: repeat(auto-fill, minmax(min(46%, 150px), 1fr)); }
+.signup-tiles small.up { color: #7FE0B0; } .signup-tiles small.down { color: #FF9CB8; }
+.chart-legend { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem 1.1rem; margin: 0 0 .4rem; padding: 0; font-size: var(--step--1); color: var(--paper-2); }
+.chart-legend li { display: inline-flex; align-items: center; gap: .4rem; }
+.chart-legend li[hidden] { display: none; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.sw.discord { background: var(--series-discord); } .sw.web { background: var(--series-web); }
+.sw.avg { height: 2px; width: 16px; border-radius: 1px; background: var(--paper-2); }
+.signup-chart { width: 100%; min-height: 260px; }
+.signup-chart svg { display: block; max-width: 100%; }
+.signup-chart .grid { stroke: var(--night-3); stroke-width: 1; }
+.signup-chart .base { stroke: var(--muted); stroke-width: 1; }
+.signup-chart .tick { fill: var(--muted); font: 500 11px var(--body); font-variant-numeric: tabular-nums; }
+.signup-chart .bar.discord { fill: var(--series-discord); } .signup-chart .bar.web { fill: var(--series-web); }
+.signup-chart .avg { fill: none; stroke: var(--paper-2); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.signup-chart .hover-col { fill: rgb(237 230 247 / .07); }
+.signup-chart .hit { fill: transparent; cursor: crosshair; }
+.chart-tip { position: absolute; z-index: 5; display: grid; gap: .15rem; min-width: 150px; padding: .5rem .65rem; pointer-events: none;
+  border: 1px solid var(--night-3); border-radius: var(--radius-ui); background: var(--night); color: var(--paper); font-size: var(--step--1);
+  box-shadow: 0 6px 18px rgb(0 0 0 / .4); }
+.chart-tip span { display: flex; align-items: center; gap: .4rem; color: var(--paper-2); }
+.chart-tip b { margin-left: auto; color: var(--paper); font-variant-numeric: tabular-nums; }
+.signup-table { margin-top: .6rem; }
+.signup-table summary { cursor: pointer; color: var(--muted); font-size: var(--step--1); }
+.signup-table .admin-table-wrap { max-height: 320px; overflow-y: auto; }
+
+.chart-tip[hidden] { display: none; }

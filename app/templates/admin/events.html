@@ -4,7 +4,39 @@
 <h1 class="display sm">Events</h1>
 <p class="muted">One event at a time. Its modifier applies to every fight while it runs; players earn tokens (+{{ E.TOKENS_PVE }} per PvE win, +{{ E.TOKENS_PVP }} per ranked win) for the <a href="{{ url_for('progress.events_page') }}">event shop</a>. Dates are in game time; the end date is the first day it's over.</p>
 
-<form class="news-form admin-card event-form" method="post">
+<h2 class="h2">What an event does</h2>
+<div class="event-help">
+  {% for key, h in help.items() %}
+    <section class="event-help-card" id="help-{{ key }}">
+      <h3 class="h3"><span aria-hidden="true">{{ h.icon }}</span> {{ kinds[key] }}</h3>
+      <p class="muted">{{ h.who }}</p>
+      <ul>{% for line in h.does %}<li>{{ line }}</li>{% endfor %}</ul>
+    </section>
+  {% endfor %}
+  <section class="event-help-card">
+    <h3 class="h3"><span aria-hidden="true">🎟️</span> Every event</h3>
+    <p class="muted">Whatever the modifier</p>
+    <ul>
+      <li>Players earn +{{ E.TOKENS_PVE }} tokens per PvE win that pays a reward and +{{ E.TOKENS_PVP }} per ranked win.</li>
+      <li>Tokens belong to the event: they're spent in its shop and gone when it ends.</li>
+      <li>A 🎉 line opens every fight log and a ribbon shows on every page while it runs.</li>
+    </ul>
+  </section>
+</div>
+
+<details class="event-shop-details">
+  <summary>The event shop ({{ shop|length }} offers, refreshed for every event)</summary>
+  <div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Offer</th><th>Cost</th><th>Limit per event</th><th></th></tr></thead>
+    <tbody>{% for s in shop %}<tr><td>{{ s.label }}</td><td>{{ s.cost }} tokens</td><td>{{ s.limit }}</td>
+      <td>{% if s.exclusive %}<span class="pill">only from events</span>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table>
+  </div>
+</details>
+
+<h2 class="h2">Schedule one</h2>
+<form class="news-form admin-card event-form" method="post" data-event-form>
   <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="create">
   <label>Name<input type="text" name="name" maxlength="60" required placeholder="Golden Week"></label>
   <label>Blurb <small class="muted">(optional)</small><textarea name="blurb" rows="2" maxlength="300" placeholder="What's going on, in a sentence or two."></textarea></label>
@@ -14,15 +46,23 @@
   </div>
   <div class="event-form-row">
     <label>Modifier
-      <select name="kind" required>
+      <select name="kind" required data-event-kind>
         {% for key, label in kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
       </select></label>
-    <label>Rarity <small class="muted">(rarity spotlight)</small>
-      <select name="rarity">{% for r in rarities %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select></label>
-    <label>Synergy group <small class="muted">(synergy spotlight)</small>
-      <select name="synergy">{% for key, name in synergies %}<option value="{{ key }}">{{ name }}</option>{% endfor %}</select></label>
+    <label data-event-pick="rarity">Rarity
+      <select name="rarity">{% for r in rarities %}<option value="{{ r }}" data-count="{{ targets.rarity[r] }}">{{ r }} · {{ targets.rarity[r] }} stands</option>{% endfor %}</select></label>
+    <label data-event-pick="synergy">Synergy group
+      <select name="synergy">{% for key, name in synergies %}<option value="{{ key }}" data-members="{{ targets.synergy[key].members|join(', ') }}">{{ name }} · {{ targets.synergy[key].members|length }}</option>{% endfor %}</select></label>
   </div>
-  <p class="muted small-print">Meteor Dust rush: PvE wins pay {{ (E.DUST_BONUS * 100)|int }}% more. Spotlights: those stands get +{{ (E.BOOST * 100)|int }}% damage and speed in every fight (enemies too).</p>
+  <div class="event-preview" data-event-preview aria-live="polite">
+    {% for key, h in help.items() %}
+      <div data-preview-for="{{ key }}"{% if not loop.first %} hidden{% endif %}>
+        <p><strong>{{ h.icon }} {{ kinds[key] }}:</strong> {{ h.does[0] }}</p>
+        {% if key == 'synergy' %}<p class="muted small-print" data-synergy-members></p>{% endif %}
+        {% if key == 'rarity' %}<p class="muted small-print" data-rarity-count></p>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
   <button class="btn gold">Schedule event</button>
 </form>
 
@@ -52,4 +92,23 @@
 </table>
 </div>
 {% else %}<p class="notice">No event yet.</p>{% endif %}
+<script>
+// The form shows only the target its modifier needs, and what the event will do with it.
+(() => {
+  const form = document.querySelector("[data-event-form]");
+  if (!form) return;
+  const kind = form.querySelector("[data-event-kind]");
+  const rarity = form.querySelector("select[name=rarity]"), synergy = form.querySelector("select[name=synergy]");
+  const update = () => {
+    form.querySelectorAll("[data-event-pick]").forEach((el) => { el.hidden = el.dataset.eventPick !== kind.value; });
+    form.querySelectorAll("[data-preview-for]").forEach((el) => { el.hidden = el.dataset.previewFor !== kind.value; });
+    const members = synergy.selectedOptions[0]?.dataset.members || "";
+    form.querySelector("[data-synergy-members]").textContent = members ? "Boosted: " + members + "." : "";
+    const n = rarity.selectedOptions[0]?.dataset.count || 0;
+    form.querySelector("[data-rarity-count]").textContent = `${n} ${rarity.value} stands get the boost.`;
+  };
+  [kind, rarity, synergy].forEach((el) => el.addEventListener("change", update));
+  update();
+})();
+</script>
 {% endblock %}

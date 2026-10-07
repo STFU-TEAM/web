@@ -117,3 +117,40 @@ def test_fight_status_preview_matches_the_tick():
     hp = c.current_hp
     c.end_turn()
     assert c.current_hp == hp - 40 + 30
+
+
+def test_player_search_ranks_folds_accents_and_ignores_placeholders(client):
+    from app import social
+    from app.accounts import create_account
+    from app.db import identity, remember_identity
+    for uid, name in (("301", "Josuke Higashikata"), ("302", "Jose"), ("303", "Dio")):
+        put(client, create_user(uid))
+    put(client, create_user("304"))  # no name we know: identity() falls back to "Player 0304"
+    nosave = "305"  # a name but no save: never listed
+    put(client, create_user("111"))
+    login(client, "111")
+    with client.application.app_context():
+        remember_identity("301", "Josuke Higashikata", None)
+        remember_identity("302", "José", None)
+        remember_identity("303", "Dio", None)
+        remember_identity(nosave, "Jose Ghost", None)
+        assert identity("304")["name"] == "Player 304"
+        account = create_account("mista_four", "password123")
+        put(client, create_user(account["uid"]))
+        assert social.search("jose") == ["302"]  # accents folded
+        assert social.search("jos")[:2] == ["302", "301"]  # both start with it: the closer match first
+        assert social.search("higash") == ["301"]  # a word start
+        assert social.search("player") == []  # placeholders aren't names
+        assert social.search("mista") == [account["uid"]]  # usernames too
+        client.fake.delete("web:identity:302")  # the old cache expires: the index remembers
+        assert "302" in social.search("josé")
+    page = client.get("/community/players?q=jos", headers={"HX-Request": "true"}).data.decode()
+    assert page.strip().startswith('<div id="player-results">') and "Josuke Higashikata" in page
+
+
+def test_search_index_backfills_older_names_once(client):
+    from app import social
+    player(client, "401", "Giorno Giovanna")  # written straight to the old identity cache
+    with client.application.app_context():
+        assert social.search("giorno") == ["401"]
+        assert client.fake.exists("web:names:built")

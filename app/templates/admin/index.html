@@ -20,6 +20,40 @@
 </div>
 <p class="muted admin-note">Totals scanned {{ stats.at|replace('T', ' ') }} UTC, cached 5 minutes. <a href="{{ url_for('admin.index', refresh=1) }}">Rescan now</a></p>
 
+<section class="admin-card signups" data-signups aria-labelledby="signups-title">
+  <div class="signups-head">
+    <div>
+      <h2 class="h2" id="signups-title">New players</h2>
+      <p class="muted">New saves by the day they were made (the save's join date), from the bot and the site alike.</p>
+    </div>
+    <div class="filter-chips" role="group" aria-label="Period">
+      {% for n, label in [(30, '30 days'), (90, '90 days'), (365, '1 year')] %}
+        <button type="button" class="filter-chip" data-range="{{ n }}" aria-pressed="{{ 'true' if n == 30 else 'false' }}">{{ label }}</button>
+      {% endfor %}
+    </div>
+  </div>
+  {% macro change(v) %}{% if v is none %}<small>no players the period before</small>{% else %}<small class="{{ 'up' if v > 0 else 'down' if v < 0 }}">{{ '▲' if v > 0 else '▼' if v < 0 else '=' }} {{ v|abs }}% vs the period before</small>{% endif %}{% endmacro %}
+  <div class="stat-tiles signup-tiles">
+    <div><span>Today</span><strong>{{ signups.today|num }}</strong></div>
+    <div><span>Last 7 days</span><strong>{{ signups.week|num }}</strong>{{ change(signups.week_change) }}</div>
+    <div><span>Last 30 days</span><strong>{{ signups.month|num }}</strong>{{ change(signups.month_change) }}</div>
+    <div><span>Web-only accounts</span><strong>{{ signups.web_share }}%</strong><small>of the last 30 days</small></div>
+    <div><span>Last 12 months</span><strong>{{ signups.year|num }}</strong></div>
+  </div>
+  <ul class="chart-legend" aria-label="Legend">
+    <li><i class="sw discord"></i>Discord saves</li>
+    <li><i class="sw web"></i>Web-only accounts</li>
+    <li data-avg-legend><i class="sw avg"></i>7-day average</li>
+  </ul>
+  <div class="signup-chart" data-chart role="img" aria-label="New players per day"></div>
+  <div class="chart-tip" data-tip hidden></div>
+  <details class="signup-table">
+    <summary>Show as a table</summary>
+    <div class="admin-table-wrap"><table class="admin-table"><thead><tr><th data-col-label>Day</th><th>Discord</th><th>Web-only</th><th>Total</th></tr></thead><tbody data-rows></tbody></table></div>
+  </details>
+  <script type="application/json" data-signup-data>{{ signups.days|tojson }}</script>
+</section>
+
 <div class="admin-columns">
   <section class="social-panel">
     <h2 class="h2">Stands by rarity</h2>
@@ -44,4 +78,107 @@
   <div class="social-heading"><h2 class="h2">Recent admin actions</h2><a href="{{ url_for('admin.audit_log') }}">Full log →</a></div>
   {% include "admin/_audit_rows.html" %}
 </section>
+<script>
+// New players: stacked daily bars (weekly beyond 90 days), a 7-day average, a hover tooltip and a table view.
+(() => {
+  const root = document.querySelector("[data-signups]");
+  if (!root) return;
+  const all = JSON.parse(root.querySelector("[data-signup-data]").textContent);
+  const box = root.querySelector("[data-chart]"), tip = root.querySelector("[data-tip]");
+  const NS = "http://www.w3.org/2000/svg";
+  const fmt = (iso, opts) => new Date(iso + "T12:00:00").toLocaleDateString(undefined, opts || { month: "short", day: "numeric" });
+  const el = (name, attrs) => { const n = document.createElementNS(NS, name); for (const k in attrs) n.setAttribute(k, attrs[k]); return n; };
+  let range = 30;
+
+  const rowsFor = (n) => {
+    const days = all.slice(-n);
+    if (n <= 90) return { weekly: false, rows: days.map((x) => ({ ...x, label: fmt(x.d), long: fmt(x.d, { weekday: "short", month: "short", day: "numeric" }) })) };
+    const weeks = [];  // Monday-based weeks
+    for (const x of days) {
+      const dt = new Date(x.d + "T12:00:00"), monday = new Date(dt); monday.setDate(dt.getDate() - ((dt.getDay() + 6) % 7));
+      const key = monday.toISOString().slice(0, 10);
+      if (!weeks.length || weeks[weeks.length - 1].d !== key) weeks.push({ d: key, discord: 0, web: 0 });
+      weeks[weeks.length - 1].discord += x.discord; weeks[weeks.length - 1].web += x.web;
+    }
+    return { weekly: true, rows: weeks.map((w) => ({ ...w, label: fmt(w.d), long: "Week of " + fmt(w.d, { month: "short", day: "numeric", year: "numeric" }) })) };
+  };
+
+  // a whole-number tick step of 1, 2 or 5 x 10^n giving about 4 gridlines, and the top it reaches
+  const scale = (v) => { const raw = Math.max(1, v / 4), p = 10 ** Math.floor(Math.log10(raw)), m = raw / p;
+    const step = Math.max(1, (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p); return { step, top: step * Math.max(1, Math.ceil(v / step)) }; };
+
+  const draw = () => {
+    const { weekly, rows } = rowsFor(range);
+    const totals = rows.map((r) => r.discord + r.web);
+    const avg = weekly ? null : rows.map((_, i) => { const s = all.slice(all.length - rows.length + i - 6, all.length - rows.length + i + 1); return s.reduce((a, x) => a + x.discord + x.web, 0) / 7; });
+    const W = Math.max(320, box.clientWidth), H = 260, m = { l: 40, r: 10, t: 12, b: 26 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const { step, top } = scale(Math.max(1, ...totals, ...(avg || [0])));
+    const y = (v) => m.t + ph - (v / top) * ph, band = pw / rows.length;
+    const bw = Math.max(1.5, Math.min(28, band - Math.max(1, band * 0.25)));
+    const svg = el("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}` });
+    for (let v = 0; v <= top; v += step) {  // recessive grid on whole-number steps
+      const yy = y(v), i = v;
+      svg.append(el("line", { x1: m.l, x2: W - m.r, y1: yy, y2: yy, class: i ? "grid" : "base" }));
+      const t = el("text", { x: m.l - 6, y: yy + 4, class: "tick", "text-anchor": "end" }); t.textContent = Math.round(v); svg.append(t);
+    }
+    const every = Math.ceil(rows.length / Math.max(2, Math.floor(pw / 70)));
+    const lastTick = Math.floor((rows.length - 1) / every) * every;  // the end gets a label only with room for it
+    rows.forEach((r, i) => {
+      const x = m.l + band * i + (band - bw) / 2, cx = m.l + band * i + band / 2;
+      const segs = [["discord", r.discord], ["web", r.web]].filter(([, v]) => v > 0);
+      let base = y(0);
+      segs.forEach(([cls, v], k) => {
+        const h = Math.max(1, (v / top) * ph - (k ? 2 : 0)), yTop = base - h, last = k === segs.length - 1;
+        const rad = last && bw >= 6 ? Math.min(4, bw / 2, h) : 0;  // rounded data end, square at the baseline
+        const d = `M${x},${base}V${yTop + rad}Q${x},${yTop} ${x + rad},${yTop}H${x + bw - rad}Q${x + bw},${yTop} ${x + bw},${yTop + rad}V${base}Z`;
+        svg.append(el("path", { d, class: "bar " + cls }));
+        base = yTop - 2;  // a 2px gap before the next segment
+      });
+      if (i % every === 0 || (i === rows.length - 1 && i - lastTick >= every * 0.75)) {
+        const t = el("text", { x: cx, y: H - 8, class: "tick", "text-anchor": "middle" }); t.textContent = r.label; svg.append(t);
+      }
+    });
+    if (avg) {
+      const pts = avg.map((v, i) => `${m.l + band * i + band / 2},${y(v)}`).join(" ");
+      svg.append(el("polyline", { points: pts, class: "avg" }));
+    }
+    const hl = el("rect", { y: m.t, height: ph, width: band, class: "hover-col", visibility: "hidden" });
+    svg.insertBefore(hl, svg.firstChild);
+    const hit = el("rect", { x: m.l, y: m.t, width: pw, height: ph, class: "hit" });
+    svg.append(hit);
+    const show = (evt) => {
+      const rect = svg.getBoundingClientRect();
+      const i = Math.min(rows.length - 1, Math.max(0, Math.floor((evt.clientX - rect.left - m.l) / band)));
+      const r = rows[i];
+      hl.setAttribute("x", m.l + band * i); hl.setAttribute("visibility", "visible");
+      tip.innerHTML = `<strong>${r.long}</strong><span><i class="sw discord"></i>Discord <b>${r.discord}</b></span>`
+        + `<span><i class="sw web"></i>Web-only <b>${r.web}</b></span><span>Total <b>${r.discord + r.web}</b></span>`
+        + (avg ? `<span><i class="sw avg"></i>7-day avg <b>${avg[i].toFixed(1)}</b></span>` : "");
+      tip.hidden = false;
+      const bx = box.getBoundingClientRect(), rb = root.getBoundingClientRect();
+      const left = bx.left - rb.left + m.l + band * i + band / 2;
+      tip.style.left = Math.min(rb.width - tip.offsetWidth - 8, Math.max(8, left - tip.offsetWidth / 2)) + "px";
+      tip.style.top = (bx.top - rb.top + 4) + "px";
+    };
+    hit.addEventListener("pointermove", show);
+    hit.addEventListener("pointerleave", () => { tip.hidden = true; hl.setAttribute("visibility", "hidden"); });
+    box.replaceChildren(svg);
+    box.setAttribute("aria-label", `New players per ${weekly ? "week" : "day"}, last ${range} days: ${totals.reduce((a, b) => a + b, 0)} in all.`);
+    root.querySelector("[data-avg-legend]").hidden = weekly;
+    root.querySelector("[data-col-label]").textContent = weekly ? "Week of" : "Day";
+    root.querySelector("[data-rows]").innerHTML = rows.slice().reverse()
+      .map((r) => `<tr><td>${r.long}</td><td>${r.discord}</td><td>${r.web}</td><td><b>${r.discord + r.web}</b></td></tr>`).join("");
+  };
+
+  root.querySelectorAll("[data-range]").forEach((b) => b.addEventListener("click", () => {
+    range = +b.dataset.range;
+    root.querySelectorAll("[data-range]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    draw();
+  }));
+  let raf;
+  addEventListener("resize", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); });
+  draw();
+})();
+</script>
 {% endblock %}

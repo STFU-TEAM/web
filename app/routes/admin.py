@@ -21,6 +21,7 @@ MAX_CURRENCY_GRANT = 1_000_000
 MAX_ITEM_GRANT = 25
 AUDIT_KEY = "web:admin:audit"
 STATS_KEY = "web:admin:stats"
+SIGNUP_DAYS = 365  # how far back the new players graph goes
 EDITABLE = {  # field -> (label, min, max)
     "fragments": ("Fragments", 0, 1_000_000_000),
     "super_fragments": ("Arrowheads", 0, 100_000),
@@ -69,7 +70,9 @@ def _economy():
     totals = {"fragments": 0, "super": 0, "stands": 0, "items": 0, "web_only": 0, "supporters": 0}
     rarity = {k: 0 for k in RARITY_RANK}
     rich, newest = [], []
+    joined_by_day = {}  # "YYYY-MM-DD" -> [Discord saves, web-only accounts], for the new players graph
     now = logic.now()
+    since = (now - datetime.timedelta(days=SIGNUP_DAYS + 7)).date()
     for uid, doc in get_db().all_user_docs():
         totals["fragments"] += int(doc.get("fragments", 0) or 0)
         totals["super"] += int(doc.get("super_fragments", doc.get("super_fragments", 0)) or 0)
@@ -88,29 +91,42 @@ def _economy():
         joined = doc.get("join_date")
         if isinstance(joined, datetime.datetime):
             newest.append((joined.isoformat(), uid))
+            if joined.date() >= since:
+                day = joined_by_day.setdefault(joined.date().isoformat(), [0, 0])
+                day[1 if uid.startswith("acc") else 0] += 1
     rich.sort(reverse=True)
     newest.sort(reverse=True)
-    data = {"totals": totals, "rarity": rarity, "rich": rich[:8], "newest": newest[:8],
+    data = {"totals": totals, "rarity": rarity, "rich": rich[:8], "newest": newest[:8], "joined": joined_by_day,
             "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="minutes")}
     r().set(STATS_KEY, json.dumps(data), ex=300)
     return data
 
 
+def _signups(joined: dict, today: datetime.date) -> dict:
+    """The new players graph: one row per day for SIGNUP_DAYS (zeros filled in) and the headline numbers."""
+    days = []
+    for back in range(SIGNUP_DAYS - 1, -1, -1):
+        d = today - datetime.timedelta(days=back)
+        discord, web = joined.get(d.isoformat(), [0, 0])
+        days.append({"d": d.isoformat(), "discord": discord, "web": web})
+
+    def total(a, b):  # days a..b ago (a > b)
+        return sum(x["discord"] + x["web"] for x in days[SIGNUP_DAYS - a:SIGNUP_DAYS - b])
+
+    def change(now_n, before_n):
+        return None if not before_n else round(100 * (now_n - before_n) / before_n)
+
+    week, prev_week, month, prev_month = total(7, 0), total(14, 7), total(30, 0), total(60, 30)
+    web_month = sum(x["web"] for x in days[-30:])
+    return {"days": days, "today": days[-1]["discord"] + days[-1]["web"], "week": week,
+            "week_change": change(week, prev_week), "month": month, "month_change": change(month, prev_month),
+            "web_share": round(100 * web_month / month) if month else 0, "year": total(SIGNUP_DAYS, 0)}
+
+
 def _find_by_name(query: str, limit=12):
-    """Display-name search over remembered identities (players who logged in on the web)."""
-    q = query.lower()
-    found = []
-    for key in r().scan_iter("web:identity:*", count=500):
-        uid = key.decode().split(":", 2)[2]
-        try:
-            name = json.loads(r().get(key) or "{}").get("name", "")
-        except ValueError:
-            continue
-        if q in name.lower() and get_db().user_exists(uid):
-            found.append({"id": uid, "name": name})
-            if len(found) >= limit:
-                break
-    return found
+    """Display-name or username search (the player search index, app/social.py)."""
+    from app import social
+    return [{"id": uid, "name": identity(uid)["name"]} for uid in social.search(query, limit)]
 
 
 # --------------------------------------------------------------------------- #
@@ -138,7 +154,8 @@ def index():
     stats = _economy()
     for key in ("rich", "newest"):
         stats[key] = [(value, uid, identity(uid)["name"]) for value, uid in stats[key]]
-    return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats,
+    signups = _signups(stats.get("joined") or {}, logic.now().date())
+    return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats, signups=signups,
                            audit=_audit_rows(8), section="dashboard")
 
 
@@ -527,4 +544,5 @@ def events_admin():
     return render_template("admin/events.html", section="events", E=events, rows=events.all_events(r()),
                            today=today, rarities=logic.RARITIES, kinds=events.KINDS,
                            synergies=sorted(((k, SYNERGY_INFO.get(k, (k, ""))[0]) for k in SYNERGIES), key=lambda x: x[1]),
+                           help=events.KIND_HELP, targets=events.target_view(), shop=events.SHOP,
                            default_end=(today + datetime.timedelta(days=7)).isoformat())
