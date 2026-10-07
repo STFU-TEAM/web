@@ -2728,3 +2728,22 @@ body.cine-open { overflow: hidden; }
 .tier-common { --chip: #B8BCC8; } .tier-rare { --chip: var(--teal); } .tier-epic { --chip: #B57BFF; } .tier-legendary { --chip: var(--gold); }
 .chip-card.tier-common, .chip-card.tier-rare, .chip-card.tier-epic, .chip-card.tier-legendary { border-left-color: var(--chip); }
 .chip-tier, .chip-pill { color: var(--chip, var(--muted)); }
+
+/* Compact owned cards (collection, team): one line of chrome above and on the art, one divider, one row of
+   traits and items. Tags, the charge ring and the star shapes live on big cards and in the stand panel. */
+.star-pill { margin-left: auto; flex: none; font: 700 .7rem/1 var(--body); padding: .2rem .4rem; border-radius: 999px;
+  background: var(--magenta); color: #fff; letter-spacing: .02em; }
+.card.compact .card-top { min-height: 1.35rem; }
+.card.compact .card-flags { top: auto; bottom: 6px; right: 6px; }
+.card.compact.fullart .card-flags { bottom: auto; top: 2.3rem; right: 10px; }
+.card.compact .card-name { border-top: 0; padding-top: .3rem; min-height: 2.5em; }
+.card.compact .xp { margin-top: 0; }
+.card.compact .card-face { gap: 5px; }
+.card.compact .traits { flex-wrap: nowrap; overflow: hidden; }
+.card.compact .traits li.item { border: 0; background: none; padding: 0 .1rem; font-size: .8rem; line-height: 1.25; }
+.card.compact .traits li.item .emoji { width: 1em; height: 1em; vertical-align: -.15em; }
+.card.fullart.compact .traits li.item { background: none; }
+.card.compact .card-stats div + div { border-left: 0; }
+.card.compact .card-stats.five dt { font-size: .55rem; letter-spacing: .04em; opacity: .85; }
+.card.compact .card-stats.five dd { font-size: .8rem; }
+.card.compact.small .card-stats.five dd { font-size: .7rem; }
