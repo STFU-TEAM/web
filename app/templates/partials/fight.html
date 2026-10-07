@@ -135,17 +135,30 @@
           {% if not fight.rewards.won %}<p class="muted">Consolation: +{{ fight.rewards.fragments }} Meteor Dust, +{{ fight.rewards.xp }} player XP.</p>{% endif %}
         {% endif %}
         {% if fight.rewards and (fight.rewards.won if my_side == 0 else fight.winner == my_side) %}
-          <p class="loot">+{{ fight.rewards.fragments }} Meteor Dust, +{{ fight.rewards.xp }} player XP, +{{ fight.rewards.stand_xp }} XP for each stand{% if fight.rewards.item %}, and <strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
+          {% set gains = (['+' ~ fight.rewards.fragments ~ ' Meteor Dust'] if fight.rewards.fragments else []) + (['+' ~ fight.rewards.xp ~ ' player XP'] if fight.rewards.xp else []) + (['+' ~ fight.rewards.stand_xp ~ ' XP for each stand'] if fight.rewards.stand_xp else []) %}
+          {% if gains or fight.rewards.item %}
+            <p class="loot">{{ gains|join(', ') }}{% if fight.rewards.item %}{{ ', and ' if gains else '' }}<strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
+          {% else %}<p class="loot">Victory!</p>{% endif %}
+        {% elif fight.rewards and fight.rewards.consolation_xp %}
+          <p>Your stands still learned something: +{{ fight.rewards.consolation_xp }} XP each.</p>
         {% else %}
           <p>{{ 'The practice fight ended.' if fight.kind == 'dummy' else 'No reward was earned.' }}</p>
         {% endif %}
         {% if fight.rewards and fight.rewards.event_bonus %}<p class="event-line">🎉 Event bonus: +{{ fight.rewards.event_bonus|num }} Meteor Dust included.</p>{% endif %}
         {% set tokens = (fight.rewards.tokens if fight.rewards and fight.rewards.tokens else 0) or (fight.meta.tokens if fight.winner == my_side and fight.meta.tokens else 0) %}
         {% if tokens %}<p class="event-line">🎟️ +{{ tokens }} event tokens · <a href="{{ url_for('progress.events_page') }}">event shop</a></p>{% endif %}
+        {% set nxt = next_step(fight, my_side) %}
+        {% set lost = fight.winner != my_side %}
         <div class="viewer-actions">
-          <button class="btn gold" form="fight-leave">Back to {{ fight_label|lower }}</button>
+          {% if nxt %}<button class="btn gold" form="fight-next">{{ nxt.label }}</button>{% endif %}
+          <button class="btn {{ 'ghost' if nxt else 'gold' }}" form="fight-leave">Back to {{ fight_label|lower }}</button>
+          {% if lost and fight.start_teams %}
+            <button type="button" class="btn ghost" hx-post="{{ url_for('battles.simulator_rematch') }}" hx-target="#fight-sim"
+                    hx-swap="innerHTML" hx-disabled-elt="this" title="Replay this exact fight {{ sim_runs }} times with the smart AI picking your targets">🧪 Simulate this fight</button>
+          {% endif %}
           <a class="btn ghost" href="{{ url_for('battles.replay', fight_id=fight.id) }}" target="_blank" rel="noopener">▶ Replay</a>
         </div>
+        {% if lost and fight.start_teams %}<div id="fight-sim" class="fight-sim" aria-live="polite"></div>{% endif %}
       </div>
     {% endif %}
   {% if viewer %}</div>{% else %}</form>{% endif %}
@@ -159,6 +172,13 @@
     <form id="fight-leave" hidden method="post" action="{{ fight_leave_action }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
     </form>
+    {% set nxt = next_step(fight, my_side) %}
+    {% if nxt %}
+    <form id="fight-next" hidden method="post" action="{{ url_for(nxt.action) }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      {% for k, v in nxt.fields.items() %}{% for one in (v if v is sequence and v is not string else [v]) %}<input type="hidden" name="{{ k }}" value="{{ one }}">{% endfor %}{% endfor %}
+    </form>
+    {% endif %}
   {% elif my_turn and turn_left is defined and turn_left is not none %}
     {# PvP: when my clock runs out, ask the server to pick for me. #}
     <div hidden hx-post="{{ fight_action }}" hx-trigger="load delay:{{ turn_left + 1 }}s" hx-target="#fight" hx-swap="outerHTML"
@@ -193,7 +213,7 @@
     <ol reversed>
       {% for e in fight.log|reverse %}
         {% set i = fight.log|length - 1 - loop.index0 %}
-        <li class="{{ e.kind }} {{ 'mine' if e.side == my_side else 'theirs' }}{% if i >= base %} fresh{% endif %}" data-i="{{ i }}">
+        <li class="{{ e.kind }}{% if e.crit and e.crit > 1 %} crit{{ [e.crit, 3]|min }}{% endif %} {{ 'mine' if e.side == my_side else 'theirs' }}{% if i >= base %} fresh{% endif %}" data-i="{{ i }}">
           <span class="t">T{{ e.turn }}</span> {{ e.text|replace('`', '') }}
         </li>
       {% else %}

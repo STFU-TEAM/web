@@ -758,7 +758,7 @@ def test_boss_rush_carries_health_pays_weekly_and_ranks(client):
     client.post("/rush/fight", headers=h)  # one run a day
     assert client.fake.get("web:fight:111") is None
     page = client.get("/rush").data.decode()
-    assert "Come back tomorrow" in page and "1/6" in page
+    assert "Come back tomorrow" in page and f"1/{len(rush.BOSSES)}" in page
 
 
 def test_new_recipes_and_gear_specials(client):
@@ -804,8 +804,9 @@ def test_tower_carries_health_heals_a_little_and_is_the_same_for_everyone():
     assert tower.state(user)["run"]["floor"] == 2 and tower.state(user)["best"] == 1
     # the floors of a week are fixed; enemies grow exponentially
     assert tower.floor_ids(7, "2026-W40") == tower.floor_ids(7, "2026-W40")
-    lv = [tower.level_for(f) for f in range(1, 45)]
-    assert lv == sorted(lv) and lv[-1] == 100 and tower.overflow_for(60) == 1 and tower.overflow_for(80) > 2
+    lv = [tower.level_for(f) for f in range(1, 28)]
+    assert lv == sorted(lv) and lv[-1] == 100 and tower.awaken_for(42) == 5
+    assert tower.overflow_for(42) == 1 and tower.overflow_for(52) > 1.9 and tower.power_for(30) > 1.3
     assert tower.is_rest(5) and tower.is_boss(10)
     # a loss ends the climb
     fight.winner = 1

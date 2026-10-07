@@ -292,7 +292,7 @@ def profile(uid: str):
         u=user, ident=identity(uid), gang=gang, uid=uid, owned=len(stands), unique=len(unique),
         playable=len(PLAYABLE), collection=collection, showcase=showcase, level_pct=round(level_pct),
         story_cleared=story.cleared(user), story_total=story.TOTAL,
-        tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSS_STAGES),
+        tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSSES),
         achievements_done=len(recent), achievements_total=len(achievements), recent=recent[:4],
         is_me=is_me,
         relation=social.relation(session["uid"], uid) if session.get("uid") else None)

@@ -3,7 +3,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
-from app.game import altverse, logic, rush, story
+from app.game import altverse, logic, rush, story, training
 from app.game.fight import Fight, Side, fighting_copy
 from app.routes.fightturn import play_turn
 from app.game.achievements import get_all_achievements_status
@@ -399,6 +399,79 @@ def rush_leave():
     if fight and fight.finished:
         clear_fight(session["uid"])
     return redirect(url_for("progress.rush_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Training ground: fast stand XP once the story and the AU are done (app/game/training.py)
+# --------------------------------------------------------------------------- #
+def _training_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == "training" else None
+
+
+@bp.get("/training")
+@player_required
+def training_page():
+    from app.filters import power_score
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != "training" and not other.finished else None
+    stands = sorted(user.main_characters + user.storage_characters, key=lambda c: (c.level >= 100, -power_score(c)))
+    return render_template("training.html", u=user, fight=_training_fight(uid), error=error,
+                           unlocked=training.unlocked(user), progress=training.progress(user), stands=stands,
+                           team={c.uuid for c in user.main_characters}, drills=training.DRILLS,
+                           team_max=training.TEAM_MAX, loss_share=round(training.LOSS_SHARE * 100),
+                           fight_action=url_for("progress.training_attack"),
+                           fight_leave_action=url_for("progress.training_leave"), fight_label="Training ground")
+
+
+@bp.post("/training/fight")
+@player_required
+def training_fight():
+    uid = session["uid"]
+    existing = load_fight(uid)
+    if existing and not (existing.kind == "training" and existing.finished):
+        flash("Finish your current fight first.", "error")
+        return redirect(url_for("progress.training_page"))
+    drill = request.form.get("drill", "")
+    uuids = request.form.getlist("uuid")
+
+    def start(user):
+        team, foes = training.start(user, uuids, drill)
+        d = training.DRILLS[drill]
+        fight = Fight(Side(session.get("name", "You"), fighting_copy(team), True, session.get("avatar")),
+                      Side(f"{d['icon']} {d['label']}", foes, False), kind="training",
+                      meta={"drill": drill, "uuids": [c.uuid for c in team]})
+        fight.advance()
+        save_fight(uid, fight)
+
+    _act(start)
+    return redirect(url_for("progress.training_page"))
+
+
+def _training_settle(user, fight):
+    rewards = training.settle(user, fight)
+    if rewards["won"]:
+        logic.track_quest_progress(user, "fight_win")
+        logic.check_achievements(user, "fight_win")
+    return rewards
+
+
+@bp.post("/training/attack")
+@player_required
+def training_attack():
+    return play_turn("training", url_for("progress.training_page"), "Training ground", "progress.training_attack",
+                     "progress.training_leave", _training_settle)
+
+
+@bp.post("/training/leave")
+@player_required
+def training_leave():
+    fight = _training_fight(session["uid"])
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.training_page"))
 
 
 @bp.post("/tour/done")

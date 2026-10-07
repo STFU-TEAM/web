@@ -23,6 +23,17 @@ def opponents(heaven: bool = True) -> List[dict]:
     return groups + ([{"group": "Over Heaven", "options": heaven_options}] if heaven else [])
 
 
+def rematch(fight) -> Optional[dict]:
+    """{team, foe} to replay a finished PvE fight from where it started, or None (fights saved before snapshots)."""
+    teams = getattr(fight, "start_teams", None)
+    if not teams or not fight.finished:
+        return None
+    foe_side = fight.sides[1]
+    rules = fight.__dict__.get("rules") or None
+    return {"team": teams[0], "foe": {"name": foe_side.name, "team": teams[1], "ai": getattr(foe_side, "ai", "smart"),
+                                      "rules": rules, "label": foe_side.name}}
+
+
 def foe_for(value: str, db=None) -> Optional[dict]:
     """{name, team, ai} for a picker value, or None."""
     kind, _, arg = (value or "").partition(":")
@@ -50,14 +61,15 @@ def foe_for(value: str, db=None) -> Optional[dict]:
     return None
 
 
-def run(team, foe: dict, runs: int = RUNS) -> dict:
+def run(team, foe: dict, runs: int = RUNS, copier=fighting_copy) -> dict:
+    """copier: how each run gets fresh fighters (copy.deepcopy keeps a fight's carried health and growth)."""
     wins = losses = draws = 0
     rounds, hp_left = [], []
     per = [{"id": c.id, "name": c.name, "dmg": 0, "alive": 0, "specials": 0} for c in team]
     for _ in range(runs):
-        enemies = Side(foe["name"], fighting_copy(foe["team"]), False, parts=foe.get("player", False))
+        enemies = Side(foe["name"], copier(foe["team"]), False, parts=foe.get("player", False))
         enemies.ai = foe.get("ai", "smart")
-        f = Fight(Side("You", fighting_copy(team), True), enemies, kind="simulation",
+        f = Fight(Side("You", copier(team), True), enemies, kind="simulation",
                   meta={"rules": foe["rules"]} if foe.get("rules") else None)
         steps = 0
         while not f.finished and steps < MAX_STEPS:

@@ -31,8 +31,9 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Gangs: ranks (kick/promote/demote/hand over boss), guardians, vault + payments, stash and wars
   (matched by the bot's warmatchmaking worker). Weekly raids are web-only: one villain a week,
   one attack per member per day, four damage tiers every attacker claims (`app/game/gangs.py`)
-- Story mode (`app/game/story.py`) and the weekly boss rush (`app/game/rush.py`): the six story
-  bosses back to back with health carried over, one run a day, weekly leaderboard
+- Story mode (`app/game/story.py`) and the weekly boss rush (`app/game/rush.py`): twelve bosses back to
+  back (the six story bosses on a much steeper curve, then a maxed encore) with health carried over, one run a
+  day, weekly leaderboard
 - News feed (`app/news.py`): admins post from /admin/news with an uploaded or linked cover image
 - Crafting: materials (Meteorite Shard, Rokakaka Fruit, Arrow Fragment) and craftable gear in
   `items.json` / `recipes.json`; gear specials live in `itemabilities.py`
@@ -45,7 +46,8 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Admin: dashboard, player editor (values, items, stands, cooldowns, story, supporter, web ban, raw
   save), gangs, shops, banner on/off, filterable audit log
 - Player shops: list, buy and return items with locked buyer/seller transfers
-- Tower: six sequential PvE floors, persisted progress and shared fight UI
+- Tower: an endless weekly climb (level 100 by floor 27, ★5 by 42, compounding past it), persisted progress
+  and shared fight UI
 - Daily dungeon: a free fogged 3-floor delve with persistent team health, a loot bag and a cash-out-or-go-deeper choice
 - Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
 - Public stand encyclopedia, leaderboards, player profiles
@@ -72,6 +74,15 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   senders need 3 story stages
 - Notifications stay on the site (inbox + toasts, no bot involved). Journeys schedule a "your stand is home"
   notification (`social.notify_later`, sent by page loads), gang wars notify every member
+- Training ground (`/training`, `app/game/training.py`): opens once the story and the Alternate Universe are
+  cleared; up to 3 stands from anywhere in the collection fight sparring partners at their level for fast stand
+  XP (a share even on a loss) and a chance at a chip
+- Stand chips (`/chips`, `app/game/chips.py`): one kind per synergy group, random stat lines by tier, socketed
+  only into members of that group; 1 slot + 1 per awakening (4 at ★3); stored on the stand (`data["chips"]`),
+  spares in `web_chips`; applied in `Character.__init__` and stripped from ranked duels. Drops: training wins,
+  tower boss floors, boss rush bosses 4-12
+- Finished fights offer a Continue button (next floor/boss/stage, retry, queue again) and, after a PvE loss,
+  "Simulate this fight" from the exact starting state
 - Team simulator (`/battles/simulator`, `app/game/simulate.py`): 40 fights through the real engine
   against a story stage, a tower floor or another player's team
 - Stand Dex (`/dex`, `app/game/dex.py`): rarity and crew sets with rewards; a stand counts once ever

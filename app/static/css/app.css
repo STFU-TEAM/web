@@ -1138,6 +1138,8 @@ details.menu[open] summary::before { content: "− "; }
 .turn-banner .turn-no { display: inline-block; margin-right: .4rem; padding: .05rem .5rem; font-size: .75em; background: var(--gold); color: var(--ink); border-radius: 4px; vertical-align: .1em; }
 .turn-banner.play { font-family: var(--body); font-weight: 700; font-size: var(--step-0); color: var(--paper); animation: banner-in .25s ease-out; }
 .turn-banner.play.crit, .turn-banner.play.special { color: var(--gold); }
+.turn-banner.play.crit2 { color: #FF4040; }
+.turn-banner.play.crit3 { background: var(--rainbow); -webkit-background-clip: text; background-clip: text; color: transparent; animation: banner-in .25s ease-out, rainbow-shift 1.2s linear infinite; }
 .turn-banner.play.terrain { color: var(--teal); }
 .turn-banner.play.sudden { color: #FF8DB9; }
 .turn-banner.done { font-size: var(--step-3); text-shadow: 3px 3px 0 var(--magenta); animation: slam .5s cubic-bezier(.2, .9, .3, 1.3) both; }
@@ -1191,6 +1193,15 @@ details.menu[open] summary::before { content: "− "; }
   animation: pop 1s ease-out forwards;
 }
 .dmg-pop.crit { font-size: 2.2rem; color: var(--gold); }
+/* Crits past 100%: red for a double, rainbow for a triple and beyond. Normal hits stay white. */
+.dmg-pop.crit2 { font-size: 2.6rem; color: #FF4040; text-shadow: 2px 2px 0 var(--night); }
+.dmg-pop.crit3 {
+  font-size: 3rem; color: transparent; -webkit-text-stroke: 0; text-shadow: none;
+  background: var(--rainbow); -webkit-background-clip: text; background-clip: text;
+  animation: pop 1.2s ease-out forwards, rainbow-shift .6s linear infinite;
+}
+:root { --rainbow: linear-gradient(90deg, #FF4040, #FF9F1C, #FFE14D, #4DFF88, #3FD0FF, #9D6BFF, #FF4FD8); }
+@keyframes rainbow-shift { from { filter: drop-shadow(2px 2px 0 #14102A) hue-rotate(0deg); } to { filter: drop-shadow(2px 2px 0 #14102A) hue-rotate(360deg); } }
 .dmg-pop.miss { font-size: 1.2rem; color: var(--teal); text-shadow: 2px 2px 0 var(--night); }
 .dmg-pop.stun { font-size: 1.1rem; color: var(--paper); text-shadow: 2px 2px 0 var(--violet); }
 @keyframes pop {
@@ -1235,7 +1246,9 @@ details.menu[open] summary::before { content: "− "; }
 .log li .t { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .3rem; }
 .log li.mine { border-left-color: var(--teal); }
 .log li.theirs { color: #F2C6D8; border-left-color: var(--magenta); }
-.log li.crit { font-weight: 700; }
+.log li.crit { font-weight: 700; color: var(--gold); }
+.log li.crit2 { color: #FF6B6B; }
+.log li.crit3 { background: var(--rainbow); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .log li.special { color: var(--gold); font-weight: 700; }
 .log li.stun { color: var(--muted); font-style: italic; }
 .log li.terrain { color: var(--teal); font-weight: 700; border-left-color: var(--teal); }
@@ -1270,6 +1283,8 @@ details.menu[open] summary::before { content: "− "; }
   .arena { padding: .8rem .4rem; }
   .dmg-pop { font-size: 1.25rem; }
   .dmg-pop.crit { font-size: 1.6rem; }
+  .dmg-pop.crit2 { font-size: 1.85rem; }
+  .dmg-pop.crit3 { font-size: 2.1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2493,6 +2508,8 @@ body.cine-open { overflow: hidden; }
 .replay-hint { margin: -.4rem 0 .8rem; }
 .viewer-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; }
 .viewer-actions .btn { min-width: 9rem; }
+.fight-sim { text-align: left; }
+.fight-sim:not(:empty) { margin-top: 1rem; }
 .event-line { color: var(--gold); font-weight: 700; }
 .fight.viewer .fighter { cursor: default; }
 @media (max-width: 560px) {
@@ -2680,3 +2697,34 @@ body.cine-open { overflow: hidden; }
   .scroll-tabs a, .dex-set summary, .replay-speed .btn, .event-shop .btn, .gift-btn { min-height: 44px; }
   .pb-replay { width: 44px; height: 44px; }
 }
+
+/* Training ground */
+.training-form { display: grid; gap: 1.2rem; }
+.training-drills, .training-stands { border: 0; margin: 0; padding: 0; min-width: 0; }
+.training-drills { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: .7rem; }
+.training-drills legend, .training-stands legend { margin-bottom: .5rem; }
+.training-drill { display: flex; gap: .6rem; align-items: flex-start; padding: .8rem; border: 2px solid var(--night-3); border-radius: var(--radius-card); background: var(--night-2); cursor: pointer; }
+.training-drill:has(input:checked) { border-color: var(--gold); }
+.training-drill span, .training-stands label span { display: grid; gap: .15rem; min-width: 0; }
+.training-stands ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: .5rem; max-height: 460px; overflow-y: auto; }
+.training-stands label { display: flex; gap: .6rem; align-items: center; padding: .45rem .6rem; border: 2px solid var(--night-3); border-radius: var(--radius-ui); background: var(--night-2); cursor: pointer; }
+.training-stands label:has(input:checked) { border-color: var(--teal); }
+.training-stands label.maxed { opacity: .6; }
+.training-stands img { border-radius: 6px; flex: none; object-fit: cover; }
+
+/* Stand chips */
+.chip-bag-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; }
+.chip-list { list-style: none; margin: 0 0 1.4rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: .7rem; }
+.chip-card { display: grid; gap: .4rem; padding: .8rem; border: 2px solid var(--night-3); border-left-width: 5px; border-radius: var(--radius-card); background: var(--night-2); }
+.chip-card p { margin: 0; }
+.chip-name { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
+.chip-tier { margin-left: auto; font-size: var(--step--1); font-weight: 700; }
+.chip-lines { margin: 0; padding-left: 1.1rem; font-weight: 700; }
+.chip-fits { font-size: var(--step--1); }
+.chip-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip-worn { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.chip-worn li { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.chip-pill { display: inline-block; padding: .05rem .45rem; margin-right: .25rem; border-radius: 999px; font-size: var(--step--1); border: 1px solid currentColor; }
+.tier-common { --chip: #B8BCC8; } .tier-rare { --chip: var(--teal); } .tier-epic { --chip: #B57BFF; } .tier-legendary { --chip: var(--gold); }
+.chip-card.tier-common, .chip-card.tier-rare, .chip-card.tier-epic, .chip-card.tier-legendary { border-left-color: var(--chip); }
+.chip-tier, .chip-pill { color: var(--chip, var(--muted)); }

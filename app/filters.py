@@ -121,6 +121,9 @@ def register(app):
                                  MAX_STARS=logic.MAX_AWAKEN)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
+    from app.game import simulate
+    from app.routes.fightturn import next_step
+    app.jinja_env.globals.update(next_step=next_step, sim_runs=simulate.RUNS)
     from app.game import events
     app.jinja_env.globals.update(event_rule=events.describe)
     from app.game import characterabilities as abilities

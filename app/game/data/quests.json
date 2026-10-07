@@ -650,7 +650,7 @@
     {
       "id": 1012,
       "name": "Gauntlet Champion",
-      "description": "Beat all six bosses in one rush",
+      "description": "Beat six bosses in one rush",
       "category": "permanent",
       "action": "reach_rush",
       "target": 6,

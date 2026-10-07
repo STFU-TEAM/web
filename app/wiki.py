@@ -295,7 +295,7 @@ def facts():
         "crit_multiplier": character_mod.CRITMULTIPLIER,
         "counter_armor": round(fight_mod.COUNTER_ARMOR * 100), "counter_damage": round(fight_mod.COUNTER_DAMAGE * 100),
         "counter_turns": fight_mod.COUNTER_TURNS, "counter_crit": fight_mod.COUNTER_CRIT_MAX,
-        "crit_cap": character_mod.CRIT_CHANCE_CAP, "armor_cap": character_mod.ARMOR_CAP,
+        "armor_cap": character_mod.ARMOR_CAP,
         "armor_floor": round(200 / (100 + character_mod.ARMOR_CAP) * 100),
         "taunt_armor": character_mod.TAUNT_ARMOR, "growth_cap": round(character_mod.GROWTH_CAP * 100),
         "sudden_death_round": fight_mod.SUDDEN_DEATH_ROUND, "sudden_death_step": round(fight_mod.SUDDEN_DEATH_STEP * 100),

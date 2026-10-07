@@ -22,7 +22,8 @@ DAMAGESCALING = 2
 SPEEDSCALING = 1
 CRITICALSCALING = 1
 CRITMULTIPLIER = 1.5  # bot's globals/variables.py value; character.py shadowed it with 1
-CRIT_CHANCE_CAP = 75
+# Critical chance has no cap: every full 100 is a sure crit and the rest is the chance of one more on top
+# (150 = always a crit, half the time a double). Each crit past the first adds the crit bonus again.
 DODGENERF = 2  # two points of speed gap per percent of dodge: speed decides who moves first, it shouldn't also be armor
 DODGE_CHANCE_CAP = 20
 # UR and LR are strong, not game-defining: their natural stats are trimmed toward the SSR line (speed most of all,
@@ -178,6 +179,7 @@ class Character:
             elif type_ == Types.LUCK:
                 self.current_critical += LUCK_TYPE_POINTS[quality.name]
                 self.crit_multiplier += LUCK_CRIT_DAMAGE[quality.name]
+        apply_chips(self, data.get("chips") or [])  # stand chips (app/game/chips.py); ranked fights strip them
         self.current_hp = int(self.current_hp)
         self.current_speed = int(round(self.current_speed))
         
@@ -209,15 +211,17 @@ class Character:
         """Attack a character. pierce=True ignores the target's armor.
 
         Returns:
-            dict: Default {"damage": 0, "critical": False, "dodged": False}
+            dict: Default {"damage": 0, "critical": False, "crit": 0, "dodged": False}; crit counts the crits
         """
-        atck = {"damage": 0, "critical": False, "dodged": False}
+        atck = {"damage": 0, "critical": False, "crit": 0, "dodged": False}
         terrain = self.terrain
         multi = multiplier * TERRAIN_DAMAGE_MULT.get(terrain, 1)
-        if min(self.current_critical, CRIT_CHANCE_CAP) >= random.randint(0, 100):
+        tier = crit_tier(self.current_critical)
+        if tier:
             crit_mult = getattr(self, "crit_multiplier", CRITMULTIPLIER)  # fights pickled before LUCK crit damage
-            multi *= max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0))
+            multi *= 1 + (max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0)) - 1) * tier
             atck["critical"] = True
+            atck["crit"] = tier
             pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
         multi *= slayer_mult(self, ennemy_character)
         if getattr(ennemy_character, "_ward", 0) and not getattr(self, "_bonded", False):
@@ -382,6 +386,28 @@ class Character:
         self.data["awaken"] = self.awaken
         self.data["items"] = [s.to_dict() for s in self.items]
         self.__init__(self.data)
+
+
+def apply_chips(char, chips: list) -> None:
+    """Add socketed stand chips to the stats: *_pct lines are shares of the stat, *_flat lines points."""
+    for chip in chips:
+        for stat, value in chip.get("stats", []):
+            if stat == "damage_pct":
+                char.current_damage *= 1 + value
+            elif stat == "hp_pct":
+                char.current_hp *= 1 + value
+            elif stat == "armor_pct":
+                char.current_armor *= 1 + value
+            elif stat == "speed_flat":
+                char.current_speed += value
+            elif stat == "crit_flat":
+                char.current_critical += value
+
+
+def crit_tier(chance: float) -> int:
+    """How many times a hit crits: 0 (normal), 1 (crit), 2 (double), 3+..."""
+    whole, rest = divmod(max(0.0, chance), 100)
+    return int(whole) + (random.random() * 100 < rest)
 
 
 def slayer_mult(attacker, target) -> float:

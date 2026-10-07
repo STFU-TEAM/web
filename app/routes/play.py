@@ -137,7 +137,10 @@ def stand_panel(uuid):
     if char is None:
         return '<p class="notice">That stand is no longer in your collection.</p>', 404
     in_team = lst is user.main_characters
+    from app.game import chips
     return render_template("partials/stand_panel.html", u=user, c=char, in_team=in_team,
+                           chip_slots=chips.slots(char), socketed=[chips.view(x) for x in chips.socketed(char)],
+                           fitting=[chips.view(x) for x in chips.bag(user) if chips.fits(x, char)],
                            dupes=[d for d in user.storage_characters if d.id == char.id and d.uuid != char.uuid],
                            is_locked=uuid in logic.locked(user), wiki=wiki_data.stand_links(char.id),
                            equipable=[g for g in _grouped(user.items) if g["item"].is_equipable],
@@ -302,6 +305,66 @@ def unequip():
     uuid, slot = request.form.get("uuid"), _int("slot")
     user, res, err = action(lambda u: logic.unequip(u, uuid, slot))
     return _collection(user, f"{res[1].name} removed from {res[0].name}." if res else None, err)
+
+
+@bp.post("/team/chip/socket")
+@player_required
+def chip_socket():
+    from app.game import chips
+    uuid, chip_id = request.form.get("uuid"), request.form.get("chip", "")
+    user, res, err = action(lambda u: chips.socket(u, uuid, chip_id))
+    return _collection(user, f"{chips.view(res[1])['label']} chip socketed into {res[0].name}." if res else None, err)
+
+
+@bp.post("/team/chip/unsocket")
+@player_required
+def chip_unsocket():
+    from app.game import chips
+    uuid, chip_id = request.form.get("uuid"), request.form.get("chip", "")
+    user, res, err = action(lambda u: chips.unsocket(u, uuid, chip_id))
+    return _collection(user, f"{chips.view(res[1])['label']} chip back in your bag." if res else None, err)
+
+
+# --------------------------------------------------------------------------- #
+# Stand chips (app/game/chips.py)
+# --------------------------------------------------------------------------- #
+def _chips_ctx(user, message=None, error=None):
+    from app.game import chips
+    owned = user.main_characters + user.storage_characters
+    tier_rank = list(chips.TIERS)
+    shown = sorted(chips.bag(user), key=lambda x: (-tier_rank.index(x["tier"]), x["syn"]))
+    rows = [{**chips.view(x), "fits": [c.name for c in owned if chips.fits(x, c)]} for x in shown]
+    worn = [{"stand": c, "chips": [chips.view(x) for x in chips.socketed(c)], "slots": chips.slots(c)}
+            for c in owned if c.data.get("chips")]
+    return {"u": user, "rows": rows, "worn": worn, "bag_max": chips.BAG_MAX, "message": message, "error": error,
+            "slot_max": chips.SLOT_MAX}
+
+
+@bp.get("/chips")
+@player_required
+def chips_page():
+    return render_template("chips.html", **_chips_ctx(_user()))
+
+
+@bp.post("/chips/scrap")
+@player_required
+def chips_scrap():
+    from app.game import chips
+    ids = request.form.getlist("chip")
+    if request.form.get("tier"):  # scrap every spare chip of one tier
+        ids = [x["id"] for x in chips.bag(_user()) if x["tier"] == request.form["tier"]]
+    user, dust, err = action(lambda u: chips.scrap(u, ids))
+    return render_template("partials/chip_bag.html", **_chips_ctx(
+        user, f"Scrapped {len(ids)} chip{'s' if len(ids) != 1 else ''} for {dust:,} Meteor Dust." if dust else None, err))
+
+
+@bp.post("/chips/reroll")
+@player_required
+def chips_reroll():
+    from app.game import chips
+    user, chip, err = action(lambda u: chips.reroll(u, request.form.get("chip", "")))
+    msg = f"New roll: {', '.join(chips.view(chip)['lines'])}." if chip else None
+    return render_template("partials/chip_bag.html", **_chips_ctx(user, msg, err))
 
 
 @bp.post("/team/suggested")
@@ -681,7 +744,8 @@ def mirror():
 @player_required
 def mirror_start():
     uid = session["uid"]
-    if load_fight(uid):
+    existing = load_fight(uid)
+    if existing and not (existing.kind == "wormhole" and existing.finished):  # a finished one: "Fight again"
         return redirect(url_for("play.mirror"))
 
     def start(u):

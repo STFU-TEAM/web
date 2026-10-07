@@ -568,6 +568,8 @@ def release(user: User, uuids: List[str]) -> List[Character]:
             check_achievements(user, "release_rare")
     if not gone:
         raise GameError("Every selected stand is locked or in your team.")
+    from app.game import chips
+    chips.give_back(user, gone)
     for team in user.teams.values():  # keep presets tidy
         for c in gone:
             if c.uuid in team:
@@ -612,6 +614,8 @@ def awaken_gate(char: Character) -> Optional[int]:
 def _absorb(user: User, keeper: Character, fodder: Character) -> Character:
     """Fold fodder into keeper: its XP plus a rarity bonus, one gated awakening, its items back to the bag."""
     user.items.extend(fodder.items)
+    from app.game import chips
+    chips.give_back(user, [fodder])
     keeper.shiny = keeper.shiny or getattr(fodder, "shiny", False)
     keeper.xp += fodder.xp + FUSE_BONUS_XP.get(fodder.rarity, 100)
     gate = awaken_gate(keeper)

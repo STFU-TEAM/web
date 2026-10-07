@@ -754,6 +754,8 @@ document.addEventListener("htmx:responseError", (e) => {
 // Fight replay: a fresh turn arrives with its log events as JSON. Rewind the bars to before the turn,
 // then play each event (lunge, hit, damage numbers, special GIF in the spotlight) and land on the server's final state.
 const FIGHT_STEP = { hit: 700, crit: 950, dodge: 700, special: 1900, item: 1000, info: 600, stun: 700, terrain: 1300, sudden: 900 };
+// A crit's colour by how many times it crit: yellow, red (double), rainbow (triple and more).
+const critClass = (e) => (e.kind !== "crit" ? "" : e.crit >= 3 ? "crit crit3" : e.crit === 2 ? "crit crit2" : "crit");
 function playFight(root) {
   const data = root.querySelector(".fight-replay");
   if (!data || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -836,7 +838,7 @@ function playFight(root) {
       const text = e.text.replaceAll("`", "");
       const src = e.src && byPos.get(e.src.join(":"));
       const dst = e.dst && byPos.get(e.dst.join(":"));
-      banner.className = `turn-banner play ${e.kind}`;
+      banner.className = `turn-banner play ${e.kind} ${critClass(e)}`;
       banner.textContent = text;
       logItems[k]?.classList.remove("pending");
 
@@ -856,7 +858,7 @@ function playFight(root) {
           const before = prev?.[f.dataset.side]?.[f.dataset.idx], after = e.hp[f.dataset.side]?.[f.dataset.idx];
           if (before === undefined || after === undefined || Math.round(before) === Math.round(after)) return;
           const crit = e.kind === "crit" && f === dst;
-          if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? "crit" : ""); }
+          if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); }
           else pop(f, `+${Math.round(after - before)}`, "miss");
           if (after <= 0 && before > 0) setTimeout(() => restart(f, "ko"), 300 * pace());
         });
@@ -864,7 +866,7 @@ function playFight(root) {
         prev = e.hp;
       } else if (dst && e.dmg) {
         restart(dst, "hurt", ...(e.kind === "crit" ? ["crit"] : []));
-        pop(dst, `-${e.dmg}`, e.kind === "crit" ? "crit" : "");
+        pop(dst, `-${e.dmg}`, critClass(e));
       }
       await wait(((FIGHT_STEP[e.kind] || 600) - (e.kind === "special" ? 450 : 200)) * pace());
     }
@@ -1208,4 +1210,12 @@ document.addEventListener("keydown", (e) => {
   const dir = {ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", w: "up", s: "down", a: "left", d: "right"}[e.key];
   const btn = dir && document.querySelector(`.move-button[data-move="${dir}"]:not(:disabled)`);
   if (btn) { e.preventDefault(); btn.click(); }
+});
+
+// Training ground: a pick list that stops at its max (data-pick-max on each checkbox).
+document.addEventListener("change", (e) => {
+  const box = e.target.closest?.("input[type=checkbox][data-pick-max]");
+  if (!box || !box.checked) return;
+  const all = [...document.querySelectorAll(`input[name="${box.name}"][data-pick-max]`)];
+  if (all.filter((b) => b.checked).length > Number(box.dataset.pickMax)) box.checked = false;
 });

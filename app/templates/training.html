@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Training ground | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page training">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <header class="player-bar">
+      <div>
+        <p class="kicker">Endgame · stand training</p>
+        <h1 class="display sm">Training ground</h1>
+        <p class="muted">Pick up to {{ team_max }} stands from anywhere in your collection, storage included, and a drill. They fight sparring partners of their own rarity at their own level, and a win teaches each of them far more than any other mode. Even a loss pays {{ loss_share }}% of the XP. Wins can drop a <a href="{{ url_for('play.chips_page') }}">stand chip</a> for one of their synergies.</p>
+      </div>
+      <div class="rush-best"><small>Energy</small><strong>{{ u.energy }}/{{ u.total_energy }}</strong></div>
+    </header>
+
+    {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+
+    {% if not unlocked %}
+      <div class="notice">
+        <p><strong>🔒 The training ground opens once you've finished the story and the Alternate Universe.</strong></p>
+        <p>Story {{ progress.story }}/{{ progress.story_total }} · Alternate Universe {{ progress.au }}/{{ progress.au_total }}</p>
+        <p><a href="{{ url_for('progress.story_page') if progress.story < progress.story_total else url_for('progress.au_page') }}">Keep going →</a></p>
+      </div>
+    {% else %}
+      <form method="post" action="{{ url_for('progress.training_fight') }}" class="training-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <fieldset class="training-drills">
+          <legend class="h3">Drill</legend>
+          {% for key, d in drills.items() %}
+            <label class="training-drill">
+              <input type="radio" name="drill" value="{{ key }}" {{ 'checked' if loop.first }}>
+              <span><strong>{{ d.icon }} {{ d.label }}</strong>
+                <small>{{ d.text }}</small>
+                <small class="muted">{{ d.energy }} energy · +{{ d.xp }} XP each on a win · {{ (d.chip * 100)|int }}% chip chance</small></span>
+            </label>
+          {% endfor %}
+        </fieldset>
+
+        <fieldset class="training-stands">
+          <legend class="h3">Stands <small class="muted">(up to {{ team_max }})</small></legend>
+          <ul>
+            {% for c in stands %}
+              <li>
+                <label class="{{ 'maxed' if c.level >= 100 }}">
+                  <input type="checkbox" name="uuid" value="{{ c.uuid }}" data-pick-max="{{ team_max }}">
+                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                  <span><strong>{{ c.name }}</strong>
+                    <small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.uuid in team %} · team{% endif %}{% if c.level >= 100 %} · maxed: ascend it first{% endif %}</small></span>
+                </label>
+              </li>
+            {% else %}
+              <li class="muted">You have no stands yet.</li>
+            {% endfor %}
+          </ul>
+        </fieldset>
+        <button class="btn gold big">Start training →</button>
+      </form>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

@@ -2,9 +2,9 @@
 
 A climb starts at floor 1 with your team at full strength and keeps the very same
 fighters from floor to floor: health, permanent growth and losses all carry over
-(a 30% patch-up after each floor; every 5th floor is a rest stop that heals 60%
-and gets fallen stands back up at 30%). Enemies grow exponentially; past
-level 100 their awakenings, then their raw health and damage, keep climbing. The
+(a 20% patch-up after each floor; every 5th floor is a rest stop that heals 45%
+and gets fallen stands back up at 25%). Enemies grow fast: level 100 by floor 27,
+★5 by floor 42, every floor adds health and damage, and past ★5 that growth compounds. The
 floors of a week are generated from the week's seed, so everyone climbs the same
 tower and the weekly leaderboard is fair. A loss ends the climb.
 
@@ -24,11 +24,16 @@ from app.game.items import item_file, item_from_dict
 from app.game.logic import GameError, now, train
 
 CLIMB_COST = 500
-LEVEL_POWER = 1.25     # enemy level = 1 + floor**LEVEL_POWER, so level 100 around floor 40
-AWAKEN_FLOORS = (15, 25, 35, 50, 60)  # enemies gain ★1..★5 from these floors
-OVERFLOW = 1.05        # past floor 60, health and damage multiply by this per floor
-REST_EVERY, REST_HEAL = 5, 0.60
-FLOOR_HEAL = 0.30      # a breather after every floor; rest stops heal more
+LEVEL_POWER = 1.4      # enemy level = 1 + floor**LEVEL_POWER, so level 100 by floor 27
+AWAKEN_FLOORS = (10, 18, 26, 34, 42)  # enemies gain ★1..★5 from these floors
+PRESSURE = 0.012       # every floor adds 1.2% health and damage on top of level and stars...
+OVERFLOW = 1.07        # ...and past the last awakening floor they multiply by this per floor
+ITEM_FLOORS = (8, 20, 35)  # enemies carry one more item from each
+REST_EVERY, REST_HEAL = 5, 0.45
+FLOOR_HEAL = 0.20      # a breather after every floor; rest stops heal more
+# The daily dungeon borrows the tower's enemies on the gentler curve the tower used to have
+DELVE_LEVEL_POWER, DELVE_AWAKEN, DELVE_OVERFLOW = 1.25, (15, 25, 35, 50, 60), 1.05
+DELVE_EASE_FROM, DELVE_EASE = 25, 0.94  # from here dungeon enemies field UR/LR-era teams, eased
 BOSS_EVERY = 10
 HEAD_EVERY = 20        # every other boss floor pays an Arrowhead (economy.py)
 TRANSIENT = ("_focus", "_my_turn", "_heal_mult", "_skipped", "_stun_guard", "_active_terrain", "_terrain_bonus")
@@ -50,15 +55,12 @@ def state(user) -> dict:
 
 # ── Floors ───────────────────────────────────────────────────────────────
 
-def level_for(floor: int) -> int:
-    return max(1, min(100, round(1 + floor ** LEVEL_POWER)))
+def level_for(floor: int, power: float = LEVEL_POWER) -> int:
+    return max(1, min(100, round(1 + floor ** power)))
 
 
-def awaken_for(floor: int) -> int:
-    return sum(floor >= f for f in AWAKEN_FLOORS)
-
-
-EASE_FROM, EASE = 25, 0.94  # from here enemies field UR/LR-era teams; eased to keep the climb where it was
+def awaken_for(floor: int, floors=AWAKEN_FLOORS) -> int:
+    return sum(floor >= f for f in floors)
 
 
 def overflow_for(floor: int) -> float:
@@ -67,8 +69,23 @@ def overflow_for(floor: int) -> float:
     return OVERFLOW ** extra if extra > 0 else 1.0
 
 
-def ease_for(floor: int) -> float:
-    return EASE if floor >= EASE_FROM else 1.0
+def power_for(floor: int) -> float:
+    """Every multiplier on a floor's health and damage: the steady pressure and, past ★5, the overflow."""
+    return (1 + PRESSURE * floor) * overflow_for(floor)
+
+
+def quality_for(floor: int) -> str:
+    return ("BAD" if floor < 4 else "SUB_PAR" if floor < 8 else "GOOD" if floor < 14 else "GREAT" if floor < 22
+            else "SUPREME" if floor < 32 else "UNIVERSAL")
+
+
+def _delve(floor: int) -> tuple:
+    """(level, stars, multiplier, quality, items) of a dungeon enemy at this tower-floor strength."""
+    extra = floor - DELVE_AWAKEN[-1]
+    mult = (DELVE_OVERFLOW ** extra if extra > 0 else 1.0) * (DELVE_EASE if floor >= DELVE_EASE_FROM else 1.0)
+    quality = ("BAD" if floor < 5 else "SUB_PAR" if floor < 10 else "GOOD" if floor < 18 else "GREAT" if floor < 30
+               else "SUPREME" if floor < 45 else "UNIVERSAL")
+    return level_for(floor, DELVE_LEVEL_POWER), awaken_for(floor, DELVE_AWAKEN), mult, quality, int(floor >= 8)
 
 
 def is_boss(floor: int) -> bool:
@@ -79,7 +96,24 @@ def is_rest(floor: int) -> bool:
     return floor % REST_EVERY == 0
 
 
+def _climb_rarities(floor: int) -> List[str]:
+    if floor < 3:
+        return ["R", "SR"]  # a two-stand warm-up
+    if floor < 5:
+        return ["R", "SR", "SR"]
+    if floor < 9:
+        return ["SR", "SR", "SSR"]
+    if floor < 16:
+        return ["SR", "SSR", "SSR"]
+    if floor < 25:
+        return ["SSR", "SSR", "UR"]
+    if floor < 40:
+        return ["SSR", "UR", "UR"]
+    return ["UR", "UR", "UR"]
+
+
 def _rarities(floor: int) -> List[str]:
+    """The dungeon's rarities at a tower-floor strength (the climb has its own, _climb_rarities)."""
     if floor < 6:
         return ["R", "SR"]
     if floor < 10:
@@ -95,9 +129,9 @@ def _rarities(floor: int) -> List[str]:
 
 def floor_ids(floor: int, week: Optional[str] = None) -> List[int]:
     rng = random.Random(f"{week or week_key()}:{floor}")
-    rarities = _rarities(floor)
+    rarities = _climb_rarities(floor)
     if is_boss(floor):
-        rarities = rarities[:2] + ["LR" if floor >= 30 else "UR"]
+        rarities = rarities[:2] + ["LR" if floor >= 20 else "UR"]
     ids = []
     for rarity in rarities:
         pool = [i for i in POOLS[rarity] if i not in ids]
@@ -105,15 +139,17 @@ def floor_ids(floor: int, week: Optional[str] = None) -> List[int]:
     return ids[::-1] if is_boss(floor) else ids  # the boss leads
 
 
-def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] = None) -> list:
-    """The enemies of a floor; ids: other stands at that floor's strength (the dungeon picks its own)."""
-    lvl, aw, mult = level_for(floor), awaken_for(floor), overflow_for(floor) * ease_for(floor)
-    quality = ("BAD" if floor < 5 else "SUB_PAR" if floor < 10 else "GOOD" if floor < 18 else "GREAT" if floor < 30
-               else "SUPREME" if floor < 45 else "UNIVERSAL")
+def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] = None, climb: bool = True) -> list:
+    """The enemies of a floor; ids: other stands at that floor's strength. climb=False: the dungeon's gentler curve."""
+    if climb:
+        lvl, aw, mult, quality = level_for(floor), awaken_for(floor), power_for(floor), quality_for(floor)
+        items = sum(floor >= f for f in ITEM_FLOORS)
+    else:
+        lvl, aw, mult, quality, items = _delve(floor)
     team = []
     for cid in ids or floor_ids(floor, week):
         c = character_from_dict({"id": cid, "xp": lvl * 100, "awaken": aw, "types": ["BALANCE"],
-                                 "qualities": [quality], "items": [{"id": 1}] if floor >= 8 else []})
+                                 "qualities": [quality], "items": [{"id": 1}] * items})
         if mult != 1:
             for stat in ("hp", "damage"):
                 value = getattr(c, f"start_{stat}") * mult
@@ -125,7 +161,7 @@ def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] 
 
 def preview(floor: int) -> dict:
     return {"floor": floor, "ids": floor_ids(floor), "level": level_for(floor), "awaken": awaken_for(floor),
-            "mult": round(overflow_for(floor), 2), "boss": is_boss(floor), "rest": is_rest(floor),
+            "mult": round(power_for(floor), 2), "boss": is_boss(floor), "rest": is_rest(floor),
             "stands": [CHARACTER_FILE[i - 1] for i in floor_ids(floor)], "reward": reward_view(floor)}
 
 
@@ -197,7 +233,7 @@ def settle_fighters(team: list) -> list:
     return team
 
 
-REVIVE = 0.30          # rest stops also bring fallen stands back at this share
+REVIVE = 0.25          # rest stops also bring fallen stands back at this share
 
 
 def patch_up(team: list, floor: int):
@@ -254,6 +290,11 @@ def finish_floor(user, fight, redis, name: str) -> dict:
             train(c, stand_xp_for(floor))
         s["paid"] = floor
         names = [i.name for i in items] + (["1 Arrowhead"] if reward["super"] else [])
+        if is_boss(floor):  # boss floors also drop a stand chip, most often for one of the climbers' synergies
+            from app.game import chips
+            chip = chips.grant(user, prefer=team)
+            if chip:
+                names.append(f"a {chips.view(chip)['label']} chip")
         rewards.update(fragments=reward["fragments"], stand_xp=stand_xp_for(floor), item=", ".join(names) or None)
     if floor > s["best"]:
         s["best"] = floor

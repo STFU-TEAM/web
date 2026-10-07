@@ -146,7 +146,7 @@ def enemies(run, tile, kind: str) -> list:
     ids = []
     for rarity in rarities:
         ids.append(rng.choice([i for i in tower.POOLS[rarity] if i not in ids]))
-    return tower.floor_team(floor, ids=ids)
+    return tower.floor_team(floor, ids=ids, climb=False)
 
 
 # ── Loot ────────────────────────────────────────────────────────────────

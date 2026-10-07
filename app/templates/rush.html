@@ -6,7 +6,7 @@
     <div>
       <p class="kicker">Weekly boss rush · resets in {{ ends_in|delta }}</p>
       <h1 class="display sm">The Gauntlet</h1>
-      <p class="muted">Six bosses back to back. Your team's health carries over, with a {{ patch_up }}% patch-up between fights. One run a day; your best run of the week counts.</p>
+      <p class="muted">{{ bosses|length }} bosses back to back: the six story bosses, far stronger than in the story, then an encore where each comes back maxed and tougher every fight. Your team's health carries over, with a {{ patch_up }}% patch-up between fights. One run a day; your best run of the week counts.</p>
     </div>
     <div class="rush-best"><small>Your best this week</small><strong>{{ s.best.bosses }}/{{ bosses|length }}</strong>{% if s.best.bosses %}<span class="muted">{{ s.best.rounds }} rounds</span>{% endif %}</div>
   </header>
@@ -51,7 +51,7 @@
           {% set state = 'beaten' if b.index in s.claimed else ('next' if s.run and s.run.index == b.index else '') %}
           <li class="{{ state }}">
             <img src="{{ b.lead|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-            <span><strong>{{ loop.index }}. {{ b.title }}</strong><small class="muted">{{ b.part }} · Lv {{ b.level }}{% if b.awaken %} ★{{ b.awaken }}{% endif %}</small>
+            <span><strong>{{ loop.index }}. {{ b.title }}</strong><small class="muted">{{ b.part }} · Lv {{ b.level }}{% if b.awaken %} ★{{ b.awaken }}{% endif %}{% if b.mult > 1 %} · ×{{ b.mult }} stats{% endif %}</small>
               <small class="rush-reward">{{ '✓ ' if b.index in s.claimed }}Weekly reward: {{ b.reward }}</small></span>
           </li>
         {% endfor %}

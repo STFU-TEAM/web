@@ -6,6 +6,7 @@ Redis:
   web:battles:<uid>     list of JSON summaries, newest first (KEEP)
   web:replay:<fight id> zlib(pickle(finished Fight)), kept REPLAY_DAYS
 """
+import copy
 import json
 import pickle
 import time
@@ -41,7 +42,9 @@ def record(redis, fight, user_id: str) -> Optional[str]:
     players = players_of(fight, user_id)
     at = int(time.time())
     try:
-        blob = zlib.compress(pickle.dumps(fight, protocol=4), 6)
+        kept = copy.copy(fight)
+        kept.start_teams = None  # the "Simulate this fight" snapshot: replays don't need it
+        blob = zlib.compress(pickle.dumps(kept, protocol=4), 6)
     except Exception:  # an unpicklable fight is never worth breaking the game for
         return None
     pipe = redis.pipeline()

@@ -1,6 +1,8 @@
-"""Weekly boss rush: the six story bosses back to back.
+"""Weekly boss rush: twelve bosses back to back.
 
-Your team's health carries over from fight to fight (a 20% patch-up between them),
+The six story bosses come first, each far stronger than in the story (RUSH_CURVE), then they all
+come back for an encore at level 100 ★5 with more health and damage every fight.
+Your team's health carries over from fight to fight (a 15% patch-up between them),
 so a run is a test of the whole team, not of one lucky fight. One run per day; each
 boss reached pays a reward the first time each week; the weekly leaderboard ranks
 runs by bosses beaten, then by fewest rounds.
@@ -12,12 +14,32 @@ Redis: ZSET web:rush:<week> uid -> score (bosses * 1000 - rounds)
 from typing import Optional
 
 from app.game import story
+from app.game.character import character_from_dict
 from app.game.gangs import week_ends, week_key
 from app.game.items import item_file, item_from_dict
 from app.game.logic import GameError, now
 
 BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
-PATCH_UP = 0.20
+# (level, stars, quality, items, health/damage multiplier) of each boss in a run, in order
+RUSH_CURVE = [
+    (25, 1, "GOOD", 1, 1.0),
+    (45, 1, "GREAT", 2, 1.0),
+    (65, 2, "GREAT", 2, 1.05),
+    (85, 3, "SUPREME", 2, 1.1),
+    (100, 4, "SUPREME", 3, 1.15),
+    (100, 5, "UNIVERSAL", 3, 1.2),
+    # the encore: every boss again, maxed, and tougher each time
+    (100, 5, "UNIVERSAL", 3, 1.35),
+    (100, 5, "UNIVERSAL", 3, 1.5),
+    (100, 5, "UNIVERSAL", 3, 1.7),
+    (100, 5, "UNIVERSAL", 3, 1.9),
+    (100, 5, "UNIVERSAL", 3, 2.15),
+    (100, 5, "UNIVERSAL", 3, 2.45),
+]
+BOSSES = [BOSS_STAGES[i % len(BOSS_STAGES)] for i in range(len(RUSH_CURVE))]  # story stage of each boss
+ENCORE = len(BOSS_STAGES)  # bosses from this index on are the encore
+PATCH_UP = 0.15
+CHIP_FROM = 3  # bosses from this index on drop a stand chip (the last one an epic) the first time each week
 REWARDS = [  # weekly, at the economy's pace (economy.py)
     {"fragments": 350, "items": []},
     {"fragments": 700, "items": [40, 47]},
@@ -25,6 +47,13 @@ REWARDS = [  # weekly, at the economy's pace (economy.py)
     {"fragments": 2100, "items": [39, 40]},
     {"fragments": 2800, "items": [38, 38]},
     {"fragments": 4200, "super": 1, "items": [34]},
+    # the encore: only the strongest teams get here, so it pays in items more than in dust
+    {"fragments": 1500, "items": [47, 40]},
+    {"fragments": 1800, "items": [38]},
+    {"fragments": 2100, "items": [38, 39]},
+    {"fragments": 2400, "items": [40, 40, 47]},
+    {"fragments": 2800, "items": [38, 38]},
+    {"fragments": 3500, "super": 1, "items": [35]},
 ]
 
 
@@ -49,10 +78,16 @@ def reward_text(i: int) -> str:
     return ", ".join(parts)
 
 
+def title(i: int) -> str:
+    name = story.STAGES[BOSSES[i]]["title"]
+    return f"{name} (encore)" if i >= ENCORE else name
+
+
 def bosses() -> list:
-    return [{"index": i, "stage": k, "title": story.STAGES[k]["title"], "part": story.STAGES[k]["part_title"],
-             "level": story.level_for(k), "awaken": story.awaken_for(k), "lead": story.STAGES[k]["enemies"][0],
-             "reward": reward_text(i)} for i, k in enumerate(BOSS_STAGES)]
+    return [{"index": i, "stage": k, "title": title(i), "part": story.STAGES[k]["part_title"],
+             "level": RUSH_CURVE[i][0], "awaken": RUSH_CURVE[i][1], "mult": RUSH_CURVE[i][4],
+             "encore": i >= ENCORE, "lead": story.STAGES[k]["enemies"][0],
+             "reward": reward_text(i)} for i, k in enumerate(BOSSES)]
 
 
 def start_run(user):
@@ -78,7 +113,18 @@ def prepare_team(user, team: list) -> list:
 
 
 def enemies(index: int) -> list:
-    return story.enemy_team(BOSS_STAGES[index])
+    """The story boss's crew at the run's strength for this index (not the story's own numbers)."""
+    lvl, awaken, quality, items, mult = RUSH_CURVE[index]
+    team = []
+    for cid in story.STAGES[BOSSES[index]]["enemies"]:
+        c = character_from_dict({"id": cid, "xp": lvl * 100, "awaken": awaken, "types": ["BALANCE"],
+                                 "qualities": [quality], "items": [{"id": 1}] * items})
+        for stat in ("hp", "damage"):
+            value = int(getattr(c, f"start_{stat}") * mult)
+            setattr(c, f"start_{stat}", value)
+            setattr(c, f"current_{stat}", value)
+        team.append(c)
+    return team
 
 
 def _score(bosses_beaten: int, rounds: int) -> int:
@@ -106,10 +152,16 @@ def finish_fight(user, fight, redis, name: str) -> dict:
             items = [item_from_dict({"id": i}) for i in reward["items"]]
             user.items.extend(items)
             s["claimed"].append(index)
-            rewards.update(fragments=reward["fragments"],
-                           item=", ".join([i.name for i in items] + ([f"{reward['super']} Arrowhead"] if reward.get("super") else [])) or None)
+            names = [i.name for i in items] + ([f"{reward['super']} Arrowhead"] if reward.get("super") else [])
+            if index >= CHIP_FROM:  # the later bosses also drop a stand chip, the last boss an epic
+                from app.game import chips
+                chip = chips.grant(user, prefer=fight.sides[0].chars,
+                                   tier="epic" if index == len(BOSSES) - 1 else None)
+                if chip:
+                    names.append(f"a {chips.view(chip)['label']} chip")
+            rewards.update(fragments=reward["fragments"], item=", ".join(names) or None)
     beaten = run["index"]
-    if fight.winner != 0 or beaten >= len(BOSS_STAGES):
+    if fight.winner != 0 or beaten >= len(BOSSES):
         s["run"] = None
     best = s["best"]
     if beaten > best["bosses"] or (beaten == best["bosses"] and beaten and run["rounds"] < best["rounds"]):

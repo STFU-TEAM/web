@@ -30,6 +30,8 @@
 {%- set L = {
   'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟', 'Your 3 fighters and every stand you own. Fuse, lock and equip here.'),
   'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', "Equipment, Devil's Palms, crafting and the shop."),
+  'chips': ('Stand chips', url_for('play.chips_page'), ep.startswith('play.chips'), '◇', 'Random-stat chips for each synergy, socketed into your stands. Off in ranked.'),
+  'training': ('Training ground', url_for('progress.training_page'), ep.startswith('progress.training'), '🥊', 'Endgame: level any stand fast against sparring partners, and earn chips.'),
   'reforge': ('Reforge', url_for('play.reforge_page'), ep.startswith('play.reforge'), '⚒', 'Reroll a stand’s types and qualities. Lock the ones you like.'),
   'dex': ('Stand Dex', url_for('progress.dex_page'), ep.startswith('progress.dex'), '📕', 'Collect whole sets of stands for Meteor Dust, Arrowheads and titles.'),
   'banners': ('Summon', url_for('play.banners'), ep == 'play.banners', '✦', 'Spend Arrowheads for 10 new stands. Pity guarantees SSR+.'),
@@ -38,11 +40,11 @@
   'overheaven': ('Over Heaven', url_for('progress.oh_page'), ep.startswith('progress.oh_'), '☁', 'The endgame: puzzle fights in every mode that only the right team preparation beats.'),
   'journey': ("Crusaders' Journey", url_for('journey.index'), ep.startswith('journey.'), '🐫', 'Send a stand from Tokyo to Cairo on its own. Stronger stands bring back more.'),
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
-  'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'The six story bosses back to back, health carried over. Weekly leaderboard.'),
+  'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'Twelve bosses back to back, health carried over. Weekly leaderboard.'),
   'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith('battles.simulator'), '⚔', 'Practice, ranked seasons, friend duels, live duels to watch and your replays.'),
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
-  'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'Six floors in a row. Clear them all to raise the tower.'),
+  'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'An endless weekly climb that gets brutal fast. Weekly leaderboard.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'A free daily delve: explore, loot, and choose when to get out.'),
   'events': ('Events', url_for('progress.events_page'), ep.startswith('progress.events'), '🎉', live_event.name ~ ' is on: a twist and a token shop.' if live_event else 'Limited-time twists with a token shop.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
@@ -60,12 +62,12 @@
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
 {#- the Alternate Universe and Over Heaven only appear once the story has opened them -#}
-{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
+{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven', 'training'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
 {%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
-  {%- set sheet = [('Collection', ['team', 'items', 'reforge', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
+  {%- set sheet = [('Collection', ['team', 'items', 'chips', 'reforge', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
                    ('Community', community_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
   {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
@@ -90,7 +92,7 @@
 {#- Desktop sidebar (>= 1024px, signed in): the same destinations in collapsible groups. Collection and Battle,
     and the group of the page you're on, start open; the player's own choices are remembered (app.js). -#}
 {%- set side_pinned = ['team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
-{%- set side_groups = [('Collection', 'collection', ['items', 'reforge', 'dex'], True),
+{%- set side_groups = [('Collection', 'collection', ['items', 'chips', 'reforge', 'dex'], True),
                        ('Battle', 'battle', battle_keys, True), ('Progress', 'progress', progress_keys, False),
                        ('Community', 'community', community_keys|reject('in', ['inbox', 'gangs'])|list, False),
                        ('Explore', 'explore', explore_keys, False)] -%}

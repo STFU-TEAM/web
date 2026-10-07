@@ -78,6 +78,8 @@ def ai_choice(enemies: List[Character], attacker: Optional[Character] = None, le
 
 
 PVP_KINDS = ("ranked", "friend")
+SIMULATABLE = ("wormhole", "story", "tower", "rush", "dungeon", "alt_universe", "over_heaven", "training")  # PvE a loss can replay
+CRIT_WORDS = {1: "", 2: "DOUBLE", 3: "TRIPLE"}
 
 
 class Fight:
@@ -98,6 +100,8 @@ class Fight:
         self.finished = False
         self.winner: Optional[int] = None
         self.rewards: Optional[dict] = None
+        # Both teams as they walked in (carried health, tower growth), before any boost, for "Simulate this fight"
+        self.start_teams = [copy.deepcopy(human.chars), copy.deepcopy(opponent.chars)] if kind in SIMULATABLE else None
 
         from app.game import events
         boosted = events.apply_to_fight(self)
@@ -209,15 +213,16 @@ class Fight:
     def _on(self) -> bool:
         return self.sides[0].alive() and self.sides[1].alive()
 
-    def _log(self, text, kind, char=None, side=None, src=None, dst=None, dmg=None):
+    def _log(self, text, kind, char=None, side=None, src=None, dst=None, dmg=None, crit=None):
         """src/dst are [side, index] so the web view can animate who hit whom;
-        hp is every fighter's HP right after the event, to replay the bars."""
+        hp is every fighter's HP right after the event, to replay the bars; crit counts a hit's crits
+        (1 yellow, 2 red, 3+ rainbow)."""
         for s in self.sides:  # safety net: nothing heals past max health
             for c in s.chars:
                 c.current_hp = min(c.current_hp, c.start_hp)
         self.log.append({"turn": self.turn + 1, "text": text, "kind": kind,
                          "char_id": char.id if char else None, "side": side,
-                         "src": src, "dst": dst, "dmg": dmg,
+                         "src": src, "dst": dst, "dmg": dmg, "crit": crit,
                          "hp": [[max(c.current_hp, 0) for c in s.chars] for s in self.sides]})
 
     @property
@@ -318,8 +323,10 @@ class Fight:
                     if data["dodged"]:
                         self._log(f"{targeted.name} dodged {char.name}'s attack.", "dodge", char, p, **hit)
                     elif data["critical"]:
-                        self._log(f"{char.name} lands a critical strike on {targeted.name} for {data['damage']}.", "crit", char, p,
-                                  dmg=data["damage"], **hit)
+                        tier = data.get("crit", 1)
+                        strike = " ".join(filter(None, [CRIT_WORDS.get(tier, f"×{tier}"), "critical strike"]))
+                        self._log(f"{char.name} lands a {strike} on {targeted.name} for {data['damage']}.", "crit", char, p,
+                                  dmg=data["damage"], crit=tier, **hit)
                     else:
                         self._log(f"{char.name} hits {targeted.name} for {data['damage']}.", "hit", char, p,
                                   dmg=data["damage"], **hit)

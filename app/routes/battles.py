@@ -1,4 +1,5 @@
 """Web battle modes: practice dummy, friend challenges and Redis ranked queue."""
+import copy
 import json
 import time
 import uuid
@@ -10,7 +11,7 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import draft as draft_mod, events, history, logic, seasons, simulate, story
+from app.game import chips, draft as draft_mod, events, history, logic, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, ai_choice, fighting_copy
@@ -105,8 +106,9 @@ def _create_duel(uid_a, uid_b, kind, teams=None):
     team_b = teams[uid_b] if teams else user_b.main_characters
     if not team_a or not team_b:
         return None
-    fight = Fight(Side(identity(uid_a)["name"], fighting_copy(team_a), True),
-                  Side(identity(uid_b)["name"], fighting_copy(team_b), True),
+    copier = chips.strip if kind == "ranked" else fighting_copy  # stand chips stay out of ranked
+    fight = Fight(Side(identity(uid_a)["name"], copier(team_a), True),
+                  Side(identity(uid_b)["name"], copier(team_b), True),
                   kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False})
     fight.advance()
     arm_timer(fight)
@@ -162,7 +164,8 @@ def index():
 @player_required
 def dummy_start():
     uid = session["uid"]
-    if load_fight(uid):
+    existing = load_fight(uid)
+    if existing and not (existing.kind == "dummy" and existing.finished):  # a finished one: "Practice again"
         return redirect(url_for("battles.index", mode="dummy"))
     user = get_db().get_user(uid)
     if not user or not user.main_characters:
@@ -571,6 +574,8 @@ def leave():
         players = fight.meta.get("players", [uid])
         for player_id in players:
             clear_fight(player_id)
+        if fight.kind == "ranked" and request.form.get("next") == "ranked":
+            return ranked_queue()  # "Queue again"
     return redirect(url_for("battles.index"))
 
 # --------------------------------------------------------------------------- #
@@ -758,3 +763,18 @@ def simulator_run():
         return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
     result = simulate.run(pick["team"], foe)
     return render_template("partials/sim_result.html", res=result, foe=foe, team_label=pick["label"])
+
+
+@bp.post("/simulator/rematch")
+@player_required
+def simulator_rematch():
+    """After a PvE loss: the same fight, from the same start (carried health included), RUNS times."""
+    uid = session["uid"]
+    fight = load_fight(uid)
+    again = simulate.rematch(fight) if fight else None
+    if not again:
+        return "<p class='notice error'>That fight can't be simulated any more.</p>"
+    if not r().set(f"web:sim:{uid}", "1", nx=True, ex=3):
+        return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
+    result = simulate.run(again["team"], again["foe"], copier=copy.deepcopy)
+    return render_template("partials/sim_result.html", res=result, foe=again["foe"], team_label="Your team")
