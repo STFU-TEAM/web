@@ -1219,3 +1219,56 @@ document.addEventListener("change", (e) => {
   const all = [...document.querySelectorAll(`input[name="${box.name}"][data-pick-max]`)];
   if (all.filter((b) => b.checked).length > Number(box.dataset.pickMax)) box.checked = false;
 });
+
+// Web push: the inbox's "Notifications on this device" card (data-push). Subscribes this browser with the
+// server's VAPID key; the service worker (/sw.js) shows the notifications.
+(() => {
+  const card = document.querySelector("[data-push]");
+  if (!card) return;
+  const $ = (s) => card.querySelector(s);
+  const status = $("[data-push-status]");
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !matchMedia("(display-mode: standalone)").matches;
+  const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
+  const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
+                                          body: JSON.stringify(body || {}) });
+  const b64 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4);
+    const raw = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
+  const show = (on, text) => {
+    $("[data-push-on]").hidden = on; $("[data-push-off]").hidden = !on; $("[data-push-test]").hidden = !on;
+    if (text) status.textContent = text;
+  };
+  if (!supported) {
+    $("[data-push-on]").hidden = true;
+    $("[data-push-ios]").hidden = !ios;
+    status.textContent = ios ? "Your browser can't receive notifications from a tab." : "This browser can't receive push notifications.";
+    return;
+  }
+  navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then((sub) => {
+    if (sub) { post(card.dataset.sub, sub.toJSON()); show(true, "On for this device."); }
+    else if (Notification.permission === "denied") show(false, "Notifications are blocked for this site in your browser settings.");
+  });
+  $("[data-push-on]").addEventListener("click", async () => {
+    try {
+      if ((await Notification.requestPermission()) !== "granted") return show(false, "Permission refused: allow notifications for this site to turn them on.");
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(card.dataset.key) });
+      const res = await post(card.dataset.sub, sub.toJSON());
+      show(res.ok, res.ok ? "On for this device." : "The server refused this device. Try again later.");
+    } catch (err) { show(false, "Couldn't turn notifications on in this browser."); }
+  });
+  $("[data-push-off]").addEventListener("click", async () => {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) { await post(card.dataset.unsub, { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    show(false, "Off for this device.");
+  });
+  $("[data-push-test]").addEventListener("click", () => post(card.dataset.test));
+})();
+
+// Click to copy (the co-op lobby code).
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-copy]");
+  if (!el || !navigator.clipboard) return;
+  navigator.clipboard.writeText(el.dataset.copy).then(() => { const t = el.textContent; el.textContent = "Copied!"; setTimeout(() => { el.textContent = t; }, 1200); });
+});

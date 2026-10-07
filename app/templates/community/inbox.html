@@ -7,6 +7,25 @@
   <p class="kicker">Community</p>
   <h1 class="display sm">Inbox</h1>
 
+  {% if push_key %}
+    <div class="push-card" data-push data-key="{{ push_key }}" data-sub="{{ url_for('community.push_subscribe') }}"
+         data-unsub="{{ url_for('community.push_unsubscribe') }}" data-test="{{ url_for('community.push_test') }}">
+      <div>
+        <h2 class="h3">📲 Notifications on this device</h2>
+        <p class="muted" data-push-status>Get duel and co-op invites, trade offers, gifts and your stands coming home, even with the site closed.</p>
+        <p class="muted small-print" data-push-ios hidden>On iPhone, add the site to your Home Screen first (Share → Add to Home Screen), then open it from there.</p>
+      </div>
+      <div class="push-actions">
+        <button type="button" class="btn gold" data-push-on>Turn on</button>
+        <button type="button" class="btn ghost" data-push-off hidden>Turn off on this device</button>
+        <button type="button" class="btn ghost small" data-push-test hidden>Send a test</button>
+        <label class="push-energy"><input type="checkbox" {{ 'checked' if push_energy }}
+               hx-post="{{ url_for('community.push_energy') }}" hx-vals='js:{"on": event.target.checked ? "1" : "0"}' hx-swap="none">
+          Tell me when my energy is full</label>
+      </div>
+    </div>
+  {% endif %}
+
   <h2 class="h2">Waiting on you {% if waiting %}<span class="count">{{ waiting }}</span>{% endif %}</h2>
   {% if not waiting %}<p class="notice">Nothing waiting. Duel challenges, trade offers, friend requests and gang invites land here.</p>{% endif %}
 

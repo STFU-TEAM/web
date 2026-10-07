@@ -16,14 +16,17 @@ from app.game.logic import GameError, locate, spend_energy, train
 
 TEAM_MAX = 3
 LOSS_SHARE = 0.25
-# energy, stand XP per win, enemy level and stars over the trainees', enemy health/damage, chip chance on a win
+# energy, stand XP per win, enemy level and stars over the trainees', enemy health/damage, chip chance on a win.
+# Measured with the simulator on a mid-game collection: Sparring ~90% wins, Intense ~70%, Masterclass ~35%, so the
+# XP per energy comes out even (~230-255, losses paying LOSS_SHARE) and the harder drills pay in chips. A star
+# above the trainees is a cliff (+33% of their growth), so the drills climb in levels only.
 DRILLS = {
     "spar": {"label": "Sparring", "icon": "🥊", "energy": 1, "xp": 250, "level": 0, "awaken": 0, "mult": 0.9,
              "chip": 0.25, "text": "A sparring crew a little softer than your stands."},
-    "intense": {"label": "Intense drill", "icon": "🔥", "energy": 2, "xp": 600, "level": 10, "awaken": 1, "mult": 1.0,
-                "chip": 0.45, "text": "Ten levels and a star above your stands."},
-    "master": {"label": "Masterclass", "icon": "💀", "energy": 3, "xp": 1100, "level": 20, "awaken": 2, "mult": 1.15,
-               "chip": 0.7, "text": "Twenty levels and two stars above, and tougher still."},
+    "intense": {"label": "Intense drill", "icon": "🔥", "energy": 2, "xp": 650, "level": 5, "awaken": 0, "mult": 0.9,
+                "chip": 0.45, "text": "Five levels above your stands."},
+    "master": {"label": "Masterclass", "icon": "💀", "energy": 3, "xp": 1500, "level": 10, "awaken": 0, "mult": 0.95,
+               "chip": 0.7, "text": "Ten levels above your stands: a real fight."},
 }
 POOLS = {r: [c["id"] for c in CHARACTER_FILE if c["rarity"] == r and c["universe"] != "Dummy" and c["id"] != 110]
          for r in ("R", "SR", "SSR", "UR", "LR")}
@@ -50,12 +53,9 @@ def trainees(user, uuids: List[str]) -> list:
     return picked
 
 
-def _quality(level: int) -> str:
-    return "GOOD" if level < 30 else "GREAT" if level < 60 else "SUPREME" if level < 90 else "UNIVERSAL"
-
-
 def sparring_team(team: list, drill: str, rng=random) -> list:
-    """One sparring partner per trainee, of the same rarity, at the trainees' average level plus the drill's."""
+    """One sparring partner per trainee: same rarity, quality and number of items, at the trainees' average level
+    plus the drill's."""
     d = DRILLS[drill]
     level = max(1, min(100, round(sum(c.level for c in team) / len(team)) + d["level"]))
     stars = max(0, min(5, round(sum(c.awaken for c in team) / len(team)) + d["awaken"]))
@@ -65,8 +65,10 @@ def sparring_team(team: list, drill: str, rng=random) -> list:
         pool = [i for i in POOLS.get(c.rarity, POOLS["SR"]) if i not in taken] or POOLS["SR"]
         cid = rng.choice(pool)
         taken.add(cid)
+        # each partner mirrors its trainee's build quality and kit, so a well-rolled stand isn't punished
+        quality = c.qualities[0] if c.qualities else "GOOD"
         foe = character_from_dict({"id": cid, "xp": level * 100, "awaken": stars, "types": ["BALANCE"],
-                                   "qualities": [_quality(level)], "items": [{"id": 1}] * (level // 40)})
+                                   "qualities": [quality], "items": [{"id": 1}] * len(c.items)})
         for stat in ("hp", "damage"):
             value = int(getattr(foe, f"start_{stat}") * d["mult"])
             setattr(foe, f"start_{stat}", value)

@@ -138,3 +138,19 @@ def test_boss_rush_has_twelve_bosses_that_keep_getting_stronger():
     assert hp[0] > sum(c.start_hp for c in first_story) / len(first_story)  # far beyond the story's numbers
     for i in range(rush.ENCORE, 12):
         assert hp[i] > hp[i - rush.ENCORE]  # each encore boss outclasses its first visit
+
+
+def test_simulator_fights_enemies_at_their_real_strength(monkeypatch):
+    """Tower, rush and Over Heaven multiply enemy stats on the object: the simulator must keep them."""
+    from app.game import simulate, tower
+    seen = []
+    real_init = simulate.Fight.__init__
+
+    def spy(self, human, opponent, *a, **k):
+        seen.append([c.start_hp for c in opponent.chars])
+        real_init(self, human, opponent, *a, **k)
+
+    monkeypatch.setattr(simulate.Fight, "__init__", spy)
+    foe = simulate.foe_for("tower:50")
+    simulate.run([_stand(1)], foe, runs=1)
+    assert seen[0] == [c.start_hp for c in foe["team"]] and seen[0][0] > tower.floor_team(50)[0].start_hp * 0.9

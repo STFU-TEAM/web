@@ -2,3 +2,4 @@ Flask==3.0.3
 gunicorn==22.0.0
 redis==5.0.8
 requests==2.32.3
+pywebpush==2.5.0

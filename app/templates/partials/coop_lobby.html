@@ -1,0 +1,31 @@
+{#- The lobby's party, refreshed every 3 s: who joined, what they bring, and the host's Start button.
+    Once the host starts, the poll answers with HX-Redirect and everyone lands in the fight. -#}
+<div id="coop-members" class="coop-members" hx-get="{{ url_for('coop.lobby_frame') }}" hx-trigger="every 3s" hx-swap="outerHTML">
+  {% if not lb %}
+    <p class="notice">This lobby has closed. <a href="{{ url_for('coop.index') }}">Back to co-op</a></p>
+  {% else %}
+    {% set ready = lb.members|selectattr('stand')|list|length %}
+    <ul class="coop-party">
+      {% for m in lb.members %}
+        <li class="{{ 'ready' if m.stand else 'waiting' }}">
+          {% if m.stand %}<img src="{{ m.stand_id|stand_img }}" alt="" width="56" height="56" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+          {% else %}<span class="coop-empty-art" aria-hidden="true">?</span>{% endif %}
+          <span class="coop-who"><strong>{{ m.name }}</strong>{% if m.uid == lb.host %} <span class="pill">host</span>{% endif %}
+            <small class="muted">{{ (m.stand_name ~ ' · Lv ' ~ m.stand_level) if m.stand else 'choosing a stand…' }}</small></span>
+        </li>
+      {% endfor %}
+      {% for _ in range(party[1] - lb.members|length) %}
+        <li class="open"><span class="coop-empty-art" aria-hidden="true">＋</span><span class="coop-who"><strong>Open seat</strong><small class="muted">share the code {{ lb.code }}</small></span></li>
+      {% endfor %}
+    </ul>
+    {% if lb.host == me.id %}
+      <form method="post" action="{{ url_for('coop.start') }}" class="coop-start">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button class="btn gold big" {{ 'disabled' if lb.members|length < party[0] or ready < lb.members|length }}>Start the raid →</button>
+        <small class="muted">{% if lb.members|length < party[0] %}Waiting for at least {{ party[0] }} players.{% elif ready < lb.members|length %}Waiting for everyone to pick a stand.{% else %}Everyone's ready.{% endif %}</small>
+      </form>
+    {% else %}
+      <p class="muted coop-start">{{ 'Waiting for the host to start the raid…' if ready == lb.members|length else 'Pick your stand, then the host starts the raid.' }}</p>
+    {% endif %}
+  {% endif %}
+</div>

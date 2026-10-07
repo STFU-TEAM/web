@@ -2712,22 +2712,48 @@ body.cine-open { overflow: hidden; }
 .training-stands label.maxed { opacity: .6; }
 .training-stands img { border-radius: 6px; flex: none; object-fit: cover; }
 
-/* Stand chips */
-.chip-bag-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem; }
-.chip-list { list-style: none; margin: 0 0 1.4rem; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: .7rem; }
-.chip-card { display: grid; gap: .4rem; padding: .8rem; border: 2px solid var(--night-3); border-left-width: 5px; border-radius: var(--radius-card); background: var(--night-2); }
-.chip-card p { margin: 0; }
-.chip-name { display: flex; flex-wrap: wrap; gap: .35rem; align-items: baseline; }
-.chip-tier { margin-left: auto; font-size: var(--step--1); font-weight: 700; }
-.chip-lines { margin: 0; padding-left: 1.1rem; font-weight: 700; }
-.chip-fits { font-size: var(--step--1); }
-.chip-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
-.chip-worn { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
-.chip-worn li { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
-.chip-pill { display: inline-block; padding: .05rem .45rem; margin-right: .25rem; border-radius: 999px; font-size: var(--step--1); border: 1px solid currentColor; }
-.tier-common { --chip: #B8BCC8; } .tier-rare { --chip: var(--teal); } .tier-epic { --chip: #B57BFF; } .tier-legendary { --chip: var(--gold); }
-.chip-card.tier-common, .chip-card.tier-rare, .chip-card.tier-epic, .chip-card.tier-legendary { border-left-color: var(--chip); }
-.chip-tier, .chip-pill { color: var(--chip, var(--muted)); }
+/* Stand chips: one tile everywhere (the chips page, a stand's slots, the socket picker), coloured by tier */
+.tier-common { --chip: #B8BCC8; } .tier-rare { --chip: #39D0C0; } .tier-epic { --chip: #B57BFF; } .tier-legendary { --chip: #F4C542; }
+.chip-bag-head { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .8rem; }
+.chip-bag-head h2 { margin: 0; }
+.chip-counts { display: flex; gap: .7rem; margin: 0 auto 0 0; font-weight: 700; font-size: var(--step--1); }
+.chip-counts span { color: var(--chip); }
+.chip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: .7rem; margin-bottom: 1.6rem; }
+.chip-tile { --chip: #B8BCC8; display: flex; flex-direction: column; gap: .45rem; min-width: 0; padding: .75rem .8rem;
+  border: 2px solid color-mix(in srgb, var(--chip) 55%, transparent); border-radius: var(--radius-card);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--chip) 16%, var(--night-2)), var(--night-2) 70%); }
+.chip-tile.tier-legendary { box-shadow: 0 0 0 1px rgb(244 197 66 / .25), 0 0 18px rgb(244 197 66 / .18); }
+.chip-head { display: flex; align-items: center; gap: .5rem; margin: 0; min-width: 0; }
+.chip-icon { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 8px; font-size: 1.05rem;
+  background: color-mix(in srgb, var(--chip) 22%, var(--night)); }
+.chip-syn { flex: 1; min-width: 0; font-weight: 700; line-height: 1.2; overflow-wrap: break-word; hyphens: auto; }
+.chip-tier { flex: none; color: var(--chip); font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.chip-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.chip-lines li::before { content: "▸ "; color: var(--chip); }
+.chip-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: auto; }
+.chip-fits { flex-basis: 100%; margin: 0; font-size: var(--step--1); }
+.chip-tile.compact { padding: .55rem .65rem; gap: .35rem; }
+.chip-tile.compact .chip-icon { width: 1.7rem; height: 1.7rem; font-size: .95rem; }
+.chip-tile.compact .chip-tier-name { display: none; }
+.chip-tile.compact .chip-lines { font-size: var(--step--1); }
+.chip-tile.compact .chip-syn { font-size: .8rem; }
+.chip-tile.compact .chip-head { align-items: flex-start; }
+.chip-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 128px), 1fr)); gap: .5rem; margin: .4rem 0 .7rem; }
+.chip-slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; min-height: 84px; padding: .5rem;
+  border: 2px dashed var(--night-3); border-radius: var(--radius-card); color: var(--muted); font-size: var(--step--1); font-weight: 700; text-align: center; }
+.chip-slot span { font-size: 1.2rem; }
+.chip-slot.locked { border-style: solid; opacity: .55; }
+.chip-picker { margin: 0 0 .6rem; border: 2px solid var(--night-3); border-radius: var(--radius-card); background: var(--night-2); }
+.chip-picker summary { cursor: pointer; padding: .6rem .8rem; font-weight: 700; }
+.chip-pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: .5rem; padding: 0 .6rem .6rem; max-height: 360px; overflow-y: auto; }
+.chip-worn { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.chip-worn li { display: flex; align-items: center; gap: .7rem; padding: .45rem .6rem; border-radius: var(--radius-ui); background: var(--night-2); }
+.chip-worn img { flex: none; border-radius: 6px; object-fit: cover; }
+.chip-worn-name { display: grid; min-width: 0; }
+.chip-worn-list { display: flex; flex-wrap: wrap; gap: .35rem; margin-left: auto; }
+.chip-pill { display: inline-flex; align-items: center; gap: .25rem; padding: .15rem .45rem; border-radius: 999px; white-space: nowrap;
+  font-size: var(--step--1); font-weight: 700; color: var(--chip); border: 1px solid color-mix(in srgb, var(--chip) 60%, transparent);
+  background: color-mix(in srgb, var(--chip) 12%, transparent); }
 
 /* Compact owned cards (collection, team): one line of chrome above and on the art, one divider, one row of
    traits and items. Tags, the charge ring and the star shapes live on big cards and in the stand panel. */
@@ -2747,3 +2773,41 @@ body.cine-open { overflow: hidden; }
 .card.compact .card-stats.five dt { font-size: .55rem; letter-spacing: .04em; opacity: .85; }
 .card.compact .card-stats.five dd { font-size: .8rem; }
 .card.compact.small .card-stats.five dd { font-size: .7rem; }
+
+/* Inbox: web push card */
+.push-card { display: flex; flex-wrap: wrap; gap: .8rem 1.2rem; align-items: center; justify-content: space-between; margin: 0 0 1.6rem;
+  padding: 1rem 1.1rem; border: 2px solid var(--night-3); border-radius: var(--radius-card); background: var(--night-2); }
+.push-card h2 { margin: 0 0 .2rem; }
+.push-card p { margin: 0; }
+.push-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; }
+.push-energy { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--step--1); cursor: pointer; }
+
+/* Co-op raid: lobby and party */
+.coop-lobby { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 1rem; align-items: start; }
+.coop-panel { display: grid; gap: .8rem; padding: 1rem 1.1rem; border: 2px solid var(--night-3); border-radius: var(--radius-card); background: var(--night-2); min-width: 0; }
+.coop-panel h2 { margin: 0; }
+.coop-code { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
+.coop-code strong { font: 400 2.2rem/1 var(--display); letter-spacing: .12em; color: var(--gold); cursor: copy; }
+.coop-party { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.coop-party li { display: flex; align-items: center; gap: .7rem; padding: .5rem .6rem; border: 2px solid var(--night-3); border-radius: var(--radius-ui); }
+.coop-party li.ready { border-color: color-mix(in srgb, var(--teal) 60%, transparent); }
+.coop-party li.open { border-style: dashed; opacity: .7; }
+.coop-party img, .coop-empty-art { flex: none; width: 56px; height: 56px; border-radius: 8px; object-fit: cover; }
+.coop-empty-art { display: grid; place-items: center; background: var(--night); color: var(--muted); font-size: 1.4rem; font-weight: 700; }
+.coop-who { display: grid; min-width: 0; }
+.coop-start { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; margin: .4rem 0 0; }
+.coop-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.coop-row label { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; font-weight: 700; font-size: var(--step--1); }
+.coop-stands { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: .45rem; max-height: 520px; overflow-y: auto; }
+.coop-stand { display: flex; align-items: center; gap: .55rem; width: 100%; padding: .4rem .5rem; text-align: left; color: inherit; font: inherit;
+  border: 2px solid var(--night-3); border-radius: var(--radius-ui); background: var(--night); cursor: pointer; }
+.coop-stand:hover, .coop-stand:focus-visible { border-color: var(--gold); }
+.coop-stand.picked { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, var(--night)); }
+.coop-stand img { flex: none; border-radius: 6px; object-fit: cover; }
+.coop-stand span { display: grid; min-width: 0; }
+.coop-create { display: grid; gap: .6rem; }
+.coop-join { display: flex; gap: .5rem; }
+.coop-join input { flex: 1; min-width: 0; font: 400 1.6rem/1 var(--display); letter-spacing: .15em; text-transform: uppercase; padding: .4rem .6rem; }
+.coop-crew { list-style: none; margin: 0; padding: 0; display: flex; gap: .5rem; }
+.coop-crew img { border-radius: 8px; object-fit: cover; border: 2px solid var(--magenta); }
+.fighter-owner { margin: -.15rem 0 .15rem; font-size: .7rem; font-weight: 700; color: var(--teal); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

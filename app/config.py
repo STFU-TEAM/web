@@ -15,6 +15,10 @@ class Config:
     # The daily dungeon; DUNGEON_ENABLED=0 closes it (its pages then redirect to Battles).
     DUNGEON_ENABLED = os.environ.get("DUNGEON_ENABLED", "1") == "1"
     KOFI_URL = os.environ.get("KOFI_URL", "https://ko-fi.com/eirblast")
+    # Web push (app/push.py): make a pair with scripts/vapid_keys.py; leave empty to turn push off
+    VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+    VAPID_SUBJECT = os.environ.get("VAPID_SUBJECT", "mailto:admin@stfurequiem.com")
     MAX_CONTENT_LENGTH = 4 * 1024 * 1024  # news cover uploads are the only file uploads
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-change-me")
     REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

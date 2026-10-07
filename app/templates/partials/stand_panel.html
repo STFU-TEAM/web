@@ -1,4 +1,5 @@
 {% from "macros.html" import owned_card, special_scaling %}
+{% from "partials/chip_macros.html" import chip_tile %}
 {% set acts = 'hx-target="#collection" hx-swap="innerHTML" data-close-panel' %}
 <div class="panel-grid">
   <div class="panel-card">
@@ -73,23 +74,30 @@
     {% elif not in_team %}<p class="muted">Only team stands hold items.</p>{% endif %}
 
     <h3 class="h3">Chips {{ socketed|length }}/{{ chip_slots }} <small class="muted"><a href="{{ url_for('play.chips_page') }}">all chips</a></small></h3>
-    {% if socketed %}
-      <ul class="panel-items">
-        {% for x in socketed %}
-          <li><span class="chip-pill tier-{{ x.tier }}">{{ x.icon }} {{ x.label }} {{ x.tier_icon }}</span> {{ x.lines|join(', ') }}
-            <button class="btn small ghost" hx-post="{{ url_for('play.chip_unsocket') }}" hx-vals='{"uuid": "{{ c.uuid }}", "chip": "{{ x.id }}"}' {{ acts|safe }}>Remove</button></li>
-        {% endfor %}
-      </ul>
-    {% else %}<p class="muted">No chips socketed.</p>{% endif %}
-    {% if socketed|length < chip_slots and fitting %}
-      <form class="inline" hx-post="{{ url_for('play.chip_socket') }}" {{ acts|safe }}>
-        <input type="hidden" name="uuid" value="{{ c.uuid }}">
-        <label><span class="sr">Chip</span><select name="chip">{% for x in fitting %}<option value="{{ x.id }}">{{ x.tier_icon }} {{ x.label }}: {{ x.lines|join(', ') }}</option>{% endfor %}</select></label>
-        <button class="btn small">Socket</button>
-      </form>
-    {% elif socketed|length < chip_slots %}<p class="muted small-print">None of your spare chips fit: a chip only goes into a stand of its synergy.</p>
+    <div class="chip-slots">
+      {% for x in socketed %}
+        {% call chip_tile(x, 'compact') %}
+          <button class="btn small ghost" hx-post="{{ url_for('play.chip_unsocket') }}" hx-vals='{"uuid": "{{ c.uuid }}", "chip": "{{ x.id }}"}' {{ acts|safe }}>Remove</button>
+        {% endcall %}
+      {% endfor %}
+      {% for _ in range(chip_slots - socketed|length) %}<div class="chip-slot empty"><span aria-hidden="true">＋</span>Empty slot</div>{% endfor %}
+      {% for star in range([c.awaken, 3]|min + 1, 4) %}<div class="chip-slot locked" title="Opens at awakening {{ star }}"><span aria-hidden="true">🔒</span>Opens at ★{{ star }}</div>{% endfor %}
+    </div>
+    {% if socketed|length < chip_slots %}
+      {% if fitting %}
+        <details class="chip-picker"{% if not socketed %} open{% endif %}>
+          <summary>Socket a chip <small class="muted">· {{ fitting|length }} of your spare chips fit {{ c.name }}</small></summary>
+          <div class="chip-pick-list">
+            {% for x in fitting %}
+              {% call chip_tile(x, 'compact') %}
+                <button class="btn small gold" hx-post="{{ url_for('play.chip_socket') }}" hx-vals='{"uuid": "{{ c.uuid }}", "chip": "{{ x.id }}"}' {{ acts|safe }}>Socket</button>
+              {% endcall %}
+            {% endfor %}
+          </div>
+        </details>
+      {% else %}<p class="muted small-print">None of your spare chips fit: a chip only goes into a stand of its synergy.</p>{% endif %}
     {% endif %}
-    {% if chip_slots < 4 %}<p class="muted small-print">Next slot at ★{{ c.awaken + 1 }}. Chips are off in ranked duels.</p>{% endif %}
+    <p class="muted small-print">Chips are off in ranked duels.</p>
 
     <h3 class="h3">Actions</h3>
     <div class="panel-actions">

@@ -1,0 +1,13 @@
+{# A stand chip drawn as a tile: synergy, tier and stat lines. Actions go in a call block:
+   {% call chip_tile(x) %}<button ...>Socket</button>{% endcall %} #}
+{% macro chip_tile(x, size='') -%}
+<div class="chip-tile tier-{{ x.tier }} {{ size }}">
+  <p class="chip-head">
+    <span class="chip-icon" aria-hidden="true">{{ x.icon }}</span>
+    <span class="chip-syn">{{ x.label }}</span>
+    <span class="chip-tier" title="{{ x.tier|capitalize }}">{{ x.tier_icon }}<span class="chip-tier-name"> {{ x.tier|capitalize }}</span></span>
+  </p>
+  <ul class="chip-lines">{% for line in x.lines %}<li>{{ line }}</li>{% endfor %}</ul>
+  {%- if caller %}<div class="chip-actions">{{ caller() }}</div>{% endif %}
+</div>
+{%- endmacro %}

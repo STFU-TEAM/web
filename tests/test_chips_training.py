@@ -108,7 +108,7 @@ def test_training_trains_storage_stands_fast(client, monkeypatch):
     client.post("/training/fight", data={"drill": "intense", "uuid": keeper["uuid"]}, headers=h)
     fight = dbmod.load_fight("111")
     assert fight.kind == "training" and [c.uuid for c in fight.sides[0].chars] == [keeper["uuid"]]
-    assert fight.sides[1].chars[0].level == 50 and doc(client, "111")["energy"] == 8
+    assert fight.sides[1].chars[0].level == 40 + training.DRILLS["intense"]["level"] and doc(client, "111")["energy"] == 8
     for c in fight.sides[1].chars:
         c.current_hp = 0
     dbmod.save_fight("111", fight)

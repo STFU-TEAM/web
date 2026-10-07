@@ -1,10 +1,11 @@
 """Team simulator: play a team against a story stage, a tower floor or another player's team many times
 through the real engine (your picks made by the smart AI) and report how it went. Nothing is spent or saved.
 """
+import copy
 from typing import List, Optional
 
 from app.game import story, tower
-from app.game.fight import Fight, Side, ai_choice, fighting_copy
+from app.game.fight import Fight, Side, ai_choice
 
 RUNS = 40
 MAX_STEPS = 400
@@ -61,15 +62,16 @@ def foe_for(value: str, db=None) -> Optional[dict]:
     return None
 
 
-def run(team, foe: dict, runs: int = RUNS, copier=fighting_copy) -> dict:
-    """copier: how each run gets fresh fighters (copy.deepcopy keeps a fight's carried health and growth)."""
+def run(team, foe: dict, runs: int = RUNS) -> dict:
+    """Each run fights deep copies: rebuilding stands from their data (fighting_copy) would drop what the PvE
+    builders set on the object (tower, rush and Over Heaven multipliers, story eases, carried health)."""
     wins = losses = draws = 0
     rounds, hp_left = [], []
     per = [{"id": c.id, "name": c.name, "dmg": 0, "alive": 0, "specials": 0} for c in team]
     for _ in range(runs):
-        enemies = Side(foe["name"], copier(foe["team"]), False, parts=foe.get("player", False))
+        enemies = Side(foe["name"], copy.deepcopy(foe["team"]), False, parts=foe.get("player", False))
         enemies.ai = foe.get("ai", "smart")
-        f = Fight(Side("You", copier(team), True), enemies, kind="simulation",
+        f = Fight(Side("You", copy.deepcopy(team), True), enemies, kind="simulation",
                   meta={"rules": foe["rules"]} if foe.get("rules") else None)
         steps = 0
         while not f.finished and steps < MAX_STEPS:

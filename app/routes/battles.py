@@ -1,5 +1,4 @@
 """Web battle modes: practice dummy, friend challenges and Redis ranked queue."""
-import copy
 import json
 import time
 import uuid
@@ -776,5 +775,5 @@ def simulator_rematch():
         return "<p class='notice error'>That fight can't be simulated any more.</p>"
     if not r().set(f"web:sim:{uid}", "1", nx=True, ex=3):
         return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
-    result = simulate.run(again["team"], again["foe"], copier=copy.deepcopy)
+    result = simulate.run(again["team"], again["foe"])
     return render_template("partials/sim_result.html", res=result, foe=again["foe"], team_label="Your team")

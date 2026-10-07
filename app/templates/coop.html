@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Co-op raid | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page coop">
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+    <header class="player-bar">
+      <div>
+        <p class="kicker">Co-op raid · {{ party[0] }} to {{ party[1] }} players</p>
+        <h1 class="display sm">{{ boss.title }}</h1>
+        <p class="muted">This week's raid boss from {{ boss.part }}. Each player brings one stand and picks its targets; the boss brings one henchman per player and far more health. Run out of time and your stand picks on its own. Your first {{ daily }} wins of the day pay Meteor Dust, XP for your stand and often a stand chip.</p>
+      </div>
+      <div class="rush-best"><small>Rewarded wins left today</small><strong>{{ wins_left }}/{{ daily }}</strong></div>
+    </header>
+
+    {% if busy %}<p class="notice">Finish your {{ busy }} fight first.</p>{% endif %}
+
+    {% if lb %}
+      <div class="coop-lobby">
+        <section class="coop-panel">
+          <div class="coop-code">
+            <span class="muted">Lobby code</span>
+            <strong data-copy="{{ lb.code }}" title="Click to copy">{{ lb.code }}</strong>
+            <span class="pill tier-pill">{{ tiers[lb.tier].label }}</span>
+          </div>
+          {% include "partials/coop_lobby.html" %}
+          {% if lb.host == me.id %}
+            <form method="post" action="{{ url_for('coop.tier') }}" class="coop-row">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <label>Difficulty <select name="tier" onchange="this.form.submit()">
+                {% for key, t in tiers.items() %}<option value="{{ key }}" {{ 'selected' if key == lb.tier }}>{{ t.label }} · Lv {{ t.level }} ★{{ t.awaken }}</option>{% endfor %}
+              </select></label>
+            </form>
+            {% if friends %}
+              <form method="post" action="{{ url_for('coop.invite') }}" class="coop-row">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <label>Invite a friend <select name="friend">{% for f in friends %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}</select></label>
+                <button class="btn small">Send invite</button>
+              </form>
+            {% endif %}
+          {% endif %}
+          <form method="post" action="{{ url_for('coop.leave') }}" class="coop-row">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn small ghost" {% if lb.host == me.id %}onclick="return confirm('Close the lobby for everyone?')"{% endif %}>{{ 'Close the lobby' if lb.host == me.id else 'Leave the lobby' }}</button>
+          </form>
+        </section>
+
+        <section class="coop-panel">
+          <h2 class="h3">Your stand{% if me_member and me_member.stand %} <small class="muted">· {{ me_member.stand_name }}</small>{% endif %}</h2>
+          <ul class="coop-stands">
+            {% for c in stands %}
+              <li>
+                <button type="button" class="coop-stand{{ ' picked' if me_member and me_member.stand == c.uuid }}"
+                        hx-post="{{ url_for('coop.pick') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#coop-members" hx-swap="outerHTML"
+                        onclick="this.closest('ul').querySelectorAll('.picked').forEach(b => b.classList.remove('picked')); this.classList.add('picked')">
+                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                  <span><strong>{{ c.name }}</strong><small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}</small></span>
+                </button>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      </div>
+    {% else %}
+      <div class="coop-lobby">
+        <section class="coop-panel">
+          <h2 class="h3">Open a lobby</h2>
+          <form method="post" action="{{ url_for('coop.create') }}" class="coop-create">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            {% for key, t in tiers.items() %}
+              <label class="training-drill">
+                <input type="radio" name="tier" value="{{ key }}" {{ 'checked' if loop.first }}>
+                <span><strong>{{ t.label }}</strong>
+                  <small>Lv {{ t.level }} ★{{ t.awaken }} crew{% if t.mult > 1 %}, ×{{ t.mult }} stats{% endif %}</small>
+                  <small class="muted">A win: {{ t.dust|dust }}, +{{ t.stand_xp }} XP for your stand, {{ (t.chip * 100)|int }}% chip chance</small></span>
+              </label>
+            {% endfor %}
+            <button class="btn gold">Open a lobby →</button>
+          </form>
+        </section>
+        <section class="coop-panel">
+          <h2 class="h3">Join with a code</h2>
+          <form method="post" action="{{ url_for('coop.join') }}" class="coop-join">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <input name="code" value="{{ join_code }}" maxlength="5" placeholder="ABCDE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Lobby code">
+            <button class="btn gold">Join</button>
+          </form>
+          <p class="muted">Friends can also invite you from their lobby: the invite lands in your inbox (and on your phone, with notifications on) with the code.</p>
+          <ul class="coop-crew">
+            {% for cid in boss.crew %}<li><img src="{{ cid|stand_img }}" alt="" width="64" height="64" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></li>{% endfor %}
+          </ul>
+        </section>
+      </div>
+    {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

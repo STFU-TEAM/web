@@ -19,6 +19,7 @@
     {% if c.taunt %}<span class="fighter-badge" title="Taunt">🎯</span>{% endif %}
   </div>
   <h3>{{ c.name }}</h3>
+  {% if fight.kind == 'coop' and side == 0 and idx < fight.meta.owners|length %}<p class="fighter-owner">{{ fight.meta.names.get(fight.meta.owners[idx], '') }}</p>{% endif %}
   {% set st = fighter_status(c) %}
   {% set maxhp = [c.start_hp, 1]|max %}
   <div class="hp" role="meter" aria-label="{{ c.name }} health" aria-valuemin="0" aria-valuemax="{{ c.start_hp|int }}" aria-valuenow="{{ hp|int }}">
@@ -54,6 +55,12 @@
 {% set you, foe = fight.sides[my_side], fight.sides[1 - my_side] %}
 {% set my_turn = not viewer and fight.awaiting_input and fight.acting_side == my_side %}
 {% set foe_turn_human = not viewer and fight.awaiting_input and fight.acting_side != my_side %}
+{#- co-op raid: one side, several players; meta.owners says who picks for each stand -#}
+{% set coop_me = coop_me|default(none) %}
+{% set coop_owner = fight.meta.owners[fight.si] if fight.kind == 'coop' and fight.awaiting_input and fight.si < fight.meta.owners|length else none %}
+{% set ally_turn = not viewer and coop_owner is not none and coop_owner != coop_me %}
+{% set ally_name = fight.meta.names.get(coop_owner, 'Your ally') if ally_turn else '' %}
+{% set my_turn = my_turn and not ally_turn %}
 {% set targets = fight.targets() %}
 {% set sudden_from = fight.sudden_death_round %}
 {% set base = fresh_from if (fresh_from is defined and fresh_from is not none) else fight.log|length %}
@@ -83,6 +90,8 @@
             {{ 'Draw' if fight.winner is none else ('Victory' if fight.winner == my_side else 'Defeat') }}
           {% elif viewer %}
             <span class="turn-no">Round {{ fight.round }}</span> {{ fight.sides[fight.acting_side].name }} is choosing a target…
+          {% elif ally_turn %}
+            <span class="turn-no">Round {{ fight.round }}</span> Waiting for {{ ally_name }} to pick for {{ fight.acting_char.name }}…
           {% elif my_turn %}
             <span class="turn-no">Round {{ fight.round }}</span> Pick a target for {{ fight.acting_char.name }}
           {% else %}
@@ -91,7 +100,7 @@
         </p>
         {% if turn_left is defined and turn_left is not none and not fight.finished and fight.awaiting_input %}
           <p class="turn-clock{{ ' mine' if my_turn }}" data-turn-clock="{{ turn_left }}" role="timer" aria-live="off">
-            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ fight.sides[fight.acting_side].name ~ ' to pick' }}
+            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ (ally_name if ally_turn else fight.sides[fight.acting_side].name) ~ ' to pick' }}
           </p>
         {% endif %}
         {% if my_turn and fight.special_ready %}
@@ -112,7 +121,7 @@
       <div class="arena-flash" aria-hidden="true"></div>
     </div>
 
-    {% if my_turn %}
+    {% if my_turn and fight.kind != 'coop' %}
       <p class="fight-controls"><button class="btn small danger" name="forfeit" value="1" hx-confirm="Surrender this fight? You get no reward.">Surrender</button></p>
     {% endif %}
 
@@ -130,22 +139,25 @@
       </div>
     {% elif fight.finished %}
       <div class="result {{ 'win' if fight.winner == my_side else 'loss' }}">
+        {% set rw = (fight.meta.rewards or {}).get(coop_me) if fight.kind == 'coop' else fight.rewards %}
         {% if fight.meta.damage is defined %}
           <p class="loot">{{ fight.meta.damage|num }}{{ '% of their guardians cleared' if fight.kind == 'gang_war' else ' damage dealt to the raid boss' }} for your gang.</p>
-          {% if not fight.rewards.won %}<p class="muted">Consolation: +{{ fight.rewards.fragments }} Meteor Dust, +{{ fight.rewards.xp }} player XP.</p>{% endif %}
+          {% if not rw.won %}<p class="muted">Consolation: +{{ rw.fragments }} Meteor Dust, +{{ rw.xp }} player XP.</p>{% endif %}
         {% endif %}
-        {% if fight.rewards and (fight.rewards.won if my_side == 0 else fight.winner == my_side) %}
-          {% set gains = (['+' ~ fight.rewards.fragments ~ ' Meteor Dust'] if fight.rewards.fragments else []) + (['+' ~ fight.rewards.xp ~ ' player XP'] if fight.rewards.xp else []) + (['+' ~ fight.rewards.stand_xp ~ ' XP for each stand'] if fight.rewards.stand_xp else []) %}
-          {% if gains or fight.rewards.item %}
-            <p class="loot">{{ gains|join(', ') }}{% if fight.rewards.item %}{{ ', and ' if gains else '' }}<strong>{{ fight.rewards.item }}</strong>{% endif %}.</p>
+        {% if rw and (rw.won if my_side == 0 else fight.winner == my_side) %}
+          {% set gains = (['+' ~ rw.fragments ~ ' Meteor Dust'] if rw.fragments else []) + (['+' ~ rw.xp ~ ' player XP'] if rw.xp else []) + (['+' ~ rw.stand_xp ~ (' XP for your stand' if fight.kind == 'coop' else ' XP for each stand')] if rw.stand_xp else []) %}
+          {% if gains or rw.item %}
+            <p class="loot">{{ gains|join(', ') }}{% if rw.item %}{{ ', and ' if gains else '' }}<strong>{{ rw.item }}</strong>{% endif %}.</p>
           {% else %}<p class="loot">Victory!</p>{% endif %}
-        {% elif fight.rewards and fight.rewards.consolation_xp %}
-          <p>Your stands still learned something: +{{ fight.rewards.consolation_xp }} XP each.</p>
+        {% elif rw and rw.consolation_xp %}
+          <p>Your stands still learned something: +{{ rw.consolation_xp }} XP each.</p>
         {% else %}
           <p>{{ 'The practice fight ended.' if fight.kind == 'dummy' else 'No reward was earned.' }}</p>
         {% endif %}
-        {% if fight.rewards and fight.rewards.event_bonus %}<p class="event-line">🎉 Event bonus: +{{ fight.rewards.event_bonus|num }} Meteor Dust included.</p>{% endif %}
-        {% set tokens = (fight.rewards.tokens if fight.rewards and fight.rewards.tokens else 0) or (fight.meta.tokens if fight.winner == my_side and fight.meta.tokens else 0) %}
+        {% if rw and rw.capped %}<p class="muted">You've had today's rewarded raid wins. Win again tomorrow for more.</p>
+        {% elif rw and rw.wins_left is defined and rw.won %}<p class="muted">{{ rw.wins_left }} rewarded raid win{{ 's' if rw.wins_left != 1 }} left today.</p>{% endif %}
+        {% if rw and rw.event_bonus %}<p class="event-line">🎉 Event bonus: +{{ rw.event_bonus|num }} Meteor Dust included.</p>{% endif %}
+        {% set tokens = (rw.tokens if rw and rw.tokens else 0) or (fight.meta.tokens if fight.winner == my_side and fight.meta.tokens else 0) %}
         {% if tokens %}<p class="event-line">🎟️ +{{ tokens }} event tokens · <a href="{{ url_for('progress.events_page') }}">event shop</a></p>{% endif %}
         {% set nxt = next_step(fight, my_side) %}
         {% set lost = fight.winner != my_side %}
@@ -183,7 +195,7 @@
     {# PvP: when my clock runs out, ask the server to pick for me. #}
     <div hidden hx-post="{{ fight_action }}" hx-trigger="load delay:{{ turn_left + 1 }}s" hx-target="#fight" hx-swap="outerHTML"
          hx-vals='{"log_len": {{ fight.log|length }}}'></div>
-  {% elif foe_turn_human %}
+  {% elif foe_turn_human or ally_turn %}
     {# PvP: check for the opponent's move without a manual refresh. #}
     <div hidden hx-post="{{ fight_action }}" hx-trigger="every 3s [!document.querySelector('#fight.playing')]" hx-target="#fight" hx-swap="outerHTML"
          hx-vals='{"log_len": {{ fight.log|length }}}'></div>
@@ -199,7 +211,7 @@
       </div>
       <figcaption>
         <strong class="spotlight-name">{{ star.name }}</strong>
-        <span class="spotlight-line">{% if fight.finished %}{{ 'Last one standing' if fight.winner is not none else 'Nobody wins' }}{% elif viewer %}{{ fight.sides[fight.acting_side].name }}'s move{% elif my_turn %}Your move{% else %}Their move{% endif %}</span>
+        <span class="spotlight-line">{% if fight.finished %}{{ 'Last one standing' if fight.winner is not none else 'Nobody wins' }}{% elif viewer %}{{ fight.sides[fight.acting_side].name }}'s move{% elif my_turn %}Your move{% elif ally_turn %}{{ ally_name }}'s move{% else %}Their move{% endif %}</span>
       </figcaption>
     </figure>
   </aside>

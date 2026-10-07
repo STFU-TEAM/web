@@ -45,13 +45,17 @@ def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: boo
         pipe.ltrim(f"web:toast:{uid}", -8, -1)
         pipe.expire(f"web:toast:{uid}", 7 * 86400)
     pipe.execute()
+    from app import push
+    push.send(uid, kind, text, url)
 
 
-def notify_later(uid: str, ref: str, when: float, kind: str, text: str, url: Optional[str] = None):
-    """Notify at a given time (sent by flush_due, which page loads run every few seconds)."""
+def notify_later(uid: str, ref: str, when: float, kind: str, text: str, url: Optional[str] = None,
+                 push_only: bool = False):
+    """Notify at a given time (sent by flush_due, which page loads run every few seconds). push_only: a phone
+    notification and nothing in the inbox (energy full)."""
     key = f"{uid}|{ref}"
     pipe = r().pipeline()
-    pipe.hset("web:notif:due:data", key, json.dumps({"kind": kind, "text": text, "url": url}))
+    pipe.hset("web:notif:due:data", key, json.dumps({"kind": kind, "text": text, "url": url, "push_only": push_only}))
     pipe.zadd("web:notif:due", {key: when})
     pipe.execute()
 
@@ -77,7 +81,11 @@ def flush_due(now: Optional[float] = None, limit: int = 200) -> int:
         if not raw:
             continue
         data = json.loads(raw)
-        notify(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
+        if data.get("push_only"):
+            from app import push
+            push.send(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
+        else:
+            notify(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
         sent += 1
     return sent
 

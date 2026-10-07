@@ -81,6 +81,14 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   only into members of that group; 1 slot + 1 per awakening (4 at ★3); stored on the stand (`data["chips"]`),
   spares in `web_chips`; applied in `Character.__init__` and stripped from ranked duels. Drops: training wins,
   tower boss floors, boss rush bosses 4-12
+- Co-op raid (`/coop`, `app/game/coop.py`, `app/routes/coop.py`): 2-3 players open a lobby (5-letter code or a
+  friend invite), bring one stand each and fight this week's story boss crew together in real time (one Fight saved
+  under every player, `meta.owners` says who picks for which stand). A 20 s clock per pick: an AFK player's stand
+  picks on its own. Normal / Hard / Nightmare; each player's first 3 wins a day pay
+- Web push (`app/push.py`): duel and co-op invites, trades, friends, gifts, gangs, auctions, journeys and an
+  opt-in "energy full", sent only while the player is away from the site. Players turn it on per device from the
+  inbox. Needs `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (make a pair with `python scripts/vapid_keys.py`); off
+  without them
 - Finished fights offer a Continue button (next floor/boss/stage, retry, queue again) and, after a PvE loss,
   "Simulate this fight" from the exact starting state
 - Team simulator (`/battles/simulator`, `app/game/simulate.py`): 40 fights through the real engine

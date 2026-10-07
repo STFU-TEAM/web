@@ -163,9 +163,42 @@ def pending_count(uid: str) -> int:
             + r().scard(f"web:trades:in:{uid}") + r().llen(f"web:gifts:{uid}"))
 
 
+@bp.post("/push/subscribe")
+@player_required
+def push_subscribe():
+    from app import push
+    ok = push.enabled() and push.subscribe(session["uid"], request.get_json(silent=True) or {})
+    return ({"ok": True, "devices": push.devices(session["uid"])}, 200) if ok else ({"ok": False}, 400)
+
+
+@bp.post("/push/unsubscribe")
+@player_required
+def push_unsubscribe():
+    from app import push
+    push.unsubscribe(session["uid"], (request.get_json(silent=True) or {}).get("endpoint", ""))
+    return {"ok": True, "devices": push.devices(session["uid"])}
+
+
+@bp.post("/push/energy")
+@player_required
+def push_energy():
+    from app import push
+    push.set_energy(session["uid"], request.form.get("on") == "1")
+    return {"ok": True}
+
+
+@bp.post("/push/test")
+@player_required
+def push_test():
+    from app import push
+    push.send(session["uid"], "friend", "Push notifications work on this device. ✨", "/community/inbox", force=True)
+    return {"ok": True}
+
+
 @bp.get("/inbox")
 @player_required
 def inbox():
+    from app import push
     me = session["uid"]
     db = get_db()
     user = db.get_user(me)
@@ -178,6 +211,8 @@ def inbox():
         "gang_invites": gang_invites,
         "feed": social.feed(me),
         "seen_before": seen_before,
+        "push_key": push.keys()["public"] if push.enabled() else None,
+        "push_energy": push.wants_energy(me),
     }
     social.mark_seen(me)
     return render_template("community/inbox.html", **ctx)

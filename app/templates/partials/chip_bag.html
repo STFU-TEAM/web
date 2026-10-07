@@ -1,30 +1,32 @@
+{% from "partials/chip_macros.html" import chip_tile %}
 <div id="chip-bag">
   {% if message %}<p class="toast ok">{{ message }}</p>{% endif %}
   {% if error %}<p class="toast error">{{ error }}</p>{% endif %}
   <div class="chip-bag-head">
     <h2 class="h3">Spare chips <small class="muted">{{ rows|length }}/{{ bag_max }}</small></h2>
+    <p class="chip-counts">
+      {% for tier, icon in [('legendary', '✸'), ('epic', '✦'), ('rare', '◆'), ('common', '◇')] %}
+        {% set n = rows|selectattr('tier', 'equalto', tier)|list|length %}
+        <span class="tier-{{ tier }}" title="{{ tier|capitalize }}">{{ icon }} {{ n }}</span>
+      {% endfor %}
+    </p>
     {% if rows|selectattr('tier', 'equalto', 'common')|list %}
       <button class="btn small ghost" hx-post="{{ url_for('play.chips_scrap') }}" hx-vals='{"tier": "common"}' hx-target="#chip-bag" hx-swap="outerHTML"
               hx-confirm="Scrap every spare common chip for Meteor Dust?">Scrap all commons</button>
     {% endif %}
   </div>
   {% if rows %}
-    <ul class="chip-list">
+    <div class="chip-grid">
       {% for x in rows %}
-        <li class="chip-card tier-{{ x.tier }}">
-          <p class="chip-name"><span aria-hidden="true">{{ x.icon }}</span> <strong>{{ x.label }}</strong>
-            <span class="chip-tier">{{ x.tier_icon }} {{ x.tier|capitalize }}</span></p>
-          <ul class="chip-lines">{% for line in x.lines %}<li>{{ line }}</li>{% endfor %}</ul>
-          <p class="muted chip-fits">{% if x.fits %}Fits {{ x.fits[:4]|join(', ') }}{% if x.fits|length > 4 %} and {{ x.fits|length - 4 }} more{% endif %}{% else %}None of your stands are in this group yet.{% endif %}</p>
-          <div class="chip-actions">
-            <button class="btn small ghost" hx-post="{{ url_for('play.chips_reroll') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
-                    hx-confirm="Reroll this chip's stats for {{ x.reroll|num }} Meteor Dust?">↻ Reroll · {{ x.reroll|num }}</button>
-            <button class="btn small ghost" hx-post="{{ url_for('play.chips_scrap') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
-                    hx-confirm="Scrap this chip for {{ x.scrap|num }} Meteor Dust?">Scrap · +{{ x.scrap|num }}</button>
-          </div>
-        </li>
+        {% call chip_tile(x) %}
+          <p class="chip-fits muted" title="{{ x.fits|join(', ') }}">{% if not x.fits %}None of your stands fit yet{% elif x.fits|length <= 2 %}Fits {{ x.fits|join(' and ') }}{% else %}Fits {{ x.fits|length }} of your stands{% endif %}</p>
+          <button class="btn small ghost" hx-post="{{ url_for('play.chips_reroll') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
+                  hx-confirm="Reroll this chip's stats for {{ x.reroll|num }} Meteor Dust?" title="New random stats, same synergy and tier">↻ {{ x.reroll|num }}</button>
+          <button class="btn small ghost" hx-post="{{ url_for('play.chips_scrap') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
+                  hx-confirm="Scrap this chip for {{ x.scrap|num }} Meteor Dust?" title="Break it down for Meteor Dust">Scrap +{{ x.scrap|num }}</button>
+        {% endcall %}
       {% endfor %}
-    </ul>
+    </div>
   {% else %}
     <p class="muted">No spare chips. They drop from the <a href="{{ url_for('progress.training_page') }}">training ground</a>, tower boss floors and the boss rush.</p>
   {% endif %}
@@ -33,8 +35,11 @@
     <h2 class="h3">Socketed</h2>
     <ul class="chip-worn">
       {% for w in worn %}
-        <li><strong>{{ w.stand.name }}</strong> <small class="muted">{{ w.chips|length }}/{{ w.slots }} slots</small>
-          <span>{% for x in w.chips %}<span class="chip-pill tier-{{ x.tier }}" title="{{ x.lines|join(', ') }}">{{ x.icon }} {{ x.label }}</span>{% endfor %}</span></li>
+        <li>
+          <img src="{{ w.stand.id|stand_img }}" alt="" width="40" height="40" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+          <span class="chip-worn-name"><strong>{{ w.stand.name }}</strong><small class="muted">{{ w.chips|length }}/{{ w.slots }} slots</small></span>
+          <span class="chip-worn-list">{% for x in w.chips %}<span class="chip-pill tier-{{ x.tier }}" title="{{ x.label }} · {{ x.lines|join(', ') }}">{{ x.icon }} {{ x.tier_icon }}</span>{% endfor %}</span>
+        </li>
       {% endfor %}
     </ul>
   {% endif %}

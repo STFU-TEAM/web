@@ -86,6 +86,21 @@ self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(
   caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
     .then(() => self.clients.claim())));
+self.addEventListener("push", (e) => {
+  let data = {};
+  try { data = e.data ? e.data.json() : {}; } catch (_) { data = {body: e.data && e.data.text()}; }
+  e.waitUntil(self.registration.showNotification(data.title || "STFU Requiem", {
+    body: data.body || "", tag: data.tag, renotify: !!data.tag, data: {url: data.url || "/"},
+    icon: "/static/img/icon-192.png", badge: "/static/img/icon-192.png"}));
+});
+self.addEventListener("notificationclick", (e) => {
+  e.notification.close();
+  const url = new URL((e.notification.data && e.notification.data.url) || "/", location.origin).href;
+  e.waitUntil(clients.matchAll({type: "window", includeUncontrolled: true}).then((list) => {
+    const open = list.find((c) => c.url.startsWith(location.origin));
+    return open ? open.navigate(url).then((c) => c && c.focus()) : clients.openWindow(url);
+  }));
+});
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;

@@ -1091,6 +1091,8 @@ def spend_energy(user: User, amount: int, why: str = "") -> None:
     if user.energy >= user.total_energy:
         user.last_full_energy = now()  # the bar was full, so the next point starts charging now
     user.energy -= amount
+    from app import push
+    push.schedule_energy(user)
 
 
 def energy_refill_in(user: User) -> Optional[datetime.timedelta]:
