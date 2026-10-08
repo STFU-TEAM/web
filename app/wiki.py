@@ -11,7 +11,7 @@ import re
 from app.game import character as character_mod
 from app.game import logic
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
-from app.game.characterabilities import AFFINITY, PART_GROUPS, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
+from app.game.characterabilities import AFFINITY, CROSS_GROUPS, PART_GROUPS, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
 from app.game import fight as fight_mod
 from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFITS, TERRAIN_SETTERS, Terrain, fmt_perk
 
@@ -115,6 +115,81 @@ SYNERGY_EFFECTS = {
         45: "Also writes “cannot defend”: −30% armor on top of the stun.",
         50: "3 Freeze hits at 1.3× (from 1.0×) and slows the others by 35% (from 20%).",
     },
+    # cross synergies for the weaker stands
+    "dio_pucci": {
+        107: "Also strips the target's buffs.",
+        108: "Hits every enemy at 0.8× instead of 0.5×.",
+    },
+    "boingo_hol_horse": {
+        14: "Fires a second bullet: 1.0× into another enemy.",
+        24: "Readies the Emperor: its special charges right away.",
+    },
+    "pesci_prosciutto": {
+        71: "Whatever it hooks also ages (poison for 2 turns) and slows 20%.",
+        72: "The aging lasts 3 turns instead of 2, and it heals 8% of its health.",
+    },
+    "enyaba_geil": {
+        13: "Its target is slowed 25% and it gains +10 more critical.",
+        16: "Fog puppets hit at 0.6× instead of 0.4×, and its target is stunned.",
+    },
+    "nijimura": {
+        35: "Counts one more squad and the missiles burn the target for 2 turns.",
+    },
+    "trussardi": {
+        43: "Heals 50% more and gives the team +15% damage for 2 turns.",
+    },
+    "first_love": {
+        40: "Her hair seizes every enemy (0.5× each, −25% speed) and binds its target.",
+    },
+    "polpo_test": {
+        61: "The healthiest enemy faster than it fails the test: stunned.",
+    },
+    "fate": {
+        85: "Executes below 45% health instead of 30%.",
+    },
+    "fugo_narancia": {
+        67: "Every enemy is also poisoned for 2 turns.",
+    },
+    "cellmates": {
+        87: "The shrunken enemy is also stunned.",
+    },
+    "tide": {
+        7: "Fights as if on the Ocean on any field: +25% speed and 0.6× to every enemy.",
+        33: "Falls as rain: 0.6× and −20% speed on every enemy instead of 1.1× on one.",
+    },
+    "swarm": {
+        47: "Every ally gets two bonuses instead of one.",
+    },
+    "disguise": {
+        12: "+80% armor instead of +50%, and heals 15% instead of 8%.",
+        39: "The copied hit is 2.0× instead of 1.4×.",
+    },
+    "fire": {
+        18: "Burns as hot as on the Desert on any field.",
+    },
+    "gunslingers": {
+        64: "+20 critical for 2 turns after the volley.",
+        112: "A second nail hits another enemy for 0.8×.",
+    },
+    "soul": {
+        19: "Awake enemies take 1.2× instead of 0.5×.",
+    },
+    "plague": {
+        69: "Its allies are carriers: the virus doesn't touch them.",
+        81: "The mold lasts 3 turns and takes −15% armor too.",
+    },
+    "mirrors": {
+        13: "Strikes from every reflection (1.4× ignoring armor, +25 critical) even off the Mirror field.",
+        68: "Trapped enemies also take 0.6× ignoring armor.",
+    },
+    "morioh_2011": {
+        147: "Wraps a second enemy in leaves.",
+        162: "+20% speed for the whole team instead of itself.",
+    },
+    "schott_keys": {
+        151: "Explodes for 1.0× instead of 0.7× and slows every enemy 15%.",
+        152: "Explodes for 1.0× instead of 0.7× and slows every enemy 15%.",
+    },
 }
 
 EFFECT_INFO = {
@@ -201,6 +276,8 @@ def synergy_rows():
             "key": key, "name": label, "icon": icon,
             "rule": ("A whole team from this part (all 3 fighters). Only teams players build get it, not "
                      "computer-controlled enemies." if key in PART_GROUPS
+                     else ("Both stands" if len(members) == 2 else "Any 2 of these") + " on a team a player built "
+                     "(computer-controlled enemies don't get it)." if key in CROSS_GROUPS
                      else "Both stands on the team." if len(members) == 2 else "Any 2 of these on the team."),
             "bonus": [fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, [])],
             "members": [{"stand": _stand(c), "effect": effects.get(c) if c in users else None}

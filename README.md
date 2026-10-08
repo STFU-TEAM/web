@@ -91,6 +91,9 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   without them
 - Finished fights offer a Continue button (next floor/boss/stage, retry, queue again) and, after a PvE loss,
   "Simulate this fight" from the exact starting state
+- Cross synergies (`CROSS_GROUPS` in `app/game/characterabilities.py`): 21 groups built around R/SR/SSR stands (story
+  duos like Hol Horse & Boingo or Prosciutto & Pesci, and themes across the parts like the tide or gunslingers), most
+  changing a special. Like the part synergies they count for player-built teams only, so the PvE curves are untouched
 - Team planner (`/battles/planner`, `app/game/planner.py`): any 3 stands, owned copies as they are or any stand at a
   chosen level, awakening, type and quality (no type / Good / Perfect); reviews stats before and after synergies,
   lit synergies and resonances, terrain, synergies one stand away, and simulates the plan. The plan lives in the URL

@@ -123,6 +123,51 @@ SYNERGIES = {
     # The Rock Humans
     "rock_humans": {139, 148, 156, 158, 159},
 }
+# ── Cross synergies for the weaker stands (R, SR, SSR): duos from the story and themes across the parts ──
+SYNERGIES.update({
+    # DIO and his friend Pucci: The World, Whitesnake, C-Moon
+    "dio_pucci": {10, 107, 108},
+    # Hol Horse and Boingo: the Emperor fires where Tohth's comic says
+    "boingo_hol_horse": {14, 24},
+    # Prosciutto and Pesci, the brothers of La Squadra
+    "pesci_prosciutto": {71, 72},
+    # Enyaba and her son J. Geil
+    "enyaba_geil": {13, 16},
+    # Keicho and Okuyasu Nijimura
+    "nijimura": {34, 35},
+    # Tonio's restaurant and its first regular, Okuyasu
+    "trussardi": {34, 43},
+    # Yukako's love for Koichi, act by act
+    "first_love": {36, 40, 41, 42, 50},
+    # Polpo's test of Giorno
+    "polpo_test": {59, 61},
+    # Scolippi's sculpture of Bucciarati's fate
+    "fate": {60, 85},
+    # Fugo and Narancia
+    "fugo_narancia": {67, 69},
+    # Jolyne and her cellmate Gwess
+    "cellmates": {86, 87},
+    # Stands of water and the sea
+    "tide": {7, 22, 33, 71, 76, 97},
+    # Swarms and tiny armies
+    "swarm": {35, 47, 64, 92},
+    # Faces, masks and copies
+    "disguise": {12, 23, 39, 48},
+    # Fire and lightning
+    "fire": {2, 18, 37, 91},
+    # Gunslingers
+    "gunslingers": {14, 64, 112, 126},
+    # Souls, dreams and minds
+    "soul": {19, 28, 29, 45, 107},
+    # Rot, viruses and age
+    "plague": {69, 72, 81},
+    # Through the looking glass: Hanged Man and Man in the Mirror
+    "mirrors": {13, 68},
+    # JoJolion's Morioh: the locals with no crew of their own
+    "morioh_2011": {144, 146, 147, 149, 150, 151, 152, 153, 154, 155, 157, 160, 162},
+    # Schott Key No. 1 and No. 2
+    "schott_keys": {151, 152},
+})
 # Members who were missing from their crew: Abbacchio and Coco Jumbo, Ermes and Emporio, Pesci and Risotto
 SYNERGIES["passione"] |= {62, 70}
 SYNERGIES["stone_ocean"] |= {89, 91}
@@ -137,6 +182,12 @@ PART_GROUPS = {f"part{p}": p for p in PARTS}
 for _key, _part in PART_GROUPS.items():
     SYNERGIES[_key] = set(PARTS[_part])
 SYNERGY_MIN = {key: 3 for key in PART_GROUPS}  # members needed on the team (2 for every other group)
+# The cross synergies for the weaker stands, like the part synergies, are for teams players build: the PvE curves
+# were tuned without them, so computer-controlled enemies get neither their bonus nor their special changes.
+CROSS_GROUPS = {"dio_pucci", "boingo_hol_horse", "pesci_prosciutto", "enyaba_geil", "nijimura", "trussardi",
+                "first_love", "polpo_test", "fate", "fugo_narancia", "cellmates", "tide", "swarm", "disguise", "fire",
+                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys"}
+PLAYER_ONLY = set(PART_GROUPS) | CROSS_GROUPS
 
 
 def part_of(stand_id: int):
@@ -182,6 +233,27 @@ SYNERGY_INFO = {
     "corpse": ("The Saint's Corpse", "✝️"),
     "higashikata": ("Higashikata family", "🍑"),
     "rock_humans": ("Rock Humans", "🪨"),
+    "dio_pucci": ("DIO & Pucci", "📓"),
+    "boingo_hol_horse": ("Hol Horse & Boingo", "🔮"),
+    "pesci_prosciutto": ("Prosciutto & Pesci", "🎣"),
+    "enyaba_geil": ("Enyaba & J. Geil", "🌫️"),
+    "nijimura": ("Nijimura brothers", "🪖"),
+    "trussardi": ("Trattoria Trussardi", "🍝"),
+    "first_love": ("Yukako & Koichi", "💌"),
+    "polpo_test": ("Polpo's test", "🕯️"),
+    "fate": ("Sculpted fate", "🪨"),
+    "fugo_narancia": ("Fugo & Narancia", "✈️"),
+    "cellmates": ("Jolyne & Gwess", "⛓️"),
+    "tide": ("The tide", "🌊"),
+    "swarm": ("The swarm", "🐜"),
+    "disguise": ("Faces & masks", "🎭"),
+    "fire": ("Fire & lightning", "🔥"),
+    "gunslingers": ("Gunslingers", "🤠"),
+    "soul": ("Souls & dreams", "👻"),
+    "plague": ("The plague", "☣️"),
+    "mirrors": ("Through the looking glass", "🪞"),
+    "morioh_2011": ("Morioh, 2011", "🏙️"),
+    "schott_keys": ("Schott Keys", "🗝️"),
     "part3": ("Part 3 · Stardust Crusaders", "③"),
     "part4": ("Part 4 · Diamond is Unbreakable", "④"),
     "part5": ("Part 5 · Golden Wind", "⑤"),
@@ -234,6 +306,28 @@ SYNERGY_BONUS = {
     "corpse": [("hp_pct", 0.10), ("armor_pct", 0.08)],
     "higashikata": [("hp_pct", 0.10), ("speed_pct", 0.08)],
     "rock_humans": [("armor_pct", 0.14), ("hp_pct", 0.06)],
+    # cross synergies for the weaker stands (their rarity leverage makes these count most on R and SR)
+    "dio_pucci": [("damage_pct", 0.10), ("speed_pct", 0.08)],
+    "boingo_hol_horse": [("crit_flat", 12), ("damage_pct", 0.08)],
+    "pesci_prosciutto": [("damage_pct", 0.10), ("hp_pct", 0.08)],
+    "enyaba_geil": [("damage_pct", 0.10), ("crit_flat", 8)],
+    "nijimura": [("hp_pct", 0.10), ("damage_pct", 0.08)],
+    "trussardi": [("hp_pct", 0.12), ("armor_pct", 0.06)],
+    "first_love": [("speed_pct", 0.10), ("hp_pct", 0.08)],
+    "polpo_test": [("hp_pct", 0.10), ("crit_flat", 8)],
+    "fate": [("crit_flat", 10), ("damage_pct", 0.06)],
+    "fugo_narancia": [("damage_pct", 0.10), ("speed_pct", 0.08)],
+    "cellmates": [("hp_pct", 0.10), ("armor_pct", 0.08)],
+    "tide": [("speed_pct", 0.08), ("hp_pct", 0.06)],
+    "swarm": [("damage_pct", 0.08), ("speed_pct", 0.08)],
+    "disguise": [("armor_pct", 0.10), ("crit_flat", 6)],
+    "fire": [("damage_pct", 0.10), ("crit_flat", 6)],
+    "gunslingers": [("crit_flat", 12), ("damage_pct", 0.06)],
+    "soul": [("damage_pct", 0.08), ("crit_flat", 8)],
+    "plague": [("damage_pct", 0.10), ("hp_pct", 0.06)],
+    "mirrors": [("crit_flat", 10), ("speed_pct", 0.08)],
+    "morioh_2011": [("hp_pct", 0.08), ("damage_pct", 0.06)],
+    "schott_keys": [("damage_pct", 0.12), ("speed_pct", 0.06)],
     # parts: easy to fill from ~25 stands each, so smaller than the crews'
     "part3": [("damage_pct", 0.06), ("speed_pct", 0.06)],
     "part4": [("hp_pct", 0.08), ("armor_pct", 0.06)],
@@ -254,6 +348,8 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
     group = SYNERGIES.get(synergy_name, set())
     if character_id not in group:
         return False
+    if synergy_name in PLAYER_ONLY and any(getattr(a, "_computer", False) for a in allied_characters):
+        return False  # a computer-controlled PvE team (marked by the fight)
     ids = _ally_ids(allied_characters)
     # Need at least one OTHER member present
     return len(group & ids) >= 2
@@ -261,10 +357,10 @@ def _has_synergy(character_id: int, allied_characters: list, synergy_name: str) 
 
 def active_synergies(team: list, parts: bool = True) -> list:
     """Names of the synergy groups with enough members on this team (2, or SYNERGY_MIN). parts=False leaves
-    out the part synergies (computer-controlled PvE enemies don't get them)."""
+    out the part and cross synergies (computer-controlled PvE enemies don't get them)."""
     ids = _ally_ids(team)
     return [name for name, group in SYNERGIES.items()
-            if len(group & ids) >= SYNERGY_MIN.get(name, 2) and (parts or name not in PART_GROUPS)]
+            if len(group & ids) >= SYNERGY_MIN.get(name, 2) and (parts or name not in PLAYER_ONLY)]
 
 
 def synergy_scale(name: str, team: list, c) -> float:
@@ -619,10 +715,12 @@ def silver_chariot(character, allied_characters, enemy_characters) -> tuple:
 def dark_blue_moon(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    if terrain == Terrain.OCEAN:
+    tide = _has_synergy(character.id, allied_characters, "tide")
+    if terrain == Terrain.OCEAN or tide:
         _buff(character, "speed", 0.25, 2, character)
         damage = _aoe(character, enemy_characters, 0.6)
-        return payload, f"｢{character.name}｣ dominates the ocean! +25% speed and {damage} damage to all!"
+        where = "rides the tide" if terrain != Terrain.OCEAN else "dominates the ocean"
+        return payload, f"｢{character.name}｣ {where}! +25% speed and {damage} damage to all!{' 🌊 The tide!' if tide else ''}"
     damage = 0
     for target in _alive(enemy_characters):
         damage += _hit(character, target, 0.85 if _impaired(target) else 0.3)
@@ -667,11 +765,15 @@ def ebony_devil(character, allied_characters, enemy_characters) -> tuple:
 
 def yellow_temperance(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    _buff(character, "armor", 0.50, 2, character)
-    healed = _heal(character, character.start_hp * 0.08)
+    masked = _has_synergy(character.id, allied_characters, "disguise")
+    _buff(character, "armor", 0.80 if masked else 0.50, 2, character)
+    healed = _heal(character, character.start_hp * (0.15 if masked else 0.08))
     target = _target(character, enemy_characters)
     if target:
         _dot(target, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+    if masked:
+        return payload, (f"｢{character.name}｣ hides behind a stolen face and engulfs {target.name if target else 'nothing'}: "
+                         f"+80% armor, heals {healed}, devours for 2 turns! 🎭 Faces & masks!")
     return payload, f"｢{character.name}｣ engulfs {target.name if target else 'nothing'}: +50% armor, heals {healed}, devours for 2 turns!"
 
 
@@ -679,17 +781,24 @@ def hanged_man(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
     target = _target(character, enemy_characters)
-    if terrain == Terrain.MIRROR:
+    glass = _has_synergy(character.id, allied_characters, "mirrors")
+    if terrain == Terrain.MIRROR or glass:
         _buff(character, "critical", 25, 2, character)
         damage = _hit(character, target, 1.4, pierce=True) if target else 0
-        return payload, f"｢{character.name}｣ strikes from every reflection for {damage}, ignoring armor! +25 crit!"
+        return payload, (f"｢{character.name}｣ strikes from every reflection for {damage}, ignoring armor! +25 crit!"
+                         f"{' 🪞 Through the looking glass!' if glass else ''}")
     _buff(character, "critical", 15, 2, character)
     damage = _hit(character, target, 0.9) if target else 0
+    fog = ""
+    if target and target.is_alive() and _has_synergy(character.id, allied_characters, "enyaba_geil"):
+        _debuff(target, "speed", 0.25, 2, character)
+        _buff(character, "critical", 10, 2, character)
+        fog = f" Mother's fog clings to {target.name}: -25% speed, +10 more crit! 🌫️ Enyaba & J. Geil!"
     if target and target.is_alive() and _has_synergy(character.id, allied_characters, "hol_horse"):
         damage += _hit(character, target, 0.6)
         return payload, (f"｢{character.name}｣ rides the Emperor's bullet out of a reflection: {damage} damage! "
-                         f"+15 crit! 🔫 Emperor & Hanged Man!")
-    return payload, f"｢{character.name}｣ strikes from a reflection for {damage}! +15 crit!"
+                         f"+15 crit! 🔫 Emperor & Hanged Man!{fog}")
+    return payload, f"｢{character.name}｣ strikes from a reflection for {damage}! +15 crit!{fog}"
 
 
 def emperor(character, allied_characters, enemy_characters) -> tuple:
@@ -699,10 +808,17 @@ def emperor(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ fires into the air!"
     if _has_synergy(character.id, allied_characters, "hol_horse"):
         damage = _hit(character, target, 2.2, pierce=True)
-        return payload, (f"｢{character.name}｣'s bullet bends through a mirror: headshot on {target.name} for {damage}, "
-                         f"ignoring armor! 🔫 Emperor & Hanged Man!")
-    damage = _hit(character, target, 2.2)
-    return payload, f"｢{character.name}｣ headshot on {target.name} for {damage}!"
+        message = (f"｢{character.name}｣'s bullet bends through a mirror: headshot on {target.name} for {damage}, "
+                   f"ignoring armor! 🔫 Emperor & Hanged Man!")
+    else:
+        damage = _hit(character, target, 2.2)
+        message = f"｢{character.name}｣ headshot on {target.name} for {damage}!"
+    if _has_synergy(character.id, allied_characters, "boingo_hol_horse"):
+        others = [e for e in _alive(enemy_characters) if e is not target] or _alive(enemy_characters)
+        if others:
+            second = random.choice(others)
+            message += f" Boingo's comic called a second shot: {second.name} takes {_hit(character, second, 1.0)}! 🔮"
+    return payload, message
 
 
 def wheel_of_fortune(character, allied_characters, enemy_characters) -> tuple:
@@ -716,12 +832,19 @@ def wheel_of_fortune(character, allied_characters, enemy_characters) -> tuple:
 
 def justice(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    mother = _has_synergy(character.id, allied_characters, "enyaba_geil")
     damage = 0
     for enemy in _alive(enemy_characters):
-        damage += _hit(character, enemy, 0.4)
+        damage += _hit(character, enemy, 0.6 if mother else 0.4)
         _debuff(enemy, "damage", 0.15, 2, character)
         _debuff(enemy, "speed", 0.15, 2, character)
     _buff(character, "speed", 0.30, 2, character)
+    if mother:
+        target = _target(character, enemy_characters)
+        if target:
+            _stun(target, character)
+        return payload, (f"｢{character.name}｣ avenges J. Geil: fog puppets strike everyone for {damage}, "
+                         f"{target.name if target else 'nobody'} is held fast! 🌫️ Enyaba & J. Geil!")
     return payload, f"｢{character.name}｣'s fog puppets strike everyone for {damage}! Enemies -15% damage and speed!"
 
 
@@ -738,10 +861,13 @@ def the_lovers(character, allied_characters, enemy_characters) -> tuple:
 def the_sun(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
-    hot = terrain == Terrain.DESERT
+    fed = _has_synergy(character.id, allied_characters, "fire")
+    hot = terrain == Terrain.DESERT or fed
     for target in _alive(enemy_characters):
         _debuff(target, "speed", 0.20 if hot else 0.10, 2, character)
         _dot(target, EffectType.BURN, 2, (0.3 if hot else 0.15) * character.current_damage, character)
+    if fed:
+        return payload, f"｢{character.name}｣ burns white-hot with its fellow flames! Every enemy slowed and burning! 🔥 Fire & lightning!"
     if hot:
         return payload, f"｢{character.name}｣ scorches the desert! Every enemy slowed and burning!"
     return payload, f"｢{character.name}｣ blazes overhead, burning and slowing every enemy!"
@@ -749,15 +875,17 @@ def the_sun(character, allied_characters, enemy_characters) -> tuple:
 
 def death_13(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    dreamers = _has_synergy(character.id, allied_characters, "soul")
     damage, asleep = 0, 0
     for target in _alive(enemy_characters):
         if _impaired(target):
             damage += _hit(character, target, 1.8)
             asleep += 1
         else:
-            damage += _hit(character, target, 0.5)
+            damage += _hit(character, target, 1.2 if dreamers else 0.5)
             _debuff(target, "speed", 0.20, 2, character)
-    return payload, f"｢{character.name}｣ haunts their dreams for {damage}! ({asleep} defenceless)"
+    tail = " 👻 Souls & dreams: nobody is safe asleep!" if dreamers else ""
+    return payload, f"｢{character.name}｣ haunts their dreams for {damage}! ({asleep} defenceless){tail}"
 
 
 def judgement(character, allied_characters, enemy_characters) -> tuple:
@@ -816,6 +944,12 @@ def tohth(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if target:
         target.special_meter = max(0, target.special_meter - 1)
+    if _has_synergy(character.id, allied_characters, "boingo_hol_horse"):
+        for ally in _alive(allied_characters):
+            if ally.id == 14:
+                ally.special_meter = max(ally.special_meter, ally.turn_for_ability)
+        return payload, (f"｢{character.name}｣ draws the Emperor's next shot! Team +12 crit and +15% damage, enemy special "
+                         f"delayed, the Emperor's special is ready! 🔮 Hol Horse & Boingo!")
     return payload, f"｢{character.name}｣ predicts the future! Team +12 crit and +15% damage, enemy special delayed!"
 
 
@@ -908,6 +1042,12 @@ def aqua_necklace(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ strikes!"
+    if _has_synergy(character.id, allied_characters, "tide"):
+        damage = 0
+        for enemy in _alive(enemy_characters):
+            damage += _hit(character, enemy, 0.6)
+            _debuff(enemy, "speed", 0.20, 2, character)
+        return payload, f"｢{character.name}｣ falls as rain on everyone: {damage} damage, all slowed! 🌊 The tide!"
     damage = _hit(character, target, 1.1)
     _debuff(target, "speed", 0.20, 2, character)
     return payload, f"｢{character.name}｣ slips inside {target.name} for {damage} and slows it!"
@@ -996,11 +1136,16 @@ def killer_queen_bite_the_dust(character, allied_characters, enemy_characters) -
 
 def bad_company(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    units = len(_alive(allied_characters))
+    brothers = _has_synergy(character.id, allied_characters, "nijimura")
+    units = len(_alive(allied_characters)) + (1 if brothers else 0)
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ deploys the troops!"
     damage = _hit(character, target, 0.5 + 0.55 * units)
+    if brothers:
+        _dot(target, EffectType.BURN, 2, 0.2 * character.current_damage, character)
+        return payload, (f"｢{character.name}｣ calls in the Apache for big brother: {units} squads hit {target.name} "
+                         f"for {damage}, and the missiles burn! 🪖 Nijimura brothers!")
     return payload, f"｢{character.name}｣ deploys {units} squads! {target.name} takes {damage}!"
 
 
@@ -1044,8 +1189,10 @@ def surface(character, allied_characters, enemy_characters) -> tuple:
     others = [c for c in valid if c != controlled]
     if others:
         target = random.choice(others)
-        damage = _hit(controlled, target, 1.4)
-        return payload, f"｢{character.name}｣ mimics {controlled.name} into hitting {target.name} for {damage}!"
+        perfect = _has_synergy(character.id, allied_characters, "disguise")
+        damage = _hit(controlled, target, 2.0 if perfect else 1.4)
+        return payload, (f"｢{character.name}｣ mimics {controlled.name} into hitting {target.name} for {damage}!"
+                         f"{' 🎭 A perfect copy!' if perfect else ''}")
     damage = _hit(controlled, controlled, 0.6)
     return payload, f"｢{character.name}｣ makes {controlled.name} hurt itself for {damage}!"
 
@@ -1055,6 +1202,14 @@ def love_deluxe(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ extends her hair!"
+    if _has_synergy(character.id, allied_characters, "first_love"):
+        damage = 0
+        for enemy in _alive(enemy_characters):
+            damage += _hit(character, enemy, 0.5)
+            _debuff(enemy, "speed", 0.25, 2, character)
+        _stun(target, character)
+        return payload, (f"｢{character.name}｣'s hair seizes everyone in the way of her Koichi: {damage} damage, all "
+                         f"slowed, {target.name} bound! 💌 Yukako & Koichi!")
     damage = _hit(character, target, 0.8)
     if target.current_speed > character.current_speed:
         _debuff(target, "speed", 0.35, 2, character)
@@ -1086,12 +1241,18 @@ def pearl_jam(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     terrain = _terrain(character)
     fresh = terrain == Terrain.NATURE
+    regular = _has_synergy(character.id, allied_characters, "trussardi")
     healed = 0
     for ally in _alive(allied_characters):
-        healed += _heal(ally, ally.start_hp * (0.12 if fresh else 0.08))
+        healed += _heal(ally, ally.start_hp * (0.12 if fresh else 0.08) * (1.5 if regular else 1))
         _cleanse(ally)
+        if regular:
+            _buff(ally, "damage", 0.15, 2, character)
         if fresh:
             _regen(ally, 2, ally.start_hp * 0.03, character)
+    if regular:
+        return payload, (f"｢{character.name}｣ serves Okuyasu's favourite! Team heals {healed}, +15% damage, debuffs "
+                         f"cleared! 🍝 Trattoria Trussardi!")
     if fresh:
         return payload, f"｢{character.name}｣ cooks with fresh ingredients! Team heals {healed} + regen, debuffs cleared!"
     return payload, f"｢{character.name}｣ cooks a healing meal! Team heals {healed}, debuffs cleared!"
@@ -1127,15 +1288,17 @@ def harvest(character, allied_characters, enemy_characters) -> tuple:
     terrain = _terrain(character)
     rich = terrain == Terrain.NATURE
     collected = []
+    swarm = _has_synergy(character.id, allied_characters, "swarm")
     for ally in _alive(allied_characters):
-        stat = random.choice(["damage", "speed", "armor", "critical"])
-        amount = random.randint(15, 25) if stat == "critical" else random.uniform(0.20, 0.30)
-        if rich:
-            amount *= 1.6
-        _buff(ally, stat, amount, 3, character)
-        collected.append(f"{ally.name} +{amount if stat == 'critical' else _pct(amount)} {stat}")
+        for stat in random.sample(["damage", "speed", "armor", "critical"], 2 if swarm else 1):
+            amount = random.randint(15, 25) if stat == "critical" else random.uniform(0.20, 0.30)
+            if rich:
+                amount *= 1.6
+            _buff(ally, stat, amount, 3, character)
+            collected.append(f"{ally.name} +{amount if stat == 'critical' else _pct(amount)} {stat}")
     prefix = "a bountiful harvest" if rich else "resources"
-    return payload, f"｢{character.name}｣ collects {prefix}! {', '.join(collected)}!"
+    tail = " 🐜 The swarm brings double!" if swarm else ""
+    return payload, f"｢{character.name}｣ collects {prefix}! {', '.join(collected)}!{tail}"
 
 
 def cinderella(character, allied_characters, enemy_characters) -> tuple:
@@ -1281,8 +1444,11 @@ def sticky_finger(character, allied_characters, enemy_characters) -> tuple:
 
 def purple_haze(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    carriers = _has_synergy(character.id, allied_characters, "plague")
     for enemy in _alive(enemy_characters):
         _dot(enemy, EffectType.POISON, 2, 0.45 * character.current_damage, character)
+    if carriers:  # its allies are carriers too: the virus spares them
+        return payload, f"｢{character.name}｣ releases the virus! Every enemy is poisoned; its fellow carriers are immune! ☣️ The plague!"
     for ally in _alive(allied_characters):
         _dot(ally, EffectType.POISON, 1, 0.1 * character.current_damage, character)
     return payload, f"｢{character.name}｣ releases the virus! Every enemy is poisoned... and so are its allies, a little."
@@ -1317,9 +1483,14 @@ def metallica(character, allied_characters, enemy_characters) -> tuple:
 
 def green_day(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    spread = _has_synergy(character.id, allied_characters, "plague")
     for enemy in _alive(enemy_characters):
         _debuff(enemy, "damage", 0.20, 2, character)
-        _dot(enemy, EffectType.POISON, 2, 0.2 * character.current_damage, character)
+        _dot(enemy, EffectType.POISON, 3 if spread else 2, 0.2 * character.current_damage, character)
+        if spread:
+            _debuff(enemy, "armor", 0.15, 2, character)
+    if spread:
+        return payload, f"｢{character.name}｣ spreads the mold with the plague: every enemy rots for 3 turns, -20% damage, -15% armor! ☣️ The plague!"
     return payload, f"｢{character.name}｣ spreads the mold! Every enemy rots and loses 20% damage!"
 
 
@@ -1411,15 +1582,18 @@ def underworld(character, allied_characters, enemy_characters) -> tuple:
 def c_moon(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "pucci")
+    heaven = _has_synergy(character.id, allied_characters, "dio_pucci")
     damage = 0
     for enemy in _alive(enemy_characters):
-        damage += _hit(character, enemy, 0.5)
+        damage += _hit(character, enemy, 0.8 if heaven else 0.5)
         _debuff(enemy, "speed", 0.25 if synergy else 0.15, 2, character)
         if synergy:
             _debuff(enemy, "armor", 0.15, 2, character)
     message = f"｢{character.name}｣ turns gravity inside out: {damage} damage, every enemy slowed!"
     if synergy:
         message += " ☽ Pucci synergy! -15% enemy armor!"
+    if heaven:
+        message += " Gravity bends for DIO's plan! 📓 DIO & Pucci!"
     return payload, message
 
 
@@ -1445,6 +1619,13 @@ def black_sabbath(character, allied_characters, enemy_characters) -> tuple:
     total = 0
     for target in _alive(enemy_characters):
         total += _hit(character, target, 0.7 if target.current_speed > character.current_speed else 0.35)
+    if _has_synergy(character.id, allied_characters, "polpo_test"):
+        fast = [e for e in _alive(enemy_characters) if e.current_speed > character.current_speed]
+        if fast:
+            tested = max(fast, key=lambda e: e.current_hp)
+            _stun(tested, character)
+            return payload, (f"｢{character.name}｣ drags the fast into the shadows for {total} damage, and {tested.name} "
+                             f"fails Polpo's test: stunned! 🕯️ Polpo's test!")
     return payload, f"｢{character.name}｣ drags the fast into the shadows for {total} damage!"
 
 
@@ -1500,6 +1681,9 @@ def sex_pistol(character, allied_characters, enemy_characters) -> tuple:
     message = f"｢{character.name}｣ guide {shots} bullets into {target.name if target else 'the enemy'} for {total}!"
     if synergy:
         message += " 🐞 Passione synergy!"
+    if _has_synergy(character.id, allied_characters, "gunslingers"):
+        _buff(character, "critical", 20, 2, character)
+        message += " A fellow gunslinger's lead to kick: +20 crit! 🤠 Gunslingers!"
     return payload, message
 
 
@@ -1536,6 +1720,10 @@ def aerosmith(character, allied_characters, enemy_characters) -> tuple:
         if weakest:
             _dot(weakest, EffectType.BLEED, 2, 0.3 * character.current_damage, character)
             message += f" Locks onto {weakest.name} with bleed! 🐞 Passione synergy!"
+    if _has_synergy(character.id, allied_characters, "fugo_narancia"):
+        for enemy in _alive(enemy_characters):
+            _dot(enemy, EffectType.POISON, 2, 0.2 * character.current_damage, character)
+        message += " Fugo's virus rides the bullets: every enemy poisoned! ✈️ Fugo & Narancia!"
     return payload, message
 
 
@@ -1551,12 +1739,20 @@ def man_in_the_miror(character, allied_characters, enemy_characters) -> tuple:
             _stun(target, character)
             _debuff(target, "damage", 0.20, 2, character)
         names = " and ".join(t.name for t in targets)
+        if _has_synergy(character.id, allied_characters, "mirrors"):
+            cut = sum(_hit(character, t, 0.6, pierce=True) for t in targets)
+            return payload, (f"｢{character.name}｣ traps {names} in the mirror world, where Hanged Man waits: {cut} "
+                             f"damage, ignoring armor! 🗡️ Squadra synergy! 🪞 Through the looking glass!")
         return payload, f"｢{character.name}｣ traps {names} in the mirror world! 🗡️ Squadra synergy!"
     target = _target(character, enemy_characters)
+    glass = _has_synergy(character.id, allied_characters, "mirrors")
     damage = _hit(character, target, 0.8)
+    if glass and target.is_alive():
+        damage += _hit(character, target, 0.6, pierce=True)
     _stun(target, character)
     _debuff(target, "damage", 0.20, 2, character)
-    return payload, f"｢{character.name}｣ traps {target.name} in the mirror world: {damage} damage, stunned, -20% damage!"
+    return payload, (f"｢{character.name}｣ traps {target.name} in the mirror world: {damage} damage, stunned, -20% damage!"
+                     f"{' 🪞 Through the looking glass!' if glass else ''}")
 
 
 def mr_president(character, allied_characters, enemy_characters) -> tuple:
@@ -1582,28 +1778,42 @@ def beach_boy(character, allied_characters, enemy_characters) -> tuple:
     valid = _alive(enemy_characters)
     if not valid:
         return payload, f"｢{character.name}｣ casts its line but finds nothing!"
+    brother = _has_synergy(character.id, allied_characters, "pesci_prosciutto")
+    tail = " Reeled into Prosciutto's gas: it ages and slows! 🎣 Prosciutto & Pesci!" if brother else ""
+
+    def reel(target):  # with big brother near, whatever bites also ages
+        if brother and target.is_alive():
+            _dot(target, EffectType.POISON, 2, 0.25 * character.current_damage, character)
+            _debuff(target, "speed", 0.20, 2, character)
+
     if terrain == Terrain.OCEAN:
         total = 0
         for target in valid:
             total += _hit(character, target, 0.5)
             _dot(target, EffectType.BLEED, 2, 0.15 * character.current_damage, character)
-        return payload, f"｢{character.name}｣ casts a wide net! {total} damage and bleed on every enemy!"
+            reel(target)
+        return payload, f"｢{character.name}｣ casts a wide net! {total} damage and bleed on every enemy!{tail}"
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 0.7)
     _dot(target, EffectType.BLEED, 2, 0.2 * character.current_damage, character)
-    return payload, f"｢{character.name}｣ hooks {target.name} for {damage}, and it bleeds!"
+    reel(target)
+    return payload, f"｢{character.name}｣ hooks {target.name} for {damage}, and it bleeds!{tail}"
 
 
 def the_grateful_dead(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     synergy = _has_synergy(character.id, allied_characters, "squadra")
+    brother = _has_synergy(character.id, allied_characters, "pesci_prosciutto")
     for enemy in _alive(enemy_characters):
         _hit(character, enemy, 0.3)
-        _dot(enemy, EffectType.POISON, 2, (0.45 if synergy else 0.35) * character.current_damage, character)
+        _dot(enemy, EffectType.POISON, 3 if brother else 2, (0.45 if synergy else 0.35) * character.current_damage, character)
         _debuff(enemy, "speed", 0.30 if synergy else 0.20, 2, character)
     message = f"｢{character.name}｣ ages everyone! Every enemy withers and slows!"
     if synergy:
         message += " 🗡️ Squadra synergy!"
+    if brother:
+        healed = _heal(character, character.start_hp * 0.08)
+        message += f" For Pesci, the gas never lets go: aging lasts 3 turns, heals {healed}! 🎣 Prosciutto & Pesci!"
     return payload, message
 
 
@@ -1705,9 +1915,11 @@ def rolling_stones(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ rolls aimlessly..."
-    if target.current_hp / max(target.start_hp, 1) < 0.3:
+    sculpted = _has_synergy(character.id, allied_characters, "fate")
+    if target.current_hp / max(target.start_hp, 1) < (0.45 if sculpted else 0.3):
         dealt = _take(target, target.current_hp * 0.8)
-        return payload, f"｢{character.name}｣ reveals {target.name}'s fate... inevitable! {dealt} execution damage!"
+        return payload, (f"｢{character.name}｣ reveals {target.name}'s fate... inevitable! {dealt} execution damage!"
+                         f"{' 🪨 Sculpted fate!' if sculpted else ''}")
     damage = _hit(character, target, 0.8)
     _dot(target, EffectType.BLEED, 3, 0.3 * character.current_damage, character)
     _debuff(target, "speed", 0.15, 3, character)
@@ -1723,6 +1935,10 @@ def goo_goo_dolls(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ has no target to shrink!"
     damage = _hit(character, target, 1.2)
     _debuff(target, "damage", 0.25, 2, character)
+    if _has_synergy(character.id, allied_characters, "cellmates") and target.is_alive():
+        _stun(target, character)
+        return payload, (f"｢{character.name}｣ shrinks {target.name} and keeps it in a jar for Jolyne: {damage} damage, "
+                         f"-25% damage, stunned! ⛓️ Jolyne & Gwess!")
     return payload, f"｢{character.name}｣ shrinks {target.name}: {damage} damage and -25% damage!"
 
 
@@ -1887,6 +2103,9 @@ def whitesnake(character, allied_characters, enemy_characters) -> tuple:
     if synergy:
         _stun(target, character)
         message += " ☽ Pucci synergy! Target stunned!"
+    if _has_synergy(character.id, allied_characters, "dio_pucci"):
+        _purge(target)
+        message += " The DISC of its blessings goes to DIO's friend: its buffs are stripped! 📓 DIO & Pucci!"
     return payload, message
 
 
@@ -1913,6 +2132,11 @@ def tusk_act_2(character, allied_characters, enemy_characters) -> tuple:
     if synergy:
         _debuff(target, "speed", 0.20, 2, character)
         message += " ✦ Tusk synergy! Target slowed!"
+    if _has_synergy(character.id, allied_characters, "gunslingers"):
+        others = [e for e in _alive(enemy_characters) if e is not target]
+        if others:
+            second = random.choice(others)
+            message += f" Fanned the hammer: a second nail hits {second.name} for {_hit(character, second, 0.8)}! 🤠 Gunslingers!"
     return payload, message
 
 
@@ -2264,10 +2488,18 @@ def les_feuilles(character, allied_characters, enemy_characters) -> tuple:
     target = _target(character, enemy_characters)
     if not target:
         return payload, f"｢{character.name}｣ scatters leaves..."
-    damage = _hit(character, target, 0.7)
-    _dot(target, EffectType.POISON, 3, 0.5 * character.current_damage, character)
-    _debuff(target, "speed", 0.20, 3, character)
-    return payload, f"｢{character.name}｣ wraps leaves around {target.name}: {damage} damage, poisoned and slowed for 3 turns!"
+    targets = [target]
+    if _has_synergy(character.id, allied_characters, "morioh_2011"):
+        targets += random.sample([e for e in _alive(enemy_characters) if e is not target],
+                                 min(1, len(_alive(enemy_characters)) - 1))
+    damage = 0
+    for t in targets:
+        damage += _hit(character, t, 0.7)
+        _dot(t, EffectType.POISON, 3, 0.5 * character.current_damage, character)
+        _debuff(t, "speed", 0.20, 3, character)
+    names = " and ".join(t.name for t in targets)
+    tail = " 🏙️ Morioh, 2011!" if len(targets) > 1 else ""
+    return payload, f"｢{character.name}｣ wraps leaves around {names}: {damage} damage, poisoned and slowed for 3 turns!{tail}"
 
 
 def i_am_a_rock(character, allied_characters, enemy_characters) -> tuple:
@@ -2304,6 +2536,12 @@ def love_love_deluxe(character, allied_characters, enemy_characters) -> tuple:
 
 def schott_key(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    if _has_synergy(character.id, allied_characters, "schott_keys"):
+        total = 0
+        for enemy in _alive(enemy_characters):
+            total += _hit(character, enemy, 1.0)
+            _debuff(enemy, "speed", 0.15, 2, character)
+        return payload, f"｢{character.name}｣ and its twin key open everything at once: {total} damage to all, all slowed! 🗝️ Schott Keys!"
     total = _aoe(character, enemy_characters, 0.7)
     return payload, f"｢{character.name}｣ explodes! {total} damage to all!"
 
@@ -2399,6 +2637,10 @@ def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
 def space_trucking(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     total = _aoe(character, enemy_characters, 0.7)
+    if _has_synergy(character.id, allied_characters, "morioh_2011"):
+        for ally in _alive(allied_characters):
+            _buff(ally, "speed", 0.20, 2, character)
+        return payload, f"｢{character.name}｣ stretches its arms across town! {total} damage to all, team +20% speed! 🏙️ Morioh, 2011!"
     _buff(character, "speed", 0.20, 2, character)
     return payload, f"｢{character.name}｣ stretches its arms! {total} damage to all, +20% speed!"
 

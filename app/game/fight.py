@@ -151,6 +151,8 @@ class Fight:
         from app.game.effects import fmt_perk
         from app.game.resonance import uses_parts
         for s, side in enumerate(self.sides):
+            for c in side.chars:  # computer PvE teams: no part or cross synergies, in stats or in specials
+                c._computer = not uses_parts(side)
             for name, members in apply_synergy_bonuses(side.chars, parts=uses_parts(side)):
                 label, icon = SYNERGY_INFO.get(name, (name, "✶"))
                 perks = ", ".join(fmt_perk(stat, v) for stat, v in SYNERGY_BONUS.get(name, []))
