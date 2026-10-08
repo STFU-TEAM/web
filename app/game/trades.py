@@ -14,7 +14,7 @@ import datetime
 import json
 import secrets
 
-from app.game.items import BOUND_ITEMS, item_file, item_from_dict
+from app.game.items import BOUND_ITEMS, item_file, item_from_dict, spare
 from app.game.logic import GameError, free_slots
 
 OFFER_TTL = 3 * 24 * 3600
@@ -130,7 +130,7 @@ def _take(user, side):
     items = []
     for item_id, n in side["items"].items():
         for _ in range(n):
-            it = next(i for i in user.items if i.id == int(item_id))
+            it = spare(user.items, int(item_id))[0]
             user.items.remove(it)
             items.append(it)
     user.fragments -= side["fragments"]

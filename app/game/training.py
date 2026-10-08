@@ -93,7 +93,8 @@ def settle(user, fight) -> dict:
     """Pay the trainees' XP (a share on a loss) and maybe a chip."""
     d = DRILLS.get(fight.meta.get("drill"), DRILLS["spar"])
     won = fight.winner == 0
-    amount = int(d["xp"] * (1 if won else LOSS_SHARE))
+    from app.game.economy import stand_xp
+    amount = stand_xp(d["xp"] * (1 if won else LOSS_SHARE))
     trained = []
     for u in fight.meta.get("uuids", []):
         char, _, _ = user.find_character_by_uuid(u)

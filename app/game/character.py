@@ -181,6 +181,8 @@ class Character:
             elif type_ == Types.LUCK:
                 self.current_critical += LUCK_TYPE_POINTS[quality.name]
                 self.crit_multiplier += LUCK_CRIT_DAMAGE[quality.name]
+        from app.game.gear import set_lines
+        apply_chips(self, set_lines(self.items))  # item sets (app/game/gear.py): 2 or 3 pieces of one set
         apply_chips(self, data.get("chips") or [])  # stand chips (app/game/chips.py); ranked fights strip them
         self.current_hp = int(self.current_hp)
         self.current_speed = int(round(self.current_speed))

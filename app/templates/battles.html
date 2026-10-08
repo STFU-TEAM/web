@@ -98,6 +98,18 @@
           <p class="muted small-print">Each month starts from half your last season's rating. Lifetime Elo (shown above) never resets. <a href="{{ url_for('main.leaderboard', by='season') }}">Season ladder</a></p>
         </details>
       </section>
+      {% if meta %}
+        <details class="meta-chart">
+          <summary>This season's meta <small class="muted">the {{ meta|length }} most picked stands</small></summary>
+          <ol>
+            {% for m in meta %}
+              <li><img src="{{ m.id|stand_img }}" alt="" width="28" height="28" loading="lazy"><a href="{{ url_for('main.stand', stand_id=m.id) }}">{{ m.name }}</a>
+                <small class="muted">{{ m.rarity }}</small><span class="meta-bar" aria-hidden="true"><i style="width: {{ [m.share, 100]|min }}%"></i></span><b>{{ m.share }}%</b></li>
+            {% endfor %}
+          </ol>
+          <p class="muted small-print">Share of ranked teams that brought each stand this season. Winning PvE fights without any of them counts for the "Off the Meta" bounty when it's the week's bounty.</p>
+        </details>
+      {% endif %}
       {% if not dv %}
       <section class="battle-panel">
         <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2>

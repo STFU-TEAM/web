@@ -18,6 +18,7 @@ import random
 from typing import List, Optional
 
 from app.game.character import CHARACTER_FILE, character_from_dict
+from app.game.economy import stand_xp
 from app.game.effects import STAT_EFFECTS, remove_terrain_bonuses
 from app.game.gangs import week_ends, week_key
 from app.game.items import item_file, item_from_dict
@@ -169,7 +170,7 @@ def preview(floor: int) -> dict:
 
 def stand_xp_for(floor: int) -> int:
     """Each team stand's XP for a floor's first clear of the week: flat, so the tower doesn't outpace the rest."""
-    return 10 + floor // 2
+    return stand_xp(10 + floor // 2)
 
 
 def reward_for(floor: int) -> dict:

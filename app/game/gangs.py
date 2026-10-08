@@ -16,6 +16,7 @@ import time
 from typing import Optional
 
 from app.game.character import character_from_dict
+from app.game.economy import stand_xp
 from app.game.items import item_file, item_from_dict
 from app.game.logic import CHARACTER_XPGAINS, FRAGMENTSGAIN, PLAYER_XPGAINS, GameError, now, train
 
@@ -433,9 +434,9 @@ def attack_rewards(user, won: bool) -> dict:
     user.xp += PLAYER_XPGAINS * mult
     user.fragments += FRAGMENTSGAIN * mult
     for c in user.main_characters:
-        train(c, CHARACTER_XPGAINS * mult)
+        train(c, stand_xp(CHARACTER_XPGAINS * mult))
     return {"won": won, "fragments": FRAGMENTSGAIN * mult, "xp": PLAYER_XPGAINS * mult,
-            "stand_xp": CHARACTER_XPGAINS * mult, "item": None}
+            "stand_xp": stand_xp(CHARACTER_XPGAINS * mult), "item": None}
 
 
 # --------------------------------------------------------------------------- #

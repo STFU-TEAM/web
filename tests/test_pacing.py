@@ -4,7 +4,8 @@ from test_app import client  # noqa: F401  (client is a fixture)
 
 def test_economy_rounding():
     from app.game import economy
-    assert economy.dust(1000) == 700 and economy.dust(150) == 100 and economy.dust(20) == 14
+    assert economy.dust(1000) == 600 and economy.dust(150) == 90 and economy.dust(20) == 12
+    assert economy.stand_xp(100) == 80 and economy.stand_xp(1) == 1 and economy.stand_xp(0) == 0
     assert [economy.heads(n) for n in (0, 1, 2, 3, 5)] == [0, 1, 1, 2, 3]   # one-time: a single one is kept
     assert [economy.heads(n, recurring=True) for n in (1, 2)] == [0, 1]
 

@@ -13,8 +13,8 @@
   </div>
 {%- endmacro %}
 <div class="collection">
-{% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
-{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+{% if message %}<p data-float class="toast ok" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p data-float class="toast error" role="alert">{{ error }}</p>{% endif %}
 
 <section class="shelf">
   <header class="shelf-head">

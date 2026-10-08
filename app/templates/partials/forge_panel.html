@@ -19,8 +19,8 @@
   </ol>
 {% endmacro %}
 
-{% if message %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
-{% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+{% if message %}<p data-float class="toast ok" role="status">{{ message }}</p>{% endif %}
+{% if error %}<p data-float class="toast error" role="alert">{{ error }}</p>{% endif %}
 {% if not char %}
   <p class="notice">Pick a stand on the left.</p>
 {% else %}

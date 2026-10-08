@@ -473,10 +473,18 @@ setInterval(() => {
   });
 }, 1000);
 
-// Scroll a fresh pull result into view.
+// Action results (equipped, sold, crafted, socketed...) arrive as [data-float] notes: they float as toasts instead of
+// sitting at the top of the swapped block, so the page never moves. A pull reveal or a simulation still scrolls into view.
 document.addEventListener("htmx:afterSwap", (e) => {
-  if (["use-result", "pull-result", "sim-result"].includes(e.detail.target.id) && e.detail.target.firstElementChild) {
-    e.detail.target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  const target = e.detail.target;
+  const notes = [...target.querySelectorAll("[data-float]")];
+  if (notes.length) {
+    document.body.dispatchEvent(new CustomEvent("toast", { detail: notes.map((n) => (
+      { text: n.textContent.trim(), kind: n.classList.contains("error") ? "flash-error" : "flash-ok" })) }));
+    notes.forEach((n) => n.remove());
+  }
+  if (["use-result", "pull-result", "sim-result"].includes(target.id) && target.firstElementChild) {
+    target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
   }
 });
 
@@ -705,8 +713,8 @@ document.addEventListener("htmx:load", (e) => {
       box()?.append(a);
       arm(a);
     }
-    const bell = document.querySelector(".bell");
-    if (bell && list.length) bell.classList.add("has-news", "ring");
+    const bell = document.querySelector(".bell");  // news rings the bell; the result of your own click doesn't
+    if (bell && list.some((t) => !String(t.kind || "").startsWith("flash-"))) bell.classList.add("has-news", "ring");
   }
   document.addEventListener("click", (e) => {
     const x = e.target.closest("[data-toast-x]");

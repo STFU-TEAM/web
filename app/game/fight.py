@@ -19,6 +19,14 @@ SUDDEN_DEATH_ROUND = 10
 SUDDEN_DEATH_STEP = 0.05
 SUDDEN_DEATH_HEAL = 0.5
 MAX_ROUNDS = 18
+# PvP duels are paced for 1-2 minutes (5 at most: battles.PVP_MAX_SECONDS): stands hit harder, sudden death comes
+# sooner and the round cap is lower. PvE fights already take under a minute and keep the numbers above.
+# Tuned with a pacing model (log replay as the client plays it, ~4 s a human pick): about 1.8 min on average.
+PVP_DAMAGE = 1.6
+PVP_SUDDEN_DEATH_ROUND = 4
+PVP_SUDDEN_DEATH_STEP = 0.10
+PVP_MAX_ROUNDS = 10
+PVP_MAX_SECONDS = 300  # a duel never runs past 5 minutes: then the side with more health left wins (battles.py)
 # The side that moves second: its specials start one turn closer, and it opens in a counter stance
 # (more armor and damage for its first turns), so a faster team wins the tempo, not the fight.
 COUNTER_ARMOR, COUNTER_DAMAGE, COUNTER_TURNS = 0.05, 0.05, 2
@@ -84,6 +92,8 @@ CRIT_WORDS = {1: "", 2: "DOUBLE", 3: "TRIPLE"}
 
 class Fight:
     sudden_death_round = SUDDEN_DEATH_ROUND
+    sudden_death_step = SUDDEN_DEATH_STEP
+    max_rounds = MAX_ROUNDS
     def __init__(self, human: Side, opponent: Side, kind: str = "wormhole", meta: Optional[dict] = None,
                  human_side: int = 0):
         self.id = uuid.uuid4().hex
@@ -113,6 +123,8 @@ class Fight:
         self.rules = dict(self.meta.get("rules") or {})  # Over Heaven fight rules (app/game/overheaven.py)
         self._apply_synergies()
         self._apply_resonances()
+        if kind in PVP_KINDS:
+            self._pvp_pace()
         if self.rules:
             from app.game import overheaven
             for text in overheaven.apply_rules(self):
@@ -128,6 +140,16 @@ class Fight:
             self.order = [1, 0]
         self._counter_stance(self.order[1], abs(s1 - s0))
         self._down = set()
+
+    def _pvp_pace(self) -> None:
+        self.sudden_death_round, self.sudden_death_step = PVP_SUDDEN_DEATH_ROUND, PVP_SUDDEN_DEATH_STEP
+        self.max_rounds = PVP_MAX_ROUNDS
+        for side in self.sides:
+            for c in side.chars:
+                c.current_damage = int(c.current_damage * PVP_DAMAGE)
+                c.start_damage = int(c.start_damage * PVP_DAMAGE)  # % buffs read it: they keep pace with the duel
+        self._log(f"⚔️ Duel pace: +{PVP_DAMAGE - 1:.0%} damage on both sides, sudden death from round "
+                  f"{PVP_SUDDEN_DEATH_ROUND}.", "terrain")
 
     def _counter_stance(self, s: int, gap: float) -> None:
         from app.game.effects import Effect, EffectType
@@ -280,8 +302,8 @@ class Fight:
             text = overheaven.end_turn(self, p)
             if text:
                 self._log(text, "terrain", side=p)
-        if self.sudden_death and side.alive():
-            pct = SUDDEN_DEATH_STEP * (self.round - SUDDEN_DEATH_ROUND + 1)
+        if self.sudden_death and self._on():  # a side that just won isn't dragged into a draw by the tick
+            pct = self.sudden_death_step * (self.round - self.sudden_death_round + 1)
             for c in side.chars:
                 if c.is_alive():
                     c.take(c.start_hp * pct)
@@ -360,7 +382,7 @@ class Fight:
             self.turn += step
             self.si = 0
             self.round_started = False
-            if self._on() and self.round > MAX_ROUNDS:
+            if self._on() and self.round > self.max_rounds:
                 self._time_up()
                 break
         self._finish()

@@ -14,14 +14,15 @@ import secrets
 import time
 from typing import List, Optional
 
+from app.game import economy
 from app.game.character import character_from_dict
 from app.game.items import item_file, item_from_dict
 from app.game.logic import GameError, add_to_available_storage, take_stand, train
 
 SLOTS = 3
-DUST_BASE, DUST_PER_POWER = 17.5, 0.035  # Meteor Dust per hour: base + power x this (economy pace: was 25, 0.05)
+DUST_BASE, DUST_PER_POWER = 25 * economy.DUST_RATE, 0.05 * economy.DUST_RATE  # Meteor Dust per hour: base + power x this
 LONG_TRIP_BONUS = 0.03                 # each hour of the trip adds 3% to the per-hour rate
-STAND_XP_PER_HOUR = 25
+STAND_XP_PER_HOUR = 25 * economy.STAND_XP_RATE
 ITEM_POOL = [13, 47, 1, 4, 15, 38, 39, 40, 2]
 ITEM_WEIGHTS = [0.18, 0.18, 0.12, 0.10, 0.10, 0.10, 0.08, 0.10, 0.04]
 

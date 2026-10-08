@@ -27,8 +27,10 @@ def test_pickers_render_where_stands_are_picked(client):
     panel = client.get(f"/team/stand/{team[0]['uuid']}").data.decode()
     assert [o["v"] for o in options(panel, "sp-fodder")] == [spare["uuid"]] and 'data-sp-name="fodder"' in panel
     items = client.get("/items").data.decode()
-    assert len(options(items, "sp-requiem")) == 3 and len(options(items, "sp-equip")) == 3
-    assert 'data-sp-source="#sp-equip"' in items
+    knife = options(items, "sp-equip-1-0")  # one picker per gear card (item id - refine level)
+    assert len(options(items, "sp-requiem")) == 3 and len(knife) == 3
+    assert all("ATK" in o["m"] for o in knife)  # each stand's line previews what the knife changes on it
+    assert 'data-sp-source="#sp-equip-1-0"' in items
     for path, source in (("/auction", "sp-sell"), ("/journey", "sp-journey")):
         page = client.get(path).data.decode()
         assert options(page, source), path

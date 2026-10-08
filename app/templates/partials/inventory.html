@@ -1,7 +1,4 @@
 {% from "partials/picker.html" import picker, picker_data %}
-{% set eq_notes, eq_full = {}, {} %}
-{% for c in u.main_characters %}{% set _ = eq_notes.update({c.uuid: c['items']|length ~ '/3 items'}) %}{% if c['items']|length >= 3 %}{% set _ = eq_full.update({c.uuid: 'Holds 3 items already'}) %}{% endif %}{% endfor %}
-{{ picker_data("sp-equip", picker_owned(u.main_characters, notes=eq_notes, blocked=eq_full, sort=False)) }}
 {% set usable = groups|rejectattr('item.is_equipable')|list %}
 {% set gear = groups|selectattr('item.is_equipable')|list %}
 {% macro bonuses(it) -%}
@@ -17,10 +14,10 @@
 {% macro sell_buttons(it, count) -%}
   {% set price = sell_price(it) %}
   {% if price %}
-    <button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result"
-            hx-confirm="Sell one {{ it.name }} for {{ price }} Meteor Dust?">Sell · {{ price|dust }}</button>
-    {% if count > 1 %}<button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}, "all": 1}' hx-target="#use-result"
-            hx-confirm="Sell all {{ count }} {{ it.name }} for {{ (price * count)|num }} Meteor Dust?">Sell all</button>{% endif %}
+    <button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}, "refine": {{ it.refine }}}' hx-target="#use-result"
+            hx-confirm="Sell one {{ it.label }} for {{ price }} Meteor Dust?">Sell · {{ price|dust }}</button>
+    {% if count > 1 %}<button class="btn small ghost" hx-post="{{ url_for('play.sell') }}" hx-vals='{"item": {{ it.id }}, "refine": {{ it.refine }}, "all": 1}' hx-target="#use-result"
+            hx-confirm="Sell all {{ count }} {{ it.label }} for {{ (price * count)|num }} Meteor Dust?">Sell all</button>{% endif %}
   {% endif %}
 {%- endmacro %}
 
@@ -92,16 +89,26 @@
     <li class="item-tile" data-item-name="{{ it.name|lower }}">
       <span class="item-icon" aria-hidden="true">{{ it.emoji|emoji }}</span>
       <div class="item-info">
-        <h3>{{ it.name }} <span class="count">×{{ g.count }}</span></h3>
+        <h3>{{ it.label }} <span class="count">×{{ g.count }}</span></h3>
         <p class="item-bonus">{{ bonuses(it) }}</p>
+        {% set st = gear_set(it.id) %}
+        {% if st %}<p class="item-set" title="Pieces: {{ st.pieces|join(', ') }}">{{ st.icon }} {{ st.name }} set · 2: {{ st.tiers[2] }} · 3: {{ st.tiers[3] }}</p>{% endif %}
       </div>
       <div class="item-actions">
         {% if u.main_characters %}
+          {% set key = it.id ~ '-' ~ it.refine %}
+          {{ picker_data("sp-equip-" ~ key, equip_opts[key]) }}
           <form class="inline" hx-post="{{ url_for('play.item_equip') }}" hx-target="#use-result">
-            <input type="hidden" name="item" value="{{ it.id }}">
-            {{ picker("uuid", "sp-equip", title="Equip " ~ it.name ~ " on", placeholder="Pick a team stand", compact=True, required=True) }}
+            <input type="hidden" name="item" value="{{ it.id }}"><input type="hidden" name="refine" value="{{ it.refine }}">
+            {{ picker("uuid", "sp-equip-" ~ key, title="Equip " ~ it.label ~ " on", placeholder="Pick a team stand", compact=True, required=True) }}
             <button class="btn small">Equip</button>
           </form>
+        {% endif %}
+        {% set rf = refinable.get(it.id) %}
+        {% if rf and rf.cost and rf.spares and it.refine == rf.level %}
+          <button class="btn small ghost" hx-post="{{ url_for('play.item_refine') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result"
+                  title="Fuse a spare copy into it: each level adds 10% of its stats (up to +5)"
+                  hx-confirm="Refine {{ it.label }} to +{{ it.refine + 1 }}? It uses a spare copy and {{ rf.cost|num }} Meteor Dust.">Refine → +{{ it.refine + 1 }} · {{ rf.cost|dust }}</button>
         {% endif %}
         {{ sell_buttons(it, g.count) }}
       </div>
@@ -118,7 +125,7 @@
       {% for c in u.main_characters %}
         <li><img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.hidden=true"><strong>{{ c.name }}</strong>
           {% for it in c['items'] %}
-            <span class="equipped-item">{{ (it.emoji or '◈')|emoji }} {{ it.name }}
+            <span class="equipped-item">{{ (it.emoji or "◈")|emoji }} {{ it.label }}
               <button class="link" hx-post="{{ url_for('play.item_unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' hx-target="#use-result" aria-label="Unequip {{ it.name }}">✕</button></span>
           {% else %}<span class="muted">nothing</span>{% endfor %}
         </li>
@@ -139,6 +146,8 @@
       </div>
       <div class="item-actions">
         <button class="btn small {% if r.ready %}gold{% endif %}" hx-post="{{ url_for('play.craft') }}" hx-vals='{"recipe": "{{ r.name }}"}' hx-target="#use-result" {% if not r.ready %}disabled{% endif %}>Craft</button>
+        {% if r.max > 1 %}<button class="btn small ghost" hx-post="{{ url_for('play.craft') }}" hx-vals='{"recipe": "{{ r.name }}", "count": {{ r.max }}}' hx-target="#use-result"
+                hx-confirm="Craft {{ r.max }} × {{ r.name }}?">Craft ×{{ r.max }}</button>{% endif %}
       </div>
     </li>
     {% endfor %}

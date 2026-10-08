@@ -13,6 +13,7 @@ The bot's own story_progress tutorial is left untouched.
 from typing import List, Optional
 
 from app.game.character import CHARACTER_FILE, character_from_dict
+from app.game.economy import stand_xp
 from app.game.items import item_file, item_from_dict
 from app.game.logic import GameError, train
 
@@ -373,7 +374,7 @@ def reward_for(k: int) -> dict:
     reward = {
         "fragments": dust(150 * 1.12**k),
         "xp": 100 + 40 * k,
-        "stand_xp": 20 + 5 * k,
+        "stand_xp": stand_xp(20 + 5 * k),
         "super_fragments": 1 if stage.get("boss") and stage["part"] in HEAD_PARTS else 0,
         "items": [],
     }

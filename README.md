@@ -55,6 +55,17 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Build gear (items 49-56, web only like 41-48): crafted from existing drops to cover every stat pair (health + crit,
   speed + crit, health + speed, armor + crit, damage + armor), plus three actives: Rokakaka Branch (revenge: 15% of
   the holder's lost health as true damage), D'Arby's Chips (a crit gamble) and Joseph's Clackers
+- Gear (`app/game/gear.py`): item sets (2 or 3 different pieces light a bonus, applied like stand chips), refining
+  (a spare copy + Meteor Dust: +10% of the item's stats per level, up to +5, saved as `refine` on the item; selling,
+  crafting and trading always give up the least refined copy), and the equip preview (each picker line shows what
+  that item changes on that stand, special power and sets included). Craft xN, and an Items badge for recipes ready
+- Home "Today" card (`app/game/today.py`): energy, daily, quests, Mirror World, journeys, dungeon, Tower, co-op and
+  the bounty, what's ready first. Story auto-replay: up to 5 replays of a cleared stage in one go (`/story/auto`)
+- Off-meta (`app/game/bounty.py`): a weekly bounty (R/SR-only team, no UR/LR, or none of ranked's 10 most picked
+  stands) counted on PvE wins, and the season's ranked meta (picks per stand, `web:meta:<season>`) on the Ranked tab
+- Duel pace (`fight.PVP_*`): duels deal +60% damage, sudden death from round 4 (+10% a round), 10 rounds and a
+  5-minute wall clock at most; about 1.3-1.8 minutes on average (`scripts/balance.py length`). PvE keeps its pace
+- Second progression slowdown (`economy.py`): Meteor Dust from playing x0.6 (was x0.7), stand XP from playing x0.8
 - Plain form posts (most buttons) reload the page where the player was (app.js saves the scroll spot on submit,
   base.html restores it; a fight that just started is scrolled into view), and flash messages float as toasts
 - Public stand encyclopedia, leaderboards, player profiles

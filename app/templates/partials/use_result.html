@@ -1,6 +1,6 @@
 {% from "macros.html" import owned_card %}
 {% if error %}
-  <p class="toast error" role="alert">{{ error }}</p>
+  <p data-float class="toast error" role="alert">{{ error }}</p>
 {% elif res.kind == 'stand' or res.kind == 'requiem' %}
   <div class="pull">
     <div class="stage">{{ owned_card(res.stand, size='big', reveal=True) }}</div>
@@ -12,21 +12,23 @@
     </div>
   </div>
 {% elif res.kind == 'fragments' %}
-  <p class="toast ok" role="status">The bag held {{ res.fragments }} Meteor Dust.</p>
+  <p data-float class="toast ok" role="status">The bag held {{ res.fragments }} Meteor Dust.</p>
 {% elif res.kind == 'energy' %}
-  <p class="toast ok" role="status">⚡ +{{ res.energy }} energy. You're at {{ u.energy }}/{{ u.total_energy }}.</p>
+  <p data-float class="toast ok" role="status">⚡ +{{ res.energy }} energy. You're at {{ u.energy }}/{{ u.total_energy }}.</p>
 {% elif res.kind == 'awaken' %}
-  <p class="toast ok" role="status">{{ res.stand.name }} reached awakening {{ res.stand.awaken }}.</p>
+  <p data-float class="toast ok" role="status">{{ res.stand.name }} reached awakening {{ res.stand.awaken }}.</p>
 {% elif res.kind == 'crafted' %}
-  <p class="toast ok" role="status">You crafted {{ res.item.name }}.</p>
+  <p data-float class="toast ok" role="status">You crafted {{ (res.count ~ ' × ') if res.count > 1 }}{{ res.item.name }}.</p>
+{% elif res.kind == 'refined' %}
+  <p data-float class="toast ok" role="status">Refined: {{ res.item.label }}.</p>
 {% elif res.kind == 'bought' %}
-  <p class="toast ok" role="status">You bought {{ res.name }}.</p>
+  <p data-float class="toast ok" role="status">You bought {{ res.name }}.</p>
 {% elif res.kind == 'sold' %}
-  <p class="toast ok" role="status">Sold {{ res.count }} × {{ res.name }} for {{ res.fragments|num }} Meteor Dust.</p>
+  <p data-float class="toast ok" role="status">Sold {{ res.count }} × {{ res.name }} for {{ res.fragments|num }} Meteor Dust.</p>
 {% elif res.kind == 'equipped' %}
-  <p class="toast ok" role="status">{{ res.item.name }} equipped on {{ res.stand.name }}.</p>
+  <p data-float class="toast ok" role="status">{{ res.item.label }} equipped on {{ res.stand.name }}.</p>
 {% elif res.kind == 'unequipped' %}
-  <p class="toast ok" role="status">{{ res.item.name }} removed from {{ res.stand.name }}.</p>
+  <p data-float class="toast ok" role="status">{{ res.item.label }} removed from {{ res.stand.name }}.</p>
 {% endif %}
 <div id="inventory" hx-swap-oob="true">{% include "partials/inventory.html" %}</div>
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

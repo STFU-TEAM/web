@@ -69,6 +69,21 @@
     <p class="notice">🌀 Every part you clear opens a new <a href="{{ url_for('progress.au_page') }}">Alternate Universe</a> chapter: what if the villains had won?</p>
   {% endif %}
 
+  {% if cleared and not (fight and not fight.finished) and u.main_characters %}
+    <form class="auto-replay" method="post" action="{{ url_for('progress.story_auto') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <span class="auto-replay-label"><strong>⏩ Auto-replay</strong><small class="muted">Your team fights on its own: 1⚡ each, full stand XP and a fifth of the Meteor Dust.</small></span>
+      <label class="sr" for="auto-stage">Stage</label>
+      <select id="auto-stage" name="stage">
+        {% for p in journey %}{% for st in p.stages if st.state == 'cleared' %}
+          <option value="{{ st.index }}" {% if st.index == cleared - 1 %}selected{% endif %}>{{ p.title.split('·')[0].strip() }} · {{ st.title }} (Lv {{ st.level }})</option>
+        {% endfor %}{% endfor %}
+      </select>
+      <label class="sr" for="auto-count">Times</label>
+      <select id="auto-count" name="count">{% for n in range(1, auto_max + 1) %}<option value="{{ n }}" {% if n == auto_max %}selected{% endif %}>×{{ n }}</option>{% endfor %}</select>
+      <button class="btn small gold" {% if not u.energy %}disabled title="No energy left"{% endif %}>Run</button>
+    </form>
+  {% endif %}
   <h2 class="h3 story-map-title">The journey</h2>
   <ol class="story-map">
     {% for p in journey %}

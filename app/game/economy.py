@@ -8,8 +8,12 @@ Arrowheads are whole numbers, so they are cut source by source (fewer story boss
 smaller Dex / season / Over Heaven / raid tables, fewer from quests and achievements); heads() rounds the
 JSON tables. Time gates (daily, energy, Mirror World) live in logic.py and are about TIME_RATE longer than
 they were.
+
+Stand XP from playing (fights, journeys, raids, the training ground) is multiplied by STAND_XP_RATE where each
+reward is defined too. Fusing is untouched: it spends pulls, not time.
 """
-DUST_RATE = 0.7
+DUST_RATE = 0.6  # second slowdown: was 0.7
+STAND_XP_RATE = 0.8
 TIME_RATE = 1.4
 # Arrowheads in the quest and achievement tables: one-time rewards keep at least one, recurring ones lose more
 HEAD_RATE = 0.6
@@ -19,6 +23,11 @@ def dust(amount: float) -> int:
     """A Meteor Dust reward at the current pace, rounded to tens like the tables."""
     value = amount * DUST_RATE
     return int(round(value, -1)) if value >= 50 else int(round(value))
+
+
+def stand_xp(amount: float) -> int:
+    """Stand XP from playing at the current pace."""
+    return max(1, int(round(amount * STAND_XP_RATE))) if amount > 0 else 0
 
 
 def heads(n: int, recurring: bool = False) -> int:

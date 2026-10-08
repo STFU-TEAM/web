@@ -1,7 +1,7 @@
 {% from "partials/chip_macros.html" import chip_tile %}
 <div id="chip-bag">
-  {% if message %}<p class="toast ok">{{ message }}</p>{% endif %}
-  {% if error %}<p class="toast error">{{ error }}</p>{% endif %}
+  {% if message %}<p data-float class="toast ok">{{ message }}</p>{% endif %}
+  {% if error %}<p data-float class="toast error">{{ error }}</p>{% endif %}
   <div class="chip-bag-head">
     <h2 class="h3">Spare chips <small class="muted">{{ rows|length }}/{{ bag_max }}</small></h2>
     <p class="chip-counts">

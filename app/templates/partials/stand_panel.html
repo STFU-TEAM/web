@@ -61,15 +61,21 @@
     {% if c.items %}
       <ul class="panel-items">
         {% for it in c.items %}
-          <li>{{ (it.emoji or '◈')|emoji }} {{ it.name }}
+          {%- set cost = refine_cost(it.refine) -%}
+          <li>{{ (it.emoji or '◈')|emoji }} {{ it.label }}
+            {% if in_team and cost and bag_copies.get(it.id) %}
+              <button class="btn small ghost" hx-post="{{ url_for('play.refine_equipped') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}, "item": {{ it.id }}}'
+                      title="Fuse a spare {{ it.name }} into it: +10% of its stats" {{ acts|safe }}>Refine → +{{ it.refine + 1 }} · {{ cost|dust }}</button>
+            {% endif %}
             <button class="btn small ghost" hx-post="{{ url_for('play.unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' {{ acts|safe }}>Unequip</button></li>
         {% endfor %}
       </ul>
+      {% for st in sets %}<p class="item-set on">{{ st.icon }} <strong>{{ st.name }}</strong> {{ st.worn }}/{{ st.of }}: {{ st.text }}</p>{% endfor %}
     {% else %}<p class="muted">No items equipped.</p>{% endif %}
     {% if in_team and c.items|length < 3 and equipable %}
       <form class="inline" hx-post="{{ url_for('play.equip') }}" {{ acts|safe }}>
         <input type="hidden" name="uuid" value="{{ c.uuid }}">
-        {{ picker_data("sp-panel-items", picker_items(u['items'], equipable=True)) }}
+        {{ picker_data("sp-panel-items", equip_options) }}
         <div class="sp-inline">
           {{ picker("item", "sp-panel-items", title="Equip on " ~ c.name, placeholder="Pick an item to equip", kind="item", compact=True, required=True) }}
           <button class="btn small">Equip</button>

@@ -10,6 +10,18 @@
     </div>
     {% include "partials/wallet.html" %}
   </header>
+  <section class="bounty-card{{ ' done' if bounty.done and not bounty.claimed }}" id="bounty" aria-labelledby="bounty-h">
+    <span class="bounty-icon" aria-hidden="true">{{ bounty.icon }}</span>
+    <div class="bounty-body">
+      <p class="kicker">Weekly bounty · off the meta</p>
+      <h2 class="h3" id="bounty-h">{{ bounty.name }}</h2>
+      <p>{{ bounty.text }}</p>
+      <div class="meter" role="meter" aria-label="Bounty progress" aria-valuemin="0" aria-valuemax="{{ bounty.goal }}" aria-valuenow="{{ bounty.progress }}"><i style="width: {{ 100 * bounty.progress // bounty.goal }}%"></i></div>
+      <p class="muted small-print">{{ bounty.progress }}/{{ bounty.goal }} · Reward: {{ bounty.reward_text }} · a new bounty every Monday</p>
+    </div>
+    {% if bounty.claimed %}<span class="muted">✓ Claimed</span>
+    {% elif bounty.done %}<form method="post" action="{{ url_for('play.bounty_claim') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Claim</button></form>{% endif %}
+  </section>
   <div id="quests">{% include "partials/quests_body.html" %}</div>
 </section>
 {% endblock %}

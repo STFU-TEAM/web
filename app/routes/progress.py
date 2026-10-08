@@ -90,6 +90,7 @@ def _story_ctx(user, fight=None, error=None):
     return {"u": user, "fight": fight, "journey": story.journey(user), "stage": story.current(user),
             "cleared": story.cleared(user), "total": story.TOTAL, "error": error,
             "next_unlock": progression.next_unlock(story.cleared(user), _skip()),
+            "auto_max": AUTO_REPLAYS,
             "fight_action": url_for("progress.story_attack"),
             "fight_leave_action": url_for("progress.story_leave"), "fight_label": "Story"}
 
@@ -155,6 +156,58 @@ def _story_settle(user, fight):
     from app import social
     social.referral_progress(str(user.id), story.cleared(user))
     return rewards
+
+
+AUTO_REPLAYS = 5  # the most one "Auto-replay" runs
+
+
+@bp.post("/story/auto")
+@player_required
+def story_auto():
+    """Replay a cleared stage up to AUTO_REPLAYS times in one go: the team fights on its own (the smart AI picks),
+    each replay costs its energy and pays like a normal replay."""
+    uid = session["uid"]
+    existing = load_fight(uid)
+    if existing and not existing.finished:
+        flash("Finish the fight you're in first.", "error")
+        return redirect(url_for("progress.story_page"))
+    k, n = request.form.get("stage", type=int), max(1, min(AUTO_REPLAYS, request.form.get("count", 1, type=int)))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            if k is None or not 0 <= k < story.cleared(user):
+                flash("Pick a stage you've already cleared.", "error")
+                return redirect(url_for("progress.story_page"))
+            stage = story.STAGES[k]
+            from app.game import bounty
+            won = played = dust = stand_xp = 0
+            for _ in range(n):
+                try:
+                    story.check_can_fight(user, k)  # spends the replay's energy
+                except GameError as e:
+                    if not played:
+                        flash(str(e), "error")
+                    break
+                foes = Side(stage["title"], story.enemy_team(k), False)
+                foes.ai = story.ai_level(k)
+                me = Side(session.get("name", "You"), fighting_copy(user.main_characters), False, parts=True)  # still your team
+                fight = Fight(me, foes, kind="story", meta={"stage": k, "auto": True})
+                fight.advance()
+                played += 1
+                if fight.winner == 0:
+                    rewards = _story_settle(user, fight)
+                    bounty.record_win(user, fight.sides[0].chars)
+                    won += 1
+                    dust += rewards.get("fragments", 0)
+                    stand_xp += rewards.get("stand_xp", 0)
+            user.update()
+    except Busy:
+        flash("Your last action is still running.", "error")
+        return redirect(url_for("progress.story_page"))
+    if played:
+        flash(f"⏩ {stage['title']} ×{played}: {won} won · +{dust:,} Meteor Dust · +{stand_xp} XP for each stand · "
+              f"{user.energy}⚡ left.", "ok" if won else "error")
+    return redirect(url_for("progress.story_page"))
 
 
 @bp.post("/story/attack")

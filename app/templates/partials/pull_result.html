@@ -17,7 +17,7 @@
   {% endif %}
 {% endmacro %}
 {% if error %}
-  <p class="toast error" role="alert">{{ error }}</p>
+  <p data-float class="toast error" role="alert">{{ error }}</p>
   {{ pull_again(banner) }}
 {% else %}
   {% set order = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}

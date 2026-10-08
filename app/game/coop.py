@@ -21,6 +21,7 @@ from typing import Optional
 
 from app.game import story
 from app.game.character import character_from_dict
+from app.game.economy import stand_xp
 from app.game.gangs import week_key
 from app.game.logic import GameError, now
 
@@ -35,11 +36,11 @@ DAILY_WINS = 3
 # Normal ~90% for a level 55-75 party; Hard ~25% for them, ~65% at level 85-99; Nightmare ~30% for maxed stands.
 TIERS = {
     "normal": {"label": "Normal", "level": 45, "awaken": 1, "quality": "GOOD", "items": 0, "mult": 1.0,
-               "dust": 600, "xp": 300, "stand_xp": 400, "chip": 0.35},
+               "dust": 600, "xp": 300, "stand_xp": stand_xp(400), "chip": 0.35},
     "hard": {"label": "Hard", "level": 75, "awaken": 1, "quality": "GREAT", "items": 1, "mult": 1.0,
-             "dust": 1000, "xp": 450, "stand_xp": 700, "chip": 0.55},
+             "dust": 1000, "xp": 450, "stand_xp": stand_xp(700), "chip": 0.55},
     "nightmare": {"label": "Nightmare", "level": 100, "awaken": 3, "quality": "SUPREME", "items": 2, "mult": 1.0,
-                  "dust": 1600, "xp": 650, "stand_xp": 1000, "chip": 0.8},
+                  "dust": 1600, "xp": 650, "stand_xp": stand_xp(1000), "chip": 0.8},
 }
 BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
 

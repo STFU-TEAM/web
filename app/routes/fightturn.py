@@ -90,8 +90,11 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
                 user = get_db().get_user(uid)
                 fight.rewards = settle(user, fight)
                 if fight.winner == fight.human_side and not getattr(fight, "forfeited", False):
-                    from app.game import events
+                    from app.game import bounty, events
                     fight.rewards = events.pve_win(user, fight.rewards)
+                    line = bounty.record_win(user, fight.sides[fight.human_side].chars)  # the weekly off-meta bounty
+                    if line and fight.rewards is not None:
+                        fight.rewards = {**fight.rewards, "bounty": line}
                 fun_achievements(user, fight)
                 user.update()
             save_fight(uid, fight)

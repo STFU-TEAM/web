@@ -283,7 +283,8 @@ def finish_fight(user, fight, redis) -> dict:
     elif kind == "boss":
         found = [rng.choice(BOSS_ITEMS)] + ([2] if rng.random() < BOSS_PALM else [])
     run["bag"]["items"].extend(found)
-    stand_xp = (6 + 3 * run["depth"]) * (2 if kind != "fight" else 1)
+    from app.game.economy import stand_xp as paced
+    stand_xp = paced((6 + 3 * run["depth"]) * (2 if kind != "fight" else 1))
     for c in user.main_characters:
         train(c, stand_xp)
     user.xp += 40 * run["depth"]

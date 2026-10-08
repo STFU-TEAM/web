@@ -145,7 +145,7 @@
           {% if not rw.won %}<p class="muted">Consolation: +{{ rw.fragments }} Meteor Dust, +{{ rw.xp }} player XP.</p>{% endif %}
         {% endif %}
         {% if rw and (rw.won if my_side == 0 else fight.winner == my_side) %}
-          {% set gains = (['+' ~ rw.fragments ~ ' Meteor Dust'] if rw.fragments else []) + (['+' ~ rw.xp ~ ' player XP'] if rw.xp else []) + (['+' ~ rw.stand_xp ~ (' XP for your stand' if fight.kind == 'coop' else ' XP for each stand')] if rw.stand_xp else []) %}
+          {% set gains = (['+' ~ rw.fragments ~ ' Meteor Dust'] if rw.fragments else []) + (['+' ~ rw.xp ~ ' player XP'] if rw.xp else []) + (['+' ~ rw.stand_xp ~ (' XP for your stand' if fight.kind == 'coop' else ' XP for each stand')] if rw.stand_xp else []) + ([rw.bounty] if rw.bounty else []) %}
           {% if gains or rw.item %}
             <p class="loot">{{ gains|join(', ') }}{% if rw.item %}{{ ', and ' if gains else '' }}<strong>{{ rw.item }}</strong>{% endif %}.</p>
           {% else %}<p class="loot">Victory!</p>{% endif %}

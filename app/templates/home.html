@@ -31,6 +31,20 @@
 
 {% if live_event and registered %}<div class="page">{% include "partials/event_ribbon.html" %}</div>{% endif %}
 {% if nav_new %}<div class="page">{% include "partials/unlocked.html" %}</div>{% endif %}
+{% if today %}
+<section class="page today" aria-labelledby="today-h">
+  <header class="shelf-head"><h2 class="h2" id="today-h">Today</h2>
+    <p class="muted">{{ today|selectattr('ready')|list|length }} ready now</p></header>
+  <ul class="today-grid">
+    {% for t in today %}
+      <li><a class="today-row{{ ' ready' if t.ready }}" href="{{ url_for(t.endpoint, **t.args) }}">
+        <span class="today-icon" aria-hidden="true">{{ t.icon }}</span>
+        <span><strong>{{ t.title }}</strong><small>{{ t.detail }}</small></span>
+        {% if t.ready %}<span class="today-go" aria-hidden="true">→</span>{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
 
 {% if posts %}
 <section class="page home-news">

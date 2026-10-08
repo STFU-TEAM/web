@@ -10,11 +10,12 @@ import os
 import random
 from typing import List, Optional
 
+from app.game import economy
 from app.game.achievements import check_achievements
 from app.game.character import (
     CHARACTER_FILE, Character, Qualities, Types, get_character_from_template,
 )
-from app.game.items import Item, item_file, item_from_dict
+from app.game.items import Item, item_file, item_from_dict, spare
 from app.game.quests import claim_quest_reward, ensure_quests_assigned, get_claimable_quests, track_quest_progress
 from app.game.user import STORAGE_CAPACITY, User
 
@@ -27,11 +28,11 @@ with open(os.path.join(_DATA, "recipes.json"), encoding="utf-8") as f:
 # globals/variables.py
 PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
-FRAGMENTSGAIN = 210  # at the economy's pace (economy.py; was 300)
+FRAGMENTSGAIN = economy.dust(300)  # at the economy's pace (economy.py)
 CHANCEITEM = 15
 MIRROR_ITEM_DROPS = {13: 0.20, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.08, 2: 0.08, 3: 0.04, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll
 DAILY_ITEM_CHANCE = 60
-DAILY_DUST = 70  # at the economy's pace (was 100)
+DAILY_DUST = economy.dust(100)  # at the economy's pace
 DAILY_ITEM_DROPS = {13: 0.26, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.04, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
 DONOR_WH_WAIT_TIME = 14 / 60  # Mirror World: 14 minutes for everyone (economy.TIME_RATE)
 NORMAL_WH_WAIT_TIME = 0
@@ -849,20 +850,22 @@ def preview_with(char: Character, types: List[str], qualities: List[str]) -> Cha
     data.update(types=list(types), qualities=list(qualities))
     return Character(data)
 
-def _take_item(user: User, item_id: int) -> Item:
-    for i, it in enumerate(user.items):
-        if it.id == item_id:
-            return user.items.pop(i)
-    raise GameError("You don't have that item.")
+def _take_item(user: User, item_id: int, refine: Optional[int] = None) -> Item:
+    """The best (most refined) copy of item_id out of the bag, or the copy at that refine level: what equipping takes."""
+    copies = [i for i in spare(user.items, item_id) if refine is None or i.refine == refine]
+    if not copies:
+        raise GameError("You don't have that item.")
+    user.items.remove(copies[-1])
+    return copies[-1]
 
 
-def equip(user: User, uuid: str, item_id: int):
+def equip(user: User, uuid: str, item_id: int, refine: Optional[int] = None):
     char, lst, _ = locate(user, uuid)
     if lst is not user.main_characters:
         raise GameError("Only stands in your team can hold items.")
     if len(char.items) >= 3:
         raise GameError(f"{char.name} already holds 3 items.")
-    item = _take_item(user, item_id)
+    item = _take_item(user, item_id, refine)
     if not item.is_equipable:
         user.items.append(item)
         raise GameError(f"{item.name} can't be equipped.")
@@ -979,6 +982,23 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
     return res
 
 
+def craftable(user: User, recipe: dict) -> int:
+    """How many times the bag can craft a recipe right now."""
+    have = {}
+    for i in user.items:
+        have[i.id] = have.get(i.id, 0) + 1
+    return min(have.get(item_id, 0) // amount for item_id, amount in recipe["ingredients"])
+
+
+def craft_many(user: User, recipe_name: str, count: int) -> List[Item]:
+    """Craft a recipe up to count times (as many as the bag allows, at least once)."""
+    recipe = next((r for r in RECIPES if r["name"] == recipe_name), None)
+    if not recipe:
+        raise GameError("Unknown recipe.")
+    n = max(1, min(count, craftable(user, recipe) or 1))
+    return [craft(user, recipe_name) for _ in range(n)]
+
+
 def craft(user: User, recipe_name: str) -> Item:
     recipe = next((r for r in RECIPES if r["name"] == recipe_name), None)
     if not recipe:
@@ -988,7 +1008,7 @@ def craft(user: User, recipe_name: str) -> Item:
             raise GameError(f"Missing {item_file[item_id - 1]['name']}.")
     for item_id, amount in recipe["ingredients"]:
         for _ in range(amount):
-            user.items.remove(next(i for i in user.items if i.id == item_id))
+            user.items.remove(spare(user.items, item_id)[0])
     crafted = Item({"id": recipe["result"]})
     user.items.append(crafted)
     track_quest_progress(user, "item_craft")
@@ -1221,14 +1241,14 @@ def wormhole_reward(user: User, won: bool, multi: int) -> dict:
     user.xp += PLAYER_XPGAINS
     user.fragments += int(FRAGMENTSGAIN * multi)
     for c in user.main_characters:
-        train(c, int(MIRROR_STAND_XP * multi))
+        train(c, economy.stand_xp(MIRROR_STAND_XP * multi))
     item = None
     if random.randint(1, 100) <= CHANCEITEM:
         item_id = random.choices(list(MIRROR_ITEM_DROPS), weights=list(MIRROR_ITEM_DROPS.values()), k=1)[0]
         item = item_from_dict({"id": item_id})
         user.items.append(item)
     return {"won": True, "fragments": int(FRAGMENTSGAIN * multi), "xp": PLAYER_XPGAINS,
-            "stand_xp": int(MIRROR_STAND_XP * multi), "item": item.name if item else None}
+            "stand_xp": economy.stand_xp(MIRROR_STAND_XP * multi), "item": item.name if item else None}
 
 
 def sell_price(item) -> int:
@@ -1236,8 +1256,8 @@ def sell_price(item) -> int:
     return (item.price or 0) // 10
 
 
-def sell_item(user: User, item_id: int, count: int = 1) -> dict:
-    owned = [i for i in user.items if i.id == item_id]
+def sell_item(user: User, item_id: int, count: int = 1, refine: Optional[int] = None) -> dict:
+    owned = [i for i in spare(user.items, item_id) if refine is None or i.refine == refine]
     if not owned:
         raise GameError("You don't have that item.")
     price = sell_price(owned[0])
@@ -1247,7 +1267,7 @@ def sell_item(user: User, item_id: int, count: int = 1) -> dict:
     for it in owned[:count]:
         user.items.remove(it)
     user.fragments += price * count
-    return {"name": owned[0].name, "count": count, "fragments": price * count}
+    return {"name": owned[0].label, "count": count, "fragments": price * count}
 
 
 # --------------------------------------------------------------------------- #

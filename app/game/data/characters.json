@@ -2724,7 +2724,7 @@
             "id": 161,
             "name": "Wonder of U",
             "rarity": "LR",
-            "special_description": "Calamity: every enemy loses `8%` of its max health as true damage, or `16%` if it is below half health, stunned or slowed. Each hit also carries `30%` of the health Wonder of U has lost, as true damage.",
+            "special_description": "Calamity: every enemy loses `8%` of its max health as true damage, or `16%` if it is below half health, stunned or slowed. Each hit also carries the health Wonder of U has lost, growing exponentially as it falls: `18%` of it at a quarter lost, `30%` at half, `50%` at three quarters (at most `60%` of the enemy's max health).",
             "special_url": "",
             "base_hp": 500,
             "base_damage": 84,

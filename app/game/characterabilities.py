@@ -2622,14 +2622,25 @@ def awaking_iii_leaves(character, allied_characters, enemy_characters) -> tuple:
     return payload, f"｢{character.name}｣ pins {target.name} with arrows! Stunned and slowed!"
 
 
+# Wonder of U's calamity grows exponentially with the health it has lost: CALAMITY_SHARE of that health at half health,
+# doubling with every 1/CALAMITY_GROWTH of its health lost (18% at a quarter lost, 50% at three quarters, ~80% at
+# death's door). Each enemy takes at most CALAMITY_CAP of its own max health from it, so it can't wipe a full team.
+CALAMITY_SHARE, CALAMITY_GROWTH, CALAMITY_CAP = 0.30, 3, 0.60
+
+
+def calamity_share(lost_share: float) -> float:
+    """Share of the health it has lost that Wonder of U returns to every enemy, for lost_share in [0, 1]."""
+    return CALAMITY_SHARE * 2 ** (CALAMITY_GROWTH * (lost_share - 0.5))
+
+
 def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     total = 0
     lost = max(0, character.start_hp - character.current_hp)
-    backlash = lost * 0.30  # every wound it took comes back to its pursuers as calamity
+    backlash = lost * calamity_share(lost / max(1, character.start_hp))  # every wound comes back to its pursuers
     for enemy in _alive(enemy_characters):
         share = 0.16 if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else 0.08
-        total += _take(enemy, enemy.start_hp * share + backlash)
+        total += _take(enemy, enemy.start_hp * share + min(backlash, enemy.start_hp * CALAMITY_CAP))
     message = f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
     return payload, message + (f" Its own wounds return to its pursuers (+{int(backlash)} each)!" if backlash >= 1 else "")
 

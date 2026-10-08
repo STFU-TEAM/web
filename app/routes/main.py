@@ -26,7 +26,14 @@ def home():
     )
     random.shuffle(hand)
     registered = bool(session.get("uid")) and get_db().user_exists(session["uid"])
-    return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(3))
+    today_rows = None
+    if registered:  # the Today card: every timer and allowance in one place
+        from app.game import logic, today
+        user = get_db().get_user(session["uid"])
+        if logic.refill_energy(user):
+            user.update()
+        today_rows = today.rows(user, dungeon_on=current_app.config.get("DUNGEON_ENABLED"))
+    return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(3), today=today_rows)
 
 
 @bp.get("/news")

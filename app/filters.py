@@ -127,8 +127,8 @@ def register(app):
     from app.game import pickers
     app.jinja_env.globals.update(picker_owned=pickers.owned, picker_every=pickers.every_stand, picker_pool=pickers.pool,
                                  picker_items=pickers.owned_items, picker_catalog=pickers.catalog_items)
-    from app.game import events
-    app.jinja_env.globals.update(event_rule=events.describe)
+    from app.game import events, gear
+    app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost)
     from app.game import characterabilities as abilities
     app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
                                  STAT_INFO=abilities.STAT_INFO, special_text=special_text)
@@ -339,12 +339,19 @@ def register(app):
         inbox_count, toasts, duel_waiting = 0, [], False
         from app.auth import is_admin
         from app.game import progression
-        nav_unlocked, nav_new = progression.opened(0), []
+        nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
         if uid and request.endpoint != "static":
             from app.routes.progress import unlocks
             nav_unlocked = unlocks(uid)
             nav_new = progression.new(uid)  # modes the story just opened: tagged New until visited
-            from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
+            from app.db import get_db, r  # the nav highlights the story until it's done; the tour runs once per new save
+            from app.routes.play import CRAFTABLE_KEY, remember_craftable
+            cached = r().get(CRAFTABLE_KEY.format(uid))  # recipes the bag can craft (Items badge), kept 10 minutes
+            if cached is None:
+                user = get_db().get_user(uid)
+                craft_ready = remember_craftable(user) if user else 0
+            else:
+                craft_ready = int(cached)
             from app import social
             from app.routes.community import pending_count
             story_hot = not r().exists(f"web:story_done:{uid}")
@@ -358,6 +365,7 @@ def register(app):
         return {
             "live_event": events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
+            "craft_ready": craft_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),

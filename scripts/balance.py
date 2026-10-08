@@ -7,7 +7,8 @@
     python scripts/balance.py story --seed 3 --fights 100
 
 Rerun after changing stats, specials, terrains or the story curve. Targets used so far:
-average fight under 3 minutes and never over 5, stands within ~35-65% of their rarity,
+PvE fights about a minute; duels (ranked, friendly) 1-2 minutes on average and never over 5 (fight.PVP_*,
+with a 5-minute wall clock on top), stands within ~35-65% of their rarity,
 each rarity beating the one below ~75-80% of the time.
 """
 import argparse
@@ -46,11 +47,12 @@ def team(rarities, level, awaken, quality=None):
     return [make(c["id"], level, awaken, quality) for c in random.sample(pool, 3)]
 
 
-def run(team_a, team_b, ai_b="smart"):
-    """Side 0 plays the human (picked by the smart AI); returns stats for one fight."""
-    foes = Side("B", team_b, False)
+def run(team_a, team_b, ai_b="smart", duel=False):
+    """Side 0 plays the human (picked by the smart AI); a duel has a human on both sides. Stats for one fight."""
+    foes = Side("B", team_b, duel)
     foes.ai = ai_b
-    f = Fight(Side("A", team_a, True), foes)
+    f = Fight(Side("A", team_a, True), foes, kind="friend" if duel else "wormhole",
+              meta={"players": ["a", "b"]} if duel else None)
     clicks, secs = 0, 0.0
     while not f.finished and clicks < 2000:
         n = len(f.log)
@@ -77,6 +79,13 @@ def report_length(fights):
         print(f"  Lv{level:<3} A{awaken}  rounds med {st.median(rounds):4.1f} max {max(rounds):3d} | "
               f"time avg {st.mean(secs) / 60:.1f}m p90 {pct(secs, .9) / 60:.1f}m p99 {pct(secs, .99) / 60:.1f}m | "
               f"overheal {sum(r['overheal'] for r in res)}  draws {sum(r['winner'] is None for r in res)}")
+    print("Duel length (ranked / friendly pace, a human picking on both sides)")
+    for level, awaken in ((30, 0), (100, 0), (100, 3)):
+        res = [run(team(RARITIES, level, awaken), team(RARITIES, level, awaken), duel=True) for _ in range(fights)]
+        secs, rounds = [r["secs"] for r in res], [r["rounds"] for r in res]
+        print(f"  Lv{level:<3} A{awaken}  rounds med {st.median(rounds):4.1f} max {max(rounds):3d} | "
+              f"time avg {st.mean(secs) / 60:.1f}m p90 {pct(secs, .9) / 60:.1f}m p99 {pct(secs, .99) / 60:.1f}m | "
+              f"draws {sum(r['winner'] is None for r in res)}")
     print("Rarity gaps at level 50 (row beats the rarity below)")
     for low, high in zip(RARITIES, RARITIES[1:]):
         wins = sum(run(team((high,), 50, 0), team((low,), 50, 0))["winner"] == 0 for _ in range(fights))

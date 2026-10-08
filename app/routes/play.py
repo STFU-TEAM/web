@@ -6,7 +6,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
-from app.game import logic, mastery
+from app.game import gear, logic, mastery
 from app.game import dungeon as dungeon_logic
 from app import wiki as wiki_data
 from app.filters import power_score
@@ -129,6 +129,24 @@ def _collection(user, message=None, error=None):
                            **collection_ctx(user))
 
 
+def _bag_copies(items) -> dict:
+    out = {}
+    for it in items:
+        out[it.id] = out.get(it.id, 0) + 1
+    return out
+
+
+def _panel_items(user, char) -> list:
+    """The bag's gear for a stand's panel, each line saying what equipping it would change on this stand."""
+    from app.game.items import spare
+    from app.game.pickers import owned_items
+    opts = owned_items(user.items, equipable=True)
+    for o in opts:
+        best = spare(user.items, o["id"])[-1]
+        o["m"] = f"×{o['q']}{' · +' + str(best.refine) if best.refine else ''} · {gear.preview_line(char, best)}"
+    return opts
+
+
 @bp.get("/team/stand/<uuid>")
 @player_required
 def stand_panel(uuid):
@@ -144,6 +162,8 @@ def stand_panel(uuid):
                            dupes=[d for d in user.storage_characters if d.id == char.id and d.uuid != char.uuid],
                            is_locked=uuid in logic.locked(user), wiki=wiki_data.stand_links(char.id),
                            equipable=[g for g in _grouped(user.items) if g["item"].is_equipable],
+                           equip_options=_panel_items(user, char) if in_team else [],
+                           sets=gear.active_sets(char.items), bag_copies=_bag_copies(user.items),
                            power=power_score(char), template=CHARACTER_FILE[char.id - 1],
                            mastery=mastery.of(r(), user.id, char.id))
 
@@ -307,7 +327,15 @@ def reforge_keep():
 def equip():
     uuid, item_id = request.form.get("uuid"), _int("item")
     user, res, err = action(lambda u: logic.equip(u, uuid, item_id))
-    return _collection(user, f"{res[1].name} equipped on {res[0].name}." if res else None, err)
+    return _collection(user, f"{res[1].label} equipped on {res[0].name}." if res else None, err)
+
+
+@bp.post("/team/refine")
+@player_required
+def refine_equipped():
+    uuid, item_id, slot = request.form.get("uuid"), _int("item"), _int("slot")
+    user, res, err = action(lambda u: gear.refine(u, item_id, uuid, slot))
+    return _collection(user, f"{res.label} refined." if res else None, err)
 
 
 @bp.post("/team/unequip")
@@ -546,10 +574,33 @@ def pull(banner_id: int, mode: str):
 # Items & shop
 # --------------------------------------------------------------------------- #
 def _grouped(items):
+    """One entry per item and refine level (a refined copy has its own card)."""
     groups = {}
     for it in items:
-        groups.setdefault(it.id, {"item": it, "count": 0})["count"] += 1
-    return sorted(groups.values(), key=lambda g: (g["item"].is_equipable, g["item"].id))
+        groups.setdefault((it.id, it.refine), {"item": it, "count": 0})["count"] += 1
+    return sorted(groups.values(), key=lambda g: (g["item"].is_equipable, g["item"].id, -g["item"].refine))
+
+
+def _refinable(items) -> dict:
+    """item id -> {level, cost, spares}: refining takes the best copy up a level with a spare copy."""
+    out = {}
+    for it in items:
+        if it.is_equipable:
+            row = out.setdefault(it.id, {"level": it.refine, "copies": 0})
+            row["level"] = max(row["level"], it.refine)
+            row["copies"] += 1
+    return {iid: {"level": r["level"], "cost": gear.refine_cost(r["level"]), "spares": r["copies"] - 1}
+            for iid, r in out.items()}
+
+
+def _equip_options(user, groups) -> dict:
+    """"id-refine" -> team stand options whose line says what equipping that copy would change."""
+    from app.game.pickers import owned
+    full = {c.uuid: "Holds 3 items already" for c in user.main_characters if len(c.items) >= 3}
+    return {f"{g['item'].id}-{g['item'].refine}": owned(
+                user.main_characters, sort=False, blocked=full,
+                notes={c.uuid: gear.preview_line(c, g["item"]) for c in user.main_characters if c.uuid not in full})
+            for g in groups if g["item"].is_equipable}
 
 
 def _recipes(user):
@@ -560,13 +611,26 @@ def _recipes(user):
     for r in RECIPES:
         parts = [(item_file[i - 1]["name"], n, have.get(i, 0)) for i, n in r["ingredients"]]
         result = item_from_dict({"id": r["result"]})
-        out.append({"name": r["name"], "parts": parts, "ready": all(h >= n for _, n, h in parts), "result": result})
+        out.append({"name": r["name"], "parts": parts, "ready": all(h >= n for _, n, h in parts), "result": result,
+                    "max": logic.craftable(user, r)})
     return out
 
 
 def _items_ctx(user):
-    return {"u": user, "groups": _grouped(user.items), "recipes": _recipes(user), "shop": DEFAULT_SHOP,
-            "sell_price": logic.sell_price}
+    groups = _grouped(user.items)
+    remember_craftable(user)
+    return {"u": user, "groups": groups, "recipes": _recipes(user), "shop": DEFAULT_SHOP,
+            "sell_price": logic.sell_price, "equip_opts": _equip_options(user, groups), "refinable": _refinable(user.items)}
+
+
+CRAFTABLE_KEY = "web:craftable:{}"
+
+
+def remember_craftable(user) -> int:
+    """How many recipes the bag can craft now, cached for the Items nav badge (filters.py)."""
+    n = sum(1 for rec in RECIPES if logic.craftable(user, rec) > 0)
+    r().set(CRAFTABLE_KEY.format(user.id), n, ex=600)
+    return n
 
 
 @bp.get("/items")
@@ -586,9 +650,18 @@ def use():
 @bp.post("/items/craft")
 @player_required
 def craft():
-    name = request.form.get("recipe", "")
-    user, res, err = action(lambda u: logic.craft(u, name))
-    return render_template("partials/use_result.html", res={"kind": "crafted", "item": res} if res else None,
+    name, count = request.form.get("recipe", ""), max(1, min(99, _int("count", 1) or 1))
+    user, res, err = action(lambda u: logic.craft_many(u, name, count))
+    return render_template("partials/use_result.html", res={"kind": "crafted", "item": res[0], "count": len(res)} if res else None,
+                           error=err, **_items_ctx(user))
+
+
+@bp.post("/items/refine")
+@player_required
+def item_refine():
+    item_id = _int("item")
+    user, res, err = action(lambda u: gear.refine(u, item_id))
+    return render_template("partials/use_result.html", res={"kind": "refined", "item": res} if res else None,
                            error=err, **_items_ctx(user))
 
 
@@ -596,7 +669,7 @@ def craft():
 @player_required
 def item_equip():
     uuid, item_id = request.form.get("uuid"), _int("item")
-    user, res, err = action(lambda u: logic.equip(u, uuid, item_id))
+    user, res, err = action(lambda u: logic.equip(u, uuid, item_id, _int("refine")))
     return render_template("partials/use_result.html", res={"kind": "equipped", "stand": res[0], "item": res[1]} if res else None,
                            error=err, **_items_ctx(user))
 
@@ -614,8 +687,9 @@ def item_unequip():
 @player_required
 def sell():
     item_id = _int("item")
-    count = len([i for i in _user().items if i.id == item_id]) if request.form.get("all") else 1
-    user, res, err = action(lambda u: logic.sell_item(u, item_id, count))
+    refine = _int("refine")
+    count = len([i for i in _user().items if i.id == item_id and (refine is None or i.refine == refine)])         if request.form.get("all") else 1
+    user, res, err = action(lambda u: logic.sell_item(u, item_id, count, refine))
     return render_template("partials/use_result.html", res={"kind": "sold", **res} if res else None,
                            error=err, **_items_ctx(user))
 
@@ -712,7 +786,17 @@ def _quests_ctx(user, **extra):
 @player_required
 def quests():
     user, _, _ = action(_sync_social_quests)  # assignment is saved, like /quest view
-    return render_template("quests.html", **_quests_ctx(user))
+    from app.game import bounty
+    return render_template("quests.html", bounty=bounty.view(user), **_quests_ctx(user))
+
+
+@bp.post("/bounty/claim")
+@player_required
+def bounty_claim():
+    from app.game import bounty
+    _, res, err = action(bounty.claim)
+    flash(err or f"{res['icon']} {res['name']} bounty claimed: {res['reward_text']}.", "error" if err else "ok")
+    return redirect(url_for("play.quests", _anchor="bounty"))
 
 
 @bp.post("/quests/claim")

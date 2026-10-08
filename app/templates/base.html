@@ -94,7 +94,8 @@
 {%- macro any_hot(keys) -%}{% for k in keys if k in dot_keys %}1{% endfor %}{%- endmacro -%}
 {%- macro badge(key) -%}
   {%- if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>
-  {%- elif key in nav_new %} <em class="nav-badge new">New</em>{% endif -%}
+  {%- elif key in nav_new %} <em class="nav-badge new">New</em>
+  {%- elif key == 'items' and craft_ready %} <em class="nav-badge" title="Recipes you can craft now">{{ craft_ready }} to craft</em>{% endif -%}
 {%- endmacro -%}
 {%- macro menu_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}

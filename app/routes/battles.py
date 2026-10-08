@@ -10,10 +10,10 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import chips, draft as draft_mod, events, history, logic, pickers, progression, seasons, simulate, story
+from app.game import bounty, chips, draft as draft_mod, events, history, logic, pickers, progression, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
-from app.game.fight import Fight, Side, ai_choice, fighting_copy
+from app.game.fight import PVP_MAX_SECONDS, Fight, Side, ai_choice, fighting_copy
 from app.filters import PLAYABLE
 
 bp = Blueprint("battles", __name__, url_prefix="/battles")
@@ -45,8 +45,17 @@ def arm_timer(fight):
 
 
 def enforce_timer(fight) -> bool:
-    """If the acting player let the clock run out: auto pick, or forfeit after AFK_LIMIT misses in a row."""
-    if fight.kind not in PVP or fight.finished or not fight.awaiting_input:
+    """If the acting player let the clock run out: auto pick, or forfeit after AFK_LIMIT misses in a row.
+    Past PVP_MAX_SECONDS the duel ends on the spot, decided by health left."""
+    if fight.kind not in PVP or fight.finished:
+        return False
+    started = fight.meta.get("started")
+    if started and time.time() - started >= PVP_MAX_SECONDS:
+        fight._log(f"⏱️ The {PVP_MAX_SECONDS // 60}-minute duel clock ran out.", "info")
+        fight._time_up()
+        fight._finish()
+        return True
+    if not fight.awaiting_input:
         return False
     deadline = fight.meta.get("deadline")
     if deadline is None or time.time() < deadline:
@@ -106,9 +115,11 @@ def _create_duel(uid_a, uid_b, kind, teams=None):
     if not team_a or not team_b:
         return None
     copier = chips.strip if kind == "ranked" else fighting_copy  # stand chips stay out of ranked
+    if kind == "ranked":
+        bounty.record_picks([c.id for c in team_a + team_b])  # the season's meta (Ranked tab, Off the Meta bounty)
     fight = Fight(Side(identity(uid_a)["name"], copier(team_a), True),
                   Side(identity(uid_b)["name"], copier(team_b), True),
-                  kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False})
+                  kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False, "started": time.time()})
     fight.advance()
     arm_timer(fight)
     save_fight(uid_a, fight)
@@ -145,7 +156,7 @@ def index():
                  "dv": draft_view(uid), "roster": roster, "roster_ready": len(roster) == draft_mod.ROSTER_SIZE,
                  "roster_ids": {c.uuid for c in roster}, "collection": collection, "roster_size": draft_mod.ROSTER_SIZE,
                  "roster_options": pickers.owned(collection),
-                 "ban_seconds": draft_mod.BAN_SECONDS}
+                 "ban_seconds": draft_mod.BAN_SECONDS, "meta": bounty.meta(10)}
     elif mode == "watch":
         extra = {"live": live_duels(uid)}
     elif mode == "history":

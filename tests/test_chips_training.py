@@ -116,7 +116,8 @@ def test_training_trains_storage_stands_fast(client, monkeypatch):
     assert "Train again" in page and "chip" in page
     d = doc(client, "111")
     stand = next(s for s in d["storage_characters"] if s["uuid"] == keeper["uuid"])
-    assert stand["xp"] == 4000 + training.DRILLS["intense"]["xp"] and len(d["web_chips"]) == 1
+    from app.game.economy import stand_xp
+    assert stand["xp"] == 4000 + stand_xp(training.DRILLS["intense"]["xp"]) and len(d["web_chips"]) == 1
 
 
 def test_training_loss_still_pays_a_share(client):
@@ -127,4 +128,5 @@ def test_training_loss_still_pays_a_share(client):
     page = client.post("/training/attack", data={"forfeit": "1"}, headers=h).data.decode()
     assert "still learned" in page
     xp = doc(client, "111")["main_characters"][0]["xp"]
-    assert xp == 4000 + int(training.DRILLS["spar"]["xp"] * training.LOSS_SHARE)
+    from app.game.economy import stand_xp
+    assert xp == 4000 + stand_xp(training.DRILLS["spar"]["xp"] * training.LOSS_SHARE)

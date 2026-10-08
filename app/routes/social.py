@@ -6,7 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app.auth import player_required
 from app.db import Busy, get_db, identity, user_lock, users_lock
-from app.game.items import Item, item_file
+from app.game.items import Item, item_file, spare
 from app.game.user import User
 
 bp = Blueprint("social", __name__)
@@ -97,7 +97,7 @@ def shop_list_item(shop_id):
             elif len(shop.get("items", [])) >= 30:
                 flash("Your shop can hold up to 30 listings.", "error")
             else:
-                item = next((item for item in user.items if item.id == item_id), None)
+                item = next(iter(spare(user.items, item_id)), None)
                 if not item:
                     flash("You no longer own that item.", "error")
                 elif item.bound:

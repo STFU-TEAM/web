@@ -1881,6 +1881,9 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .item-info p { margin: .15rem 0 0; font-size: var(--step--1); }
 .item-tile .count { color: var(--gold); font-size: .85rem; }
 .item-bonus { color: #7FE3D9; font-weight: 700; }
+/* item sets (app/game/gear.py): the set an item belongs to, and the bonus a stand's pieces light up */
+.item-set { margin: .2rem 0 0; color: var(--muted); font-size: var(--step--1); }
+.item-set.on { color: var(--gold); }
 .item-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
 .item-actions form.inline select { max-width: 11rem; }
 .have { color: #7FE3D9; } .need { color: #FF8DB9; }
@@ -3086,3 +3089,46 @@ body.cine-open { overflow: hidden; }
 .sp-field { display: grid; gap: .3rem; min-width: 0; flex: 1 1 260px; }
 .sp-field-label { font-weight: 700; font-size: var(--step--1); color: var(--muted); }
 .sp-chip b:not(:empty) { min-width: 18px; width: auto; padding: 0 .25rem; border-radius: 999px; }
+
+/* Home: the Today card (app/game/today.py), what's ready first */
+.today { margin-top: 1.5rem; }
+.today-grid { list-style: none; padding: 0; margin: 0; display: grid; gap: .6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); }
+.today-row { display: flex; align-items: center; gap: .75rem; padding: .75rem .9rem; border-radius: var(--radius-ui); background: var(--night-2);
+  border: 1px solid var(--night-3); color: var(--paper); text-decoration: none; height: 100%; }
+.today-row:hover { border-color: var(--paper); color: var(--paper); }
+.today-row > span:nth-child(2) { display: grid; gap: .1rem; flex: 1; min-width: 0; }
+.today-row small { color: var(--muted); font-size: var(--step--1); }
+.today-row.ready { border-color: var(--gold); background: linear-gradient(110deg, rgb(244 197 66 / .12), transparent 70%), var(--night-2); }
+.today-row.ready small { color: var(--gold); }
+.today-icon { font-size: 1.4rem; width: 1.8rem; text-align: center; flex: none; }
+.today-go { color: var(--gold); font-weight: 700; }
+
+/* Quests: the weekly off-meta bounty (app/game/bounty.py) */
+.bounty-card { display: flex; align-items: center; gap: 1rem; margin: 0 0 1.4rem; padding: 1rem 1.2rem; border-radius: var(--radius-card);
+  background: var(--night-2); border: 2px dashed var(--violet); }
+.bounty-card.done { border: 2px solid var(--gold); }
+.bounty-card .h3 { margin: 0 0 .2rem; }
+.bounty-card p { margin: 0 0 .4rem; }
+.bounty-body { flex: 1; min-width: 0; }
+.bounty-body .meter { max-width: 26rem; }
+.bounty-icon { font-size: 2rem; flex: none; }
+@media (max-width: 620px) { .bounty-card { flex-wrap: wrap; } }
+
+/* Ranked: this season's most picked stands */
+.meta-chart { margin: 0 0 1rem; padding: .8rem 1rem; border-radius: var(--radius-ui); background: var(--night-2); border: 1px solid var(--night-3); }
+.meta-chart summary { cursor: pointer; font-weight: 700; }
+.meta-chart ol { list-style: none; padding: 0; margin: .7rem 0 .4rem; display: grid; gap: .35rem; }
+.meta-chart li { display: grid; grid-template-columns: 28px minmax(0, 11rem) 2.5rem 1fr 3rem; align-items: center; gap: .6rem; }
+.meta-chart li img { border-radius: 6px; object-fit: cover; }
+.meta-chart li a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--paper); }
+.meta-chart li b { text-align: right; font-variant-numeric: tabular-nums; }
+.meta-bar { height: 8px; border-radius: 4px; background: var(--night-3); overflow: hidden; }
+.meta-bar i { display: block; height: 100%; background: var(--gold); }
+@media (max-width: 620px) { .meta-chart li { grid-template-columns: 28px 1fr 3rem; } .meta-chart li small, .meta-bar { display: none; } }
+
+/* Story: auto-replay a cleared stage */
+.auto-replay { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 1.2rem 0 0; padding: .8rem 1rem;
+  border-radius: var(--radius-ui); background: var(--night-2); border: 1px solid var(--night-3); }
+.auto-replay-label { display: grid; gap: .1rem; flex: 1 1 16rem; }
+.auto-replay-label small { font-size: var(--step--1); }
+.auto-replay select { max-width: 100%; }
