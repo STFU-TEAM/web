@@ -622,8 +622,19 @@ function forgeLocks(form) {
   if (amount && cost !== undefined) amount.firstChild.nodeValue = cost.toLocaleString("en-US");
 }
 document.addEventListener("change", (e) => {
-  if (e.target.matches("[data-forge-lock]")) forgeLocks(e.target.closest("[data-forge-form]"));
+  if (!e.target.matches("[data-forge-lock]")) return;
+  const form = e.target.closest("[data-forge-form]");
+  forgeLocks(form);
+  // remember the locks right away, so they're still set next time this stand is reforged
+  const body = new URLSearchParams([["uuid", form.querySelector("[name=uuid]").value],
+    ...[...form.querySelectorAll("[data-forge-lock]:checked")].map((b) => ["lock", b.value])]);
+  const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
+  fetch(form.dataset.locksUrl, { method: "POST", body, headers: { "X-CSRF-Token": token } }).catch(() => {});
 });
+// remembered locks arrive checked: apply the one-pair-stays-free rule and the price to them
+const initForge = (root) => root.querySelectorAll && root.querySelectorAll("[data-forge-form]").forEach(forgeLocks);
+initForge(document);
+document.addEventListener("htmx:load", (e) => initForge(e.detail.elt));
 document.addEventListener("htmx:load", (e) => {
   const reels = e.detail.elt.querySelectorAll ? e.detail.elt.querySelectorAll(".forge-pairs.spin .reel") : [];
   if (!reels.length) return;

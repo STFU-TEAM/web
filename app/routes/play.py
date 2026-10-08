@@ -253,6 +253,7 @@ def _forge_ctx(user, uuid=None, rolled=False, error=None, message=None):
            "power": {c.uuid: power_score(c) for c in stands}, "team": {c.uuid for c in user.main_characters}}
     if char:
         ctx["costs"] = [logic.reforge_cost(char, n) for n in range(max(1, len(char.types)))]
+        ctx["locks"] = logic.remembered_locks(user, char)
         if pending:
             ctx["new"] = logic.preview_with(char, pending["types"], pending["qualities"])
             ctx["old_power"], ctx["new_power"] = power_score(char), power_score(ctx["new"])
@@ -278,6 +279,16 @@ def reforge_roll():
     locked = [int(i) for i in request.form.getlist("lock") if i.isdigit()]
     user, res, err = action(lambda u: logic.reforge_roll(u, uuid, locked))
     return render_template("partials/forge_panel.html", **_forge_ctx(user, uuid, rolled=bool(res), error=err))
+
+
+@bp.post("/reforge/locks")
+@player_required
+def reforge_locks():
+    """Remember the locks as they're toggled, so they're still there next time (even without a reforge)."""
+    uuid = request.form.get("uuid")
+    locked = [int(i) for i in request.form.getlist("lock") if i.isdigit()]
+    action(lambda u: logic.remember_locks(u, uuid, locked))
+    return "", 204
 
 
 @bp.post("/reforge/keep")

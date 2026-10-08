@@ -769,6 +769,28 @@ def _reroll(types: List[str], qualities: List[str], locked: List[int]):
     return [t for t, _ in pairs], [q for _, q in pairs]
 
 
+def remembered_locks(user: User, char: Character) -> List[int]:
+    """The pairs the player last locked on this stand (by type, so they survive a reroll that reorders the pairs),
+    always leaving one free to roll."""
+    types = set((user.data.get("web_reforge_locks") or {}).get(char.uuid, []))
+    picked = [i for i, t in enumerate(char.types) if t in types]
+    return picked[:max(0, len(char.types) - 1)]
+
+
+def remember_locks(user: User, uuid: str, locked: List[int]) -> List[int]:
+    """Save which pairs of a stand are locked for next time (web-only: data["web_reforge_locks"] = {uuid: [types]})."""
+    char = locate(user, uuid)[0]
+    locked = sorted({i for i in locked if 0 <= i < len(char.types)})[:max(0, len(char.types) - 1)]
+    owned = {c.uuid for c in user.main_characters + user.storage_characters}
+    memory = {k: v for k, v in (user.data.get("web_reforge_locks") or {}).items() if k in owned}
+    if locked:
+        memory[uuid] = [char.types[i] for i in locked]
+    else:
+        memory.pop(uuid, None)
+    user.data["web_reforge_locks"] = memory
+    return locked
+
+
 def reforge_roll(user: User, uuid: str, locked: List[int]) -> dict:
     char, lst, idx = locate(user, uuid)
     locked = sorted({i for i in locked if 0 <= i < len(char.types)})
@@ -781,6 +803,7 @@ def reforge_roll(user: User, uuid: str, locked: List[int]) -> dict:
     cost = reforge_cost(char, len(locked))
     if user.fragments < cost:
         raise GameError(f"This reforge costs {cost:,} Meteor Dust. You have {user.fragments:,}.")
+    remember_locks(user, uuid, locked)
     user.fragments -= cost
     types, qualities = _reroll(char.types, char.qualities, locked)
     user.data["web_reforge_pending"] = {"uuid": uuid, "types": types, "qualities": qualities,

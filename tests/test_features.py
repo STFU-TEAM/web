@@ -1573,3 +1573,27 @@ def test_energy_cans_drop_in_many_places():
     can = next(r for r in item_rows() if r["id"] == 47)
     places = {w for w, _ in can["sources"]}
     assert {"Daily reward", "Daily streak", "Mirror World", "Tower", "Boss rush", "Gang raid", "Crusaders' Journey"} <= places
+
+
+
+def test_reforge_remembers_locks(client):
+    stand = char(1, xp=5000, types=("ATTACK", "SPEED", "LUCK"), quals=("UNIVERSAL", "GOOD", "BAD"))
+    player(client, "111", fragments=100_000, main_characters=[stand])
+    h = login(client, "111")
+    # toggling a lock saves it, no reforge needed
+    assert client.post("/reforge/locks", data={"uuid": stand["uuid"], "lock": ["0"]}, headers=h).status_code == 204
+    assert doc(client, "111")["web_reforge_locks"] == {stand["uuid"]: ["ATTACK"]}
+    page = client.get("/reforge?uuid=" + stand["uuid"]).data.decode()
+    assert 'value="0" data-forge-lock checked' in page and 'value="1" data-forge-lock >' in page
+    # a reroll that keeps the locked pair keeps the lock on it, wherever it lands
+    client.post("/reforge/roll", data={"uuid": stand["uuid"], "lock": ["0"]}, headers=h)
+    client.post("/reforge/keep", data={"keep": "new"}, headers=h)
+    d = doc(client, "111")
+    types = d["main_characters"][0]["types"]
+    page = client.get("/reforge?uuid=" + stand["uuid"]).data.decode()
+    assert f'value="{types.index("ATTACK")}" data-forge-lock checked' in page
+    # unlocking everything forgets it; locking every pair still leaves one free
+    client.post("/reforge/locks", data={"uuid": stand["uuid"]}, headers=h)
+    assert stand["uuid"] not in doc(client, "111").get("web_reforge_locks", {})
+    client.post("/reforge/locks", data={"uuid": stand["uuid"], "lock": [str(i) for i in range(len(types))]}, headers=h)
+    assert len(doc(client, "111")["web_reforge_locks"][stand["uuid"]]) == len(types) - 1

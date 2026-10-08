@@ -1,18 +1,18 @@
 {% from "macros.html" import special_scaling %}
-{% macro pairs(types, qualities, old_types=none, old_qualities=none, spin=false, lockable=false) %}
+{% macro pairs(types, qualities, old_types=none, old_qualities=none, spin=false, lockable=false, locked=[]) %}
   {% set RANK = {'UNIVERSAL': 'A', 'SUPREME': 'B', 'GREAT': 'C', 'GOOD': 'D', 'SUB_PAR': 'E', 'BAD': 'F'} %}
   {% set EMO = {'ATTACK': '⚔️', 'DEFENSE': '🛡️', 'SPEED': '💨', 'LUCK': '🍀', 'BALANCE': '⚖️', 'HEALTH': '❤️'} %}
   <ol class="forge-pairs{% if spin %} spin{% endif %}">
     {% for t in types %}
       {% set q = qualities[loop.index0] %}
       {% set old_rank = RANK.get(old_qualities[loop.index0]) if old_qualities and loop.index0 < old_qualities|length and old_types[loop.index0] == t else none %}
-      <li class="reel q-{{ RANK[q] }}" data-type="{{ EMO[t] }} {{ t|title }}" data-quality="{{ q|replace('_', ' ')|title }}" data-rank="{{ RANK[q] }}"
+      <li class="reel q-{{ RANK[q] }}{{ ' locked' if lockable and loop.index0 in locked }}" data-type="{{ EMO[t] }} {{ t|title }}" data-quality="{{ q|replace('_', ' ')|title }}" data-rank="{{ RANK[q] }}"
           {% if old_rank %}data-old-rank="{{ old_rank }}"{% endif %}>
         <span class="reel-type">{{ EMO[t] }} {{ t|title }}</span>
         <span class="reel-quality"><b>{{ RANK[q] }}</b> {{ q|replace('_', ' ')|title }}</span>
         {% if lockable %}
-          <label class="reel-lock"><input type="checkbox" name="lock" value="{{ loop.index0 }}" data-forge-lock>
-            <span aria-hidden="true">🔓</span><span class="sr">Lock {{ t|title }}</span></label>
+          <label class="reel-lock"><input type="checkbox" name="lock" value="{{ loop.index0 }}" data-forge-lock {{ 'checked' if loop.index0 in locked }}>
+            <span aria-hidden="true">{{ '🔒' if loop.index0 in locked else '🔓' }}</span><span class="sr">Lock {{ t|title }}</span></label>
         {% endif %}
       </li>
     {% endfor %}
@@ -53,13 +53,14 @@
       </div>
     {% else %}
       <form class="forge-form" hx-post="{{ url_for('play.reforge_roll') }}" hx-target="#forge" hx-disabled-elt="find button[type=submit]" data-forge-form
-            data-costs='{{ costs|tojson }}'>
+            data-costs='{{ costs|tojson }}' data-locks-url="{{ url_for('play.reforge_locks') }}">
         <input type="hidden" name="uuid" value="{{ char.uuid }}">
-        <h3 class="h3">Current roll <small class="muted">tap 🔓 to lock a pair</small></h3>
-        {{ pairs(char.types, char.qualities, lockable=char.types|length > 1) }}
-        <p class="forge-cost">Reforge for <strong data-forge-cost>{{ costs[0]|dust }}</strong>
+        <h3 class="h3">Current roll <small class="muted">tap 🔓 to lock a pair · your locks are remembered</small></h3>
+        {{ pairs(char.types, char.qualities, lockable=char.types|length > 1, locked=locks) }}
+        {% set cost = costs[[locks|length, costs|length - 1]|min] %}
+        <p class="forge-cost">Reforge for <strong data-forge-cost>{{ cost|dust }}</strong>
           <small class="muted">· each lock ×{{ lock_mult }}</small></p>
-        <button class="btn gold big" type="submit" {% if u.fragments < costs[0] %}disabled{% endif %}>⚒ Reforge</button>
+        <button class="btn gold big" type="submit" {% if u.fragments < cost %}disabled{% endif %}>⚒ Reforge</button>
         <p class="muted small-print">Qualities roll A (Universal) 5% · B 10% · C 20% · D 50% · E 10% · F 5%; a bad first quality guarantees an extra pair. You'll compare before anything changes.</p>
       </form>
     {% endif %}
