@@ -1,0 +1,97 @@
+{% from "macros.html" import owned_card %}
+{% macro v(key, x) %}{{ (x|round(1) ~ '%') if key == 'critical' else x|round|int|num }}{% endmacro %}
+<section id="plan-review" class="plan-review" aria-live="polite">
+  <span hidden data-share="{{ share }}"></span>
+  {% if rev.empty %}
+    <div class="plan-empty"><p>Pick a stand in any slot to see the team's numbers.</p></div>
+  {% else %}
+    <div class="stat-tiles plan-tiles">
+      <div><span>Team power</span><strong>{{ rev.power|num }}</strong><small>{{ rev.count }}/{{ P.SLOTS }} stands</small></div>
+      <div><span>Health</span><strong>{{ rev.totals.hp|int|stat }}</strong><small>all stands together</small></div>
+      <div><span>Damage</span><strong>{{ rev.totals.damage|int|stat }}</strong><small>per round of basic attacks</small></div>
+      <div><span>Team speed</span><strong>{{ rev.totals.speed|int }}</strong><small>the faster team moves first</small></div>
+      <div><span>Average critical</span><strong>{{ rev.avg_crit }}%</strong><small>past 100% crits stack</small></div>
+    </div>
+
+    <div class="plan-stands">
+      {% for s in rev.stands %}
+        {% set c = s.char %}
+        <article class="plan-stand">
+          <div class="plan-card">{{ owned_card(c, size='small', link=False) }}</div>
+          <div class="plan-body">
+            <p class="plan-meta"><strong>{{ c.name }}</strong>
+              <small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %} ·
+                {% if c.types %}{{ c.types[0]|title }} {{ c.qualities[0]|replace('_', ' ')|title }}{% else %}no type{% endif %}
+                {% if c.items %} · {{ c.items|length }} item{{ 's' if c.items|length > 1 }}{% endif %}
+                {% if c.data.chips %} · {{ c.data.chips|length }} chip{{ 's' if c.data.chips|length > 1 }}{% endif %}</small></p>
+            <table class="plan-stats">
+              <thead><tr><th></th><th scope="col">Stand</th><th scope="col">In this team</th></tr></thead>
+              <tbody>
+                {% for key, label in P.STATS %}
+                  <tr><th scope="row">{{ label }}</th>
+                    <td>{{ v(key, s.before[key]) }}</td>
+                    <td><b>{{ v(key, s.after[key]) }}</b>{% if s.gain[key] > 0.05 %} <small class="plan-gain">+{{ v(key, s.gain[key]) }}</small>{% endif %}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="plan-special"><span class="pill">⟳ {{ s.turns }} turn{{ 's' if s.turns != 1 }}</span>
+              <span class="pill">{{ STAT_INFO[s.special.stat][0] }} ×{{ '%.2f'|format(s.special.power) }}</span>
+              {% if s.taunt %}<span class="pill">🎯 Taunt</span>{% endif %}
+              {% if s.terrain %}<span class="pill" title="Sets the terrain while it stands">{{ s.terrain.emoji }} {{ s.terrain.display_name }}</span>{% endif %}
+              <span class="pill" title="A crit deals this, and every crit past the first adds the bonus again">Crit ×{{ '%.1f'|format(s.crit_mult) }}</span></p>
+            <p class="muted small-print plan-special-text">{{ special_text(c) }}</p>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+
+    <div class="plan-facts">
+      <section>
+        <h2 class="h3">Synergies</h2>
+        {% if rev.synergies %}
+          <ul class="plan-list">{% for g in rev.synergies %}<li><span aria-hidden="true">{{ g.icon }}</span><span><strong>{{ g.label }}</strong><span>{{ g.members|join(', ') }}</span><small class="muted">{{ g.perks|join(', ') }} (more for lower rarities, ×1.5 for a full set of 3)</small></span></li>{% endfor %}</ul>
+        {% else %}<p class="muted">No synergy yet: pair stands from the same crew, part or family.</p>{% endif %}
+      </section>
+      <section>
+        <h2 class="h3">Resonances</h2>
+        {% if rev.resonances %}
+          <ul class="plan-list">{% for x in rev.resonances %}<li><span aria-hidden="true">{{ x.icon }}</span><span><strong>{{ x.label }}</strong><small class="muted">{{ x.effect }}</small></span></li>{% endfor %}</ul>
+        {% else %}<p class="muted">None lit. Resonances come from combining synergies: two of them, a hero and a villain crew, a duo and another…</p>{% endif %}
+        {% if rev.home %}<p class="small-print">🏟️ Home field: {{ rev.home.emoji }} {{ rev.home.display_name }} holds while its setter stands.</p>{% endif %}
+      </section>
+      <section>
+        <h2 class="h3">One stand away</h2>
+        {% if rev.near %}
+          <ul class="plan-list">{% for g in rev.near %}<li><span aria-hidden="true">{{ g.icon }}</span><span><strong>{{ g.label }}</strong><small class="muted">add {{ g.with|join(', ') }}{% if g.more %} or {{ g.more }} more{% endif %}</small></span></li>{% endfor %}</ul>
+        {% else %}<p class="muted">No synergy is one stand away.</p>{% endif %}
+      </section>
+    </div>
+    {% if sug %}
+      <section class="plan-suggest" aria-labelledby="plan-suggest-h">
+        <h2 class="h3" id="plan-suggest-h">Suggestions for stand {{ sug.slot + 1 }}</h2>
+        <p class="muted small-print">Ranked by what each adds to this team: its own stats, the synergies and resonances it lights, and a taunt if the team has none. “Any stand” is built like the team (Lv {{ sug.level }}{% if sug.awaken %} ★{{ sug.awaken }}{% endif %}, Perfect, the type its special wants).</p>
+        {% for key, label, rows in [('mine', 'From your collection', sug.mine), ('any', 'Any stand', sug.any)] %}
+          {% if rows %}
+            <h3 class="plan-suggest-h">{{ label }}</h3>
+            <ul class="plan-suggest-list">
+              {% for x in rows %}
+                <li class="plan-suggestion">
+                  <img src="{{ x.id|stand_img }}" alt="" width="56" height="56" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                  <div class="plan-suggestion-body">
+                    <p><strong>{{ x.name }}</strong> <span class="rar-tag {{ x.rarity|rarity }}">{{ x.rarity }}</span>
+                      <small class="muted">Lv {{ x.level }}{% if x.awaken %} ★{{ x.awaken }}{% endif %}</small></p>
+                    <p class="plan-gain-line"><b>+{{ x.pct }}%</b> team power</p>
+                    {% if x.why %}<ul class="plan-why">{% for w in x.why %}<li>{{ w }}</li>{% endfor %}</ul>{% endif %}
+                  </div>
+                  <button type="button" class="btn small gold" data-suggest-slot="{{ sug.slot }}" data-suggest-value="{{ x.value }}"
+                          data-suggest-level="{{ x.level }}" data-suggest-awaken="{{ x.awaken }}">Use</button>
+                </li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% endfor %}
+      </section>
+    {% endif %}
+    <p class="muted small-print">Stats in the team include synergies, not the running event, terrains or fight-start effects. Chips are off in ranked; part synergies (a whole team from one part) count for player teams only.</p>
+  {% endif %}
+</section>

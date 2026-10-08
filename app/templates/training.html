@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Training ground | STFU Requiem{% endblock %}
 {% block main %}
+{% from "partials/picker.html" import picker, picker_data %}
 <section class="page training">
   {% if fight %}
     {% include "partials/fight.html" %}
@@ -23,6 +24,7 @@
         <p><a href="{{ url_for('progress.story_page') if progress.story < progress.story_total else url_for('progress.au_page') }}">Keep going →</a></p>
       </div>
     {% else %}
+      {{ picker_data("sp-train", stand_options) }}
       <form method="post" action="{{ url_for('progress.training_fight') }}" class="training-form">
         <input type="hidden" name="csrf" value="{{ csrf_token }}">
         <fieldset class="training-drills">
@@ -37,23 +39,10 @@
           {% endfor %}
         </fieldset>
 
-        <fieldset class="training-stands">
-          <legend class="h3">Stands <small class="muted">(up to {{ team_max }})</small></legend>
-          <ul>
-            {% for c in stands %}
-              <li>
-                <label class="{{ 'maxed' if c.level >= 100 }}">
-                  <input type="checkbox" name="uuid" value="{{ c.uuid }}" data-pick-max="{{ team_max }}">
-                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-                  <span><strong>{{ c.name }}</strong>
-                    <small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.uuid in team %} · team{% endif %}{% if c.level >= 100 %} · maxed: ascend it first{% endif %}</small></span>
-                </label>
-              </li>
-            {% else %}
-              <li class="muted">You have no stands yet.</li>
-            {% endfor %}
-          </ul>
-        </fieldset>
+        <div class="training-stands">
+          <h2 class="h3">Stands <small class="muted">up to {{ team_max }}, from your team or storage</small></h2>
+          {{ picker("uuid", "sp-train", max=team_max, title="Stands to train", placeholder="Pick up to " ~ team_max ~ " stands to train") }}
+        </div>
         <button class="btn gold big">Start training →</button>
       </form>
     {% endif %}

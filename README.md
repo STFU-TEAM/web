@@ -91,6 +91,9 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
   without them
 - Finished fights offer a Continue button (next floor/boss/stage, retry, queue again) and, after a PvE loss,
   "Simulate this fight" from the exact starting state
+- Team planner (`/battles/planner`, `app/game/planner.py`): any 3 stands, owned copies as they are or any stand at a
+  chosen level, awakening, type and quality (no type / Good / Perfect); reviews stats before and after synergies,
+  lit synergies and resonances, terrain, synergies one stand away, and simulates the plan. The plan lives in the URL
 - Team simulator (`/battles/simulator`, `app/game/simulate.py`): 40 fights through the real engine
   against a story stage, a tower floor or another player's team
 - Stand Dex (`/dex`, `app/game/dex.py`): rarity and crew sets with rewards; a stand counts once ever

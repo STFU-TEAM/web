@@ -1,0 +1,21 @@
+{#- The stand / item picker. A big trigger shows the choice; tapping it opens a sheet with search, rarity filters,
+    group tabs and portrait tiles (app.js builds it from the options JSON). The choice is posted as hidden inputs
+    named `name`, in pick order; a change event bubbles from them so forms (htmx) react.
+
+    {{ picker_data("sp-mine", options) }}                    once per page, per option list
+    {{ picker("uuid", "sp-mine", max=3, selected=[...]) }}   as many pickers as needed on it -#}
+{% macro picker_data(id, options) -%}
+<script type="application/json" id="{{ id }}">{{ options|tojson }}</script>
+{%- endmacro %}
+
+{% macro picker(name, source, max=1, selected=[], unique=False, title='Pick a stand', placeholder='Pick a stand',
+                empty_label=None, kind='stand', compact=False) -%}
+<div class="sp{{ ' sp-items' if kind == 'item' }}{{ ' sp-compact' if compact }}" data-sp data-sp-source="#{{ source }}" data-sp-name="{{ name }}"
+     data-sp-max="{{ max }}" data-sp-title="{{ title }}" data-sp-placeholder="{{ placeholder }}" data-sp-kind="{{ kind }}"
+     {% if unique %}data-sp-unique{% endif %} {% if empty_label %}data-sp-empty="{{ empty_label }}"{% endif %}>
+  <div class="sp-inputs" hidden>{% for v in selected %}<input type="hidden" name="{{ name }}" value="{{ v }}">{% endfor %}</div>
+  <button type="button" class="sp-trigger" data-sp-open aria-haspopup="dialog">
+    <span class="sp-placeholder">{{ placeholder }}</span>
+  </button>
+</div>
+{%- endmacro %}

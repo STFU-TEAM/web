@@ -105,6 +105,8 @@ class Character:
         self.items: List[Item] = [item_from_dict(s) for s in data.get("items", [])]
         self.natural_taunt: bool = character_file[self.id-1]["taunt"]
         self.taunt: bool = self.natural_taunt or any(item.taunt for item in self.items)
+        if data.get("_planner_taunt") is not None:  # the team planner's taunt toggle (never in a real save)
+            self.taunt = bool(data["_planner_taunt"])
         self.universe: str = character_file[self.id-1]["universe"]
         self.level: int = min(MAX_LEVEL, self.xp // STXPTOLEVEL)
 

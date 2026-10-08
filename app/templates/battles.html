@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Battles | STFU Requiem{% endblock %}
 {% block main %}
+{% from "partials/picker.html" import picker, picker_data %}
 <section class="page">
   {% if fight %}
     <header class="player-bar"><div><p class="kicker">Battle mode</p><h1 class="display sm">{{ {"dummy":"Practice Dummy", "ranked":"Ranked", "friend":"Friendly Duel"}.get(fight.kind, "Battle") }}</h1></div></header>
@@ -98,17 +99,11 @@
           <p class="muted">{{ roster_size }} different stands from your whole collection. Your opponent will ban 2, so bring depth, not just your three best. The order here is your fallback team order.</p>
           <form method="post" action="{{ url_for('battles.ranked_roster') }}" class="roster-form">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <label class="search roster-search"><span class="sr">Find a stand</span><input type="search" placeholder="Find a stand" data-roster-search autocomplete="off"></label>
-            <ul class="roster-list" data-pick-max="{{ roster_size }}" data-pick-unique>
-              {% for c in collection %}
-                <li data-name="{{ c.name|lower }}"><label>
-                  <input type="checkbox" name="uuid" value="{{ c.uuid }}" data-stand="{{ c.id }}" {% if c.uuid in roster_ids %}checked{% endif %}>
-                  <span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> {{ '✨ ' if c.shiny }}{{ c.name }}
-                  <small class="muted">Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.taunt %} · 🎯{% endif %}</small>
-                </label></li>
-              {% endfor %}
-            </ul>
-            <button class="btn" data-pick-submit>Save roster</button>
+            {{ picker_data("sp-roster", roster_options) }}
+            {{ picker("uuid", "sp-roster", max=roster_size, unique=True, selected=roster|map(attribute='uuid')|list,
+                      title="Ranked roster", placeholder="Pick your " ~ roster_size ~ " ranked stands") }}
+            <p class="muted small-print">One copy of each stand. The numbers are your fallback team order: tap a stand again to take it out.</p>
+            <button class="btn gold">Save roster</button>
           </form>
         </section>
       {% endif %}

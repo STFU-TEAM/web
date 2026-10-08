@@ -42,7 +42,8 @@
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'Twelve bosses back to back, health carried over. Weekly leaderboard.'),
   'coop': ('Co-op raid', url_for('coop.index'), ep.startswith('coop.'), '🤝', 'Team up with 2-3 friends, one stand each, against this week’s raid boss.'),
-  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith('battles.simulator'), '⚔', 'Practice, ranked seasons, friend duels, live duels to watch and your replays.'),
+  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith(('battles.simulator', 'battles.planner')), '⚔', 'Practice, ranked seasons, friend duels, live duels to watch and your replays.'),
+  'planner': ('Team planner', url_for('battles.planner_page'), ep.startswith('battles.planner'), '📐', 'Try any stands together at any level and build: stats, synergies, simulation.'),
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'An endless weekly climb that gets brutal fast. Weekly leaderboard.'),
@@ -63,7 +64,7 @@
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
 {#- the Alternate Universe and Over Heaven only appear once the story has opened them -#}
-{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven', 'training'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'coop', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['simulator'] -%}
+{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven', 'training'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'coop', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['planner', 'simulator'] -%}
 {%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}

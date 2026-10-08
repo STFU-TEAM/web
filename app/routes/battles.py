@@ -10,7 +10,7 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import chips, draft as draft_mod, events, history, logic, seasons, simulate, story
+from app.game import chips, draft as draft_mod, events, history, logic, pickers, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, ai_choice, fighting_copy
@@ -144,6 +144,7 @@ def index():
                  "season_rewards": seasons.reward_table(), "season_min": seasons.MIN_GAMES,
                  "dv": draft_view(uid), "roster": roster, "roster_ready": len(roster) == draft_mod.ROSTER_SIZE,
                  "roster_ids": {c.uuid for c in roster}, "collection": collection, "roster_size": draft_mod.ROSTER_SIZE,
+                 "roster_options": pickers.owned(collection),
                  "ban_seconds": draft_mod.BAN_SECONDS}
     elif mode == "watch":
         extra = {"live": live_duels(uid)}
@@ -777,3 +778,63 @@ def simulator_rematch():
         return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
     result = simulate.run(again["team"], again["foe"])
     return render_template("partials/sim_result.html", res=result, foe=again["foe"], team_label="Your team")
+
+
+# --------------------------------------------------------------------------- #
+# Team planner: any stands, any build, reviewed and simulated (app/game/planner.py)
+# --------------------------------------------------------------------------- #
+def _plan(args):
+    from app.game import planner
+    user = get_db().get_user(session["uid"])
+    slots = planner.parse(args, user)
+    chars = [planner.build(s, user) for s in slots]
+    slots = [s if c is not None else None for s, c in zip(slots, chars)]
+    return user, slots, chars
+
+
+def _planner_ctx(user, slots, chars, page=False):
+    """The review's context; page=True adds what only the full page needs (picker options, opponents)."""
+    from urllib.parse import urlencode
+    from app.game import overheaven, planner
+    q = planner.query(slots)
+    ctx = {"u": user, "slots": slots, "chars": chars, "rev": planner.review(chars), "P": planner,
+           "sug": planner.suggest(chars, user, slots),
+           "share": url_for("battles.planner_page", _external=True) + ("?" + urlencode(q, doseq=True) if q else "?blank=1")}
+    if page:
+        ctx.update(stand_options=pickers.owned(user.main_characters + user.storage_characters, prefix="u:") + pickers.every_stand(),
+                   item_options=pickers.items(), groups=simulate.opponents(overheaven.unlocked(user)), runs=simulate.RUNS,
+                   preset=f"story:{min(story.cleared(user), story.TOTAL - 1)}")
+    return ctx
+
+
+@bp.get("/planner")
+@player_required
+def planner_page():
+    user, slots, chars = _plan(request.args)
+    return render_template("planner.html", **_planner_ctx(user, slots, chars, page=True))
+
+
+@bp.get("/planner/review")
+@player_required
+def planner_review():
+    """The live review, re-rendered as the plan changes."""
+    user, slots, chars = _plan(request.args)
+    return render_template("partials/planner_review.html", **_planner_ctx(user, slots, chars))
+
+
+@bp.post("/planner/simulate")
+@player_required
+def planner_simulate():
+    uid = session["uid"]
+    user, slots, chars = _plan(request.form)
+    team = [c for c in chars if c is not None]
+    foe = simulate.foe_for(request.form.get("vs", ""), get_db())
+    from app.game import overheaven
+    if (request.form.get("vs", "").startswith("oh:") and not overheaven.unlocked(user)) or not foe:
+        return "<p class='notice error'>Pick an opponent.</p>"
+    if not team:
+        return "<p class='notice error'>Put at least one stand in the plan.</p>"
+    if not r().set(f"web:sim:{uid}", "1", nx=True, ex=3):
+        return "<p class='notice error'>One simulation at a time: try again in a few seconds.</p>"
+    result = simulate.run(team, foe)
+    return render_template("partials/sim_result.html", res=result, foe=foe, team_label="Your plan")

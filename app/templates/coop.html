@@ -81,7 +81,7 @@
                 <input type="radio" name="tier" value="{{ key }}" {{ 'checked' if loop.first }}>
                 <span><strong>{{ t.label }}</strong>
                   <small>Lv {{ t.level }} ★{{ t.awaken }} crew{% if t.mult > 1 %}, ×{{ t.mult }} stats{% endif %}</small>
-                  <small class="muted">A win: {{ t.dust|dust }}, +{{ t.stand_xp }} XP for your stand, {{ (t.chip * 100)|int }}% chip chance</small></span>
+                  <small class="muted">A win: <span class="nowrap">{{ t.dust|dust }}</span> · +{{ t.stand_xp }} XP for your stand · {{ (t.chip * 100)|int }}% chip chance</small></span>
               </label>
             {% endfor %}
             <button class="btn gold">Open a lobby →</button>

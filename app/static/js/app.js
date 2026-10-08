@@ -1272,3 +1272,166 @@ document.addEventListener("click", (e) => {
   if (!el || !navigator.clipboard) return;
   navigator.clipboard.writeText(el.dataset.copy).then(() => { const t = el.textContent; el.textContent = "Copied!"; setTimeout(() => { el.textContent = t; }, 1200); });
 });
+
+// Stand / item picker (templates/partials/picker.html): a big trigger that shows the choice and a sheet with search,
+// group tabs, rarity filters and portrait tiles. Single pick closes on tap; multi pick numbers the order (ranked uses
+// it) and stops at data-sp-max; data-sp-unique allows one copy of each stand. The choice lives in hidden inputs.
+(() => {
+  const RAR = { R: "common", SR: "rare", SSR: "epic", UR: "legend", LR: "mythic" };
+  const GROUP = { mine: "My stands", any: "Any stand", item: "Items" };
+  const FALLBACK = "/static/img/stand-fallback.svg";
+  const cache = new Map();
+  const load = (sel) => {
+    if (!cache.has(sel)) {
+      const el = document.querySelector(sel);
+      const opts = el ? JSON.parse(el.textContent) : [];
+      cache.set(sel, { opts, byV: new Map(opts.map((o) => [o.v, o])) });
+    }
+    return cache.get(sel);
+  };
+  const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);
+  const fold = (s) => String(s || "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const thumb = (o) => o.img
+    ? `<img src="${esc(o.img)}" alt="" loading="lazy" decoding="async" data-fallback="${FALLBACK}">`
+    : `<span class="sp-emoji" aria-hidden="true">${esc(o.e || "◈")}</span>`;
+  const values = (sp) => [...sp.querySelector(".sp-inputs").children].map((i) => i.value);
+  const max = (sp) => Number(sp.dataset.spMax) || 1;
+  // broken pictures fall back to the stand silhouette (no inline handlers in the generated markup)
+  document.addEventListener("error", (e) => {
+    const img = e.target;
+    if (img.tagName === "IMG" && img.dataset.fallback && img.src.indexOf(img.dataset.fallback) < 0) img.src = img.dataset.fallback;
+  }, true);
+
+  const render = (sp) => {
+    const { byV } = load(sp.dataset.spSource);
+    const picked = values(sp).map((v) => byV.get(v)).filter(Boolean);
+    const btn = sp.querySelector("[data-sp-open]");
+    sp.classList.toggle("is-set", picked.length > 0);
+    if (!picked.length) {
+      btn.innerHTML = `<span class="sp-plus" aria-hidden="true">＋</span><span class="sp-placeholder">${esc(sp.dataset.spPlaceholder)}</span>`;
+    } else if (max(sp) === 1) {
+      const o = picked[0];
+      btn.innerHTML = `<span class="sp-face ${RAR[o.r] || ""}">${thumb(o)}</span><span class="sp-text"><strong>${esc(o.n)}</strong>`
+        + `<small>${o.r ? `<span class="rar-tag ${RAR[o.r]}">${o.r}</span> ` : ""}${esc(o.m || "")}</small></span><span class="sp-change">Change</span>`;
+    } else {
+      btn.innerHTML = `<span class="sp-chips">${picked.map((o, i) => `<span class="sp-chip ${RAR[o.r] || ""}" title="${esc(o.n)}">`
+        + `${thumb(o)}<b>${i + 1}</b><span>${esc(o.n)}</span></span>`).join("")}</span>`
+        + `<span class="sp-change">${picked.length}/${max(sp)} · Change</span>`;
+    }
+    btn.setAttribute("aria-label", `${sp.dataset.spTitle}: ${picked.map((o) => o.n).join(", ") || "none"}`);
+  };
+
+  const commit = (sp, vals) => {
+    const box = sp.querySelector(".sp-inputs");
+    box.replaceChildren(...vals.map((v) => Object.assign(document.createElement("input"), { type: "hidden", name: sp.dataset.spName, value: v })));
+    render(sp);
+    const { byV } = load(sp.dataset.spSource);
+    sp.dispatchEvent(new CustomEvent("sp:change", { bubbles: true, detail: { values: vals, options: vals.map((v) => byV.get(v)) } }));
+    sp.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+
+  let dlg, state;
+  const build = () => {
+    dlg = document.createElement("dialog");
+    dlg.className = "sp-dialog";
+    dlg.innerHTML = `<div class="sp-sheet">
+      <header class="sp-head"><h2 class="sp-title"></h2><span class="sp-count" aria-live="polite"></span>
+        <button type="button" class="sp-x" data-sp-close aria-label="Close">✕</button></header>
+      <div class="sp-tools"><input type="search" class="sp-search" placeholder="Search by name" autocomplete="off" spellcheck="false" aria-label="Search">
+        <div class="sp-tabs" role="tablist"></div><div class="sp-rar" role="group" aria-label="Rarity"></div></div>
+      <div class="sp-grid" role="listbox"></div>
+      <footer class="sp-foot"><button type="button" class="btn ghost small" data-sp-clear>Clear</button>
+        <button type="button" class="btn gold" data-sp-close>Done</button></footer></div>`;
+    document.body.appendChild(dlg);
+    dlg.addEventListener("click", (e) => {
+      if (e.target === dlg || e.target.closest("[data-sp-close]")) return dlg.close();
+      if (e.target.closest("[data-sp-clear]")) { state.sel = []; commit(state.sp, []); return draw(); }
+      const tab = e.target.closest("[data-group]");
+      if (tab) { state.group = tab.dataset.group; return draw(); }
+      const rar = e.target.closest("[data-rar]");
+      if (rar) { state.rar = rar.dataset.rar; return draw(); }
+      const tile = e.target.closest(".sp-tile");
+      if (tile && !tile.disabled) pick(tile.dataset.v);
+    });
+    dlg.querySelector(".sp-search").addEventListener("input", (e) => { state.q = fold(e.target.value.trim()); draw(); });
+    dlg.addEventListener("close", () => { if (state) state.sp.querySelector("[data-sp-open]").focus({ preventScroll: true }); });
+  };
+
+  const pick = (v) => {
+    const sp = state.sp, m = max(sp);
+    if (m === 1) { state.sel = v === "" ? [] : [v]; commit(sp, state.sel); return dlg.close(); }
+    const i = state.sel.indexOf(v);
+    if (i >= 0) state.sel.splice(i, 1);
+    else if (state.sel.length < m) state.sel.push(v);
+    commit(sp, state.sel.slice());
+    draw();
+  };
+
+  const draw = () => {
+    const sp = state.sp, { opts, byV } = load(sp.dataset.spSource), m = max(sp);
+    const groups = [...new Set(opts.map((o) => o.g))];
+    dlg.querySelector(".sp-tabs").innerHTML = groups.length > 1 ? groups.map((g) =>
+      `<button type="button" role="tab" class="filter-chip" data-group="${g}" aria-selected="${g === state.group}" aria-pressed="${g === state.group}">`
+      + `${GROUP[g] || g} <small>${opts.filter((o) => o.g === g).length}</small></button>`).join("") : "";
+    const inGroup = opts.filter((o) => groups.length < 2 || o.g === state.group);
+    const rars = ["R", "SR", "SSR", "UR", "LR"].filter((r) => inGroup.some((o) => o.r === r));
+    dlg.querySelector(".sp-rar").innerHTML = rars.length > 1 ? ["all", ...rars].map((r) =>
+      `<button type="button" class="filter-chip" data-rar="${r}" aria-pressed="${r === state.rar}">${r === "all" ? "All" : r}</button>`).join("") : "";
+    const takenIds = new Set(state.sel.map((v) => byV.get(v) && byV.get(v).id));
+    const shown = inGroup.filter((o) => (state.rar === "all" || o.r === state.rar)
+      && (!state.q || fold(o.n).includes(state.q) || fold(o.m).includes(state.q)));
+    const full = m > 1 && state.sel.length >= m;
+    const tiles = shown.map((o) => {
+      const at = state.sel.indexOf(o.v), on = at >= 0;
+      const dupe = !on && "spUnique" in sp.dataset && takenIds.has(o.id);
+      const why = o.x || (dupe ? "A copy is already picked" : "");
+      const off = !on && (why || full);
+      return `<button type="button" class="sp-tile ${RAR[o.r] || "item"}${on ? " is-on" : ""}${off ? " is-off" : ""}" data-v="${esc(o.v)}"
+        role="option" aria-selected="${on}" ${why ? "disabled" : ""}>
+        <span class="sp-tile-art">${thumb(o)}${on ? `<b class="sp-mark">${m > 1 ? at + 1 : "✓"}</b>` : ""}
+          ${o.sh ? '<i class="sp-badge" title="Shiny">✨</i>' : ""}${o.t ? '<i class="sp-badge sp-taunt" title="Taunt">🎯</i>' : ""}</span>
+        <span class="sp-tile-name">${esc(o.n)}</span>
+        <small>${o.r ? `<span class="rar-tag ${RAR[o.r]}">${o.r}</span> ` : ""}${esc(o.m || "")}</small>
+        ${why ? `<em class="sp-why">${esc(why)}</em>` : ""}</button>`;
+    });
+    if (sp.dataset.spEmpty && m === 1 && !state.q) {  // the empty choice, unless searching
+      tiles.unshift(`<button type="button" class="sp-tile sp-none${state.sel.length ? "" : " is-on"}" data-v="">
+        <span class="sp-tile-art"><span class="sp-emoji">∅</span></span><span class="sp-tile-name">${esc(sp.dataset.spEmpty)}</span><small>No stand here</small></button>`);
+    }
+    dlg.querySelector(".sp-grid").innerHTML = tiles.join("") || `<p class="muted sp-nothing">Nothing matches.</p>`;
+    dlg.querySelector(".sp-count").textContent = m > 1 ? `${state.sel.length}/${m} picked` : "";
+    dlg.querySelector(".sp-foot").hidden = m === 1;
+  };
+
+  const open = (sp) => {
+    if (!dlg) build();
+    const { byV, opts } = load(sp.dataset.spSource);
+    const sel = values(sp).filter((v) => byV.has(v));
+    const first = byV.get(sel[0]);
+    state = { sp, sel, q: "", rar: "all", group: first ? first.g : (opts[0] && opts[0].g) };
+    dlg.querySelector(".sp-title").textContent = sp.dataset.spTitle;
+    dlg.querySelector(".sp-search").value = "";
+    draw();
+    dlg.showModal();
+    if (matchMedia("(pointer: fine)").matches) dlg.querySelector(".sp-search").focus();
+    dlg.querySelector(".sp-grid").scrollTop = 0;
+  };
+
+  const init = (root) => {
+    if (!root || !root.querySelectorAll) return;
+    const list = root.matches && root.matches("[data-sp]") ? [root] : [];
+    list.concat([...root.querySelectorAll("[data-sp]")]).forEach((sp) => {
+      if (sp.dataset.spReady) return;
+      sp.dataset.spReady = "1";
+      render(sp);
+    });
+  };
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-sp-open]");
+    if (btn && !btn.closest("[disabled]")) { e.preventDefault(); open(btn.closest("[data-sp]")); }
+  });
+  init(document);
+  document.addEventListener("htmx:load", (e) => init(e.detail.elt));
+  window.stfuPicker = { set: (sp, vals) => commit(sp, vals) };  // e.g. the planner's suggestions
+})();

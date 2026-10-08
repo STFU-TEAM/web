@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Team planner | STFU Requiem{% endblock %}
+{% block main %}
+{% from "partials/picker.html" import picker, picker_data %}
+{{ picker_data("sp-planner", stand_options) }}
+{{ picker_data("sp-items", item_options) }}
+<section class="page planner">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Battle lab</p>
+      <h1 class="display sm">Team planner</h1>
+      <p class="muted">Try any 3 stands together, yours or not. Give any stand a level, an awakening, a quality (no type, Good or Perfect), a type, a taunt and items, or use one of your copies exactly as it is. The review updates as you go, and you can simulate the team against any stage or player.</p>
+    </div>
+  </header>
+
+  <form id="plan-form" class="plan-slots" hx-get="{{ url_for('battles.planner_review') }}" hx-target="#plan-review" hx-swap="outerHTML"
+        hx-trigger="change, input from:input[type=range] delay:300ms" hx-sync="this:replace">
+    <input type="hidden" name="blank" value="1">
+    {% for i in range(P.SLOTS) %}
+      {% set s = slots[i] %}
+      {% set c = chars[i] %}
+      {% set owned_pick = s and s.pick.startswith('u:') %}
+      <fieldset class="plan-slot" data-slot data-best="{{ P.best_type(c.id) if c and not owned_pick else '' }}">
+        <legend>Stand {{ i + 1 }}</legend>
+        {{ picker("p" ~ i, "sp-planner", selected=[s.pick] if s else [], title="Stand " ~ (i + 1), placeholder="Pick a stand",
+                  empty_label="Empty slot") }}
+        <div class="plan-config">
+          <p class="plan-hint muted" data-empty-hint {% if s %}hidden{% endif %}>Pick one of your stands to see it as it is, or any stand to choose its level, awakening, quality, type, taunt and items.</p>
+          <div class="plan-owned" data-owned {% if not owned_pick %}hidden{% endif %}>
+            <p><strong>Your copy, exactly as it is</strong></p>
+            <p class="plan-owned-meta" data-owned-meta>{% if owned_pick and c %}Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.types %} · {{ c.types[0]|title }}{% endif %}{% endif %}</p>
+            {% if owned_pick and c and c.items %}<p class="plan-owned-items">{% for it in c.items %}<span title="{{ it.name }}">{{ (it.emoji or '◈')|emoji }} {{ it.name }}</span>{% endfor %}</p>{% endif %}
+            <p class="muted small-print">Level, stars, types, items and chips stay as they are on your copy. To try another build, pick the same stand under “Any stand”.</p>
+          </div>
+          <fieldset class="plan-build" data-build {% if owned_pick or not s %}disabled hidden{% endif %}>
+            <legend class="sr">Build</legend>
+            <label class="plan-level">Level <output data-level-out>{{ s.level if s else 100 }}</output>
+              <input type="range" name="l{{ i }}" min="1" max="100" value="{{ s.level if s else 100 }}" data-level></label>
+            <div class="plan-row" role="radiogroup" aria-label="Awakening">
+              <span class="plan-label">Awakening</span>
+              <div class="seg">
+                {% for a in range(P.MAX_STARS + 1) %}
+                  <label><input type="radio" name="a{{ i }}" value="{{ a }}" {{ 'checked' if (s.awaken if s else 0) == a }}><span>{{ '★' ~ a if a else '0' }}</span></label>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="plan-row" role="radiogroup" aria-label="Quality">
+              <span class="plan-label">Quality</span>
+              <div class="seg">
+                {% for key, label in P.QUALITY_LABEL.items() %}
+                  <label><input type="radio" name="q{{ i }}" value="{{ key }}" data-quality {{ 'checked' if (s.quality if s else 'perfect') == key }}><span>{{ label }}</span></label>
+                {% endfor %}
+              </div>
+            </div>
+            <label class="plan-type">Type
+              <select name="t{{ i }}" data-type {% if s and s.quality == 'none' %}disabled{% endif %}>
+                {% for t in P.TYPES %}<option value="{{ t }}" {{ 'selected' if s and s.type == t }}>{{ t|title }}</option>{% endfor %}
+              </select>
+              <small class="muted" data-type-hint></small>
+            </label>
+            {% set taunting = (s.taunt if s and s.taunt is not none else (c.taunt if c else false)) %}
+            <div class="plan-row" role="radiogroup" aria-label="Taunt">
+              <span class="plan-label">Taunt <small class="muted">enemies must hit it first</small></span>
+              <div class="seg">
+                <label><input type="radio" name="k{{ i }}" value="0" data-taunt {{ 'checked' if not taunting }}><span>Off</span></label>
+                <label><input type="radio" name="k{{ i }}" value="1" data-taunt {{ 'checked' if taunting }}><span>🎯 On</span></label>
+              </div>
+            </div>
+            <div class="plan-row">
+              <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }}</small></span>
+              {{ picker("i" ~ i, "sp-items", max=P.MAX_ITEMS, selected=((s.get('items') if s else none) or [])|map('string')|list,
+                        title="Items for stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True) }}
+            </div>
+          </fieldset>
+        </div>
+      </fieldset>
+    {% endfor %}
+  </form>
+
+  {% include "partials/planner_review.html" %}
+
+  <section class="admin-card plan-sim">
+    <h2 class="h2">Simulate this team</h2>
+    <form class="sim-form" hx-post="{{ url_for('battles.planner_simulate') }}" hx-include="#plan-form" hx-target="#plan-sim-result" hx-swap="innerHTML"
+          hx-disabled-elt="find button" hx-indicator="#plan-busy">
+      <div class="sim-field">
+        <label for="plan-vs">Opponent</label>
+        <select id="plan-vs" name="vs">
+          {% for g in groups %}
+            <optgroup label="{{ g.group }}">{% for o in g.options %}<option value="{{ o.value }}" {{ 'selected' if o.value == preset }}>{{ o.label }}</option>{% endfor %}</optgroup>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="sim-go">
+        <button class="btn gold">🧪 Simulate {{ runs }} fights</button>
+        <span id="plan-busy" class="sim-busy htmx-indicator" role="status"><span class="spinner" aria-hidden="true"></span> Fighting…</span>
+      </div>
+    </form>
+    <div id="plan-sim-result" aria-live="polite"></div>
+  </section>
+</section>
+
+<script>
+// The planner's slots: a copy you own fights as it is (no build to pick); any other stand takes the type that powers
+// its special and its own taunt when picked, until you change them. "No type" turns the type off. The address
+// follows the plan so it can be shared.
+(() => {
+  const form = document.getElementById("plan-form");
+  if (!form) return;
+  const TYPE_FOR = { ATTACK: "damage", DEFENSE: "armor", SPEED: "speed", LUCK: "critical", HEALTH: "health", BALANCE: "every stat a little" };
+  const sync = (slot) => {
+    const pick = slot.querySelector("[data-sp]");
+    const input = pick.querySelector(".sp-inputs input");
+    const value = input ? input.value : "";
+    const build = slot.querySelector("[data-build]"), type = slot.querySelector("[data-type]");
+    const owned = value.startsWith("u:");
+    build.disabled = !value || owned;
+    build.hidden = build.disabled;
+    slot.querySelector("[data-owned]").hidden = !owned;
+    slot.querySelector("[data-empty-hint]").hidden = !!value;
+    const q = slot.querySelector("[data-quality]:checked");
+    const none = q && q.value === "none";
+    type.disabled = build.disabled || none;
+    const best = slot.dataset.best;
+    slot.querySelector("[data-type-hint]").textContent = none || !best ? "" : best === type.value
+      ? "★ powers its special" : `Its special scales with ${TYPE_FOR[best]} (${best.toLowerCase()})`;
+    slot.querySelector("[data-level-out]").textContent = slot.querySelector("[data-level]").value;
+  };
+  form.querySelectorAll("[data-slot]").forEach((slot) => {
+    const pick = slot.querySelector("[data-sp]");
+    pick.addEventListener("sp:change", (e) => {
+      if (e.target !== pick) return;  // the items picker inside the slot
+      const o = e.detail.options[0];
+      slot.dataset.best = (o && o.best) || "";
+      if (o && o.g === "any") {
+        if (o.best) slot.querySelector("[data-type]").value = o.best;
+        slot.querySelector(`[data-taunt][value="${o.t ? 1 : 0}"]`).checked = true;
+      }
+      if (o && o.g === "mine") slot.querySelector("[data-owned-meta]").textContent = o.m;
+      sync(slot);
+    });
+    slot.querySelectorAll("[data-quality], [data-level], [data-type]").forEach((el) => el.addEventListener("input", () => sync(slot)));
+    sync(slot);
+  });
+  document.addEventListener("click", (e) => {
+    const use = e.target.closest("[data-suggest-slot]");
+    if (!use || !window.stfuPicker) return;
+    const slot = form.querySelectorAll("[data-slot]")[Number(use.dataset.suggestSlot)];
+    if (!slot) return;
+    if (use.dataset.suggestValue.startsWith("s:")) {  // built like the team: set the fields before the pick posts
+      slot.querySelector("[data-level]").value = use.dataset.suggestLevel;
+      const star = slot.querySelector(`input[name^="a"][value="${use.dataset.suggestAwaken}"]`);
+      if (star) star.checked = true;
+      const perfect = slot.querySelector('[data-quality][value="perfect"]');
+      if (perfect) perfect.checked = true;
+    }
+    window.stfuPicker.set(slot.querySelector("[data-sp]"), [use.dataset.suggestValue]);
+    slot.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+  document.body.addEventListener("htmx:afterSwap", (e) => {
+    const link = e.detail.target.id === "plan-review" ? document.querySelector("#plan-review [data-share]") : null;
+    if (link) history.replaceState(null, "", link.dataset.share);
+  });
+})();
+</script>
+{% endblock %}
