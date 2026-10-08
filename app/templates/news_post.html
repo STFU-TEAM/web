@@ -6,7 +6,7 @@
   <h1 class="display sm">{{ post.title }}</h1>
   {% if post.cover %}<img class="news-cover" src="{{ post.cover }}" alt="" onerror="this.remove()">{% endif %}
   <div class="news-text">{{ post.body|news_body }}</div>
-  {% if me.id and me.id in config.DISCORD_ADMIN_IDS %}
+  {% if me.admin %}
     <p><a class="btn small ghost" href="{{ url_for('admin.news_admin', edit=post.id) }}">Edit this post</a></p>
   {% endif %}
   {% if others %}

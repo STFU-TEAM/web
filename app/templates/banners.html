@@ -22,7 +22,7 @@
   </header>
   {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your Arrowhead on any banner below.</p>{% endif %}
 
-  {% if me.id in config.DISCORD_ADMIN_IDS %}
+  {% if me.admin %}
     <form class="admin-force" method="post" action="{{ url_for('play.force_rarity') }}">
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
       <span class="admin-force-tag">🛠 Admin</span>

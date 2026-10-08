@@ -337,6 +337,7 @@ def register(app):
         uid = session.get("uid")
         story_hot = tour_pending = False
         inbox_count, toasts, duel_waiting = 0, [], False
+        from app.auth import is_admin
         from app.game import progression
         nav_unlocked, nav_new = progression.opened(0), []
         if uid and request.endpoint != "static":
@@ -359,7 +360,8 @@ def register(app):
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
-            "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},
+            "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
+                   "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
             "csrf_token": session["csrf"],
             "STAND_COUNT": len(PLAYABLE),
             "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS, "SHINY_ODDS": round(1 / SHINY_CHANCE),

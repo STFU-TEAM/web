@@ -4,7 +4,7 @@
 <section class="page news">
   <header class="player-bar">
     <div><p class="kicker">From the team</p><h1 class="display sm">News</h1></div>
-    {% if me.id and me.id in config.DISCORD_ADMIN_IDS %}<a class="btn small gold" href="{{ url_for('admin.news_admin') }}">Write a post</a>{% endif %}
+    {% if me.admin %}<a class="btn small gold" href="{{ url_for('admin.news_admin') }}">Write a post</a>{% endif %}
   </header>
   {% if posts %}
     <div class="news-grid">

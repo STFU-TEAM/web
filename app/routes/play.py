@@ -491,7 +491,8 @@ FORCE_RARITIES = ("R", "SR", "SSR", "UR", "LR")
 
 
 def _is_admin() -> bool:
-    return session.get("uid") in current_app.config["DISCORD_ADMIN_IDS"]
+    from app.auth import is_admin
+    return is_admin(session.get("uid"))
 
 
 def _forced_rarity():

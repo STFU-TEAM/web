@@ -1,0 +1,37 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Admins{% endblock %}
+{% block admin %}
+<h1 class="display sm">Admins <small class="muted">{{ owners|length + promoted|length }}</small></h1>
+<p class="muted">Admins get the whole panel: grants, player edits, gangs, shops, banners, news and events. Owners are set in
+  <code>DISCORD_ADMIN_IDS</code> and are the only ones who can promote or remove admins.</p>
+
+{% if can_manage %}
+  <form class="inline admin-promote" method="post" action="{{ url_for('admin.admin_promote') }}"
+        onsubmit="return confirm('Give ' + this.player.value + ' full admin access?')">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label for="promote-player">Username or Discord ID</label>
+    <input id="promote-player" type="text" name="player" required autocapitalize="none" spellcheck="false">
+    <button class="btn gold">Make admin</button>
+  </form>
+{% endif %}
+
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Player</th><th>Role</th><th>Promoted by</th><th></th></tr></thead>
+  <tbody>
+    {% for a in owners %}
+      <tr><td><a href="{{ url_for('admin.player', uid=a.uid) }}"><strong>{{ a.name }}</strong></a><br><small class="muted">{{ a.uid }}</small></td>
+        <td>Owner</td><td class="muted">DISCORD_ADMIN_IDS</td><td></td></tr>
+    {% endfor %}
+    {% for a in promoted %}
+      <tr><td><a href="{{ url_for('admin.player', uid=a.uid) }}"><strong>{{ a.name }}</strong></a><br><small class="muted">{{ a.uid }}</small></td>
+        <td>Admin</td><td>{{ a.by }}<br><small class="muted">{{ a.at[:10] }}</small></td>
+        <td>{% if can_manage %}
+          <form method="post" action="{{ url_for('admin.admin_demote', uid=a.uid) }}" onsubmit="return confirm('Remove {{ a.name|e }} as admin?')">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Remove</button>
+          </form>{% endif %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

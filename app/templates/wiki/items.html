@@ -8,6 +8,9 @@
 </header>
 <h2 class="wiki-h2">Equipping</h2>
 <p>Gear adds health, damage, speed, critical or armor. Each <strong>team</strong> stand holds up to 3. Equip and unequip them from the <a href="{{ url_for('play.items') }}">items page</a> or from a stand's panel on the <a href="{{ url_for('play.team') }}">team page</a>. Some gear has its own special that charges during fights. Usable items are spent from the items page; materials go into <a href="{{ url_for('play.items') }}#crafting">crafting</a>. Spare items sell for a tenth of their shop price; free drops can't be sold but can be traded.</p>
+<h2 class="wiki-h2">How gear scales</h2>
+<p>An item's numbers grow with the stand's stars: each ★ adds a third, so at ★5 an item gives <strong>2.67×</strong> what it says. Then the stand's types apply on top (a Health type multiplies the health an item gives, a Luck type adds its crit to the item's). Gear also powers specials: every special scales with one stat (shown on each <a href="{{ url_for('main.stands') }}">stand's page</a>), and lifting that stat above the stand's natural value makes the special stronger. Luck specials gain about 1.2% per crit point, speed specials 2% per speed point, and health specials grow with the share of health added.</p>
+<p>That opens off-meta builds. A revenge tank like Wonder of U wants health (its special returns 30% of the health it has lost) and luck (its special scales with crit): Calamity Charm, Rokakaka Branch and Iggy's Collar to draw the hits. Speed and luck strikers want Valkyrie's Horseshoe, armored crit stands want Mista's Hat.</p>
 
 <h2 class="wiki-h2">Item catalog</h2>
 {% set kinds = items|map(attribute='kind')|unique|list %}

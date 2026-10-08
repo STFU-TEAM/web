@@ -1,5 +1,6 @@
-"""Admin panel: dashboard, player management, gangs, shops, banners and the audit log.
-Restricted to DISCORD_ADMIN_IDS (the bot's give_character permission). Every change is audited."""
+"""Admin panel: dashboard, player management, gangs, shops, banners, admins and the audit log.
+Restricted to DISCORD_ADMIN_IDS (the bot's give_character permission, the "owners") and the admins they
+promote from the Admins tab. Every change is audited."""
 import datetime
 import json
 
@@ -7,7 +8,7 @@ from flask import Blueprint, flash, redirect, render_template, request, session,
 
 from app import accounts
 from app.accounts import resolve_player
-from app.auth import admin_required
+from app.auth import ADMINS_KEY, admin_required, is_owner
 from app.db import Busy, clear_fight, get_db, identity, load_fight, r, user_lock
 from app.filters import PLAYABLE, RARITY_RANK
 from app.game import logic
@@ -501,6 +502,60 @@ def news_delete(post_id):
         audit("news_delete", post_id, title=post["title"])
         flash("Post deleted.", "ok")
     return redirect(url_for("admin.news_admin"))
+
+
+# --------------------------------------------------------------------------- #
+# Admins: the owners (DISCORD_ADMIN_IDS) promote and demote; every admin sees the list
+# --------------------------------------------------------------------------- #
+@bp.get("/admins")
+@admin_required
+def admins():
+    from flask import current_app
+    promoted = []
+    for uid, raw in r().hgetall(ADMINS_KEY).items():
+        uid = uid.decode() if isinstance(uid, bytes) else uid
+        try:
+            meta = json.loads(raw)
+        except (TypeError, ValueError):
+            meta = {}
+        promoted.append({"uid": uid, "name": identity(uid)["name"], "by": identity(meta["by"])["name"] if meta.get("by") else "?",
+                         "at": meta.get("at", "")})
+    promoted.sort(key=lambda a: a["at"], reverse=True)
+    owners = [{"uid": uid, "name": identity(uid)["name"]} for uid in sorted(current_app.config["DISCORD_ADMIN_IDS"])]
+    return render_template("admin/admins.html", section="admins", owners=owners, promoted=promoted,
+                           can_manage=is_owner(session["uid"]))
+
+
+@bp.post("/admins/promote")
+@admin_required
+def admin_promote():
+    if not is_owner(session["uid"]):
+        flash("Only the owners can promote admins.", "error")
+        return redirect(url_for("admin.admins"))
+    uid = resolve_player(request.form.get("player", ""))
+    if not uid:
+        flash("No player with that username or Discord ID.", "error")
+    elif is_owner(uid) or r().hexists(ADMINS_KEY, uid):
+        flash(f"{identity(uid)['name']} is already an admin.", "error")
+    else:
+        r().hset(ADMINS_KEY, uid, json.dumps({"by": session["uid"],
+                                               "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}))
+        audit("admin_promote", uid, name=identity(uid)["name"])
+        flash(f"{identity(uid)['name']} is now an admin.", "ok")
+    return redirect(url_for("admin.admins"))
+
+
+@bp.post("/admins/<uid>/demote")
+@admin_required
+def admin_demote(uid):
+    if not is_owner(session["uid"]):
+        flash("Only the owners can remove admins.", "error")
+    elif not r().hdel(ADMINS_KEY, uid):
+        flash("That player isn't a promoted admin (owners are set in DISCORD_ADMIN_IDS).", "error")
+    else:
+        audit("admin_demote", uid, name=identity(uid)["name"])
+        flash(f"{identity(uid)['name']} is no longer an admin.", "ok")
+    return redirect(url_for("admin.admins"))
 
 
 @bp.get("/audit")

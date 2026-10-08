@@ -167,4 +167,8 @@ def link_discord(local_uid: str, discord_uid: str):
     account["uid"] = discord_uid
     r().set(_key(username), json.dumps(account))
     r().set(f"web:account_uid:{discord_uid}", username)
+    promoted = r().hget("web:admins", local_uid)  # an admin promoted on the site stays one (app/auth.py ADMINS_KEY)
+    if promoted:
+        r().hset("web:admins", discord_uid, promoted)
+        r().hdel("web:admins", local_uid)
     r().delete(f"web:account_uid:{local_uid}", f"web:identity:{local_uid}", f"web:fight:{local_uid}")

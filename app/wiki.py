@@ -420,6 +420,9 @@ ITEM_ABILITY = {
     43: "In fights, every 3 turns: heals 12% of max health.",
     45: "In fights, every 3 turns: heals 10% of max health and +20% damage for 2 turns.",
     46: "The holder taunts: enemies must hit it first with basic attacks, and it gains the taunt armor bonus.",
+    54: "In fights, every 2 turns: an enemy takes 15% of the health the holder has lost, as true damage. Pairs with taunts and big health pools.",
+    55: "In fights, every 3 turns: a bet of +10, +20, +30 or +40 crit for 2 turns.",
+    56: "In fights, every 2 turns: a Clacker Volley for 30% of the holder's damage as true damage.",
 }
 ITEM_USE = {
     2: "Spent on a banner: 5 stands at SR or better.",

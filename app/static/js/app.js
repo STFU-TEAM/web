@@ -670,11 +670,14 @@ document.addEventListener("htmx:load", (e) => {
 // Pop-up toasts: rendered on full pages, or sent with an HTMX response as HX-Trigger {"toast": [...]}.
 (() => {
   const box = () => document.getElementById("toasts");
-  const arm = (el) => {
+  const arm = (el) => {  // errors stay longer; a toast under the pointer or finger waits
     if (el.dataset.armed) return;
     el.dataset.armed = "1";
-    setTimeout(() => el.classList.add("leaving"), 7000);
-    setTimeout(() => el.remove(), 7600);
+    let left = el.classList.contains("flash-error") ? 12000 : 7000, since = Date.now(), timer;
+    const go = () => { timer = setTimeout(() => { el.classList.add("leaving"); setTimeout(() => el.remove(), 600); }, left); };
+    el.addEventListener("pointerenter", () => { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - since)); });
+    el.addEventListener("pointerleave", () => { since = Date.now(); go(); });
+    go();
   };
   document.querySelectorAll("[data-toast]").forEach(arm);
   let held = [];
@@ -686,9 +689,9 @@ document.addEventListener("htmx:load", (e) => {
   });
   function show(list) {
     for (const t of list) {
-      const a = document.createElement("a");
+      const a = document.createElement(t.url ? "a" : "div");  // never href="#": it would jump to the top
       a.className = `toast-pop ${t.kind || ""}`;
-      a.href = t.url || "#";
+      if (t.url) a.href = t.url;
       a.dataset.toast = "";
       const span = document.createElement("span");
       span.textContent = t.text;
@@ -710,6 +713,18 @@ document.addEventListener("htmx:load", (e) => {
     if (x) { e.preventDefault(); x.closest("[data-toast]").remove(); }
   });
 })();
+
+// Plain (non-HTMX) forms post, redirect and reload the page: remember the scroll spot so base.html can put the
+// player back where they clicked instead of at the top of the page.
+document.addEventListener("submit", (e) => {
+  const f = e.target;
+  if (!(f instanceof HTMLFormElement) || (f.getAttribute("method") || "").toLowerCase() !== "post") return;
+  if (f.matches("[hx-post], [hx-get], [hx-put], [hx-delete], [hx-patch]") || f.target === "_blank") return;
+  try {
+    sessionStorage.setItem("post-scroll", JSON.stringify({ path: location.pathname, y: Math.round(scrollY), at: Date.now(),
+                                                           fight: !!document.getElementById("fight") }));
+  } catch (err) { /* storage blocked: the page just opens at the top */ }
+});
 
 // Quest tabs (Daily / Weekly / Journey), and "3 h ago" times in the inbox.
 document.addEventListener("click", (e) => {

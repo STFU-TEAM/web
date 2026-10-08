@@ -51,8 +51,16 @@ def player_required(view):
     return wrapper
 
 
-def is_admin(uid) -> bool:
+ADMINS_KEY = "web:admins"  # uid -> {"by", "at"}: admins promoted from the admin panel
+
+
+def is_owner(uid) -> bool:
+    """The configured admins (DISCORD_ADMIN_IDS): always admins, and the only ones who can promote or demote."""
     return bool(uid) and uid in current_app.config["DISCORD_ADMIN_IDS"]
+
+
+def is_admin(uid) -> bool:
+    return is_owner(uid) or (bool(uid) and bool(r().hexists(ADMINS_KEY, uid)))
 
 
 def admin_required(view):

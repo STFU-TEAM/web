@@ -395,7 +395,6 @@ form.inline select { font-size: var(--step--1); max-width: 14rem; }
 .toast.ok { border-color: var(--teal); background: rgb(43 179 168 / .12); }
 .toast.error, .notice.error { border-color: var(--magenta); background: rgb(214 36 110 / .14); }
 .toast.floating { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 50; background: var(--night-2); }
-.flash { width: var(--page); margin: 1rem auto 0; padding: .75rem 1rem; border-radius: var(--radius-ui); background: var(--night-2); border-left: 4px solid var(--magenta); }
 
 /* ---------- the tarot card ---------- */
 .card {
@@ -912,6 +911,13 @@ table.stats td { font-weight: 700; font-variant-numeric: tabular-nums; }
 .toast-pop.trade::before { content: "⇄"; }
 .toast-pop.gang::before { content: "⚑"; }
 .toast-pop.achievement::before { content: "🏆"; }
+.toast-pop.unlock::before { content: "🔓"; }
+/* the result of an action (Flask flash), floating instead of a bar at the top of the page */
+.toast-pop[class*="flash-"]::before { content: "ℹ"; color: var(--gold); font-weight: 700; }
+.toast-pop.flash-ok { border-color: var(--teal); }
+.toast-pop.flash-ok::before { content: "✓"; color: var(--teal); }
+.toast-pop.flash-error { border-color: var(--magenta); }
+.toast-pop.flash-error::before { content: "⚠"; color: #FF8DB9; }
 .achievements li.secret { border-style: dashed; }
 .achievements li[hidden] { display: none; }
 .ach-filter { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }

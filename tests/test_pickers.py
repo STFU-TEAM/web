@@ -68,7 +68,8 @@ def test_item_options_group_count_and_skip_bound(client):
         assert mine["Lottery ticket"]["g"] == "gear" and "+10 CRT" in mine["Lottery ticket"]["m"]
         assert not any(o["id"] == TORN_DIARY_PAGE for o in mine.values())  # bound: never traded or listed
         assert [o["id"] for o in pickers.owned_items(items, equipable=True)] == [15]
-        assert len(pickers.catalog_items()) == 48
+        from app.game.items import item_file
+        assert len(pickers.catalog_items()) == len(item_file)
 
 
 def test_a_trade_sent_through_the_item_picker(client):

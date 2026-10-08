@@ -140,6 +140,46 @@ def ultimate_being_mask(
     return f"｢{stand.name}｣ becomes the Ultimate Being: heals {healed} and +20% damage!"
 
 
+def _focus_or_random(stand, ennemy_stand):
+    valid = [i for i in ennemy_stand if i.is_alive()]
+    if not valid:
+        return None
+    focus = getattr(stand, "_focus", None)
+    return focus if focus in valid else random.choice(valid)
+
+
+def rokakaka_branch(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    # equivalent exchange: the deeper the holder's wounds, the harder it pays them back (revenge tanks)
+    missing = stand.start_hp - stand.current_hp
+    target = _focus_or_random(stand, ennemy_stand)
+    if missing < 1 or target is None:
+        return "None"
+    dealt = target.take(missing * 0.15)
+    return f"｢{stand.name}｣'s Rokakaka Branch makes an equivalent exchange: its wounds hit {target.name} for {dealt}!"
+
+
+def darbys_chips(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    bet = random.choice((10, 20, 30, 40))
+    stand.add_effect(Effect(EffectType.CRITUP, 2, bet, stand))
+    if bet == 40:
+        return f"｢{stand.name}｣ calls D'Arby's bluff: jackpot, +{bet} crit for 2 turns!"
+    return f"｢{stand.name}｣ bets D'Arby's chips: +{bet} crit for 2 turns."
+
+
+def josephs_clackers(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    target = _focus_or_random(stand, ennemy_stand)
+    if target is None:
+        return "None"
+    dealt = target.take(stand.current_damage * 0.3)
+    return f"｢{stand.name}｣ swings a Clacker Volley at {target.name} for {dealt}!"
+
+
 item_specials = {
     "1": dio_Knife,
     "2": stand_arrows,
@@ -154,4 +194,7 @@ item_specials = {
     "41": steel_ball,
     "43": rokakaka_graft,
     "45": ultimate_being_mask,
+    "54": rokakaka_branch,
+    "55": darbys_chips,
+    "56": josephs_clackers,
 }

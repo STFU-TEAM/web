@@ -70,6 +70,73 @@
         [2, 2]
       ],
       "result": 3
+    },
+    {
+      "name": "Calamity Charm",
+      "ingredients": [
+        [4, 1],
+        [39, 2],
+        [15, 1]
+      ],
+      "result": 49
+    },
+    {
+      "name": "Valkyrie's Horseshoe",
+      "ingredients": [
+        [38, 2],
+        [15, 1]
+      ],
+      "result": 50
+    },
+    {
+      "name": "Caesar's Bandana",
+      "ingredients": [
+        [4, 1],
+        [40, 2]
+      ],
+      "result": 51
+    },
+    {
+      "name": "Mista's Hat",
+      "ingredients": [
+        [15, 1],
+        [38, 1],
+        [40, 1]
+      ],
+      "result": 52
+    },
+    {
+      "name": "Anubis Sheath",
+      "ingredients": [
+        [1, 2],
+        [40, 1]
+      ],
+      "result": 53
+    },
+    {
+      "name": "Rokakaka Branch",
+      "ingredients": [
+        [39, 3],
+        [38, 1]
+      ],
+      "result": 54
+    },
+    {
+      "name": "D'Arby's Chips",
+      "ingredients": [
+        [15, 2],
+        [13, 2]
+      ],
+      "result": 55
+    },
+    {
+      "name": "Joseph's Clackers",
+      "ingredients": [
+        [1, 1],
+        [38, 1],
+        [13, 1]
+      ],
+      "result": 56
     }
   ]
 }

@@ -24,7 +24,7 @@
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 {%- set ep = request.endpoint or '' -%}
-{%- set is_admin = me.id and me.id in config.DISCORD_ADMIN_IDS -%}
+{%- set is_admin = me.admin -%}
 {%- set on_ranked = ep == 'battles.index' and request.args.get('mode') == 'ranked' -%}
 {#- Every destination once: (label, url, active, icon, why it matters). Desktop menus, mobile dock,
     the menu sheet and the new-player tour all read from here. -#}
@@ -262,17 +262,32 @@
     {% endif %}
   </dialog>
 
+  {#- Pop-ups float over the page (top right, above the dock on phones): the result of an action ("flash") shows
+      where the player is looking instead of at the top of the page. A toast without a link isn't a link. -#}
   <div class="toasts" id="toasts" aria-live="polite">
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, m in msgs %}
+        <div class="toast-pop flash-{{ cat }}" data-toast role="{{ 'alert' if cat == 'error' else 'status' }}"><span>{{ m }}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></div>
+      {% endfor %}
+    {% endwith %}
     {% for t in toasts %}
-      <a class="toast-pop {{ t.kind }}" href="{{ t.url or '#' }}" data-toast><span>{{ t.text }}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></a>
+      {%- set tag = 'a' if t.url else 'div' -%}
+      <{{ tag }} class="toast-pop {{ t.kind }}" {% if t.url %}href="{{ t.url }}"{% endif %} data-toast><span>{{ t.text }}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></{{ tag }}>
     {% endfor %}
   </div>
 
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, m in msgs %}<p class="flash {{ cat }}" role="status">{{ m }}</p>{% endfor %}
-  {% endwith %}
-
   <main id="main">{% block main %}{% endblock %}</main>
+  <script>  /* back where you were after a form posts and the page reloads (app.js saves the spot on submit) */
+    try {
+      const k = "post-scroll", s = JSON.parse(sessionStorage.getItem(k) || "null");
+      sessionStorage.removeItem(k);
+      if (s && s.path === location.pathname && Date.now() - s.at < 20000 && !location.hash) {
+        const fight = document.getElementById("fight");
+        if (fight && !s.fight) fight.scrollIntoView({ block: "start" });  // a fight just started: show it
+        else if (!!fight === s.fight) window.scrollTo(0, Math.min(s.y, document.documentElement.scrollHeight));
+      }
+    } catch (e) {}
+  </script>
   {% if duel_waiting %}<div hidden hx-get="{{ url_for('battles.ping') }}" hx-trigger="every 3s" hx-swap="none"></div>{% endif %}
 
   {% if me.id %}{% include "partials/tour.html" %}{% endif %}

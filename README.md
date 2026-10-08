@@ -49,7 +49,14 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Tower: an endless weekly climb (level 100 by floor 27, ★5 by 42, compounding past it), persisted progress
   and shared fight UI
 - Daily dungeon: a free fogged 3-floor delve with persistent team health, a loot bag and a cash-out-or-go-deeper choice
-- Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited
+- Admin panel: bot-moderator Discord IDs can grant bounded resources; changes are audited. Those IDs
+  (`DISCORD_ADMIN_IDS`) are the owners: from the Admins tab they promote and remove other admins (`web:admins`,
+  `auth.is_admin`); promoted admins get the whole panel but can't promote anyone
+- Build gear (items 49-56, web only like 41-48): crafted from existing drops to cover every stat pair (health + crit,
+  speed + crit, health + speed, armor + crit, damage + armor), plus three actives: Rokakaka Branch (revenge: 15% of
+  the holder's lost health as true damage), D'Arby's Chips (a crit gamble) and Joseph's Clackers
+- Plain form posts (most buttons) reload the page where the player was (app.js saves the scroll spot on submit,
+  base.html restores it; a fight that just started is scrolled into view), and flash messages float as toasts
 - Public stand encyclopedia, leaderboards, player profiles
 - Wiki (`/wiki`): the bot's `/wiki` topics plus terrain and synergy explorers, built from
   `effects.py` / `characterabilities.py` by `app/wiki.py`. When a special starts checking a
