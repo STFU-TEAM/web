@@ -1,9 +1,9 @@
 """Story mode and achievements (bot /story, /achievements)."""
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
-from app.game import altverse, logic, rush, story, training
+from app.game import altverse, logic, progression, rush, story, training
 from app.game.fight import Fight, Side, fighting_copy
 from app.routes.fightturn import play_turn
 from app.game.achievements import get_all_achievements_status
@@ -39,23 +39,57 @@ def remember_cleared(uid, cleared: int) -> None:
     r().set(_cleared_key(uid), int(cleared), ex=CLEARED_TTL)
 
 
-def unlocks(uid) -> dict:
-    """Which story-gated modes the nav shows: {"altverse": bool, "overheaven": bool}. Reads a small cached
-    count instead of the whole save on every page."""
+def _cleared(uid) -> int:
+    """Stages cleared, from a small cached count instead of the whole save on every page."""
     raw = r().get(_cleared_key(uid))
-    if raw is None:
-        user = get_db().get_user(uid)
-        cleared = story.cleared(user) if user else 0
-        remember_cleared(uid, cleared)
-    else:
-        cleared = int(raw)
-    first_au = min(altverse._boss_index(c["after"]) for c in altverse.CHAPTERS)
-    return {"altverse": cleared > first_au, "overheaven": cleared >= story.TOTAL}
+    if raw is not None:
+        return int(raw)
+    user = get_db().get_user(uid)
+    cleared = story.cleared(user) if user else 0
+    remember_cleared(uid, cleared)
+    return cleared
+
+
+def unlocks(uid) -> dict:
+    """Which story-gated modes the player has opened: {"wormhole": bool, "tower": bool, "ranked": bool, ...}
+    (app/game/progression.py)."""
+    return progression.opened(_cleared(uid))
+
+
+def _skip() -> tuple:
+    return () if current_app.config.get("DUNGEON_ENABLED") else ("dungeon",)
+
+
+@bp.before_app_request
+def progression_gate():
+    """Story-gated modes: turn locked players away from their entry pages, and clear a mode's "New" tag
+    once the player opens it."""
+    uid = session.get("uid")
+    ep = request.endpoint or ""
+    page = progression.PAGES.get(ep) or ("ranked" if ep == "battles.index" and request.args.get("mode") == "ranked" else None)
+    gate = progression.ENTRY.get(ep)
+    if not uid or not (page or gate):
+        return None
+    opened = unlocks(uid)
+    if gate and not opened[gate]:
+        flash(f"{progression.LABELS[gate]} opens as you progress: {progression.requirement(gate).lower()}.", "error")
+        return redirect(url_for("progress.story_page"))
+    if page and opened[page] and request.method == "GET":
+        progression.seen(uid, page)
+    return None
+
+
+@bp.post("/unlocks/dismiss")
+@player_required
+def unlocks_dismiss():
+    progression.dismiss(session["uid"])
+    return redirect(request.referrer or url_for("main.home"))
 
 
 def _story_ctx(user, fight=None, error=None):
     return {"u": user, "fight": fight, "journey": story.journey(user), "stage": story.current(user),
             "cleared": story.cleared(user), "total": story.TOTAL, "error": error,
+            "next_unlock": progression.next_unlock(story.cleared(user), _skip()),
             "fight_action": url_for("progress.story_attack"),
             "fight_leave_action": url_for("progress.story_leave"), "fight_label": "Story"}
 
@@ -113,8 +147,10 @@ def _story_settle(user, fight):
     logic.track_quest_progress(user, "fight_win")
     logic.check_achievements(user, "fight_win")
     logic.track_quest_progress(user, "story_win")
+    before = story.cleared(user)
     rewards = story.win(user, int(fight.meta["stage"]))
-    remember_cleared(user.id, story.cleared(user))  # may open the Alternate Universe or Over Heaven in the nav
+    remember_cleared(user.id, story.cleared(user))  # may open new modes in the nav
+    progression.announce(user.id, before, story.cleared(user), _skip())
     logic.track_quest_progress(user, "reach_story", story.cleared(user))
     from app import social
     social.referral_progress(str(user.id), story.cleared(user))

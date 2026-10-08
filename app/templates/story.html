@@ -13,6 +13,7 @@
     </div>
   </header>
   {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% include "partials/unlocked.html" %}
 
   {% if fight %}
     {% include "partials/fight.html" %}
@@ -25,6 +26,11 @@
         {% if stage.index == 0 or part.stages[0].index == stage.index %}<p class="story-intro">{{ part.intro }}</p>{% endif %}
         <p class="story-text">{{ stage.text }}</p>
         <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
+        {% if next_unlock %}
+          {%- set left, names = next_unlock -%}
+          <p class="story-unlock">🔓 {{ 'This fight opens' if left == 1 else left ~ ' more stages open' }}
+            <strong>{{ names[:-1]|join(', ') ~ ' and ' ~ names[-1] if names|length > 1 else names[0] }}</strong>.</p>
+        {% endif %}
         {% if u.main_characters %}
           <form method="post" action="{{ url_for('progress.story_fight') }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">

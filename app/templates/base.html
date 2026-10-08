@@ -25,6 +25,7 @@
 </head>
 {%- set ep = request.endpoint or '' -%}
 {%- set is_admin = me.id and me.id in config.DISCORD_ADMIN_IDS -%}
+{%- set on_ranked = ep == 'battles.index' and request.args.get('mode') == 'ranked' -%}
 {#- Every destination once: (label, url, active, icon, why it matters). Desktop menus, mobile dock,
     the menu sheet and the new-player tour all read from here. -#}
 {%- set L = {
@@ -42,7 +43,8 @@
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'Twelve bosses back to back, health carried over. Weekly leaderboard.'),
   'coop': ('Co-op raid', url_for('coop.index'), ep.startswith('coop.'), '🤝', 'Team up with 2-3 friends, one stand each, against this week’s raid boss.'),
-  'battles': ('Battles', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith(('battles.simulator', 'battles.planner')), '⚔', 'Practice, ranked seasons, friend duels, live duels to watch and your replays.'),
+  'ranked': ('Ranked', url_for('battles.index', mode='ranked'), on_ranked, '🎖', 'Monthly seasons: draft 5 stands, ban 2, climb the Elo ladder for rewards.'),
+  'battles': ('Duels & practice', url_for('battles.index', mode='dummy'), ep.startswith('battles.') and not ep.startswith(('battles.simulator', 'battles.planner')) and not on_ranked, '⚔', 'The practice dummy, friend duels, live duels to watch and your replays.'),
   'planner': ('Team planner', url_for('battles.planner_page'), ep.startswith('battles.planner'), '📐', 'Try any stands together at any level and build: stats, synergies, simulation.'),
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
@@ -63,14 +65,22 @@
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
-{#- the Alternate Universe and Over Heaven only appear once the story has opened them -#}
-{%- set battle_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven', 'training'] if nav_unlocked.overheaven else []) + ['journey', 'rush', 'coop', 'battles', 'wormhole', 'tower'] + (['dungeon'] if config.DUNGEON_ENABLED else []) + ['planner', 'simulator'] -%}
+{#- Battle modes appear as the story opens them (app/game/progression.py): Mirror World, Tower and Dungeon after the
+    first fight, Ranked and the Alternate Universe after Part 3, Over Heaven at the end. -#}
+{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey'] -%}
+{%- set challenge_keys = (['wormhole'] if nav_unlocked.wormhole else []) + (['tower'] if nav_unlocked.tower else [])
+                         + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
+{%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles'] -%}
+{%- set battle_groups = [('Adventure', 'adventure', adventure_keys), ('Challenges', 'challenges', challenge_keys), ('PvP', 'pvp', pvp_keys)] -%}
+{%- set battle_keys = adventure_keys + challenge_keys + pvp_keys -%}
+{%- set collection_keys = ['items', 'chips', 'reforge', 'planner', 'simulator'] -%}
 {%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
-  {%- set sheet = [('Collection', ['team', 'items', 'chips', 'reforge', 'banners']), ('Battle', battle_keys), ('Progress', progress_keys),
-                   ('Community', community_keys), ('Explore', explore_keys)] -%}
+  {%- set sheet = [('Collection', ['team', 'items', 'chips', 'reforge', 'banners', 'planner', 'simulator']),
+                   ('Adventure', adventure_keys), ('Challenges', challenge_keys), ('PvP', pvp_keys),
+                   ('Progress', progress_keys), ('Community', community_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
   {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
 {%- endif -%}
@@ -78,32 +88,43 @@
   {%- set label, href, active, icon, why = L[key] -%}
   <a class="{{ cls }}" href="{{ href }}" data-tour="{{ key }}" {% if active %}aria-current="page"{% endif %}>{{ label }}</a>
 {%- endmacro -%}
+{#- what pulls the eye: the story until it's done, a live event, and modes the story just opened (New until visited) -#}
+{%- set dot_keys = (['story'] if story_hot else []) + nav_new -%}
+{%- macro is_hot(key) -%}{{ 1 if key in dot_keys or (key == 'events' and live_event) }}{%- endmacro -%}
+{%- macro any_hot(keys) -%}{% for k in keys if k in dot_keys %}1{% endfor %}{%- endmacro -%}
+{%- macro badge(key) -%}
+  {%- if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>
+  {%- elif key in nav_new %} <em class="nav-badge new">New</em>{% endif -%}
+{%- endmacro -%}
 {%- macro menu_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}
-  {%- set is_hot = (key == 'story' and story_hot) or (key == 'events' and live_event) -%}
-  <a class="menu-item{% if is_hot %} hot{% endif %}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>
-    <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span><strong>{{ label }}{% if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>{% endif %}</strong><small>{{ why }}</small></span></a>
+  <a class="menu-item{% if is_hot(key) %} hot{% endif %}" href="{{ href }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="menu-icon" aria-hidden="true">{{ icon }}</span><span><strong>{{ label }}{{ badge(key) }}</strong><small>{{ why }}</small></span></a>
 {%- endmacro -%}
-{%- macro nav_menu(title, keys, tour, hot=False) -%}
+{%- macro nav_menu(title, keys, tour, groups=None) -%}
+  {%- set hot = any_hot(keys) -%}
   <details class="nav-drop{% if hot %} hot{% endif %}" data-tour="{{ tour }}">
-    <summary {% if any_active(keys) %}aria-current="page"{% endif %}>{{ title }}{% if hot %}<span class="nav-dot" aria-label="New story stage"></span>{% endif %}</summary>
-    <div class="nav-menu wide">{% for k in keys %}{{ menu_link(k) }}{% endfor %}</div>
+    <summary {% if any_active(keys) %}aria-current="page"{% endif %}>{{ title }}{% if hot %}<span class="nav-dot" aria-label="Something new"></span>{% endif %}</summary>
+    <div class="nav-menu wide">
+      {%- if groups %}{% for sub, _key, gkeys in groups if gkeys %}<p class="menu-sub">{{ sub }}</p>{% for k in gkeys %}{{ menu_link(k) }}{% endfor %}{% endfor %}
+      {%- else %}{% for k in keys %}{{ menu_link(k) }}{% endfor %}{% endif -%}
+    </div>
   </details>
 {%- endmacro -%}
 {%- macro any_active(keys) -%}{% for k in keys if L[k][2] %}1{% endfor %}{%- endmacro -%}
-{#- Desktop sidebar (>= 1024px, signed in): the same destinations in collapsible groups. Collection and Battle,
-    and the group of the page you're on, start open; the player's own choices are remembered (app.js). -#}
+{#- Desktop sidebar (>= 1024px, signed in): the same destinations in collapsible groups. Collection and the battle
+    groups, the group of the page you're on and any group with something new start open; the player's own choices
+    are remembered (app.js). -#}
 {%- set side_pinned = ['team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
-{%- set side_groups = [('Collection', 'collection', ['items', 'chips', 'reforge', 'dex'], True),
-                       ('Battle', 'battle', battle_keys, True), ('Progress', 'progress', progress_keys, False),
+{%- set side_groups = [('Collection', 'collection', ['items', 'chips', 'reforge', 'dex', 'planner', 'simulator'], True),
+                       ('Adventure', 'adventure', adventure_keys, True), ('Challenges', 'challenges', challenge_keys, True),
+                       ('PvP', 'pvp', pvp_keys, True), ('Progress', 'progress', progress_keys, False),
                        ('Community', 'community', community_keys|reject('in', ['inbox', 'gangs'])|list, False),
                        ('Explore', 'explore', explore_keys, False)] -%}
 {%- macro side_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}
-  {%- set is_hot = (key == 'story' and story_hot) or (key == 'events' and live_event) -%}
-  <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot %} hot{% endif %}" href="{{ href }}" data-tour="{{ key }}" title="{{ label }}: {{ why }}" {% if active %}aria-current="page"{% endif %}>
-    <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>
-    {%- if key == 'story' and story_hot %}<em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %}<em class="nav-badge">Live</em>{% endif %}</a>
+  <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot(key) %} hot{% endif %}{% if key in nav_new %} is-new{% endif %}" href="{{ href }}" data-tour="{{ key }}" title="{{ label }}: {{ why }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>{{ badge(key) }}</a>
 {%- endmacro -%}
 <body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
   <a class="skip" href="#main">Skip to content</a>
@@ -116,10 +137,10 @@
     <nav class="side-scroll" aria-label="Pages">
       <div class="side-links side-pinned">{% for k in side_pinned %}{{ side_link(k) }}{% endfor %}</div>
       {% for title, key, keys, default_open in side_groups %}
-        {%- set open = default_open or any_active(keys) or (key == 'battle' and story_hot) -%}
+        {%- set open = default_open or any_active(keys) or any_hot(keys) -%}
         <section class="side-group{% if open %} open{% endif %}" data-side-group="{{ key }}" data-default="{{ 1 if open else 0 }}" data-tour="{{ key }}">
           <button type="button" class="side-head" data-side-head aria-expanded="{{ 'true' if open else 'false' }}">
-            <span class="side-label">{{ title }}</span>{% if key == 'battle' and story_hot %}<span class="nav-dot" aria-label="New story stage"></span>{% endif %}
+            <span class="side-label">{{ title }}</span>{% if any_hot(keys) %}<span class="nav-dot" aria-label="Something new"></span>{% endif %}
           </button>
           <div class="side-links">{% for k in keys %}{{ side_link(k) }}{% endfor %}</div>
         </section>
@@ -129,11 +150,12 @@
       <span class="side-icon" aria-hidden="true">«</span><span class="side-label">Collapse</span>
     </button>
   </aside>
-  <script>  /* apply the player's remembered open groups before the first paint (the active page's group stays open) */
+  <script>  /* apply the player's remembered open groups before the first paint (the active page's group, and one with
+               a newly opened mode, stay open) */
     try {
       const saved = JSON.parse(localStorage.getItem("side-open") || "{}");
       document.querySelectorAll("[data-side-group]").forEach((g) => {
-        const k = g.dataset.sideGroup, keep = g.querySelector("[aria-current]");
+        const k = g.dataset.sideGroup, keep = g.querySelector("[aria-current], .is-new");
         if (k in saved && !keep) { g.classList.toggle("open", saved[k]); g.querySelector("[data-side-head]").setAttribute("aria-expanded", String(saved[k])); }
       });
       if (document.documentElement.classList.contains("side-mini")) {
@@ -151,8 +173,9 @@
 
     <nav class="nav" aria-label="Main">
       {% if me.id %}
-        {{ nav_link('team') }}{{ nav_link('gangs', 'nav-gang') }}{{ nav_link('banners') }}{{ nav_link('items') }}{{ nav_link('reforge') }}
-        {{ nav_menu('Battle', battle_keys, 'battle', hot=story_hot) }}
+        {{ nav_link('team') }}{{ nav_link('gangs', 'nav-gang') }}{{ nav_link('banners') }}
+        {{ nav_menu('Collection', collection_keys, 'collection') }}
+        {{ nav_menu('Battle', battle_keys, 'battle', groups=battle_groups) }}
         {{ nav_menu('Progress', progress_keys, 'progress') }}
         {{ nav_menu('Community', community_keys, 'community') }}
         {{ nav_menu('Explore', explore_keys, 'explore') }}
@@ -192,7 +215,8 @@
       {% for k, label, tour in [('team', 'Team', 'team'), ('gangs', 'Gang', 'gangs'), ('banners', 'Summon', 'banners'), ('story', 'Battle', 'battle'), ('quests', 'Quests', 'progress')] %}
         {%- set _l, href, active, icon, why = L[k] -%}
         {%- set on = active or (k == 'story' and any_active(battle_keys)) -%}
-        <a href="{{ href }}" data-tour="{{ tour }}" class="{{ 'hot' if k == 'story' and story_hot }}" {% if on %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ '⚔' if k == 'story' else icon }}</span>{{ label }}{% if k == 'story' and story_hot %}<span class="nav-dot" aria-hidden="true"></span>{% endif %}</a>
+        {%- set hot = k == 'story' and any_hot(battle_keys) -%}
+        <a href="{{ href }}" data-tour="{{ tour }}" class="{{ 'hot' if hot }}" {% if on %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ '⚔' if k == 'story' else icon }}</span>{{ label }}{% if hot %}<span class="nav-dot" aria-hidden="true"></span>{% endif %}</a>
       {% endfor %}
     {% else %}
       <a href="{{ url_for('main.home') }}" {% if ep == 'main.home' %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">⌂</span>Home</a>
@@ -217,12 +241,12 @@
       {% endif %}
       <button type="button" class="sheet-close" data-sheet-close aria-label="Close menu">✕</button>
     </div>
-    {% for title, keys in sheet %}
+    {% for title, keys in sheet if keys %}
       <p class="sheet-group">{{ title }}</p>
       <div class="sheet-grid">
         {% for k in keys %}
           {%- set label, href, active, icon, why = L[k] -%}
-          <a href="{{ href }}" class="{{ 'hot' if (k == 'story' and story_hot) or (k == 'events' and live_event) }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span><span>{{ label }}<small>{{ why }}</small></span></a>
+          <a href="{{ href }}" class="{{ 'hot' if is_hot(k) }}" {% if active %}aria-current="page"{% endif %}><span aria-hidden="true">{{ icon }}</span><span>{{ label }}{{ badge(k) }}<small>{{ why }}</small></span></a>
         {% endfor %}
       </div>
     {% endfor %}

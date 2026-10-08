@@ -1,0 +1,20 @@
+{#- Modes the story just opened, shown until the player visits them or says "Got it" (app/game/progression.py). -#}
+{% if nav_new %}
+<section class="unlock-spot" aria-labelledby="unlock-h">
+  <div class="unlock-head">
+    <h2 class="h3" id="unlock-h">🔓 Just unlocked</h2>
+    <form method="post" action="{{ url_for('progress.unlocks_dismiss') }}">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Got it</button>
+    </form>
+  </div>
+  <div class="unlock-grid">
+    {% for k in (['ranked'] if 'ranked' in nav_new else []) + nav_new|reject('eq', 'ranked')|list if k in L %}{#- ranked leads, full width -#}
+      {%- set label, href, active, icon, why = L[k] -%}
+      <a class="story-cta unlock-card{% if k == 'ranked' %} ranked{% endif %}" href="{{ href }}">
+        <span class="story-cta-icon" aria-hidden="true">{{ icon }}</span>
+        <span><small>New{{ ' · PvP seasons' if k == 'ranked' }}</small><strong>{{ label }}</strong><span class="muted">{{ why }}</span></span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

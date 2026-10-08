@@ -78,7 +78,7 @@
     <ol class="feed">
       {% for n in feed %}
         <li class="feed-item {{ n.kind }}{% if n.at > seen_before %} new{% endif %}">
-          <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑'}.get(n.kind, '🔔') }}</span>
+          <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑', 'unlock': '🔓'}.get(n.kind, '🔔') }}</span>
           <span class="feed-text">{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</span>
           <time class="muted" datetime="{{ n.at }}" data-ago="{{ n.at }}"></time>
         </li>

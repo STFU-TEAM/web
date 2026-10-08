@@ -16,6 +16,7 @@
       <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
     </header>
     {% include "partials/event_ribbon.html" %}
+    {% include "partials/unlocked.html" %}
     {% if mode == 'ranked' and dv %}
       {#- a 20 s pick-and-ban: first thing on the page, nothing else in the way -#}
       {% include "partials/ranked_draft.html" %}
@@ -29,8 +30,14 @@
       </a>
     {% endif %}
     <nav class="tabs battle-tabs scroll-tabs" aria-label="Battle mode">
-      {% for key, label in [('dummy', 'Dummy'), ('ranked', 'Ranked'), ('friends', 'Friends'), ('watch', 'Watch live'), ('history', 'History')] %}
-        <a href="{{ url_for('battles.index', mode=key) }}" {% if mode == key %}aria-current="true"{% endif %}>{% if key == 'watch' %}<span class="live-dot" aria-hidden="true"></span>{% endif %}{{ label }}</a>
+      {#- PvP first (ranked opens after Part 3 of the story), then practice and the record -#}
+      {% for key, label in [('ranked', 'Ranked'), ('friends', 'Friends'), ('watch', 'Watch live'), ('dummy', 'Dummy'), ('history', 'History')] %}
+        {%- if key == 'dummy' %}<span class="tab-split" aria-hidden="true"></span>{% endif -%}
+        {%- set locked = key == 'ranked' and not nav_unlocked.ranked -%}
+        <a href="{{ url_for('battles.index', mode=key) }}" class="{{ 'tab-ranked' if key == 'ranked' }}{{ ' locked' if locked }}{{ ' hot' if key in nav_new }}"
+           {% if locked %}title="{{ ranked_need }} to open ranked"{% endif %} {% if mode == key %}aria-current="true"{% endif %}>
+          {%- if key == 'watch' %}<span class="live-dot" aria-hidden="true"></span>{% elif locked %}<span aria-hidden="true">🔒 </span>{% elif key == 'ranked' %}<span aria-hidden="true">🎖 </span>{% endif %}{{ label }}
+          {%- if key in nav_new %} <em class="nav-badge new">New</em>{% endif %}</a>
       {% endfor %}
       <a class="tab-aside" href="{{ url_for('battles.simulator') }}">🧪 Simulator</a>
     </nav>
@@ -40,6 +47,14 @@
         <div><p class="kicker">Practice</p><h2 class="h2">Training Dummy</h2><p>Try your team's abilities and watch the fight log. Practice has no cost and does not change Elo.</p></div>
         {% if not u.main_characters %}<p class="notice">Add at least one stand to your team first.</p>
         {% else %}<form method="post" action="{{ url_for('battles.dummy_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Fight the dummy</button></form>{% endif %}
+      </section>
+    {% elif mode == 'ranked' and not nav_unlocked.ranked %}
+      <section class="battle-panel ranked-locked">
+        <div><p class="kicker">🔒 Opens with the story</p><h2 class="h2">Ranked</h2>
+          <p>Monthly seasons with a draft: bring {{ roster_size }} stands, ban 2 of your opponent's, and climb the ladder for Meteor Dust, Arrowheads and titles. {{ ranked_need }} to open it.</p>
+          <div class="meter" role="meter" aria-label="Story stages toward ranked" aria-valuemin="0" aria-valuemax="{{ ranked_at }}" aria-valuenow="{{ [story_cleared, ranked_at]|min }}"><i style="width: {{ 100 * [story_cleared, ranked_at]|min // ranked_at }}%"></i></div>
+          <p class="muted small-print">{{ [story_cleared, ranked_at]|min }} / {{ ranked_at }} story stages</p></div>
+        <a class="btn gold" href="{{ url_for('progress.story_page') }}">Continue the story →</a>
       </section>
     {% elif mode == 'ranked' %}
       {% for s in season_claims[:1] %}

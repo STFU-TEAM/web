@@ -30,6 +30,7 @@
 </section>
 
 {% if live_event and registered %}<div class="page">{% include "partials/event_ribbon.html" %}</div>{% endif %}
+{% if nav_new %}<div class="page">{% include "partials/unlocked.html" %}</div>{% endif %}
 
 {% if posts %}
 <section class="page home-news">

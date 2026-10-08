@@ -337,10 +337,12 @@ def register(app):
         uid = session.get("uid")
         story_hot = tour_pending = False
         inbox_count, toasts, duel_waiting = 0, [], False
-        nav_unlocked = {"altverse": False, "overheaven": False}
+        from app.game import progression
+        nav_unlocked, nav_new = progression.opened(0), []
         if uid and request.endpoint != "static":
             from app.routes.progress import unlocks
             nav_unlocked = unlocks(uid)
+            nav_new = progression.new(uid)  # modes the story just opened: tagged New until visited
             from app.db import r  # the nav highlights the story until it's done; the tour runs once per new save
             from app import social
             from app.routes.community import pending_count
@@ -354,7 +356,7 @@ def register(app):
         from app.game import events
         return {
             "live_event": events.cached(),
-            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked,
+            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
             "me": {"id": session.get("uid"), "name": session.get("name"), "avatar": session.get("avatar")},

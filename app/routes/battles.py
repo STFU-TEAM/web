@@ -10,7 +10,7 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import chips, draft as draft_mod, events, history, logic, pickers, seasons, simulate, story
+from app.game import chips, draft as draft_mod, events, history, logic, pickers, progression, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game.fight import Fight, Side, ai_choice, fighting_copy
@@ -157,7 +157,8 @@ def index():
                                r().get(CHALLENGE_WAIT.format(uid))),
                            turn_left=(lambda f: turn_left(f) if f else None)(_active_fight(uid)),
                            stands=PLAYABLE, story_stage=story.current(user), story_cleared=story.cleared(user),
-                           story_total=story.TOTAL)
+                           story_total=story.TOTAL, ranked_at=progression.GATES["ranked"],
+                           ranked_need=progression.requirement("ranked"))
 
 
 @bp.post("/dummy/start")

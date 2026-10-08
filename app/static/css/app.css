@@ -153,6 +153,10 @@ a:hover { color: #fff; }
 .menu-item.hot { background: rgb(244 197 66 / .1); box-shadow: inset 3px 0 0 var(--gold); }
 .menu-item.hot .menu-icon { background: var(--gold); color: var(--ink); }
 .nav-badge { margin-left: .3rem; padding: .05rem .4rem; border-radius: 999px; background: var(--gold); color: var(--ink); font: 700 .65rem/1.4 var(--body); font-style: normal; vertical-align: .1em; }
+.nav-badge.new { background: var(--magenta); color: #fff; }
+/* sub-sections inside a grouped menu (Battle: Adventure, Challenges, PvP) */
+.menu-sub { margin: .35rem .7rem .1rem; color: var(--gold); font-size: .68rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.menu-sub:first-child { margin-top: .15rem; }
 /* The Battle tab glows until the story is done, to pull new players into it. */
 .nav-drop.hot > summary { color: var(--gold); background: rgb(244 197 66 / .1); box-shadow: inset 0 0 0 1px rgb(244 197 66 / .45); }
 .nav-dot { display: inline-block; width: 8px; height: 8px; margin-left: .35rem; border-radius: 50%; background: var(--magenta); box-shadow: 0 0 0 0 rgb(214 36 110 / .7); animation: dot-ping 1.8s ease-out infinite; vertical-align: .15em; }
@@ -2398,6 +2402,29 @@ body.cine-open { overflow: hidden; }
 .scroll-tabs a { flex: none; white-space: nowrap; scroll-snap-align: start; display: inline-flex; align-items: center; gap: .35rem; }
 .tabs .tab-aside { margin-left: auto; border-style: dashed; color: var(--muted); }
 .tabs .tab-aside:hover { color: var(--paper); border-color: var(--paper); }
+/* battle tabs: PvP | practice and record */
+.tabs .tab-split { width: 2px; align-self: stretch; margin-inline: .3rem; border-radius: 2px; background: var(--night-3); }
+.tabs .tab-ranked:not([aria-current]) { border-color: rgb(244 197 66 / .55); }
+.tabs a.locked { color: var(--muted); border-style: dashed; border-color: var(--night-3); }
+.tabs a.locked[aria-current] { background: var(--night-3); color: var(--paper); border-color: var(--night-3); }
+.tabs a.hot:not([aria-current]) { box-shadow: 0 0 0 0 rgb(244 197 66 / .4); animation: cta-glow 2.4s ease-in-out infinite; }
+.ranked-locked .meter { max-width: 26rem; margin-top: .6rem; }
+
+/* what the story just opened: one card per new mode, until it's visited */
+.unlock-spot { margin: 0 0 1.4rem; }
+.unlock-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .6rem; }
+.unlock-head .h3 { margin: 0; color: var(--gold); }
+.unlock-head form { margin: 0; }
+.unlock-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: .8rem; }
+.unlock-grid .unlock-card { margin: 0; padding: .85rem 1rem; }
+.unlock-card strong { font-size: var(--step-0); }
+.unlock-card .story-cta-icon { font-size: 1.6rem; }
+.unlock-card.ranked { grid-column: 1 / -1; border-color: var(--magenta); background: linear-gradient(110deg, rgb(214 36 110 / .2), transparent 65%), var(--night-2); }
+.unlock-card.ranked small { color: #FF8DB9; }
+.story-unlock { margin: .2rem 0 .9rem; color: var(--muted); font-size: var(--step--1); }
+.story-unlock strong { color: var(--gold); }
+@media (prefers-reduced-motion: reduce) { .tabs a.hot { animation: none; } }
+@media (max-width: 620px) { .unlock-card:not(.ranked) .muted { display: none; } .unlock-grid { gap: .5rem; } }
 .live-dot { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: #FF4D6D; box-shadow: 0 0 0 0 rgb(255 77 109 / .6); animation: live-ping 1.6s ease-out infinite; flex: none; }
 @keyframes live-ping { 70% { box-shadow: 0 0 0 .45rem rgb(255 77 109 / 0); } 100% { box-shadow: 0 0 0 0 rgb(255 77 109 / 0); } }
 

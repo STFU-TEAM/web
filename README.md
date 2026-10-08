@@ -94,6 +94,11 @@ Flask + HTMX + Jinja, gunicorn, Redis (shared with the bot). No other database.
 - Cross synergies (`CROSS_GROUPS` in `app/game/characterabilities.py`): 21 groups built around R/SR/SSR stands (story
   duos like Hol Horse & Boingo or Prosciutto & Pesci, and themes across the parts like the tide or gunslingers), most
   changing a special. Like the part synergies they count for player-built teams only, so the PvE curves are untouched
+- Story-gated modes (`app/game/progression.py`): Mirror World, Tower and Dungeon open after the first story fight,
+  Ranked and the Alternate Universe after Part 3, Over Heaven at the end (`GATES`). Locked modes are out of the nav
+  and their entry pages send you to the story; a mode that opens is announced (inbox + toast) and tagged New in the
+  nav, with "Just unlocked" cards on home, story and battles, until it's visited (`web:nav_new:<uid>`). The Battle
+  menu is split into Adventure, Challenges and PvP; the team planner and simulator live under Collection
 - Team planner (`/battles/planner`, `app/game/planner.py`): any 3 stands, owned copies as they are or any stand at a
   chosen level, awakening, type and quality (no type / Good / Perfect); reviews stats before and after synergies,
   lit synergies and resonances, terrain, synergies one stand away, and simulates the plan. The plan lives in the URL
