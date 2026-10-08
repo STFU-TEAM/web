@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% from "macros.html" import owned_card %}
 {% block title %}Auction house | STFU Requiem{% endblock %}
 {% block main %}
@@ -88,9 +89,9 @@
         {% elif sellable %}
           <form class="social-form auction-sell" method="post" action="{{ url_for('auction.sell') }}" data-sale-form>
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <label>Stand<select name="uuid" required>
-              {% for c in sellable %}<option value="{{ c.uuid }}">{{ c.name }} · {{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.shiny %} ✨{% endif %}</option>{% endfor %}
-            </select></label>
+            {{ picker_data("sp-sell", picker_owned(sellable)) }}
+            <div class="sp-field"><span class="sp-field-label">Stand</span>
+              {{ picker("uuid", "sp-sell", title="Stand to sell", placeholder="Pick a stand to sell", required=True) }}</div>
             <fieldset class="sale-mode">
               <legend class="sr">Sale type</legend>
               <label><input type="radio" name="mode" value="fixed" checked> Buy now</label>

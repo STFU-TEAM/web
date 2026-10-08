@@ -29,7 +29,7 @@ def _lobby_ctx(uid):
                          key=lambda f: f["name"].lower())
     used = coop.used_today(user) if user else set()
     stands = sorted(user.main_characters + user.storage_characters, key=lambda c: (c.uuid in used, -power_score(c))) if user else []
-    return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands[:60], "used": used,
+    return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands, "used": used,
             "tiers": coop.TIERS, "boss": coop.boss_view(), "party": (coop.PARTY_MIN, coop.PARTY_MAX),
             "wins_left": coop.wins_left(user) if user else 0, "daily": coop.DAILY_WINS,
             "join_code": request.args.get("join", "")}

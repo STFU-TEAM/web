@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% block title %}Banners | STFU Requiem{% endblock %}
 {% macro pct(v) %}{{ ('%.1f'|format(v * 100)).rstrip('0').rstrip('.') }}%{% endmacro %}
 {% block main %}
@@ -78,8 +79,11 @@
         {% if sparks >= SPARK_COST and ssrs %}
           <form class="spark-pick" method="post" action="{{ url_for('play.spark', banner_id=b.id) }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <label>✦ Spark exchange: <select name="stand" required>{% for c in ssrs %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
-            <button class="btn small gold" onclick="return confirm('Spend {{ SPARK_COST }} sparks on this SSR?')">Take it</button>
+            {{ picker_data("sp-spark-" ~ b.id, picker_pool(ssrs)) }}
+            <div class="sp-inline">
+              {{ picker("stand", "sp-spark-" ~ b.id, title="✦ Spark exchange: pick an SSR", placeholder="✦ Spark exchange: pick an SSR", required=True, compact=True) }}
+              <button class="btn small gold" onclick="return confirm('Spend {{ SPARK_COST }} sparks on this SSR?')">Take it</button>
+            </div>
           </form>
         {% endif %}
         <div class="banner-actions">

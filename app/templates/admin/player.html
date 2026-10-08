@@ -1,4 +1,5 @@
 {% extends "admin/layout.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% block admin_title %}{{ ident.name }}{% endblock %}
 {% macro act(op, label, cls='btn small', confirm=None, anchor='') -%}
   <form class="inline" method="post" action="{{ url_for('admin.player_action', uid=uid, op=op) }}" {% if confirm %}onsubmit="return confirm({{ confirm|tojson|forceescape }})"{% endif %}>
@@ -40,7 +41,8 @@
     <h3 class="h3">Grant</h3>
     {% call act('grant', 'Grant', 'btn small', anchor='#edit') %}
       <select name="kind" aria-label="What"><option value="fragments">Meteor Dust</option><option value="super_fragments">Arrowheads</option><option value="item">Item</option></select>
-      <select name="item_id" aria-label="Item"><option value="">(item)</option>{% for it in catalog %}<option value="{{ it.id }}">{{ it.id }} · {{ it.name }}</option>{% endfor %}</select>
+      {{ picker_data("sp-admin-items", picker_catalog()) }}
+      {{ picker("item_id", "sp-admin-items", title="Item to give", placeholder="(item)", kind="item", compact=True) }}
       <input type="number" name="amount" min="1" max="1000000" placeholder="Amount" required aria-label="Amount">
     {% endcall %}
     <p class="muted">Currency grants cap at 1,000,000 and items at 25 per action.</p>
@@ -79,7 +81,8 @@
 <section class="social-panel" id="stands">
   <div class="social-heading"><h2 class="h2">Stands</h2></div>
   {% call act('grant_stand', 'Grant stand', 'btn small gold', anchor='#stands') %}
-    <select name="stand_id" aria-label="Stand">{% for s in STANDS %}<option value="{{ s.id }}">{{ s.id }} · {{ s.name }} ({{ s.rarity }})</option>{% endfor %}</select>
+    {{ picker_data("sp-admin-stand", picker_every(prefix="")) }}
+    {{ picker("stand_id", "sp-admin-stand", title="Stand to give", placeholder="Pick a stand", compact=True, required=True) }}
     <input type="number" name="level" min="0" max="100" value="0" aria-label="Level">
     <select name="awaken" aria-label="Awakening">{% for a in range(MAX_AWAKEN + 1) %}<option value="{{ a }}">★{{ a }}</option>{% endfor %}</select>
     <label class="check"><input type="checkbox" name="roll" value="1" checked> roll types</label>

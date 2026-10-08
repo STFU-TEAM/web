@@ -1,3 +1,4 @@
+{% from "partials/picker.html" import picker, picker_data %}
 {% from "macros.html" import owned_card, special_scaling %}
 {% from "partials/chip_macros.html" import chip_tile %}
 {% set acts = 'hx-target="#collection" hx-swap="innerHTML" data-close-panel' %}
@@ -68,8 +69,11 @@
     {% if in_team and c.items|length < 3 and equipable %}
       <form class="inline" hx-post="{{ url_for('play.equip') }}" {{ acts|safe }}>
         <input type="hidden" name="uuid" value="{{ c.uuid }}">
-        <label><span class="sr">Item</span><select name="item">{% for g in equipable %}<option value="{{ g.item.id }}">{{ g.item.name }} ({{ g.count }})</option>{% endfor %}</select></label>
-        <button class="btn small">Equip</button>
+        {{ picker_data("sp-panel-items", picker_items(u['items'], equipable=True)) }}
+        <div class="sp-inline">
+          {{ picker("item", "sp-panel-items", title="Equip on " ~ c.name, placeholder="Pick an item to equip", kind="item", compact=True, required=True) }}
+          <button class="btn small">Equip</button>
+        </div>
       </form>
     {% elif not in_team %}<p class="muted">Only team stands hold items.</p>{% endif %}
 
@@ -141,7 +145,8 @@
       {% if dupes %}
         <form class="inline" hx-post="{{ url_for('play.fuse') }}" {{ acts|safe }} hx-confirm="Fuse? The second copy is consumed and its items go to your inventory.">
           <input type="hidden" name="uuid" value="{{ c.uuid }}">
-          <select name="fodder" aria-label="Copy to consume">{% for d in dupes %}<option value="{{ d.uuid }}">Consume Lv {{ d.level }}{% for emo, t, q, rank, qemo in d|traits %} {{ emo }}{{ rank }}{% endfor %}</option>{% endfor %}</select>
+          {{ picker_data("sp-fodder", picker_owned(dupes)) }}
+          {{ picker("fodder", "sp-fodder", title="Copy to consume", placeholder="Pick the copy to consume", compact=True, required=True) }}
           <button class="btn small gold">Fuse</button>
         </form>
       {% endif %}

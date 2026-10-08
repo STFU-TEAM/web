@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% from "macros.html" import owned_card %}
 {% block title %}{{ gang.name if gang else 'Gangs' }} | STFU Requiem{% endblock %}
 {% macro post(endpoint, label, cls='btn small', confirm=None) -%}
@@ -151,9 +152,11 @@
     {% if guardians|length < R.MAX_GUARDIANS and u.storage_characters %}
       <form class="inline" method="post" action="{{ url_for('gangs.guardian_add') }}" onsubmit="return confirm('Lend this stand to the gang? It leaves your storage.')">
         <input type="hidden" name="csrf" value="{{ csrf_token }}">
-        <label><span class="sr">Stand from storage</span>
-          <select name="uuid">{% for c in u.storage_characters|sort(attribute='start_damage', reverse=True) %}<option value="{{ c.uuid }}">{{ c.name }} · {{ c.rarity }} · Lv {{ c.level }}</option>{% endfor %}</select></label>
-        <button class="btn small">Add guardian</button>
+        {{ picker_data("sp-guardians", picker_owned(u.storage_characters)) }}
+        <div class="sp-inline">
+          {{ picker("uuid", "sp-guardians", title="Lend a stand to guard the gang", placeholder="Pick a stand from storage", required=True) }}
+          <button class="btn small">Add guardian</button>
+        </div>
       </form>
     {% endif %}
   </section>

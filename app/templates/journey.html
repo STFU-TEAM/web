@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% block title %}Crusaders' Journey | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page journey" data-server-now="{{ server_now|int }}">
@@ -52,12 +53,12 @@
     {% elif trips|length >= slots %}
       <p class="notice">All {{ slots }} travel slots are in use. Welcome a stand home to send another.</p>
     {% else %}
+      {% set notes = {} %}{% set team_ids = u.main_characters|map(attribute='uuid')|list %}
+      {% for c in stands %}{% set _ = notes.update({c.uuid: 'power ' ~ powers[c.uuid]|num ~ (' · in team' if c.uuid in team_ids else '')}) %}{% endfor %}
+      {{ picker_data("sp-journey", picker_owned(stands, notes=notes, sort=False)) }}
       <form class="journey-pick" method="get" action="{{ url_for('journey.index') }}">
-        <label>Traveller
-          <select name="uuid" onchange="this.form.submit()">
-            {% for c in stands %}<option value="{{ c.uuid }}" {% if chosen and c.uuid == chosen.uuid %}selected{% endif %}>{{ c.name }} · {{ c.rarity }} · Lv {{ c.level }} · power {{ powers[c.uuid]|num }}{% if c in u.main_characters %} · in team{% endif %}</option>{% endfor %}
-          </select>
-        </label>
+        <div class="sp-field"><span class="sp-field-label">Traveller</span>
+          {{ picker("uuid", "sp-journey", selected=[chosen.uuid] if chosen else [], title="Who travels?", placeholder="Pick a traveller", submit=True) }}</div>
         <noscript><button class="btn small">Show trips</button></noscript>
       </form>
       <p class="muted">{{ chosen.name }} has a power of <strong>{{ power|num }}</strong>. Level it, awaken it, gear it and roll good types to bring more back.{% if chosen in u.main_characters %} It will leave your team while it travels.{% endif %}</p>

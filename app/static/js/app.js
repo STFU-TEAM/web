@@ -1289,16 +1289,17 @@ document.addEventListener("click", (e) => {
 // it) and stops at data-sp-max; data-sp-unique allows one copy of each stand. The choice lives in hidden inputs.
 (() => {
   const RAR = { R: "common", SR: "rare", SSR: "epic", UR: "legend", LR: "mythic" };
-  const GROUP = { mine: "My stands", any: "Any stand", item: "Items" };
+  const GROUP = { mine: "My stands", any: "Any stand", item: "Items", gear: "Gear", usable: "Consumables & materials" };
   const FALLBACK = "/static/img/stand-fallback.svg";
-  const cache = new Map();
+  // options are parsed once per data element: a re-rendered section brings fresh ones
   const load = (sel) => {
-    if (!cache.has(sel)) {
-      const el = document.querySelector(sel);
-      const opts = el ? JSON.parse(el.textContent) : [];
-      cache.set(sel, { opts, byV: new Map(opts.map((o) => [o.v, o])) });
+    const el = document.querySelector(sel);
+    if (!el) return { opts: [], byV: new Map() };
+    if (!el._sp) {
+      const opts = JSON.parse(el.textContent);
+      el._sp = { opts, byV: new Map(opts.map((o) => [o.v, o])) };
     }
-    return cache.get(sel);
+    return el._sp;
   };
   const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ESC[c]);
@@ -1306,7 +1307,13 @@ document.addEventListener("click", (e) => {
   const thumb = (o) => o.img
     ? `<img src="${esc(o.img)}" alt="" loading="lazy" decoding="async" data-fallback="${FALLBACK}">`
     : `<span class="sp-emoji" aria-hidden="true">${esc(o.e || "◈")}</span>`;
-  const values = (sp) => [...sp.querySelector(".sp-inputs").children].map((i) => i.value);
+  // in quantity mode (data-sp-qty) an input holds "value:count"; values() gives the values, counts() the counts
+  const qtyMode = (sp) => "spQty" in sp.dataset;
+  const values = (sp) => [...sp.querySelector(".sp-inputs").children].map((i) => (qtyMode(sp) ? i.value.split(":")[0] : i.value));
+  const counts = (sp) => Object.fromEntries([...sp.querySelector(".sp-inputs").children].map((i) => {
+    const [v, q] = i.value.split(":");
+    return [v, Math.max(1, Number(q) || 1)];
+  }));
   const max = (sp) => Number(sp.dataset.spMax) || 1;
   // broken pictures fall back to the stand silhouette (no inline handlers in the generated markup)
   document.addEventListener("error", (e) => {
@@ -1326,20 +1333,38 @@ document.addEventListener("click", (e) => {
       btn.innerHTML = `<span class="sp-face ${RAR[o.r] || ""}">${thumb(o)}</span><span class="sp-text"><strong>${esc(o.n)}</strong>`
         + `<small>${o.r ? `<span class="rar-tag ${RAR[o.r]}">${o.r}</span> ` : ""}${esc(o.m || "")}</small></span><span class="sp-change">Change</span>`;
     } else {
+      const items = sp.dataset.spKind === "item", q = counts(sp);
+      // stands show their pick order (ranked uses it); items show how many go (trades) or nothing
+      const badge = (o, i) => (qtyMode(sp) ? `<b>×${q[o.v] || 1}</b>` : items ? "" : `<b>${i + 1}</b>`);
       btn.innerHTML = `<span class="sp-chips">${picked.map((o, i) => `<span class="sp-chip ${RAR[o.r] || ""}" title="${esc(o.n)}">`
-        + `${thumb(o)}<b>${i + 1}</b><span>${esc(o.n)}</span></span>`).join("")}</span>`
-        + `<span class="sp-change">${picked.length}/${max(sp)} · Change</span>`;
+        + `${thumb(o)}${badge(o, i)}<span>${esc(o.n)}</span></span>`).join("")}</span>`
+        + `<span class="sp-change">${items ? "Change" : `${picked.length}/${max(sp)} · Change`}</span>`;
     }
     btn.setAttribute("aria-label", `${sp.dataset.spTitle}: ${picked.map((o) => o.n).join(", ") || "none"}`);
+    const list = sp.querySelector("[data-sp-qty-list]");
+    if (list) {  // a row per picked item: how many, up to what's owned
+      const q = counts(sp);
+      list.innerHTML = picked.map((o) => `<div class="sp-qty-row" data-v="${esc(o.v)}"><span class="sp-qty-art">${thumb(o)}</span>
+        <span class="sp-qty-name">${esc(o.n)}</span>
+        <span class="sp-stepper"><button type="button" data-sp-step="-1" aria-label="One fewer ${esc(o.n)}" ${q[o.v] <= 1 ? "disabled" : ""}>−</button>
+          <b>${q[o.v]}</b><small>/ ${o.q || 1}</small>
+          <button type="button" data-sp-step="1" aria-label="One more ${esc(o.n)}" ${q[o.v] >= (o.q || 1) ? "disabled" : ""}>+</button></span>
+        <button type="button" class="sp-qty-x" data-sp-step="0" aria-label="Remove ${esc(o.n)}">✕</button></div>`).join("");
+    }
   };
 
-  const commit = (sp, vals) => {
+  const commit = (sp, vals, qty) => {
     const box = sp.querySelector(".sp-inputs");
-    box.replaceChildren(...vals.map((v) => Object.assign(document.createElement("input"), { type: "hidden", name: sp.dataset.spName, value: v })));
+    const q = qty || (qtyMode(sp) ? counts(sp) : {});
+    box.replaceChildren(...vals.map((v) => Object.assign(document.createElement("input"), {
+      type: "hidden", name: sp.dataset.spName, value: qtyMode(sp) ? `${v}:${q[v] || 1}` : v })));
     render(sp);
     const { byV } = load(sp.dataset.spSource);
     sp.dispatchEvent(new CustomEvent("sp:change", { bubbles: true, detail: { values: vals, options: vals.map((v) => byV.get(v)) } }));
     sp.dispatchEvent(new Event("change", { bubbles: true }));
+    sp.classList.remove("sp-missing");
+    const form = sp.closest("form");
+    if ("spSubmit" in sp.dataset && form && vals.length) form.requestSubmit();  // forms that act on the pick
   };
 
   let dlg, state;
@@ -1400,7 +1425,7 @@ document.addEventListener("click", (e) => {
       const off = !on && (why || full);
       return `<button type="button" class="sp-tile ${RAR[o.r] || "item"}${on ? " is-on" : ""}${off ? " is-off" : ""}" data-v="${esc(o.v)}"
         role="option" aria-selected="${on}" ${why ? "disabled" : ""}>
-        <span class="sp-tile-art">${thumb(o)}${on ? `<b class="sp-mark">${m > 1 ? at + 1 : "✓"}</b>` : ""}
+        <span class="sp-tile-art">${thumb(o)}${on ? `<b class="sp-mark">${qtyMode(sp) ? "×" + (counts(sp)[o.v] || 1) : m > 1 ? at + 1 : "✓"}</b>` : ""}
           ${o.sh ? '<i class="sp-badge" title="Shiny">✨</i>' : ""}${o.t ? '<i class="sp-badge sp-taunt" title="Taunt">🎯</i>' : ""}</span>
         <span class="sp-tile-name">${esc(o.n)}</span>
         <small>${o.r ? `<span class="rar-tag ${RAR[o.r]}">${o.r}</span> ` : ""}${esc(o.m || "")}</small>
@@ -1438,6 +1463,26 @@ document.addEventListener("click", (e) => {
       render(sp);
     });
   };
+  // quantity steppers (− / + / ✕) under a picker in quantity mode
+  document.addEventListener("click", (e) => {
+    const step = e.target.closest("[data-sp-step]");
+    if (!step) return;
+    const sp = step.closest("[data-sp]"), v = step.closest("[data-v]").dataset.v;
+    const { byV } = load(sp.dataset.spSource);
+    const q = counts(sp), d = Number(step.dataset.spStep);
+    const vals = values(sp).filter((x) => d !== 0 || x !== v);
+    if (d) q[v] = Math.min(byV.get(v)?.q || 1, Math.max(1, (q[v] || 1) + d));
+    commit(sp, vals, q);
+  });
+  // a required picker left empty stops its form and opens itself
+  document.addEventListener("submit", (e) => {
+    const empty = [...e.target.querySelectorAll("[data-sp][data-sp-required]")].find((sp) => !values(sp).length);
+    if (!empty) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    empty.classList.add("sp-missing");
+    open(empty);
+  }, true);
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-sp-open]");
     if (btn && !btn.closest("[disabled]")) { e.preventDefault(); open(btn.closest("[data-sp]")); }

@@ -1,3 +1,7 @@
+{% from "partials/picker.html" import picker, picker_data %}
+{% set eq_notes, eq_full = {}, {} %}
+{% for c in u.main_characters %}{% set _ = eq_notes.update({c.uuid: c['items']|length ~ '/3 items'}) %}{% if c['items']|length >= 3 %}{% set _ = eq_full.update({c.uuid: 'Holds 3 items already'}) %}{% endif %}{% endfor %}
+{{ picker_data("sp-equip", picker_owned(u.main_characters, notes=eq_notes, blocked=eq_full, sort=False)) }}
 {% set usable = groups|rejectattr('item.is_equipable')|list %}
 {% set gear = groups|selectattr('item.is_equipable')|list %}
 {% macro bonuses(it) -%}
@@ -48,7 +52,10 @@
           {% if u.main_characters %}
           <form class="inline" hx-post="{{ url_for('play.use') }}" hx-target="#use-result">
             <input type="hidden" name="item" value="3">
-            <select name="uuid" aria-label="Stand to pierce">{% for c in u.main_characters %}{% set rq = requiem_form(c) %}<option value="{{ c.uuid }}">{{ c.name }} ★{{ c.awaken }}{% if rq and rq.ready %} · ✧ can become {{ rq.name }}{% endif %}</option>{% endfor %}</select>
+            {% set rq_notes = {} %}
+            {% for c in u.main_characters %}{% set rq = requiem_form(c) %}{% if rq and rq.ready %}{% set _ = rq_notes.update({c.uuid: '✧ can become ' ~ rq.name}) %}{% endif %}{% endfor %}
+            {{ picker_data("sp-requiem", picker_owned(u.main_characters, notes=rq_notes, sort=False)) }}
+            {{ picker("uuid", "sp-requiem", selected=[u.main_characters[0].uuid], title="Stand to pierce", placeholder="Pick a stand", compact=True, required=True) }}
             <button class="btn small gold" name="mode" value="awaken" title="+1 star; the stand stays itself (up to ★{{ MAX_STARS }})">★ Awaken</button>
             {% set rq_team = namespace(any=false) %}{% for c in u.main_characters %}{% if requiem_form(c) %}{% set rq_team.any = true %}{% endif %}{% endfor %}
             {% if rq_team.any %}
@@ -92,7 +99,7 @@
         {% if u.main_characters %}
           <form class="inline" hx-post="{{ url_for('play.item_equip') }}" hx-target="#use-result">
             <input type="hidden" name="item" value="{{ it.id }}">
-            <select name="uuid" aria-label="Equip on">{% for c in u.main_characters %}<option value="{{ c.uuid }}" {% if c['items']|length >= 3 %}disabled{% endif %}>{{ c.name }} ({{ c['items']|length }}/3)</option>{% endfor %}</select>
+            {{ picker("uuid", "sp-equip", title="Equip " ~ it.name ~ " on", placeholder="Pick a team stand", compact=True, required=True) }}
             <button class="btn small">Equip</button>
           </form>
         {% endif %}

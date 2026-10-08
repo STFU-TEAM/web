@@ -1,26 +1,7 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
+{% set MAX_TRADE_STANDS = 5 %}
 {% block title %}New trade | STFU Requiem{% endblock %}
-{% macro stand_picker(chars, name) -%}
-  <div class="pick-grid">
-    {% for c in chars %}
-      <label class="pick">
-        <input type="checkbox" name="{{ name }}" value="{{ c.uuid }}">
-        <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-        <span><strong>{{ c.name }}</strong><small><span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span> Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% for emo, t, q, rank, qemo in c|traits %} {{ emo }}{{ rank }}{% endfor %}</small></span>
-      </label>
-    {% else %}<p class="muted">No stands.</p>{% endfor %}
-  </div>
-{%- endmacro %}
-{% macro item_picker(groups, name) -%}
-  {% if groups %}
-  <div class="item-pick">
-    {% for it, n in groups %}
-      <label><span>{{ it.emoji|emoji }} {{ it.name }} <small class="muted">({{ n }})</small></span>
-        <select name="{{ name }}"><option value="">0</option>{% for k in range(1, [n, 20]|min + 1) %}<option value="{{ it.id }}:{{ k }}">{{ k }}</option>{% endfor %}</select></label>
-    {% endfor %}
-  </div>
-  {% else %}<p class="muted">No items.</p>{% endif %}
-{%- endmacro %}
 {% block main %}
 <section class="page">
   <p class="kicker"><a href="{{ url_for('trades.index') }}">← Trades</a></p>
@@ -39,15 +20,19 @@
       <fieldset>
         <legend>You give</legend>
         <h3 class="h3">Stands <small class="muted">(up to 5)</small></h3>
-        {{ stand_picker(my_stands, 'give_stand') }}
-        <h3 class="h3">Items</h3>{{ item_picker(my_items, 'give_item') }}
+        {{ picker_data("sp-give", picker_owned(my_stands)) }}
+        {{ picker('give_stand', "sp-give", max=MAX_TRADE_STANDS, title="Stands you give", placeholder="Add stands (up to " ~ MAX_TRADE_STANDS ~ ")") }}
+        <h3 class="h3">Items</h3>{{ picker_data("sp-give-items", picker_items(me_items, tradable=True)) }}
+        {{ picker('give_item', "sp-give-items", max=20, title="Items you give", placeholder="Add items", kind="item", qty=True) }}
         <label class="frag">Meteor Dust <input type="number" name="give_fragments" min="0" max="{{ u.fragments }}" value="0"></label>
       </fieldset>
       <fieldset>
         <legend>You ask from {{ other_name }}</legend>
         <h3 class="h3">Stands</h3>
-        {{ stand_picker(their_stands, 'want_stand') }}
-        <h3 class="h3">Items</h3>{{ item_picker(their_items, 'want_item') }}
+        {{ picker_data("sp-want", picker_owned(their_stands)) }}
+        {{ picker('want_stand', "sp-want", max=MAX_TRADE_STANDS, title="Stands you want", placeholder="Add stands (up to " ~ MAX_TRADE_STANDS ~ ")") }}
+        <h3 class="h3">Items</h3>{{ picker_data("sp-want-items", picker_items(them_items, tradable=True)) }}
+        {{ picker('want_item', "sp-want-items", max=20, title="Items you want", placeholder="Add items", kind="item", qty=True) }}
         <label class="frag">Meteor Dust <input type="number" name="want_fragments" min="0" value="0"></label>
       </fieldset>
     </div>

@@ -57,6 +57,7 @@ def new():
     other = db.get_user(other_id) if other_id else None
     return render_template("trade_new.html", u=me, other=other, other_name=identity(other_id)["name"] if other else None,
                            my_items=_grouped_items(me), my_stands=sorted_stands(me),
+                           me_items=me.items, them_items=other.items if other else [],
                            their_stands=sorted_stands(other) if other else [], their_items=_grouped_items(other) if other else [],
                            query=request.args.get("with", ""))
 

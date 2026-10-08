@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% block title %}{{ shop.name }} | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page">
@@ -13,8 +14,9 @@
       {% if u.items %}
         <form class="inline listing-form" method="post" action="{{ url_for('social.shop_list_item', shop_id=shop._id) }}">
           <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <label>Item<select name="item" required>{% for item in u.items|unique_equipable %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
-            {% for item in u.items if not item.is_equipable %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}</select></label>
+          {{ picker_data("sp-shop-items", picker_items(u['items'], tradable=True)) }}
+          <div class="sp-field"><span class="sp-field-label">Item</span>
+            {{ picker("item", "sp-shop-items", title="Item to list", placeholder="Pick an item to sell", kind="item", required=True) }}</div>
           <label>Price<input type="number" name="price" min="1" max="10000000" required></label>
           <button class="btn gold">List item</button>
         </form>

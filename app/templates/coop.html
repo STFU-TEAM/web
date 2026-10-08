@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% block title %}Co-op raid | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page coop">
@@ -49,25 +50,12 @@
         <section class="coop-panel">
           <h2 class="h3">Your stand{% if me_member and me_member.stand %} <small class="muted">· {{ me_member.stand_name }}</small>{% endif %}</h2>
           <p class="muted small-print">Each stand raids once a day, win or lose.{% if used %} {{ used|length }} of yours already did today.{% endif %}</p>
-          <ul class="coop-stands">
-            {% for c in stands %}
-              <li>
-                {% if c.uuid in used %}
-                <span class="coop-stand used" title="Already raided today: it can raid again tomorrow">
-                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-                  <span><strong>{{ c.name }}</strong><small class="muted">Raided today · back tomorrow</small></span>
-                </span>
-                {% else %}
-                <button type="button" class="coop-stand{{ ' picked' if me_member and me_member.stand == c.uuid }}"
-                        hx-post="{{ url_for('coop.pick') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' hx-target="#coop-members" hx-swap="outerHTML"
-                        onclick="this.closest('ul').querySelectorAll('.picked').forEach(b => b.classList.remove('picked')); this.classList.add('picked')">
-                  <img src="{{ c.id|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-                  <span><strong>{{ c.name }}</strong><small class="muted">{{ c.rarity }} · Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}</small></span>
-                </button>
-                {% endif %}
-              </li>
-            {% endfor %}
-          </ul>
+          {% set used_why = {} %}{% for c in stands %}{% if c.uuid in used %}{% set _ = used_why.update({c.uuid: 'Raided today: back tomorrow'}) %}{% endif %}{% endfor %}
+          {{ picker_data("sp-coop", picker_owned(stands, blocked=used_why)) }}
+          <form hx-post="{{ url_for('coop.pick') }}" hx-target="#coop-members" hx-swap="outerHTML">
+            {{ picker("uuid", "sp-coop", selected=[me_member.stand] if me_member and me_member.stand else [], title="Your stand for the raid",
+                      placeholder="Pick the stand you bring", submit=True) }}
+          </form>
         </section>
       </div>
     {% else %}

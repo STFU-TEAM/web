@@ -124,6 +124,9 @@ def register(app):
     from app.game import simulate
     from app.routes.fightturn import next_step
     app.jinja_env.globals.update(next_step=next_step, sim_runs=simulate.RUNS)
+    from app.game import pickers
+    app.jinja_env.globals.update(picker_owned=pickers.owned, picker_every=pickers.every_stand, picker_pool=pickers.pool,
+                                 picker_items=pickers.owned_items, picker_catalog=pickers.catalog_items)
     from app.game import events
     app.jinja_env.globals.update(event_rule=events.describe)
     from app.game import characterabilities as abilities

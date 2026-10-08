@@ -3028,3 +3028,28 @@ body.cine-open { overflow: hidden; }
   color: var(--paper-2); background: var(--night-2); border: 1px solid var(--night-3); }
 .plan-suggestion { align-items: flex-start; }
 .plan-suggestion .btn { align-self: center; }
+.sp-missing .sp-trigger { border-color: #FF6B8E; border-style: solid; }
+.sp-inline { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.sp-inline .sp { flex: 1 1 240px; }
+.sp-inline .sp-trigger { min-height: 60px; }
+
+/* Item picker: quantity rows under the trigger (trades), item art in tiles */
+.sp-qty-list { display: grid; gap: .35rem; margin-top: .45rem; }
+.sp-qty-list:empty { display: none; }
+.sp-qty-row { display: flex; align-items: center; gap: .6rem; padding: .35rem .5rem; border-radius: var(--radius-ui); background: var(--night); }
+.sp-qty-art { flex: none; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 8px; background: var(--night-2); overflow: hidden; }
+.sp-qty-art img { width: 100%; height: 100%; object-fit: contain; }
+.sp-qty-art .sp-emoji { font-size: 1.2rem; }
+.sp-qty-name { flex: 1; min-width: 0; font-weight: 700; font-size: var(--step--1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-stepper { display: inline-flex; align-items: center; gap: .3rem; font-variant-numeric: tabular-nums; }
+.sp-stepper button, .sp-qty-x { width: 32px; height: 32px; border: 2px solid var(--night-3); border-radius: 50%; color: var(--paper);
+  background: var(--night-2); font: 700 1rem/1 var(--body); cursor: pointer; }
+.sp-stepper button:disabled { opacity: .35; cursor: not-allowed; }
+.sp-stepper small { color: var(--muted); }
+.sp-qty-x { border-color: transparent; background: none; color: var(--muted); }
+.sp-tile.item .sp-tile-art { display: grid; place-items: center; }
+.sp-tile.item .sp-tile-art img { width: 70%; height: 70%; object-fit: contain; }
+.sp-tile.item .sp-emoji { font-size: 2.6rem; }
+.sp-field { display: grid; gap: .3rem; min-width: 0; flex: 1 1 260px; }
+.sp-field-label { font-weight: 700; font-size: var(--step--1); color: var(--muted); }
+.sp-chip b:not(:empty) { min-width: 18px; width: auto; padding: 0 .25rem; border-radius: 999px; }
