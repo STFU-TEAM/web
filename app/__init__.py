@@ -12,6 +12,8 @@ def create_app() -> Flask:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     init_db(app)
+    from app import logs
+    logs.install(app, r())  # errors and warnings land in the admin Logs tab
     from app.game import events
     events._cache.update(at=0.0, event=None)  # a fresh app never trusts another app's Redis
 

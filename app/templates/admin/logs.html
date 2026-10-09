@@ -1,0 +1,60 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Logs{% endblock %}
+{% block admin %}
+<h1 class="display sm">Logs</h1>
+<p class="muted">Warnings and errors from every worker (and the site's own info lines), newest first. The last {{ keep|default(2000) }} lines are kept. Times are UTC.</p>
+
+<h2 class="h2">Push notifications</h2>
+<div class="stat-tiles">
+  <div><span>Status</span><strong>{{ '🟢 On' if push.enabled else '🔴 Off' }}</strong>
+    <small>{% if not push.public or not push.private %}VAPID {{ 'public' if not push.public }}{{ ' + ' if not push.public and not push.private }}{{ 'private' if not push.private }} key missing from the env{% elif not push.library %}pywebpush isn't installed{% else %}keys set · {{ push.subject }}{% endif %}</small></div>
+  <div><span>Delivered</span><strong>{{ '{:,}'.format(push.sent) }}</strong><small>{% if push.last_ok_at %}last <time data-ago="{{ push.last_ok_at }}"></time>{% else %}none yet{% endif %}</small></div>
+  <div><span>Failed</span><strong>{{ '{:,}'.format(push.failed) }}</strong><small>{{ push.dropped }} dead device{{ 's' if push.dropped != 1 }} removed</small></div>
+  <div><span>Scheduled</span><strong>{{ push.due }}</strong><small>{% if push.late %}⚠ {{ push.late }} overdue by 2+ min{% else %}none overdue{% endif %}</small></div>
+</div>
+{% if push.last_error %}
+  <p class="notice log-error"><strong>Last failure</strong>{% if push.last_error_at %} (<time data-ago="{{ push.last_error_at }}"></time>){% endif %}: <code>{{ push.last_error }}</code></p>
+{% endif %}
+<div class="admin-actions">
+  <form class="inline" method="post" action="{{ url_for('admin.logs_action', op='push_test') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <button class="btn small gold" {% if not push.enabled %}disabled{% endif %}>Send me a test push</button>
+  </form>
+  <span class="muted small-print">{{ my_devices }} device{{ 's' if my_devices != 1 }} subscribed on your account{% if not my_devices %}: turn it on from <a href="{{ url_for('community.inbox') }}">your inbox</a>{% endif %}.</span>
+  <form class="inline" method="post" action="{{ url_for('admin.logs_action', op='push_reset') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Reset counters</button>
+  </form>
+</div>
+
+<h2 class="h2">Server log</h2>
+<form class="inline log-filter" method="get">
+  <select name="level" aria-label="Lowest level">
+    {% for lv in levels %}<option value="{{ lv }}" {% if lv == level %}selected{% endif %}>{{ lv|title }}+ ({{ counts[lv] }})</option>{% endfor %}
+  </select>
+  <input type="text" name="logger" value="{{ logger }}" placeholder="Logger (app.push)" aria-label="Logger">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search text, path, player ID" aria-label="Search">
+  <button class="btn small">Filter</button>
+  {% if logger or q or level != 'WARNING' %}<a href="{{ url_for('admin.logs_page') }}">Reset</a>{% endif %}
+</form>
+
+<ol class="admin-logs">
+  {% for e in rows %}
+    <li class="log-{{ e.level|lower }}">
+      <div class="log-head">
+        <time datetime="{{ e.at }}">{{ e.at[:19]|replace('T', ' ') }}</time>
+        <strong class="log-level">{{ e.level }}</strong>
+        <code class="muted">{{ e.logger }}</code>
+        {% if e.path %}<code class="muted">{{ e.path }}</code>{% endif %}
+        {% if e.uid %}<a href="{{ url_for('admin.player', uid=e.uid) }}">{{ names.get(e.uid, e.uid) }}</a>{% endif %}
+        <small class="muted">pid {{ e.pid }}</small>
+      </div>
+      <p class="log-msg">{{ e.msg }}</p>
+      {% if e.exc %}<details><summary>Traceback</summary><pre>{{ e.exc }}</pre></details>{% endif %}
+    </li>
+  {% else %}<li class="muted">Nothing logged at this level{{ ' for this filter' if logger or q }}.</li>{% endfor %}
+</ol>
+
+<form class="inline" method="post" action="{{ url_for('admin.logs_action', op='clear') }}" onsubmit="return confirm('Delete every kept log line?')">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Clear logs</button>
+</form>
+{% endblock %}

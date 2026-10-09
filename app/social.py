@@ -16,10 +16,13 @@
     web:gift:recv:<day>:<uid>    gifts uid received today (capped)
 """
 import json
+import logging
 import time
 from typing import List, Optional
 
 from app.db import get_db, identity, r
+
+log = logging.getLogger(__name__)
 
 MAX_FRIENDS = 100
 NOTIF_KEEP = 60
@@ -79,21 +82,43 @@ def flush_due(now: Optional[float] = None, limit: int = 200) -> int:
         raw = r().hget("web:notif:due:data", key)
         r().hdel("web:notif:due:data", key)
         if not raw:
+            log.warning("due notification %s had no data", key)
             continue
-        data = json.loads(raw)
-        if data.get("push_only"):
-            from app import push
-            push.send(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
-        else:
-            notify(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
-        sent += 1
+        try:  # one bad entry mustn't hold back the rest of the queue
+            data = json.loads(raw)
+            if data.get("push_only"):
+                from app import push
+                push.send(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
+            else:
+                notify(key.split("|", 1)[0], data["kind"], data["text"], data.get("url"))
+            sent += 1
+        except Exception:
+            log.exception("due notification %s failed: %r", key, raw)
     return sent
 
 
 def tick(every: int = 10):
-    """From a page load: send what's due, at most once every few seconds across all workers."""
+    """From a page load (and the background flusher): send what's due, at most once every few seconds across all
+    workers."""
     if r().set("web:notif:tick", "1", nx=True, ex=every):
         flush_due()
+
+
+def start_flusher(app, every: int = 15):
+    """A daemon thread per worker that sends due notifications (energy full, a journey home) even when nobody is
+    loading pages. tick()'s Redis lock keeps the workers from doubling up."""
+    import threading
+
+    def loop():
+        while True:
+            time.sleep(every)
+            try:
+                with app.app_context():  # push needs the app's VAPID keys
+                    tick()
+            except Exception:
+                log.exception("notification flusher")
+
+    threading.Thread(target=loop, name="notif-flusher", daemon=True).start()
 
 
 def feed(uid: str, limit: int = NOTIF_KEEP) -> List[dict]:

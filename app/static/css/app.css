@@ -3132,3 +3132,27 @@ body.cine-open { overflow: hidden; }
 .auto-replay-label { display: grid; gap: .1rem; flex: 1 1 16rem; }
 .auto-replay-label small { font-size: var(--step--1); }
 .auto-replay select { max-width: 100%; }
+
+/* Inbox rewards (app/rewards.py) */
+.reward-list li { align-items: flex-start; }
+.reward-body { display: grid; gap: .3rem; flex: 1 1 16rem; min-width: 0; }
+.reward-lines { display: flex; flex-wrap: wrap; gap: .35rem; }
+.reward-chip { padding: .15rem .55rem; border-radius: 999px; background: rgb(244 197 66 / .14); color: var(--gold); font-size: var(--step--1); font-weight: 700; }
+.reward-chip img.emoji { width: 1.1em; height: 1.1em; vertical-align: -.2em; }
+
+/* Admin: rewards form and server logs */
+.reward-fields { display: grid; gap: .7rem; margin: 0; padding: .8rem 1rem 1rem; border: 1px solid var(--night-3); border-radius: var(--radius-ui); }
+.reward-fields legend { padding: 0 .4rem; font-weight: 700; }
+.reward-fields .check { font-size: inherit; color: inherit; }
+.reward-form input[type=number] { width: 100%; font: inherit; font-weight: 400; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .45rem .6rem; }
+.reward-pick { display: grid; gap: .4rem; font-weight: 700; }
+.admin-logs { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: .4rem; }
+.admin-logs li { padding: .55rem .8rem; border-radius: var(--radius-ui); background: var(--night-2); border-left: 4px solid var(--night-3); min-width: 0; }
+.admin-logs li.log-warning { border-left-color: var(--gold); }
+.admin-logs li.log-error, .admin-logs li.log-critical { border-left-color: var(--magenta); }
+.log-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .7rem; font-size: var(--step--1); }
+.log-head code { overflow-wrap: anywhere; }
+.log-msg { margin: .3rem 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.admin-logs pre { margin: .4rem 0 0; padding: .6rem; max-height: 22rem; overflow: auto; font-size: .75rem; background: var(--night); border-radius: 6px; }
+.log-filter { display: flex; flex-wrap: wrap; gap: .4rem; }
+.log-error code { overflow-wrap: anywhere; }

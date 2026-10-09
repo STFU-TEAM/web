@@ -17,6 +17,13 @@ services:
       - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN:-}
       - IMAGE_BASE_URL=${IMAGE_BASE_URL:-https://images.stfurequiem.com}
       - IMAGE_PATH=${IMAGE_PATH:-/Image/{id}.png}
+      - ART_PATH=${ART_PATH:-}
+      - KOFI_URL=${KOFI_URL:-https://ko-fi.com/eirblast}
+      - DUNGEON_ENABLED=${DUNGEON_ENABLED:-1}
+      # web push: without these the container never sees the keys and push stays off
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
+      - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@stfurequiem.com}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
       interval: 30s

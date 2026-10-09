@@ -1,4 +1,4 @@
-"""Admin panel: dashboard, player management, gangs, shops, banners, admins and the audit log.
+"""Admin panel: dashboard, player management, gangs, shops, banners, rewards, admins, server logs and the audit log.
 Restricted to DISCORD_ADMIN_IDS (the bot's give_character permission, the "owners") and the admins they
 promote from the Admins tab. Every change is audited."""
 import datetime
@@ -601,3 +601,107 @@ def events_admin():
                            synergies=sorted(((k, SYNERGY_INFO.get(k, (k, ""))[0]) for k in SYNERGIES), key=lambda x: x[1]),
                            help=events.KIND_HELP, targets=events.target_view(), shop=events.SHOP,
                            default_end=(today + datetime.timedelta(days=7)).isoformat())
+
+
+# --------------------------------------------------------------------------- #
+# Logs: the server's errors and warnings (app/logs.py) and how push is doing
+# --------------------------------------------------------------------------- #
+@bp.get("/logs")
+@admin_required
+def logs_page():
+    from app import logs, push
+    level = request.args.get("level", "WARNING")
+    level = level if level in logs.LEVELS else "INFO"
+    logger, q = request.args.get("logger", "").strip(), request.args.get("q", "").strip()
+    rows = logs.read(r(), level, logger, q)
+    names = {uid: identity(uid)["name"] for uid in {row.get("uid") for row in rows} if uid}
+    return render_template("admin/logs.html", rows=rows, level=level, logger=logger, q=q, levels=logs.LEVELS,
+                           counts=logs.counts(r()), keep=logs.KEEP, names=names, push=push.status(),
+                           my_devices=push.devices(session["uid"]), section="logs")
+
+
+@bp.post("/logs/<op>")
+@admin_required
+def logs_action(op):
+    from app import logs, push
+    if op == "clear":
+        logs.clear(r())
+        audit("logs_clear")
+        flash("Logs cleared.", "ok")
+    elif op == "push_test":
+        if not push.enabled():
+            flash("Push is off: set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY in the container's environment.", "error")
+        elif not push.devices(session["uid"]):
+            flash("You have no device subscribed: turn notifications on from your Inbox first.", "error")
+        else:
+            push.send(session["uid"], "friend", "Test push from the admin panel. ✨", url_for("admin.logs_page"), force=True)
+            flash("Test push queued. If it doesn't arrive, reload: a failure shows up below within a few seconds.", "ok")
+    elif op == "push_reset":
+        r().delete(push.STATS_KEY)
+        flash("Push counters reset.", "ok")
+    return redirect(url_for("admin.logs_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Rewards: gifts players claim from their inbox (app/rewards.py)
+# --------------------------------------------------------------------------- #
+@bp.route("/rewards", methods=["GET", "POST"])
+@admin_required
+def rewards_admin():
+    from app import rewards, social
+    if request.method == "POST":
+        f = request.form
+        op = f.get("op")
+        if op == "create":
+            items = {}
+            for raw in f.getlist("item"):  # the item picker posts "id:count"
+                try:
+                    item_id, n = (int(x) for x in raw.split(":"))
+                except ValueError:
+                    continue
+                items[item_id] = items.get(item_id, 0) + n
+            players, unknown = [], []
+            if f.get("audience") == "players":
+                for name in (f.get("players", "").replace(",", "\n")).splitlines():
+                    if not name.strip():
+                        continue
+                    uid = resolve_player(name)
+                    if uid:
+                        players.append(uid)
+                    else:
+                        unknown.append(name.strip())
+            try:
+                if unknown:
+                    raise rewards.RewardError(f"No player found for: {', '.join(unknown[:10])}.")
+                rw = rewards.clean_rewards(f.get("fragments"), f.get("super_fragments"), f.get("energy"), items,
+                                           f.getlist("stand"), f.get("shiny"))
+                mail = rewards.create(session["uid"], f.get("title", ""), f.get("text", ""), rw, f.get("audience", ""),
+                                      players, f.get("until") or None)
+            except rewards.RewardError as e:
+                flash(str(e), "error")
+                return redirect(url_for("admin.rewards_admin"))
+            if mail["audience"] == "players":  # a short list: tell each of them (inbox line + push)
+                for uid in set(players):
+                    social.notify(uid, "gift", f"🎁 {mail['title']}: a reward is waiting in your inbox.",
+                                  url_for("community.inbox"))
+            audit("reward_send", mail["id"], title=mail["title"], audience=mail["audience"],
+                  recipients=mail["recipients"], rewards=rw)
+            who = f"{mail['recipients']:,} player{'s' if mail['recipients'] != 1 else ''}" \
+                if mail["recipients"] is not None else "everyone"
+            flash(f"Reward “{mail['title']}” sent to {who}.", "ok")
+        elif op in ("end", "delete"):
+            mail = rewards.get(f.get("id", ""))
+            if mail:
+                if op == "end":
+                    rewards.end_now(mail["id"])
+                else:
+                    rewards.delete(mail["id"])
+                audit(f"reward_{op}", mail["id"], title=mail["title"])
+                flash("Reward ended: nobody else can claim it." if op == "end" else "Reward deleted.", "ok")
+        return redirect(url_for("admin.rewards_admin"))
+    today = logic.now().date()
+    rows = [{**m, "lines": rewards.describe(m["rewards"]), "claimed": rewards.claimed_count(m["id"]),
+             "live": rewards.is_live(m, today), "by_name": identity(m["by"])["name"] if m.get("by") else "?"}
+            for m in rewards.all_mails()]
+    return render_template("admin/rewards.html", rows=rows, audiences=rewards.AUDIENCES, R=rewards,
+                           default_until=(today + datetime.timedelta(days=14)).isoformat(), section="rewards")

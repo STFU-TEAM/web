@@ -1,0 +1,85 @@
+{% extends "admin/layout.html" %}
+{% from "partials/picker.html" import picker, picker_data %}
+{% block admin_title %}Rewards{% endblock %}
+{% block admin %}
+<h1 class="display sm">Rewards</h1>
+<p class="muted">Send dust, arrowheads, energy, items or stands to players' inboxes after an update or an event. Each player claims a reward once, from their Inbox. Listed players also get a notification; the bell badge counts rewards waiting for everyone else.</p>
+
+<h2 class="h2">Send one</h2>
+<form class="news-form admin-card event-form reward-form" method="post">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="create">
+  <label>Title<input type="text" name="title" maxlength="80" required placeholder="Sorry for the downtime!"></label>
+  <label>Message <small class="muted">(optional)</small><textarea name="text" rows="2" maxlength="500" placeholder="Thanks for your patience during the 2.3 update."></textarea></label>
+
+  <fieldset class="reward-fields">
+    <legend>Rewards</legend>
+    <div class="event-form-row">
+      <label>✦ Meteor Dust<input type="number" name="fragments" min="0" max="{{ R.MAX_CURRENCY }}" value="0"></label>
+      <label>➶ Arrowheads<input type="number" name="super_fragments" min="0" max="{{ R.MAX_CURRENCY }}" value="0"></label>
+      <label>⚡ Energy<input type="number" name="energy" min="0" max="{{ R.MAX_ENERGY }}" value="0"></label>
+    </div>
+    <div class="reward-pick">
+      <span>Items <small class="muted">(up to {{ R.MAX_ITEMS }} of each)</small></span>
+      {{ picker_data("sp-reward-items", picker_catalog()) }}
+      {{ picker("item", "sp-reward-items", max=20, title="Items to give", placeholder="Add items", kind="item", qty=True) }}
+    </div>
+    <div class="reward-pick">
+      <span>Stands <small class="muted">(up to {{ R.MAX_STANDS }}, types rolled when claimed)</small></span>
+      {{ picker_data("sp-reward-stands", picker_every(prefix="")) }}
+      {{ picker("stand", "sp-reward-stands", max=R.MAX_STANDS, title="Stands to give", placeholder="Add stands") }}
+      <label class="check"><input type="checkbox" name="shiny" value="1"> ✨ shiny</label>
+    </div>
+  </fieldset>
+
+  <fieldset class="reward-fields">
+    <legend>Who gets it</legend>
+    {% for key, label in audiences.items() %}
+      <label class="check"><input type="radio" name="audience" value="{{ key }}" {% if loop.first %}checked{% endif %} data-reward-audience> {{ label }}</label>
+    {% endfor %}
+    <label data-reward-players hidden>Players <small class="muted">(usernames or Discord IDs, one per line or comma separated)</small>
+      <textarea name="players" rows="3" placeholder="jotaro&#10;242367586233352193"></textarea></label>
+  </fieldset>
+
+  <label>Claimable until <small class="muted">(first day it's closed; leave empty for no end)</small>
+    <input type="date" name="until" value="{{ default_until }}"></label>
+  <button class="btn gold" onclick="return confirm('Send this reward? Players can claim it right away.')">Send reward</button>
+</form>
+
+<h2 class="h2">Sent</h2>
+{% if rows %}
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Reward</th><th>Gives</th><th>To</th><th>Claimed</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for m in rows %}
+      <tr>
+        <td><strong>{{ m.title }}</strong>{% if m.text %}<br><small class="muted">{{ m.text }}</small>{% endif %}
+          <br><small class="muted">by {{ m.by_name }} · <time data-ago="{{ m.at }}"></time></small></td>
+        <td>{% for l in m.lines %}{{ l.icon|emoji }} {{ l.text }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+        <td>{{ {'existing': 'Current players', 'everyone': 'Everyone', 'players': 'Listed'}.get(m.audience, m.audience) }}{% if m.recipients is not none %}<br><small class="muted">{{ '{:,}'.format(m.recipients) }}</small>{% endif %}</td>
+        <td>{{ '{:,}'.format(m.claimed) }}</td>
+        <td>{% if m.live %}🟢 Open{% if m.until %}<br><small class="muted">until {{ m.until }}</small>{% endif %}{% else %}Ended {{ m.until }}{% endif %}</td>
+        <td>
+          <form class="inline" method="post">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="id" value="{{ m.id }}">
+            {% if m.live %}<button class="btn small ghost" name="op" value="end" onclick="return confirm('Close this reward? Players who haven\'t claimed it lose it.')">End now</button>{% endif %}
+            <button class="btn small danger" name="op" value="delete" onclick="return confirm('Delete this reward and its claim history?')">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}<p class="notice">No reward sent yet.</p>{% endif %}
+<script>
+// The player list shows only for "Only the players listed".
+(() => {
+  const box = document.querySelector("[data-reward-players]");
+  const radios = document.querySelectorAll("[data-reward-audience]");
+  const update = () => { box.hidden = document.querySelector("[data-reward-audience]:checked")?.value !== "players"; };
+  radios.forEach((el) => el.addEventListener("change", update));
+  update();
+})();
+</script>
+{% endblock %}

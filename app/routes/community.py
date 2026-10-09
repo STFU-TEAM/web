@@ -161,8 +161,9 @@ def _challenges(uid: str) -> list:
 
 def pending_count(uid: str) -> int:
     """Things waiting on the player (the bell badge): unread news plus open requests."""
+    from app import rewards
     return (social.unread(uid) + r().scard(f"web:friendreq:in:{uid}") + r().scard(CHALLENGE_INBOX.format(uid))
-            + r().scard(f"web:trades:in:{uid}") + r().llen(f"web:gifts:{uid}"))
+            + r().scard(f"web:trades:in:{uid}") + r().llen(f"web:gifts:{uid}") + rewards.count(uid))
 
 
 @bp.post("/push/subscribe")
@@ -197,10 +198,48 @@ def push_test():
     return {"ok": True}
 
 
+@bp.post("/rewards/claim")
+@player_required
+def claim_rewards():
+    """Claim one reward (id) or every waiting one (no id) from the inbox."""
+    from app import rewards
+    me = session["uid"]
+    wanted = request.form.get("id")
+    try:
+        with user_lock(me):
+            user = get_db().get_user(me)
+            if not user:
+                raise rewards.RewardError("You need a save first.")
+            ids = [wanted] if wanted else [m["id"] for m in rewards.claimable(me)]
+            got, failed = [], None
+            for mail_id in ids:
+                try:
+                    got.append(rewards.claim(user, mail_id))
+                except rewards.RewardError as e:
+                    failed = str(e)
+                    if wanted:
+                        raise
+                    break  # the rest stays waiting (storage full)
+            if got:
+                user.update()
+        if got:
+            lines = [l["text"] for m in got for l in rewards.describe(m["rewards"])]
+            flash(f"🎁 Claimed {got[0]['title'] if len(got) == 1 else f'{len(got)} rewards'}: {', '.join(lines)}.", "ok")
+        if failed:
+            flash(failed, "error")
+        elif not got:
+            flash("No reward is waiting.", "error")
+    except rewards.RewardError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("community.inbox"))
+
+
 @bp.get("/inbox")
 @player_required
 def inbox():
-    from app import push
+    from app import push, rewards
     me = session["uid"]
     db = get_db()
     user = db.get_user(me)
@@ -212,6 +251,7 @@ def inbox():
         "friend_requests": [_card(u, me, db) for u in social.incoming(me)],
         "gang_invites": gang_invites,
         "feed": social.feed(me),
+        "rewards": rewards.claimable(me),
         "seen_before": seen_before,
         "push_key": push.keys()["public"] if push.enabled() else None,
         "push_energy": push.wants_energy(me),
