@@ -6,8 +6,8 @@
 
 <h2 class="h2">Push notifications</h2>
 <div class="stat-tiles">
-  <div><span>Status</span><strong>{{ '🟢 On' if push.enabled else '🔴 Off' }}</strong>
-    <small>{% if not push.public or not push.private %}VAPID {{ 'public' if not push.public }}{{ ' + ' if not push.public and not push.private }}{{ 'private' if not push.private }} key missing from the env{% elif not push.library %}pywebpush isn't installed{% else %}keys set · {{ push.subject }}{% endif %}</small></div>
+  <div><span>Status</span><strong>{{ '🔴 Broken' if push.pair == false else ('🟢 On' if push.enabled else '🔴 Off') }}</strong>
+    <small>{% if not push.public or not push.private %}VAPID {{ 'public' if not push.public }}{{ ' + ' if not push.public and not push.private }}{{ 'private' if not push.private }} key missing from the env{% elif not push.library %}pywebpush isn't installed{% elif push.pair == false %}the public and private keys come from different pairs{% else %}keys match · {{ push.subject }}{% endif %}</small></div>
   <div><span>Delivered</span><strong>{{ '{:,}'.format(push.sent) }}</strong><small>{% if push.last_ok_at %}last <time data-ago="{{ push.last_ok_at }}"></time>{% else %}none yet{% endif %}</small></div>
   <div><span>Failed</span><strong>{{ '{:,}'.format(push.failed) }}</strong><small>{{ push.dropped }} dead device{{ 's' if push.dropped != 1 }} removed</small></div>
   <div><span>Scheduled</span><strong>{{ push.due }}</strong><small>{% if push.late %}⚠ {{ push.late }} overdue by 2+ min{% else %}none overdue{% endif %}</small></div>

@@ -48,6 +48,24 @@ def enabled() -> bool:
     return keys() is not None
 
 
+def pair_ok(k: Optional[dict] = None) -> Optional[bool]:
+    """Does VAPID_PUBLIC_KEY belong to VAPID_PRIVATE_KEY? (None when push is off or the private key can't be read.)
+    Two halves of different pairs make every push service answer 401 "VAPID public key mismatch"."""
+    k = k or keys()
+    if not k:
+        return None
+    try:
+        import base64
+        from cryptography.hazmat.primitives import serialization
+        from py_vapid import Vapid01
+        derived = Vapid01.from_string(k["private"]).public_key.public_bytes(
+            serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+        return base64.urlsafe_b64encode(derived).rstrip(b"=").decode() == k["public"].strip().rstrip("=")
+    except Exception:
+        log.exception("VAPID_PRIVATE_KEY can't be read")
+        return None
+
+
 def _key(uid) -> str:
     return f"web:push:{uid}"
 
@@ -139,12 +157,17 @@ def _deliver(redis, uid, field, raw, payload, k):
         _count(redis, "sent")
     except WebPushException as e:
         status = getattr(e.response, "status_code", None)
+        body = (getattr(e.response, "text", "") or "")[:300]
         if status in (404, 410):  # the browser dropped this subscription
             redis.hdel(_key(uid), field)
             _count(redis, "dropped")
             log.info("push to %s: %s says the device is gone (%s), removed it", uid, host, status)
+        elif status in (401, 403) and "mismatch" in body.lower() and pair_ok(k):
+            # made with an older key pair: useless now. The browser resubscribes with the current key (app.js).
+            redis.hdel(_key(uid), field)
+            _count(redis, "dropped")
+            log.info("push to %s: %s subscription was made with an old VAPID key, removed it", uid, host)
         else:
-            body = (getattr(e.response, "text", "") or "")[:300]
             _count(redis, "failed", f"{host} {status}: {body or e}"[:400])
             log.warning("push to %s via %s failed (%s): %s %s", uid, host, status, e, body)
     except Exception as e:
@@ -175,7 +198,7 @@ def status() -> dict:
     raw = {(k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v)
            for k, v in r().hgetall(STATS_KEY).items()}
     cfg = current_app.config
-    return {"enabled": enabled(), "public": bool(cfg.get("VAPID_PUBLIC_KEY")),
+    return {"enabled": enabled(), "pair": pair_ok(), "public": bool(cfg.get("VAPID_PUBLIC_KEY")),
             "private": bool(cfg.get("VAPID_PRIVATE_KEY")), "subject": cfg.get("VAPID_SUBJECT") or "", "library": lib,
             "sent": int(raw.get("sent", 0)), "failed": int(raw.get("failed", 0)), "dropped": int(raw.get("dropped", 0)),
             "last_error": raw.get("last_error"), "last_error_at": int(raw.get("last_error_at", 0)) or None,

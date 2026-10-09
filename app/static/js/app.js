@@ -1254,8 +1254,41 @@ document.addEventListener("change", (e) => {
   if (all.filter((b) => b.checked).length > Number(box.dataset.pickMax)) box.checked = false;
 });
 
-// Web push: the inbox's "Notifications on this device" card (data-push). Subscribes this browser with the
-// server's VAPID key; the service worker (/sw.js) shows the notifications.
+// Web push. A subscription is tied to the VAPID key it was made with: after the server's keys change, push services
+// answer 401 "VAPID public key mismatch" for it. So every page of a player with push on (the push-key meta) checks
+// this browser's subscription and swaps an outdated one for a fresh one (permission is already granted: no prompt).
+const pushB64 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4);
+  const raw = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
+const pushPost = (url, body) => fetch(url, { method: "POST", body: JSON.stringify(body || {}), headers: { "Content-Type": "application/json",
+  "X-CSRF-Token": JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "" } });
+const pushSameKey = (sub, key) => {
+  const k = sub.options && sub.options.applicationServerKey;
+  if (!k) return true;  // this browser doesn't say: keep it
+  const a = new Uint8Array(k), b = pushB64(key);
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+};
+// This browser's subscription made with `key` (renewed if it was made with another one), or null. urls: {sub, unsub}.
+async function pushSync(key, urls, report) {
+  const reg = await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) return null;
+  if (!pushSameKey(sub, key)) {
+    await pushPost(urls.unsub, { endpoint: sub.endpoint }).catch(() => {});
+    await sub.unsubscribe();
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushB64(key) });
+    report = true;
+  }
+  if (report) await pushPost(urls.sub, sub.toJSON());
+  return sub;
+}
+(() => {
+  const meta = document.querySelector('meta[name="push-key"]');
+  if (!meta || document.querySelector("[data-push]") || !("serviceWorker" in navigator) || !("PushManager" in window)
+      || !("Notification" in window) || Notification.permission !== "granted") return;
+  pushSync(meta.content, { sub: meta.dataset.sub, unsub: meta.dataset.unsub }, false).catch(() => {});
+})();
+
+// The inbox's "Notifications on this device" card (data-push): turn push on or off for this browser, send a test.
 (() => {
   const card = document.querySelector("[data-push]");
   if (!card) return;
@@ -1263,11 +1296,7 @@ document.addEventListener("change", (e) => {
   const status = $("[data-push-status]");
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) && !matchMedia("(display-mode: standalone)").matches;
-  const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
-  const post = (url, body) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRF-Token": token },
-                                          body: JSON.stringify(body || {}) });
-  const b64 = (s) => { const p = "=".repeat((4 - (s.length % 4)) % 4);
-    const raw = atob((s + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from(raw, (c) => c.charCodeAt(0)); };
+  const urls = { sub: card.dataset.sub, unsub: card.dataset.unsub };
   const show = (on, text) => {
     $("[data-push-on]").hidden = on; $("[data-push-off]").hidden = !on; $("[data-push-test]").hidden = !on;
     if (text) status.textContent = text;
@@ -1278,26 +1307,28 @@ document.addEventListener("change", (e) => {
     status.textContent = ios ? "Your browser can't receive notifications from a tab." : "This browser can't receive push notifications.";
     return;
   }
-  navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then((sub) => {
-    if (sub) { post(card.dataset.sub, sub.toJSON()); show(true, "On for this device."); }
+  pushSync(card.dataset.key, urls, true).then((sub) => {
+    if (sub) show(true, "On for this device.");
     else if (Notification.permission === "denied") show(false, "Notifications are blocked for this site in your browser settings.");
-  });
+  }).catch(() => show(false, "Notifications stopped working on this device: turn them on again."));
   $("[data-push-on]").addEventListener("click", async () => {
     try {
       if ((await Notification.requestPermission()) !== "granted") return show(false, "Permission refused: allow notifications for this site to turn them on.");
       const reg = await navigator.serviceWorker.ready;
-      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(card.dataset.key) });
-      const res = await post(card.dataset.sub, sub.toJSON());
+      const old = await reg.pushManager.getSubscription();
+      if (old && !pushSameKey(old, card.dataset.key)) await old.unsubscribe();
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushB64(card.dataset.key) });
+      const res = await pushPost(urls.sub, sub.toJSON());
       show(res.ok, res.ok ? "On for this device." : "The server refused this device. Try again later.");
     } catch (err) { show(false, "Couldn't turn notifications on in this browser."); }
   });
   $("[data-push-off]").addEventListener("click", async () => {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    if (sub) { await post(card.dataset.unsub, { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    if (sub) { await pushPost(urls.unsub, { endpoint: sub.endpoint }); await sub.unsubscribe(); }
     show(false, "Off for this device.");
   });
-  $("[data-push-test]").addEventListener("click", () => post(card.dataset.test));
+  $("[data-push-test]").addEventListener("click", () => pushPost(card.dataset.test));
 })();
 
 // Click to copy (the co-op lobby code).

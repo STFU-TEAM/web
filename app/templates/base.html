@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="STFU Requiem">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  {% if push_key_meta %}<meta name="push-key" content="{{ push_key_meta }}" data-sub="{{ url_for('community.push_subscribe') }}" data-unsub="{{ url_for('community.push_unsubscribe') }}">{% endif %}
   <link rel="manifest" href="{{ url_for('main.manifest') }}">
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/icon-32.png') }}">
   <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='img/icon-192.png') }}">

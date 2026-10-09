@@ -176,3 +176,30 @@ def test_a_full_storage_keeps_the_reward_waiting(client):
     d = doc(client, "222")
     assert d["fragments"] == 0 and len(d["storage_characters"]) == logic.STORAGE_CAPACITY
     assert "reward-list" in client.get("/community/inbox").data.decode()  # still claimable
+
+
+def test_a_subscription_from_an_old_key_is_dropped(client, pushy, monkeypatch):
+    from app import push
+    h = _admin(client)
+    client.post("/community/push/subscribe", json=_browser_sub(), headers=h)
+    assert 'name="push-key"' in client.get("/story").data.decode()  # app.js renews old subscriptions from it
+
+    class Resp:
+        status_code, headers, reason = 401, {}, "Unauthorized"
+        text = '{"code":401,"errno":109,"error":"Unauthorized","message":"VAPID public key mismatch"}'
+    monkeypatch.setattr("requests.post", lambda *a, **k: Resp())
+    with client.application.app_context():
+        assert push.pair_ok() is True
+        dbmod.r().delete("web:seen:111")
+        push.send("111", "trade", "hi")
+        assert push.devices("111") == 0 and push.status()["dropped"] == 1
+
+
+def test_keys_from_two_pairs_are_flagged(client, pushy):
+    from app import push
+    from test_push import _vapid
+    _admin(client)
+    client.application.config["VAPID_PUBLIC_KEY"] = _vapid()[0]  # another pair's public half
+    with client.application.app_context():
+        assert push.pair_ok() is False
+    assert "different pairs" in client.get("/admin/logs").data.decode()

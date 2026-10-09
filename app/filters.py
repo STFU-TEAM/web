@@ -337,6 +337,7 @@ def register(app):
         uid = session.get("uid")
         story_hot = tour_pending = False
         inbox_count, toasts, duel_waiting = 0, [], False
+        from app import push
         from app.auth import is_admin
         from app.game import progression
         nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
@@ -371,6 +372,8 @@ def register(app):
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
                    "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
             "csrf_token": session["csrf"],
+            # app.js renews this browser's push subscription if it was made with an older VAPID key
+            "push_key_meta": (push.keys() or {}).get("public") if uid else None,
             "STAND_COUNT": len(PLAYABLE),
             "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS, "SHINY_ODDS": round(1 / SHINY_CHANCE),
         }
