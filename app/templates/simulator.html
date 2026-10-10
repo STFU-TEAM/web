@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Team simulator | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page narrow">
   <header class="player-bar">
-    <div><p class="kicker">Battle lab</p><h1 class="display sm">Team simulator</h1></div>
+    <div><p class="kicker">Battle lab</p><h1 class="display sm">{% call menacing() %}Team simulator{% endcall %}</h1></div>
   </header>
   <p class="lede sim-lede">Before you spend energy, see how a team fares: it plays the fight {{ runs }} times through the real engine, with the best target picks made for you. Nothing is spent or saved.</p>
 

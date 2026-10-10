@@ -117,3 +117,29 @@ def test_review_shows_suggestions(client):
     _player(client, main_characters=[char(1, xp=9000)], storage_characters=[char(4, xp=8000)])
     part = client.get("/battles/planner/review?p0=s:1&p1=s:2&blank=1", headers={"HX-Request": "true"}).data.decode()
     assert "Suggestions for stand 3" in part and 'data-suggest-slot="2"' in part and "Hermit purple" in part
+
+
+def test_owned_copy_tries_other_items_and_the_team_page_plans_it(client):
+    from werkzeug.datastructures import MultiDict
+    mine = char(6, xp=9000, awaken=3)
+    mine["items"] = [{"id": 1}]
+    _player(client, main_characters=[mine], energy=10)
+    from test_app import doc
+    user = User(doc(client, "111"))
+    uuid = user.main_characters[0].uuid
+    kept = planner.parse(MultiDict([("p0", f"u:{uuid}"), ("blank", "1")]), user)[0]
+    as_is = planner.build(kept, user)
+    assert [it.id for it in as_is.items] == [1] and kept["over_items"] == [1]  # the switch starts from its gear
+    args = MultiDict([("p0", f"u:{uuid}"), ("ox0", "1"), ("o0", "42"), ("o0", "1"), ("or0", "9"), ("blank", "1")])
+    slot = planner.parse(args, user)[0]
+    assert slot["override"] and slot["over_items"] == [42, 1] and slot["over_refine"] == planner.REFINE_MAX
+    other = planner.build(slot, user)
+    assert [it.id for it in other.items] == [42, 1] and other.level == as_is.level and other.awaken == as_is.awaken
+    assert user.main_characters[0].items[0].id == 1  # the save isn't touched
+    q = planner.query([slot, None, None])
+    assert q["ox0"] == "1" and q["o0"] == [42, 1] and q["or0"] == planner.REFINE_MAX
+    refined = planner.parse(MultiDict([("p0", "s:1"), ("i0", "42"), ("r0", "3"), ("blank", "1")]), None)[0]
+    assert refined["refine"] == 3 and planner.query([refined, None, None])["r0"] == 3
+    assert planner.build(refined, None).start_damage >= planner.build({**refined, "refine": 0}, None).start_damage
+    page = client.get("/team").data.decode()
+    assert "Plan this team" in page and f"p0=u:{uuid}" in page

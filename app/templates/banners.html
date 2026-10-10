@@ -1,24 +1,39 @@
 {% extends "base.html" %}
 {% from "partials/picker.html" import picker, picker_data %}
+{% from "macros.html" import menacing %}
 {% block title %}Banners | STFU Requiem{% endblock %}
 {% macro pct(v) %}{{ ('%.1f'|format(v * 100)).rstrip('0').rstrip('.') }}%{% endmacro %}
 {% block main %}
 <section class="page">
-  <header class="player-bar">
-    <div>
-      <h1 class="display sm">Banners</h1>
-      <div class="pity" title="Pulls since your last UR or LR">
-        <span>Pity {{ u.pity }}/{{ PITY_LIMIT }}</span>
+  {#- the hero: the Arrow, the wallet, and the two gauges a summoner watches (pity, sparks) -#}
+  <header class="summon-hero">
+    <div class="summon-emblem" aria-hidden="true"><svg class="summon-arrow" viewBox="0 0 64 64" aria-hidden="true">
+          <defs><linearGradient id="summon-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F4C542"/><stop offset="1" stop-color="#C8931B"/></linearGradient></defs>
+          <rect x="29.5" y="41" width="5" height="20" rx="1.2" fill="url(#summon-gold)" stroke="#1C0F2E" stroke-width="1.6"/>
+          <path d="M32 3 C36 10 41 17 44 25 Q50 30 51 37 Q46 33 40 33 L36 37 L28 37 L24 33 Q18 33 13 37 Q14 30 20 25 C23 17 28 10 32 3 Z" fill="url(#summon-gold)" stroke="#1C0F2E" stroke-width="1.6" stroke-linejoin="round"/>
+          <rect x="27.5" y="36.5" width="9" height="5" rx="1.2" fill="#C8931B" stroke="#1C0F2E" stroke-width="1.6"/>
+          <ellipse cx="32" cy="24" rx="5" ry="6.5" fill="#C8931B" stroke="#1C0F2E" stroke-width="1.6"/>
+          <path d="M32 17.5 V30.5" stroke="#1C0F2E" stroke-width="1.2"/>
+          <circle cx="32" cy="22" r="2.3" fill="#3AB4F2" stroke="#1C0F2E" stroke-width="1"/>
+        </svg></div>
+    <div class="summon-title">
+      <p class="kicker">Summon · the Arrow chooses</p>
+      <h1 class="display sm">{% call menacing() %}Summon{% endcall %}</h1>
+      <p class="summon-rotate">🔄 New banners in <strong>{{ rotates_in|delta }}</strong> · <a href="#banner-calendar">calendar</a></p>
+    </div>
+    <div class="summon-wallet">{% include "partials/wallet.html" %}</div>
+    <div class="summon-gauges">
+      <div class="gauge pity" title="Pulls since your last UR or LR">
+        <span class="gauge-head"><b>Pity</b><strong>{{ u.pity }}<small>/{{ PITY_LIMIT }}</small></strong></span>
         <div class="meter" role="meter" aria-label="Pity" aria-valuemin="0" aria-valuemax="{{ PITY_LIMIT }}" aria-valuenow="{{ u.pity }}"><i style="width: {{ ([100 * u.pity / PITY_LIMIT, 100]|min)|round }}%"></i></div>
-        <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed UR or LR · {{ st.free_slots }} free slots</small>
+        <small class="muted">{{ [PITY_LIMIT - u.pity, 1]|max }} pull{{ 's' if PITY_LIMIT - u.pity != 1 }} to a guaranteed UR ({{ pct(PITY_ODDS['LR']) }} LR) · {{ st.free_slots }} free slots</small>
       </div>
-      <div class="pity sparks" title="Every 10-pull earns a spark. {{ SPARK_COST }} sparks buy any SSR from a banner.">
-        <span>✦ Sparks {{ sparks }}/{{ SPARK_COST }}</span>
+      <div class="gauge sparks{{ ' ready' if sparks >= SPARK_COST }}" title="Every 10-pull earns a spark. {{ SPARK_COST }} sparks buy any SSR from a banner.">
+        <span class="gauge-head"><b>✦ Sparks</b><strong>{{ sparks }}<small>/{{ SPARK_COST }}</small></strong></span>
         <div class="meter" role="meter" aria-label="Sparks" aria-valuemin="0" aria-valuemax="{{ SPARK_COST }}" aria-valuenow="{{ sparks }}"><i style="width: {{ ([100 * sparks / SPARK_COST, 100]|min)|round }}%"></i></div>
         <small class="muted">{% if sparks >= SPARK_COST %}Ready: pick any SSR on a banner below.{% else %}{{ SPARK_COST - sparks }} more 10-pull{{ 's' if SPARK_COST - sparks != 1 }} to choose any SSR.{% endif %}</small>
       </div>
     </div>
-    {% include "partials/wallet.html" %}
   </header>
   {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your Arrowhead on any banner below.</p>{% endif %}
 
@@ -39,13 +54,13 @@
       {% else %}<span class="muted">Only your own pulls; it lasts an hour and is logged in the audit.</span>{% endif %}
     </form>
   {% endif %}
-  <p class="rotation-note">🔄 Today: {{ banners|map(attribute='name')|join(' · ') }}. <strong>New banners in {{ rotates_in|delta }}</strong> · <a href="#banner-calendar">See the calendar</a></p>
 
   <div id="pull-result" class="use-result" aria-live="polite"></div>
 
   <div class="banners">
     {% for b in banners %}
-    <article class="banner{{ ' themed' if b.theme }}" id="banner-{{ b.id }}">
+    {% set counts_all = b|banner_stands %}
+    <article class="banner{{ ' themed' if b.theme }}{{ ' has-lr' if counts_all|selectattr('rarity', 'equalto', 'LR')|list }}" id="banner-{{ b.id }}">
       <a class="banner-art-link" href="{{ url_for('play.banner_details', banner_id=b.id) }}" data-open-banner
          hx-get="{{ url_for('play.banner_details', banner_id=b.id) }}" hx-target="#banner-panel-body" title="Odds and every stand">
         {% if b.theme %}
@@ -54,6 +69,7 @@
           <img class="banner-art" src="{{ ('banners/' ~ b.id ~ '.gif')|asset }}" alt="" loading="lazy" onerror="this.classList.add('missing')">
         {% endif %}
         <span class="banner-art-hint">🔍 Odds & stands</span>
+        {% if counts_all|selectattr('rarity', 'equalto', 'LR')|list %}<span class="banner-lr-tag">神 LR inside</span>{% endif %}
       </a>
       <div class="banner-body">
         <h2 class="h2">{{ b.name }}{% if b.theme %} <span class="theme-tag">Theme of the day</span>{% endif %}</h2>
@@ -87,9 +103,9 @@
           </form>
         {% endif %}
         <div class="banner-actions">
-          <button class="btn gold" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
+          <button class="btn gold big pull-10" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='pull') }}" hx-target="#pull-result" hx-disabled-elt="this"
                   {% if u.super_fragments < b.cost %}disabled title="You need {{ b.cost }} {{ HEAD }}"{% endif %}>Pull 10 · {{ b.cost|heads }}</button>
-          <button class="btn" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
+          <button class="btn sky pull-5" hx-post="{{ url_for('play.pull', banner_id=b.id, mode='arrow') }}" hx-target="#pull-result" hx-disabled-elt="this"
                   {% if not arrows %}disabled title="You have no {{ PALM }}"{% endif %}>Pull 5 · 1{{ icon('palm') }} <span id="arrows-{{ b.id }}" class="arrows">({{ arrows }} left)</span></button>
         </div>
       </div>
@@ -106,7 +122,7 @@
       {% for w in schedule %}
         <li class="{{ 'now' if w.current }}">
           <div class="cal-when">
-            <strong>{{ 'Today' if w.current else ('Tomorrow' if loop.index == 2 else w.date.strftime('%A')) }}</strong>
+            <strong>{% if w.current %}<span class="cal-today">Today</span>{% else %}{{ 'Tomorrow' if loop.index == 2 else w.date.strftime('%A') }}{% endif %}</strong>
             <small class="muted">{{ w.date.strftime('%a %b %d') }}</small>
           </div>
           <ul class="cal-banners">

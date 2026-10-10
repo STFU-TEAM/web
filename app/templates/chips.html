@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Stand chips | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page chip-page">
   <header class="player-bar">
     <div>
       <p class="kicker">Collection · stand chips</p>
-      <h1 class="display sm">Stand chips</h1>
+      <h1 class="display sm">{% call menacing() %}Stand chips{% endcall %}</h1>
       <p class="muted">Every chip belongs to one synergy, and only stands in that group can socket it. Its stats are random: commons roll one line, rares two, epics and legendaries three, and the first line always matches the synergy's own bonus. Every stand has one slot, plus one per awakening, up to {{ slot_max }} at ★3. Socket and remove chips from a stand's panel on the <a href="{{ url_for('play.team') }}">team page</a>. Chips work in every mode except ranked.</p>
     </div>
   </header>

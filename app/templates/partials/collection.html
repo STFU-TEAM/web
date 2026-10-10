@@ -20,6 +20,10 @@
   <header class="shelf-head">
     <h2 class="h2">Team</h2>
     <p class="muted">{{ u.main_characters|length }} of 3 fight for you. Tap a stand to manage it.</p>
+    {% if u.main_characters %}
+      {% set plan = {} %}{% for c in u.main_characters[:3] %}{% set _ = plan.update({'p' ~ loop.index0: 'u:' ~ c.uuid}) %}{% endfor %}
+      <a class="btn small sky plan-this" href="{{ url_for('battles.planner_page', **plan) }}" title="Open your team in the planner: try other gear, swap a member, simulate it">📐 Plan this team</a>
+    {% endif %}
   </header>
   <div class="grid team-grid">
     {% for c in u.main_characters %}{{ slot(c, loop.index0, team=True, small=False) }}{% endfor %}

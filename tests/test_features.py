@@ -1597,3 +1597,21 @@ def test_reforge_remembers_locks(client):
     assert stand["uuid"] not in doc(client, "111").get("web_reforge_locks", {})
     client.post("/reforge/locks", data={"uuid": stand["uuid"], "lock": [str(i) for i in range(len(types))]}, headers=h)
     assert len(doc(client, "111")["web_reforge_locks"][stand["uuid"]]) == len(types) - 1
+
+
+def test_admin_player_page_shows_the_pve_unlock_checklist(client):
+    from app.game import altverse, progression, story
+    from app.game.user import User
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    put(client, create_user("111"))
+    d = create_user("222")
+    d["web_story"] = {"cleared": progression.done_at(3)}  # Part 3 done: ranked and the first universe open
+    put(client, d)
+    login(client, "111")
+    rows = {m["label"]: m for m in progression.checklist(User(doc(client, "222")))}
+    assert rows["Tower"]["done"] and rows["Ranked"]["done"] and not rows["Over Heaven"]["done"]
+    assert rows["Over Heaven"]["have"] == progression.done_at(3) and rows["Over Heaven"]["of"] == story.TOTAL
+    first = altverse.CHAPTERS[0]
+    assert rows[f"Alternate Universe · {first['title']}"]["done"] and not rows["Training ground"]["done"]
+    page = client.get("/admin/player/222").data.decode()
+    assert "PvE unlock checklist" in page and "Finish the story" in page and "Training ground" in page

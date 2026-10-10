@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Reforge | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page reforge">
   <header class="player-bar">
     <div>
       <p class="kicker">Collection · Reforge</p>
-      <h1 class="display sm">The Forge</h1>
+      <h1 class="display sm">{% call menacing() %}The Forge{% endcall %}</h1>
       <p class="muted">Reroll a stand's types and qualities. Lock the pairs you like: only the others change. Nothing is lost: you always choose between the old roll and the new one.</p>
     </div>
     {% include "partials/wallet.html" %}

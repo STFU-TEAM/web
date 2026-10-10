@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Items | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page">
   <header class="player-bar">
-    <h1 class="display sm">Items</h1>
+    <h1 class="display sm">{% call menacing() %}Items{% endcall %}</h1>
     {% include "partials/wallet.html" %}
   </header>
   <div id="use-result" class="use-result" aria-live="polite"></div>

@@ -5,7 +5,9 @@ the plan lives in the URL so it can be shared.
 
 A slot is p<i> = "u:<uuid>" (one of your copies, exactly as it is: items and chips included) or "s:<stand id>"
 (any stand), with l<i> level, a<i> awakening, t<i> type, q<i> quality ("none", "good" or "perfect"), i<i> up to
-MAX_ITEMS item ids (repeated) and k<i> taunt ("1" on, "0" off, absent: the stand's own).
+MAX_ITEMS item ids (repeated), r<i> their refine level and k<i> taunt ("1" on, "0" off, absent: the stand's own).
+One of your copies can try other gear too: ox<i>="1" swaps its items for o<i> (refined to or<i>), keeping everything
+else (level, stars, types, chips) as it is.
 """
 import copy
 from typing import List, Optional
@@ -18,6 +20,7 @@ QUALITY_LABEL = {"none": "No type", "good": "Good", "perfect": "Perfect"}
 TYPES = ["ATTACK", "DEFENSE", "SPEED", "LUCK", "BALANCE", "HEALTH"]
 MAX_STARS = 5
 MAX_ITEMS = 3
+REFINE_MAX = 5
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
 PLAYABLE_IDS = {c["id"] for c in PLAYABLE}
 STATS = [("hp", "Health"), ("damage", "Damage"), ("armor", "Armor"), ("speed", "Speed"), ("critical", "Critical")]
@@ -56,9 +59,13 @@ def parse(args, user) -> List[dict]:
         allowed = item_ids()
         items = [int(x) for x in raw_items if str(x).isdigit() and int(x) in allowed][:MAX_ITEMS]
         taunt = {"1": True, "0": False}.get(args.get(f"k{i}"))
+        raw_over = args.getlist(f"o{i}") if hasattr(args, "getlist") else []
+        override = args.get(f"ox{i}") == "1" and pick.startswith("u:")
+        over_items = [int(x) for x in raw_over if str(x).isdigit() and int(x) in allowed][:MAX_ITEMS]
         slots.append({"pick": pick, "level": _int(args.get(f"l{i}"), 1, MAX_LEVEL, MAX_LEVEL),
                       "awaken": _int(args.get(f"a{i}"), 0, MAX_STARS, 0), "type": stype, "quality": quality,
-                      "items": items, "taunt": taunt})
+                      "items": items, "taunt": taunt, "refine": _int(args.get(f"r{i}"), 0, REFINE_MAX, 0),
+                      "override": override, "over_items": over_items, "over_refine": _int(args.get(f"or{i}"), 0, REFINE_MAX, 0)})
     return slots
 
 
@@ -72,7 +79,12 @@ def build(slot: Optional[dict], user):
         if char is None:
             return None
         slot.update(level=char.level, awaken=char.awaken, owned=True)
-        return character_from_dict(copy.deepcopy(char.to_dict()))
+        data = copy.deepcopy(char.to_dict())
+        if slot.get("override"):  # this copy, with other gear on
+            data["items"] = [{"id": i, "refine": slot.get("over_refine", 0)} for i in slot.get("over_items") or []][:MAX_ITEMS]
+        else:
+            slot["over_items"] = [it["id"] for it in data.get("items", [])][:MAX_ITEMS]  # what the switch starts from
+        return character_from_dict(data)
     if kind != "s" or not ref.isdigit() or int(ref) not in PLAYABLE_IDS:
         return None
     sid = int(ref)
@@ -80,7 +92,7 @@ def build(slot: Optional[dict], user):
     q = QUALITIES[slot["quality"]]
     slot["owned"] = False
     data = {"id": sid, "xp": slot["level"] * 100, "awaken": slot["awaken"], "types": [slot["type"]] if q else [],
-            "qualities": [q] if q else [], "items": [{"id": i} for i in slot.get("items") or []][:MAX_ITEMS]}
+            "qualities": [q] if q else [], "items": [{"id": i, "refine": slot.get("refine", 0)} for i in slot.get("items") or []][:MAX_ITEMS]}
     if slot.get("taunt") is not None:
         data["_planner_taunt"] = slot["taunt"]
     return character_from_dict(data)
@@ -224,4 +236,8 @@ def query(slots: List[Optional[dict]]) -> dict:
                 out[f"i{i}"] = list(s["items"])
             if s.get("taunt") is not None:
                 out[f"k{i}"] = "1" if s["taunt"] else "0"
+            if s.get("refine"):
+                out[f"r{i}"] = s["refine"]
+        elif s.get("override"):  # your copy, trying other gear
+            out.update({f"ox{i}": "1", f"o{i}": list(s.get("over_items") or []), f"or{i}": s.get("over_refine", 0)})
     return out

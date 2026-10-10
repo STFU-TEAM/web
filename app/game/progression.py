@@ -49,7 +49,45 @@ def opened(cleared: int) -> dict:
 
 def requirement(key: str) -> str:
     """What the story asks before a mode opens, for locked tabs."""
-    n = GATES[key]
+    return requirement_at(GATES[key])
+
+
+def checklist(user, skip=()) -> List[dict]:
+    """Every PvE mode for one player (the admin page): {label, need, done, have, of, played} in the order they open.
+    `have`/`of` is how far they are toward the requirement; `played` how far into the mode once it's open."""
+    from app.game import overheaven, training
+    cleared = story.cleared(user)
+    rows = [{"label": "Story", "need": "Open from the start", "done": True, "have": 1, "of": 1,
+             "played": f"{min(cleared, story.TOTAL)}/{story.TOTAL} stages"}]
+    for key, n in sorted(GATES.items(), key=lambda kv: kv[1]):
+        if key in skip:
+            continue
+        row = {"label": LABELS[key], "need": requirement(key), "done": cleared >= n, "have": min(cleared, n), "of": n,
+               "played": ""}
+        if key == "altverse":
+            row["need"] += " (the first universe)"
+        if key == "overheaven":
+            row["played"] = f"{overheaven.total_cleared(user)}/{overheaven.TOTAL} fights"
+        rows.append(row)
+        if key == "altverse":  # each universe opens with its own part
+            for c in altverse.CHAPTERS:
+                need = done_at(c["after"])
+                rows.append({"label": f"Alternate Universe · {c['title']}", "need": requirement_at(need),
+                             "done": altverse.unlocked(user, c["key"]), "have": min(cleared, need), "of": need,
+                             "played": f"{min(altverse.cleared(user, c['key']), len(c['stages']))}/{len(c['stages'])} stages",
+                             "sub": True})
+    rows.append({"label": "Co-op raids · Normal to Nightmare", "need": "Open from the start", "done": True,
+                 "have": 1, "of": 1, "played": ""})
+    rows.append({"label": "Co-op raids · Over Heaven", "need": "Finish the story", "done": overheaven.unlocked(user),
+                 "have": min(cleared, story.TOTAL), "of": story.TOTAL, "played": ""})
+    au = altverse.total_cleared(user)
+    rows.append({"label": "Training ground", "need": "Finish the story and every Alternate Universe",
+                 "done": training.unlocked(user), "have": min(cleared, story.TOTAL) + min(au, altverse.TOTAL),
+                 "of": story.TOTAL + altverse.TOTAL, "played": ""})
+    return rows
+
+
+def requirement_at(n: int) -> str:
     if n <= 1:
         return "Win your first story fight"
     if n >= story.TOTAL:

@@ -97,6 +97,26 @@
   </section>
 </div>
 
+<section class="social-panel" id="pve">
+  {% set open_count = pve|selectattr('done')|list|length %}
+  <h2 class="h2">PvE unlock checklist <small class="muted">{{ open_count }}/{{ pve|length }} open</small></h2>
+  <ul class="pve-check">
+    {% for m in pve %}
+      <li class="{{ 'done' if m.done else 'locked' }}{{ ' sub' if m.sub }}">
+        <span class="pve-box" aria-hidden="true">{{ '✓' if m.done else '' }}</span>
+        <span class="pve-name"><strong>{{ m.label }}</strong> <span class="sr">{{ 'unlocked' if m.done else 'locked' }}</span>
+          <small class="muted">{{ m.need }}</small></span>
+        <span class="pve-state">
+          {% if m.done %}{{ m.played or 'Open' }}{% else %}
+            <span class="meter" role="meter" aria-label="Progress toward {{ m.label }}" aria-valuemin="0" aria-valuemax="{{ m.of }}" aria-valuenow="{{ m.have }}"><i style="width: {{ (100 * m.have / m.of)|round }}%"></i></span>
+            <small>{{ m.have }}/{{ m.of }}</small>
+          {% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+
 <section class="social-panel" id="items">
   <h2 class="h2">Items</h2>
   {% if items %}

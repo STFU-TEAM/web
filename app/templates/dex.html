@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Stand Dex | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page">
   <header class="player-bar">
-    <div><p class="kicker">Collection</p><h1 class="display sm">Stand Dex</h1></div>
+    <div><p class="kicker">Collection</p><h1 class="display sm">{% call menacing() %}Stand Dex{% endcall %}</h1></div>
     <dl class="figures compact"><div><dt>Discovered</dt><dd>{{ total_known }}/{{ total }}</dd></div>
       <div><dt>Sets done</dt><dd>{{ sets|selectattr('complete')|list|length }}/{{ sets|length }}</dd></div></dl>
   </header>

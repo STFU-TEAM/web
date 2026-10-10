@@ -289,6 +289,79 @@ TRACKS = [
         ],
     },
 ]
+
+# Heaven's Trials: the way in. Twelve fights from gentle to brutal; each early one teaches a single rule, the later
+# ones stack them. `difficulty` (1-5) is shown as stars; `reward` replaces the track's REWARDS ladder (smaller steps,
+# more of them). Calibrated with scripts/balance.py heaven-trials.
+TRIALS = {
+    "key": "trials", "mode": "Trials", "title": "Heaven's Trials", "color": "#3AB4F2",
+    "intro": "Before the real climb, the Arrow tests you one rule at a time. Learn each one here; the other tracks "
+             "throw them at you all at once.",
+    "fights": [
+        {"title": "First Light", "power": 0.7, "difficulty": 1,
+         "enemies": [(3, ["ATTACK"], [G], [42], {}), (16, ["HEALTH"], [G], [46], {}), (27, ["LUCK"], [G], [42], {})],
+         "rules": {}, "reward": {"fragments": 1500, "super": 0, "items": []},
+         "text": "Three of DIO's lesser servants, at heaven's level. No tricks yet: just how hard everything hits up here.",
+         "hint": "Bring your strongest team. Every enemy here is level 100 ★5, the same as every Over Heaven fight."},
+        {"title": "A Step Behind", "power": 0.92, "difficulty": 1,
+         "enemies": [(6, ["SPEED"], [G], [44], {}), (13, ["ATTACK"], [G], [42], {}), (14, ["ATTACK"], [G], [42], {})],
+         "rules": {"enemy_first": True}, "reward": {"fragments": 1800, "super": 0, "items": []},
+         "text": "They always strike first. Your opening has to survive theirs.",
+         "hint": "Tanks with taunt and health builds take the first blow; your attackers answer it."},
+        {"title": "Bonds", "power": 1.1, "difficulty": 1,
+         "enemies": [(9, ["HEALTH"], [G], [43], {}), (11, ["ATTACK"], [G], [42], {}), (12, ["DEFENSE"], [G], [44], {})],
+         "rules": {"ward": 0.4}, "reward": {"fragments": 2200, "super": 0, "items": []},
+         "text": "A ward that only partners can pierce.",
+         "hint": "Stands outside an active synergy deal 40% less. Bring two or three members of one crew, family or part."},
+        {"title": "Mending Fog", "power": 1.0, "difficulty": 2,
+         "enemies": [(43, ["HEALTH"], [S], [43], {}), (47, ["HEALTH"], [S], [46], {}), (63, ["DEFENSE"], [S], [44], {})],
+         "rules": {"regen": 0.05}, "reward": {"fragments": 2600, "super": 1, "items": []},
+         "text": "Every wound closes a little each turn.",
+         "hint": "They heal 5% a turn: out-damage it, or poison, bleed and burn them faster than they heal."},
+        {"title": "Rising Fury", "power": 0.84, "difficulty": 2,
+         "enemies": [(37, ["ATTACK"], [S], [42], {}), (53, ["SPEED"], [S], [44], {}), (55, ["ATTACK"], [S], [45], {})],
+         "rules": {"enrage": 0.06}, "reward": {"fragments": 3000, "super": 0, "items": []},
+         "text": "The longer it lasts, the angrier they get.",
+         "hint": "They grow 6% stronger every turn. End it fast: burst damage and specials that charge quickly."},
+        {"title": "Hall of Echoes", "power": 0.9, "difficulty": 2,
+         "enemies": [(68, ["DEFENSE"], [S], [44], {}), (74, ["DEFENSE"], [S], [43], {}), (13, ["DEFENSE"], [S], [44], {})],
+         "rules": {"reflect": 0.3}, "reward": {"fragments": 3500, "super": 0, "items": []},
+         "text": "Mirrors everywhere. Every blow comes back.",
+         "hint": "30% of each basic hit returns to the attacker. Let specials and damage over time do the work."},
+        {"title": "Dry Wounds", "power": 1.05, "difficulty": 3,
+         "enemies": [(18, ["HEALTH"], [S], [43], {}), (2, ["ATTACK"], [S], [42], {}), (22, ["ATTACK"], [S], [42], {})],
+         "rules": {"heal_cut": 0.5, "pressure": 0.02}, "reward": {"fragments": 4000, "super": 0, "items": [38]},
+         "text": "A desert wind that dries every wound open.",
+         "hint": "Healing is halved and you lose 2% a turn. Sustain is weak here: hit hard and finish quickly."},
+        {"title": "Home Field", "power": 1.1, "difficulty": 3,
+         "enemies": [(7, ["ATTACK"], [S], [42], {}), (71, ["HEALTH"], [S], [43], {}), (33, ["ATTACK"], [S], [42], {})],
+         "rules": {"terrain": "OCEAN", "native_ward": 0.5}, "reward": {"fragments": 4500, "super": 1, "items": []},
+         "text": "A sunken arena where only the sea's own are at home.",
+         "hint": "A locked Ocean field; only Ocean natives hit at full strength. Dark Blue Moon, Clash, Beach Boy, Geb..."},
+        {"title": "Old Blood", "power": 0.95, "difficulty": 3,
+         "enemies": [(10, ["ATTACK"], [S], [42], {}), (30, ["ATTACK"], [S], [45], {}), (19, ["LUCK"], [S], [42], {})],
+         "rules": {"part_ward": [3, 0.5]}, "reward": {"fragments": 5000, "super": 0, "items": [39]},
+         "text": "DIO's mansion remembers only the Crusaders.",
+         "hint": "Only Part 3 stands hit at full strength. A Crusaders, Tarot or Nine Gods team, with the Part 3 synergy."},
+        {"title": "Borrowed Crowns", "power": 1.1, "difficulty": 4,
+         "enemies": [(149, ["ATTACK"], [U], [42], {}), (154, ["HEALTH"], [U], [43], {}), (156, ["ATTACK"], [U], [42], {})],
+         "rules": {"heaven_tax": 0.4, "ward": 0.4}, "reward": {"fragments": 6000, "super": 0, "items": [40]},
+         "text": "Here, power you didn't earn is power you don't have.",
+         "hint": "UR and LR fight at 60% and stands outside a synergy deal 40% less: a synergy team of lower rarities."},
+        {"title": "The Long Night", "power": 1.0, "difficulty": 4,
+         "enemies": [(58, ["HEALTH"], [U], [43], {}), (75, ["ATTACK"], [U], [42], {}), (94, ["SPEED"], [U], [44], {})],
+         "rules": {"enrage": 0.08, "regen": 0.04, "stun_immune": True}, "reward": {"fragments": 7000, "super": 1, "items": []},
+         "text": "Three bosses who never tire, never stop, and never fall for the same trick.",
+         "hint": "They heal 4% and grow 8% a turn, and can't be stunned. Overwhelming burst, or damage over time stacked early."},
+        {"title": "Heaven's Gate", "power": 1.22, "difficulty": 5,
+         "enemies": [(84, ["HEALTH"], [U], [43], {}), (75, ["ATTACK"], [U], [42], {}), (94, ["SPEED"], [U], [44], {})],
+         "rules": {"enemy_first": True, "purge": True, "reflect": 0.2, "heaven_tax": 0.3},
+         "reward": {"fragments": 9000, "super": 2, "items": [38, 39, 40]},
+         "text": "The gate itself, held by a Requiem that returns every blow to zero and two kings who already erased their fate.",
+         "hint": "They move first, cleanse every debuff, reflect 20% and weaken your UR and LR: everything the trials taught, at once."},
+    ],
+}
+TRACKS.insert(0, TRIALS)
 BY_KEY = {t["key"]: t for t in TRACKS}
 LEVEL, AWAKEN = 100, 5
 TOTAL = sum(len(t["fights"]) for t in TRACKS)
@@ -370,9 +443,22 @@ def unlocked(user) -> bool:
     return story.cleared(user) >= story.TOTAL
 
 
-def reward_text(j: int) -> List[str]:
+def difficulty(fight: dict) -> int:
+    """1-5 stars: the fight's own rating, or one read from how far its enemies are pushed."""
+    if fight.get("difficulty"):
+        return int(fight["difficulty"])
+    p = fight.get("power", 1)
+    return 2 if p < 1.5 else 3 if p < 1.9 else 4 if p < 2.2 else 5
+
+
+def reward_of(key: str, j: int) -> dict:
+    fight = BY_KEY[key]["fights"][j]
+    return fight.get("reward") or REWARDS[min(j, len(REWARDS) - 1)]
+
+
+def reward_text(j: int, key: Optional[str] = None) -> List[str]:
     from app.game.items import item_file
-    r = REWARDS[min(j, len(REWARDS) - 1)]
+    r = reward_of(key, j) if key else REWARDS[min(j, len(REWARDS) - 1)]
     parts = [f"{r['fragments']:,} Meteor Dust"]
     if r["super"]:
         parts.append(f"{r['super']} Arrowhead{'s' if r['super'] > 1 else ''}")
@@ -393,7 +479,7 @@ def tracks(user) -> list:
         done = cleared(user, t["key"])
         fights = [{"index": j, "title": f["title"], "text": f["text"], "hint": f["hint"],
                    "rules": rule_lines(f["rules"]), "enemies": [stand_view(e) for e in f["enemies"]],
-                   "reward": reward_text(j),
+                   "reward": reward_text(j, t["key"]), "difficulty": difficulty(f),
                    "state": "cleared" if j < done else "current" if j == done else "locked"}
                   for j, f in enumerate(t["fights"])]
         out.append({**{k: t[k] for k in ("key", "mode", "title", "color", "intro")}, "fights": fights,
@@ -431,7 +517,7 @@ def win(user, key: str, j: int) -> dict:
             titles.grant(user, TITLE)
         return rewards
     p["paid"].append(tag)
-    r = REWARDS[min(j, len(REWARDS) - 1)]
+    r = reward_of(key, j)
     user.fragments += r["fragments"]
     user.super_fragments += r["super"]
     items = [item_from_dict({"id": i}) for i in r["items"]]

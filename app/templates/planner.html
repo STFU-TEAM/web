@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Team planner | STFU Requiem{% endblock %}
 {% block main %}
 {% from "partials/picker.html" import picker, picker_data %}
@@ -8,7 +9,7 @@
   <header class="player-bar">
     <div>
       <p class="kicker">Battle lab</p>
-      <h1 class="display sm">Team planner</h1>
+      <h1 class="display sm">{% call menacing() %}Team planner{% endcall %}</h1>
       <p class="muted">Try any 3 stands together, yours or not. Give any stand a level, an awakening, a quality (no type, Good or Perfect), a type, a taunt and items, or use one of your copies exactly as it is. The review updates as you go, and you can simulate the team against any stage or player.</p>
     </div>
   </header>
@@ -30,7 +31,15 @@
             <p><strong>Your copy, exactly as it is</strong></p>
             <p class="plan-owned-meta" data-owned-meta>{% if owned_pick and c %}Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.types %} · {{ c.types[0]|title }}{% endif %}{% endif %}</p>
             {% if owned_pick and c and c.items %}<p class="plan-owned-items">{% for it in c.items %}<span title="{{ it.name }}">{{ (it.emoji or '◈')|emoji }} {{ it.name }}</span>{% endfor %}</p>{% endif %}
-            <p class="muted small-print">Level, stars, types, items and chips stay as they are on your copy. To try another build, pick the same stand under “Any stand”.</p>
+            <p class="muted small-print">Level, stars, types and chips stay as they are on your copy. To try another level or type, pick the same stand under “Any stand”.</p>
+            {% set over = s and s.get('override') %}
+            <label class="check plan-over"><input type="checkbox" name="ox{{ i }}" value="1" {{ 'checked' if over }} data-over> Try other items on this copy</label>
+            <div class="plan-row plan-over-items" data-over-items {% if not over %}hidden{% endif %}>
+              <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }}</small></span>
+              {{ picker("o" ~ i, "sp-items", max=P.MAX_ITEMS, selected=((s.get('over_items') if s else none) or [])|map('string')|list,
+                        title="Items to try on stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True) }}
+              <label class="plan-refine">Refined <select name="or{{ i }}">{% for r in range(P.REFINE_MAX + 1) %}<option value="{{ r }}" {{ 'selected' if s and s.get('over_refine') == r }}>+{{ r }}</option>{% endfor %}</select></label>
+            </div>
           </div>
           <fieldset class="plan-build" data-build {% if owned_pick or not s %}disabled hidden{% endif %}>
             <legend class="sr">Build</legend>
@@ -70,6 +79,7 @@
               <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }}</small></span>
               {{ picker("i" ~ i, "sp-items", max=P.MAX_ITEMS, selected=((s.get('items') if s else none) or [])|map('string')|list,
                         title="Items for stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True) }}
+              <label class="plan-refine">Refined <select name="r{{ i }}">{% for r in range(P.REFINE_MAX + 1) %}<option value="{{ r }}" {{ 'selected' if s and s.get('refine') == r }}>+{{ r }}</option>{% endfor %}</select></label>
             </div>
           </fieldset>
         </div>
@@ -117,6 +127,9 @@
     build.disabled = !value || owned;
     build.hidden = build.disabled;
     slot.querySelector("[data-owned]").hidden = !owned;
+    const over = slot.querySelector("[data-over]");
+    slot.querySelector("[data-over-items]").hidden = !(owned && over.checked);
+    slot.querySelectorAll("[data-over-items] input, [data-over-items] select").forEach((el) => { el.disabled = !(owned && over.checked); });
     slot.querySelector("[data-empty-hint]").hidden = !!value;
     const q = slot.querySelector("[data-quality]:checked");
     const none = q && q.value === "none";
@@ -139,7 +152,7 @@
       if (o && o.g === "mine") slot.querySelector("[data-owned-meta]").textContent = o.m;
       sync(slot);
     });
-    slot.querySelectorAll("[data-quality], [data-level], [data-type]").forEach((el) => el.addEventListener("input", () => sync(slot)));
+    slot.querySelectorAll("[data-quality], [data-level], [data-type], [data-over]").forEach((el) => el.addEventListener("input", () => sync(slot)));
     sync(slot);
   });
   document.addEventListener("click", (e) => {

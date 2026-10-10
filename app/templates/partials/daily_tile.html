@@ -10,10 +10,13 @@
     {% for b in st.streak_rewards %}
       {% set d = loop.index %}
       {% set done = d < s.next_day or (s.claimed_today and d == s.next_day) %}
-      <li class="{{ 'done' if done else ('next' if d == s.next_day else '') }}{{ ' big' if b.super }}" title="Day {{ d }}">
-        <small>Day {{ d }}</small>
-        <span class="streak-icon" aria-hidden="true">{% if b.super %}➶{% elif b['items'] %}🎁{% else %}✦{% endif %}</span>
-        <span>{% if b.super %}Arrowhead{% elif b.fragments %}{{ b.fragments }}{% elif b['items'] %}{{ {2: 'Arrow', 13: 'Coins'}[b['items'][0]] }}{% endif %}</span>
+      {% set full = 'an Arrowhead' if b.super else ((b.fragments ~ ' Meteor Dust') if b.fragments else '') %}
+      {% set full = full ~ (' + ' if full and b['items'] else '') ~ ({2: "a Devil's Palm", 13: 'a bag of coins', 47: 'a can of energy'}.get(b['items'][0], 'an item') if b['items'] else '') %}
+      <li class="{{ 'done' if done else ('next' if d == s.next_day else '') }}{{ ' big' if b.super }}" title="Day {{ d }}: {{ full }}">
+        <small aria-hidden="true">D{{ d }}</small>
+        <span class="streak-icon" aria-hidden="true">{% if done %}✓{% elif b.super %}➶{% elif b['items'] and not b.fragments %}🎁{% else %}✦{% endif %}</span>
+        <b aria-hidden="true">{% if b.super %}1{% elif b.fragments %}{{ b.fragments }}{% else %}&nbsp;{% endif %}</b>
+        <span class="sr">Day {{ d }}: {{ full }}{{ ', claimed' if done }}</span>
       </li>
     {% endfor %}
   </ol>

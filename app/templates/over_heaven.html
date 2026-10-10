@@ -31,7 +31,7 @@
       <article class="story-stage boss" style="--part: {{ track.color }}">
         <div class="story-stage-text">
           <p class="kicker">{{ track.title }} · fight {{ current.index + 1 }} of {{ track.total }}</p>
-          <h2 class="h2">{{ current.title }}</h2>
+          <h2 class="h2">{{ current.title }} <span class="oh-diff d{{ current.difficulty }}" title="Difficulty {{ current.difficulty }} of 5">{{ '★' * current.difficulty }}<span class="oh-diff-off">{{ '★' * (5 - current.difficulty) }}</span></span></h2>
           {% if current.index == 0 %}<p class="story-intro">{{ track.intro }}</p>{% endif %}
           <p class="story-text">{{ current.text }}</p>
           <ul class="oh-rules">
@@ -88,6 +88,7 @@
           <li class="node {{ s.state }}{% if loop.last %} boss{% endif %}" title="{{ s.title }}: {{ s.rules|join(' ') }}">
             <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if loop.last else s.index + 1) }}</span>
             <span class="node-label">{{ s.title }}</span>
+            <small class="node-level oh-diff d{{ s.difficulty }}" aria-label="Difficulty {{ s.difficulty }} of 5">{{ '★' * s.difficulty }}</small>
             {% if s.state == 'cleared' and not fight and unlocked %}
               <form method="post" action="{{ url_for('progress.oh_fight') }}" class="node-replay">
                 <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="track" value="{{ track.key }}"><input type="hidden" name="stage" value="{{ s.index }}">

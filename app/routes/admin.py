@@ -4,7 +4,7 @@ promote from the Admins tab. Every change is audited."""
 import datetime
 import json
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
 from app import accounts
 from app.accounts import resolve_player
@@ -194,7 +194,10 @@ def player(uid):
         counts.setdefault(it.id, [it, 0])[1] += 1
     stands = sorted([(c, True) for c in target.main_characters] + [(c, False) for c in target.storage_characters],
                     key=lambda x: (not x[1], -RARITY_RANK.get(x[0].rarity, 0), -x[0].level))
+    from app.game import progression
+    skip = () if current_app.config.get("DUNGEON_ENABLED") else ("dungeon",)
     return render_template("admin/player.html", t=target, uid=uid, ident=identity(uid), gang=gang,
+                           pve=progression.checklist(target, skip),
                            username=accounts.username_of(uid), banned=r().sismember("web:banned", uid),
                            items=sorted(counts.values(), key=lambda x: x[0].id), stands=stands,
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),

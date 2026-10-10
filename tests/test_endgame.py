@@ -163,14 +163,19 @@ def test_over_heaven_rules_hook_into_the_engine():
 
 def test_over_heaven_tracks_cover_every_pve_mode():
     from app.game import overheaven
-    assert {t["key"] for t in overheaven.TRACKS} == {"story", "alt_universe", "rush", "tower", "dungeon"}
+    assert {t["key"] for t in overheaven.TRACKS} == {"trials", "story", "alt_universe", "rush", "tower", "dungeon"}
     for t in overheaven.TRACKS:
-        assert len(t["fights"]) == len(overheaven.REWARDS)
+        own = all(f.get("reward") for f in t["fights"])  # Trials pays its own, smaller ladder
+        assert own or len(t["fights"]) == len(overheaven.REWARDS)
+        stars = [overheaven.difficulty(f) for f in t["fights"]]
+        assert all(1 <= s <= 5 for s in stars)
         for j, f in enumerate(t["fights"]):
             assert f["hint"] and f["rules"] is not None and f["power"] > 0
             team = overheaven.enemy_team(t["key"], j)
             assert team and all(c.level == 100 and c.awaken == 5 for c in team)
             assert set(f["rules"]) <= set(overheaven.RULE_TEXT)
+    trials = [overheaven.difficulty(f) for f in overheaven.BY_KEY["trials"]["fights"]]
+    assert trials == sorted(trials) and trials[0] == 1 and trials[-1] == 5  # the way in climbs from ★ to ★★★★★
 
 
 def test_over_heaven_opens_after_the_story_and_pays_once(client, monkeypatch):
@@ -195,7 +200,9 @@ def test_over_heaven_opens_after_the_story_and_pays_once(client, monkeypatch):
     put(client, d)
     client.fake.delete("web:story_cleared:111")  # a story win refreshes the nav's copy; this test edits the save
     assert "/over-heaven" in client.get("/story").data.decode()
-    assert "Stopped Time" in client.get("/over-heaven").data.decode()
+    page = client.get("/over-heaven").data.decode()
+    assert "First Light" in page and "★" in page  # Trials first: the way in, with difficulty stars
+    assert "Stopped Time" in client.get("/over-heaven?t=story").data.decode()
     client.post("/over-heaven/fight", data={"track": "tower"}, headers=h)
     fight = dbmod.load_fight("111")
     assert fight.kind == "over_heaven" and fight.meta["track"] == "tower" and fight.meta["stage"] == 0

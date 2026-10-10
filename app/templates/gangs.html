@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/picker.html" import picker, picker_data %}
-{% from "macros.html" import owned_card %}
+{% from "macros.html" import owned_card, menacing %}
 {% block title %}{{ gang.name if gang else 'Gangs' }} | STFU Requiem{% endblock %}
 {% macro post(endpoint, label, cls='btn small', confirm=None) -%}
   <form class="inline" method="post" action="{{ url_for(endpoint, **kwargs) }}" {% if confirm %}onsubmit="return confirm({{ confirm|tojson|forceescape }})"{% endif %}>
@@ -11,7 +11,7 @@
 {% block main %}
 <section class="page">
   <header class="player-bar">
-    <div><p class="kicker">Crews</p><h1 class="display sm">Gangs</h1></div>
+    <div><p class="kicker">Crews</p><h1 class="display sm">{% call menacing() %}Gangs{% endcall %}</h1></div>
     {% include "partials/wallet.html" %}
   </header>
 

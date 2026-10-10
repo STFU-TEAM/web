@@ -3932,3 +3932,133 @@ body.cine-open { overflow: hidden; }
 .news-ribbon-go { margin-left: auto; flex: none; font-weight: 700; }
 .news-ribbon-x { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); cursor: pointer; }
 @media (max-width: 640px) { .news-ribbon-go { display: none; } .news-ribbon strong { margin-right: auto; } }
+
+/* The streak strip fits a narrow tile (7 cells in ~220px): day, one symbol, a short value; the full reward is in the title and for screen readers */
+.streak li { position: relative; min-width: 0; overflow: hidden; padding: .3rem 0 .25rem; gap: .1rem; line-height: 1.1; border: 1px solid transparent; }
+.streak li small { font-size: .58rem; font-weight: 700; }
+.streak li b { font-size: .64rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.streak-icon { font-size: .85rem; line-height: 1; }
+.streak li.done .streak-icon::after { content: none; }
+.streak li.done .streak-icon { color: var(--teal); }
+.streak li.next { border-color: var(--gold); box-shadow: none; }
+.streak li.big b { color: var(--gold); }
+.streak-head { flex-wrap: wrap; }
+.streak-info small { line-height: 1.35; }
+.streak-goal span:first-child { overflow-wrap: anywhere; }
+
+/* ===================================================================================
+   Summon page, in the style of the dungeon and raid pages: ink borders, offset shadows, gauges, the Arrow
+   =================================================================================== */
+.summon-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "emblem title wallet" "gauges gauges gauges";
+  gap: 1rem 1.3rem; align-items: center; margin-bottom: 1.2rem; padding: 1.2rem 1.3rem; border-radius: var(--radius-card);
+  border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: radial-gradient(ellipse at 8% 40%, rgb(244 197 66 / .2), transparent 50%), repeating-linear-gradient(-55deg, transparent 0 14px, rgb(255 255 255 / .03) 14px 15px), var(--night-2); }
+.summon-emblem { grid-area: emblem; display: grid; place-items: center; width: 92px; height: 92px; border-radius: 50%; border: 3px solid var(--ink);
+  background: radial-gradient(circle at 50% 38%, #3A2066, var(--night) 70%); box-shadow: 0 0 0 3px var(--gold), 0 0 24px rgb(244 197 66 / .45); }
+.summon-arrow { width: 64px; height: 64px; filter: drop-shadow(2px 2px 0 var(--ink)); animation: summon-float 2.4s ease-in-out infinite alternate; }
+@keyframes summon-float { to { translate: 0 -4px; } }
+.summon-title { grid-area: title; display: grid; gap: .2rem; min-width: 0; }
+.summon-title h1, .summon-title p { margin: 0; }
+.summon-rotate { justify-self: start; padding: .2rem .7rem; border-radius: 999px; border: 2px dashed var(--gold); background: rgb(244 197 66 / .08); font-size: .85rem; }
+.summon-wallet { grid-area: wallet; justify-self: end; }
+.summon-gauges { grid-area: gauges; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: .7rem; }
+.gauge { display: grid; gap: .35rem; max-width: none; padding: .65rem .8rem; border-radius: var(--radius-ui); background: var(--night); border: 2px solid var(--night-3); }
+.gauge-head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.gauge-head b { font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.gauge-head strong { font: 400 1.35rem/1 var(--display); color: var(--paper); }
+.gauge-head strong small { font-size: .8rem; color: var(--muted); }
+.gauge .meter { height: 10px; margin: 0; }
+.gauge.pity .meter i { background: linear-gradient(90deg, var(--sky-deep), var(--sky)); }
+.gauge.sparks .meter i { background: linear-gradient(90deg, var(--gold), var(--magenta)); }
+.gauge.sparks.ready { border-color: var(--gold); box-shadow: 0 0 16px rgb(244 197 66 / .3); }
+.gauge small { font-size: .74rem; }
+@media (max-width: 700px) {
+  .summon-hero { grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "emblem title" "wallet wallet" "gauges gauges"; }
+  .summon-emblem { width: 70px; height: 70px; } .summon-arrow { width: 48px; height: 48px; }
+  .summon-wallet { justify-self: start; }
+}
+
+/* the banners: cards with a colour stripe, the art carrying its counts, a big pull button */
+.banners { gap: 1.3rem; }
+.banner { position: relative; padding: 1.1rem; border: 3px solid var(--ink); border-top: 6px solid var(--violet); box-shadow: 5px 5px 0 var(--night-3); }
+.banner.themed { border-top-color: var(--gold); border-color: var(--ink); background: linear-gradient(120deg, rgb(244 197 66 / .12), var(--night-2) 55%); }
+.banner.has-lr { border-top-color: transparent; border-image: none; }
+.banner.has-lr::before { content: ""; position: absolute; left: -3px; right: -3px; top: -6px; height: 6px; border-radius: var(--radius-card) var(--radius-card) 0 0;
+  background: linear-gradient(90deg, var(--gold), var(--magenta), var(--teal), var(--violet), var(--gold)); }
+.banner-art-link { border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); }
+.banner-lr-tag { position: absolute; left: .5rem; top: .5rem; padding: .15rem .55rem; border-radius: 6px; border: 2px solid var(--ink); rotate: -4deg;
+  background: linear-gradient(90deg, var(--gold), var(--magenta), var(--teal)); color: var(--ink); font: 400 .78rem var(--display); }
+.banner-body h2 { margin: 0; }
+.banner-pool a { border-width: 2px; border-color: var(--muted); }
+.banner-pool .rar-rare a { border-color: var(--violet); }
+.banner-pool .rar-epic a { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
+.banner-pool .rar-legend a { border-color: var(--magenta); box-shadow: 0 0 0 1px var(--magenta); }
+.banner-pool .rar-mythic a { border-color: var(--gold); box-shadow: 0 0 0 2px var(--magenta), 0 0 12px rgb(214 36 110 / .5); }
+.banner-pool a:hover { transform: translateY(-2px); }
+.banner-pool a { transition: transform .1s; }
+.banner-actions { align-items: center; }
+.banner-actions .pull-10 { min-width: 12rem; }
+.banner-actions .btn[disabled] { filter: grayscale(.6); }
+
+/* the calendar and recent pulls, as cards */
+.calendar > li { border: 2px solid var(--night-3); border-radius: var(--radius-ui); background: var(--night-2); }
+.calendar > li.now { border: 3px solid var(--ink); box-shadow: 0 0 0 2px var(--gold), 4px 4px 0 var(--night-3); }
+.cal-today { display: inline-block; padding: .05rem .55rem; rotate: -3deg; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold); color: var(--ink); font: 400 .9rem var(--display); }
+.cal-face { border: 2px solid var(--ink); }
+.pull-history li { border: 2px solid var(--night-3); }
+.pull-history li:has(b) { border-color: var(--gold); }
+
+@media (prefers-reduced-motion: reduce) { .summon-arrow { animation: none; } }
+
+/* ===================================================================================
+   Shared page pieces in the newer style (team, gangs, the collection pages, and every page with a player-bar):
+   the header is a hero card, panels are cards. Cheap on purpose: solid borders, unblurred offset shadows, no
+   animation, nothing applied per stand card.
+   =================================================================================== */
+.player-bar { padding: 1rem 1.2rem; border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: repeating-linear-gradient(-55deg, transparent 0 14px, rgb(255 255 255 / .03) 14px 15px), var(--night-2); }
+.player-bar .display { margin-bottom: .2rem; }
+.player-bar .kicker { margin-bottom: .1rem; }
+.fight .player-bar, .player-bar .player-bar { box-shadow: none; }
+.social-panel { margin: 1rem 0 1.4rem; padding: 1rem 1.1rem; border-radius: var(--radius-card); border: 2px solid var(--night-3); border-block: 2px solid var(--night-3);
+  background: var(--night-2); }
+.social-panel > .h2:first-child, .social-panel > .h3:first-child, .social-panel > .social-heading:first-child { margin-top: 0; }
+.social-panel .social-panel { background: var(--night); }
+.action-tile { border-top: 4px solid var(--gold); }
+.action-tile h2 { margin-top: 0; }
+.shelf-head h2::before { content: ""; display: inline-block; width: .55em; height: .55em; margin-right: .5rem; rotate: 45deg; vertical-align: .12em; background: var(--gold); }
+.forge-card, .sim-form { border: 2px solid var(--night-3); }
+.forge-card { box-shadow: 4px 4px 0 var(--ink); }
+.item-tile.ready { box-shadow: inset 4px 0 0 var(--gold); }
+.dex-set details { border-width: 2px; }
+.gang-hero { padding: 1.2rem; border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: radial-gradient(ellipse at 10% 30%, rgb(214 36 110 / .18), transparent 55%), var(--night-2); }
+.gang-grid { gap: 0 1.4rem; }
+.gang-grid > .social-panel { margin-block: .5rem 1rem; }
+@media (max-width: 640px) { .player-bar, .gang-hero { padding: .9rem; box-shadow: 3px 3px 0 var(--night-3); } }
+
+/* Planner: other gear on your own copy, refine levels; the team page's Plan this team */
+.plan-over { margin: .3rem 0; color: var(--paper); font-size: var(--step--1); }
+.plan-over-items { margin-top: .3rem; }
+.plan-refine { display: inline-flex; align-items: center; gap: .35rem; font-size: var(--step--1); font-weight: 700; color: var(--muted); }
+.plan-refine select { font: inherit; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .2rem .35rem; }
+.shelf-head .plan-this { margin-left: auto; }
+
+/* Over Heaven difficulty stars */
+.oh-diff { font-size: .8em; letter-spacing: .05em; color: var(--sky); white-space: nowrap; }
+.oh-diff.d4 { color: var(--gold); } .oh-diff.d5 { color: #FF4DA0; }
+.oh-diff-off { color: var(--night-3); }
+
+/* admin: the PvE unlock checklist on a player page */
+.pve-check { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.pve-check li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) minmax(7rem, auto); gap: .7rem; align-items: center;
+  padding: .5rem .7rem; border-radius: var(--radius-ui); background: var(--night-2); border: 2px solid var(--night-3); }
+.pve-check li.sub { margin-left: 1.6rem; }
+.pve-check li.done { border-color: var(--sky-deep); }
+.pve-box { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 5px; border: 2px solid var(--muted); font-weight: 700; }
+.pve-check li.done .pve-box { background: var(--sky); border-color: var(--ink); color: var(--ink); }
+.pve-name { display: grid; min-width: 0; }
+.pve-state { display: grid; gap: .2rem; justify-items: end; font-size: .85rem; }
+.pve-state .meter { width: 7rem; height: 8px; margin: 0; }
+.pve-check li.locked .pve-name strong { color: var(--muted); }
+@media (max-width: 560px) { .pve-check li { grid-template-columns: 1.6rem minmax(0, 1fr); } .pve-state { grid-column: 2; justify-items: start; } .pve-check li.sub { margin-left: .6rem; } }
