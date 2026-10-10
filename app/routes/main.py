@@ -36,7 +36,8 @@ def home():
         if logic.refill_energy(user):
             user.update()
         today_rows = today.rows(user, dungeon_on=current_app.config.get("DUNGEON_ENABLED"))
-    return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(3), today=today_rows)
+    return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(4), today=today_rows,
+                           patch=news.latest_of("patch"))
 
 
 @bp.get("/news")
@@ -359,6 +360,7 @@ def profile(uid: str):
         is_me=is_me, pv=pv, best=pv["stand"] or (showcase[0] if showcase else None),
         themes=P.themes(user) if is_me else [], unlocked_achievements=[a for a in achievements if a["unlocked"]] if is_me else [],
         my_profile=P.get(user) if is_me else {}, stands=stands if is_me else [], report_reasons=P.REASONS,
+        web_only=uid.startswith("acc"),
         quote_max=P.QUOTE_MAX, showcase_max=P.SHOWCASE_MAX, pin_max=P.PIN_MAX,
         relation=social.relation(session["uid"], uid) if session.get("uid") else None)
 
@@ -377,7 +379,9 @@ def profile_edit():
         with user_lock(uid):
             user = get_db().get_user(uid)
             P.save(user, f.get("quote", ""), f.get("theme", ""), f.get("stand", ""), f.getlist("showcase"), f.getlist("pins"),
-                   f.get("image", ""))
+                   f.get("image", ""), f.get("avatar"))
+            if "avatar" in f:  # the nav's picture follows at once
+                session["avatar"] = (user.data.get("web_profile") or {}).get("avatar") or None
             from app.db import r
             titles.choose(user, f.get("title", ""), mastery.titles(r(), uid))
             user.update()

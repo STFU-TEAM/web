@@ -97,7 +97,7 @@ def flush_due(now: Optional[float] = None, limit: int = 200) -> int:
     return sent
 
 
-def tick(every: int = 10, seen: Optional[str] = None):
+def tick(every: int = 10, seen: Optional[str] = None, device: Optional[str] = None):
     """From a page load (and the background flusher): send what's due, at most once every few seconds across all
     workers. seen: the player loading the page, marked as on the site (push.seen) in the same round trip."""
     pipe = r().pipeline(transaction=False)
@@ -105,6 +105,8 @@ def tick(every: int = 10, seen: Optional[str] = None):
     if seen:
         from app.push import ACTIVE_SECONDS
         pipe.set(f"web:seen:{seen}", "1", ex=ACTIVE_SECONDS)
+        if device:  # the browser's push subscription (pdev cookie): only it counts as "on the site" for pushes
+            pipe.set(f"web:seen:{seen}:{device}", "1", ex=ACTIVE_SECONDS)
     if pipe.execute()[0]:
         flush_due()
 

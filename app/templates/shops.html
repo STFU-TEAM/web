@@ -31,7 +31,7 @@
       {% for item in shops %}
         <li><div><a href="{{ url_for('social.shop_view', shop_id=item._id) }}"><strong>{{ item.name }}</strong></a>
           <span>by {{ identities[item._id].name }}</span></div>
-          <span>{{ item.items|length }} listing{{ "s" if item.items|length != 1 }}</span></li>
+          {% set listed = item['items'] or [] %}<span>{{ listed|length }} listing{{ "s" if listed|length != 1 }}</span></li>
       {% else %}<li class="notice">No player listings yet.</li>{% endfor %}
     </ul>
   </section>

@@ -299,6 +299,15 @@
     {% endfor %}
   </div>
 
+  {% set fresh = latest_post %}
+  {% if fresh and ep != 'main.news_post' %}
+    <a class="news-ribbon kind-{{ fresh.kind or 'news' }}" href="{{ url_for('main.news_post', post_id=fresh.id) }}" data-news-ribbon="{{ fresh.id }}" hidden>
+      <span class="news-ribbon-tag">{{ {'news': '📰 News', 'patch': '📜 New patch notes', 'event': '🎉 New event'}.get(fresh.kind or 'news') }}</span>
+      <strong>{{ fresh.title }}</strong><span class="news-ribbon-go" aria-hidden="true">Read →</span>
+      <button type="button" class="news-ribbon-x" data-news-ribbon-x aria-label="Dismiss">✕</button>
+    </a>
+  {% endif %}
+  {% if ep == 'main.news_post' and post is defined %}<span hidden data-news-read="{{ post.id }}"></span>{% endif %}
   <main id="main">{% block main %}{% endblock %}</main>
   <script>  /* back where you were after a form posts and the page reloads (app.js saves the spot on submit) */
     try {
@@ -327,6 +336,25 @@
     </div>
   </aside>
 
+  {% if me.id and not ep.startswith('chat.') %}
+    {#- the chat bubble: the global chat in a corner panel (loaded on first open, polled only while open) -#}
+    <details class="chat-bubble" data-chat-bubble>
+      <summary aria-label="Chat{% if chat_unread %}, {{ chat_unread }} unread private messages{% endif %}"><span aria-hidden="true">💬</span>{% if chat_unread %}<b>{{ chat_unread }}</b>{% endif %}</summary>
+      <div class="chat-bubble-panel">
+        <div class="chat-bubble-head"><strong>🌐 Global chat</strong>
+          <a href="{{ url_for('chat.index', tab='messages') }}">✉ Messages{% if chat_unread %} <em class="nav-badge">{{ chat_unread }}</em>{% endif %}</a>
+          <a href="{{ url_for('chat.index') }}" aria-label="Open the chat page">⤢</a></div>
+        <div hx-get="{{ url_for('chat.feed', token='global', seq=-1) }}" hx-trigger="toggle from:closest details once" hx-swap="outerHTML"><p class="chat-empty muted">Loading…</p></div>
+        <form class="chat-form" data-chat-form method="post" action="{{ url_for('chat.post', token='global') }}"
+              hx-post="{{ url_for('chat.post', token='global') }}" hx-target="#chat-global" hx-swap="outerHTML" hx-disabled-elt="find button">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <label class="sr" for="bubble-text">Message everyone</label>
+          <textarea id="bubble-text" name="text" rows="1" maxlength="400" placeholder="Say something to everyone…" required enterkeyhint="send"></textarea>
+          <button class="btn gold" aria-label="Send">Send</button>
+        </form>
+      </div>
+    </details>
+  {% endif %}
   <div class="dododo" role="status" aria-live="polite"><img class="dododo-face" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="30" height="30" loading="lazy"><span aria-hidden="true"><b>ド</b><b>ド</b><b>ド</b></span><span class="sr">Loading</span></div>
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>

@@ -27,6 +27,28 @@
     {% endfor %}
   </div>
 </section>
+{% if posts or patch %}
+<section class="page home-news" aria-labelledby="news-h">
+  <header class="shelf-head"><h2 class="h2" id="news-h">What's new</h2><a href="{{ url_for('main.news_list') }}">All news →</a></header>
+  {% if patch %}
+    <a class="patch-card" href="{{ url_for('main.news_post', post_id=patch.id) }}">
+      <span class="patch-tag">📜 Patch notes</span>
+      <strong>{{ patch.title }}</strong>
+      <span class="muted">{{ patch.body|news_summary(220) }}</span>
+      <time datetime="{{ patch.created }}">{{ patch.created[:10] }}</time>
+    </a>
+  {% endif %}
+  <div class="news-grid">
+    {% for p in posts if not patch or p.id != patch.id %}
+      <a class="news-card{% if loop.first %} lead{% endif %}" href="{{ url_for('main.news_post', post_id=p.id) }}">
+        {% if p.cover %}<img src="{{ p.cover }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
+        <span class="news-card-body"><em class="news-kind kind-{{ p.kind or 'news' }}">{{ {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.get(p.kind or 'news') }}</em><time datetime="{{ p.created }}">{{ p.created[:10] }}</time><strong>{{ p.title }}</strong>
+          <span class="muted">{{ p.body|news_summary(160) }}</span></span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 
 {% if live_event and registered %}<div class="page">{% include "partials/event_ribbon.html" %}</div>{% endif %}
 {% if nav_new %}<div class="page">{% include "partials/unlocked.html" %}</div>{% endif %}
@@ -45,20 +67,6 @@
 </section>
 {% endif %}
 
-{% if posts %}
-<section class="page home-news">
-  <header class="shelf-head"><h2 class="h2">Latest news</h2><a href="{{ url_for('main.news_list') }}">All news →</a></header>
-  <div class="news-grid">
-    {% for p in posts %}
-      <a class="news-card{% if loop.first %} lead{% endif %}" href="{{ url_for('main.news_post', post_id=p.id) }}">
-        {% if p.cover %}<img src="{{ p.cover }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
-        <span class="news-card-body"><time datetime="{{ p.created }}">{{ p.created[:10] }}</time><strong>{{ p.title }}</strong>
-          <span class="muted">{{ p.body|news_summary(160) }}</span></span>
-      </a>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 
 <section class="steps page">
   <h2 class="h2">How it works</h2>

@@ -54,7 +54,7 @@ def status(user):
         "wormhole": logic.cooldown_left(user.last_wormhole, logic.wormhole_wait(user)),
         "energy_in": logic.energy_refill_in(user), "energy_next": logic.energy_next_in(user),
         "free_slots": logic.free_slots(user),
-        "streak": logic.streak(user), "streak_rewards": logic.STREAK_REWARDS,
+        "streak": logic.streak(user), "streak_rewards": logic.streak(user)["ladder"],
     }
 
 
@@ -472,15 +472,26 @@ def banner_odds(banner: dict) -> dict:
     """Per-rarity and per-stand chances for a banner, as the draw code applies them."""
     order = ["LR", "UR", "SSR", "SR", "R"]
     pools = {r: [CHARACTER_FILE[i - 1] for i in banner["cards"] if CHARACTER_FILE[i - 1]["rarity"] == r] for r in order}
+
+    def effective(odds):
+        """A rarity the banner lacks falls to the nearest one below, then above (logic._template_of)."""
+        up = ["R", "SR", "SSR", "UR", "LR"]
+        out = dict.fromkeys(up, 0.0)
+        for r, p in odds.items():
+            i = up.index(r)
+            target = next((x for x in up[i::-1] + up[i + 1:] if pools[x]), r)
+            out[target] += p
+        return out
+    pulls, palms = effective(logic.BANNER_ODDS), effective(logic.ARROW_ODDS)
     rows = []
     for r in order:
         n = len(pools[r])
-        pull, palm = logic.BANNER_ODDS.get(r, 0), logic.ARROW_ODDS.get(r, 0)
+        pull, palm = pulls[r], palms[r]
         if n or pull or palm:
             rows.append({"rarity": r, "count": n, "pull": pull if n else 0, "palm": palm if n else 0,
                          "pull_each": pull / n if n else 0, "palm_each": palm / n if n else 0})
     groups = [{"rarity": r, "stands": pools[r],
-               "each": (logic.BANNER_ODDS.get(r) or logic.PITY_ODDS.get(r, 0)) / len(pools[r])} for r in order if pools[r]]
+               "each": (pulls[r] or logic.PITY_ODDS.get(r, 0)) / len(pools[r])} for r in order if pools[r]]
     missing = [r for r in ("R", "SR", "SSR", "UR") if not pools[r]]
     return {"rows": rows, "groups": groups, "missing": missing, "has_lr": bool(pools["LR"])}
 

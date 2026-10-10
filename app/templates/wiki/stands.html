@@ -13,8 +13,7 @@
 <div class="wiki-table-wrap"><table class="wiki-table">
   <thead><tr><th scope="col">Rarity</th><th scope="col">10-pull</th><th scope="col">Devil's Palm (5 stands)</th></tr></thead>
   <tbody>
-    {% for r in ['R', 'SR', 'SSR', 'UR'] %}<tr><th scope="row">{{ r }}</th><td>{{ '%g'|format(BANNER_ODDS[r] * 100) }}%</td><td>{{ ('%g'|format(ARROW_ODDS[r] * 100) ~ '%') if r in ARROW_ODDS else '—' }}</td></tr>{% endfor %}
-    <tr><th scope="row">LR</th><td colspan="2">Banner exclusives and special rewards</td></tr>
+    {% for r in ['R', 'SR', 'SSR', 'UR', 'LR'] %}<tr><th scope="row">{{ r }}</th><td>{{ '%g'|format(BANNER_ODDS[r] * 100) }}%</td><td>{{ ('%g'|format(ARROW_ODDS[r] * 100) ~ '%') if r in ARROW_ODDS else '—' }}</td></tr>{% endfor %}
   </tbody>
 </table></div>
 <p class="muted">Devil's Palms never give an R, but they don't count toward pity. Rates on the web are kinder than the Discord bot's.</p>

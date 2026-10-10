@@ -1,16 +1,31 @@
 {% macro streak_strip(st) %}
-  <ol class="streak" aria-label="Daily streak">
+  {% set s = st.streak %}
+  <div class="streak-head">
+    <span class="streak-flame lv{{ [s.count // 7, 4]|min }}" aria-hidden="true">🔥</span>
+    <span class="streak-info"><strong>{{ s.count }} day{{ 's' if s.count != 1 }} in a row</strong>
+      <small class="muted">Week {{ s.week }}{% if s.mult > 1 %} · <b class="streak-mult">×{{ '%g'|format(s.mult) }} Dust</b>{% endif %} ·
+        {% if s.shield_ready %}<span title="Miss a single day and the streak survives (once a week)">🛡 shield ready</span>{% else %}<span class="muted">🛡 shield used this week</span>{% endif %}</small></span>
+  </div>
+  <ol class="streak" aria-label="This week's streak rewards">
     {% for b in st.streak_rewards %}
       {% set d = loop.index %}
-      {% set done = d < st.streak.next_day or (st.streak.claimed_today and d == st.streak.next_day) %}
-      <li class="{{ 'done' if done else ('next' if d == st.streak.next_day else '') }}" title="Day {{ d }}">
+      {% set done = d < s.next_day or (s.claimed_today and d == s.next_day) %}
+      <li class="{{ 'done' if done else ('next' if d == s.next_day else '') }}{{ ' big' if b.super }}" title="Day {{ d }}">
         <small>Day {{ d }}</small>
-        <span>{% if b.super %}✦ 1 super{% elif b.fragments %}{{ b.fragments }}{% elif b['items'] %}{{ {2: 'Arrow', 13: 'Coins'}[b['items'][0]] }}{% endif %}</span>
+        <span class="streak-icon" aria-hidden="true">{% if b.super %}➶{% elif b['items'] %}🎁{% else %}✦{% endif %}</span>
+        <span>{% if b.super %}Arrowhead{% elif b.fragments %}{{ b.fragments }}{% elif b['items'] %}{{ {2: 'Arrow', 13: 'Coins'}[b['items'][0]] }}{% endif %}</span>
       </li>
     {% endfor %}
   </ol>
+  {% if s.goal %}
+    <div class="streak-goal" title="Next milestone">
+      <span>Day {{ s.goal }}: {{ s.goal_reward.super }} Arrowhead{{ 's' if s.goal_reward.super != 1 }}{% if s.goal_reward.title %} and the title “{{ s.goal_reward.title }}”{% endif %}</span>
+      <span class="meter" role="meter" aria-label="Progress to day {{ s.goal }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ s.goal_pct }}"><i style="width: {{ s.goal_pct }}%"></i></span>
+    </div>
+  {% endif %}
 {% endmacro %}
-<h2 class="h3">Daily reward {% if st.streak.count %}<small class="streak-count">🔥 {{ st.streak.count }} day{{ 's' if st.streak.count != 1 }}</small>{% endif %}</h2>
+<h2 class="h3">Daily reward</h2>
+{% if st.streak.saved %}<p class="notice">🛡 You missed yesterday, but your shield kept the streak. Claim today to keep it going.</p>{% endif %}
 {{ streak_strip(st) }}
 {% if st.daily %}
   <p class="muted">Back in {{ st.daily|delta }}.</p>

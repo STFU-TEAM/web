@@ -7,6 +7,8 @@
   <form class="news-form" method="post" enctype="multipart/form-data" action="{{ url_for('admin.news_admin', edit=p.id) if editing else url_for('admin.news_admin') }}">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">
     {% if editing %}<input type="hidden" name="id" value="{{ p.id }}">{% endif %}
+    <label>Kind <select name="kind">{% for k, label in {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.items() %}
+      <option value="{{ k }}" {{ 'selected' if form.get('kind', p.get('kind', 'news')) == k }}>{{ label }}</option>{% endfor %}</select></label>
     <label>Title <input type="text" name="title" maxlength="120" required value="{{ form.get('title', p.get('title', '')) }}"></label>
     <label>Post
       <textarea name="body" rows="12" maxlength="10000" required placeholder="Blank lines start a new paragraph. **bold** and [link text](https://…) work.">{{ form.get('body', p.get('body', '')) }}</textarea>

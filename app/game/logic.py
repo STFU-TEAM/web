@@ -250,10 +250,10 @@ def _banner(banner_id: int) -> dict:
 
 
 # Web drop rates (kinder than the bot's 80 / 19 / 0.9 / 0.1 with pity at 100).
-BANNER_ODDS = {"R": 0.55, "SR": 0.33, "SSR": 0.10, "UR": 0.02}
-ARROW_ODDS = {"SR": 0.70, "SSR": 0.25, "UR": 0.05}  # 5 cards: ~1.25 SSR and 0.25 UR, about a 10-pull's worth
+BANNER_ODDS = {"R": 0.548, "SR": 0.33, "SSR": 0.10, "UR": 0.02, "LR": 0.002}  # LR: 1 in 500
+ARROW_ODDS = {"SR": 0.698, "SSR": 0.25, "UR": 0.05, "LR": 0.002}  # 5 cards: ~1.25 SSR and 0.25 UR, about a 10-pull's worth
 PITY_LIMIT = 50          # pulls without a UR or LR before one is guaranteed
-PITY_ODDS = {"UR": 0.55, "LR": 0.45}  # the guaranteed pull; banners without an LR give a UR
+PITY_ODDS = {"UR": 0.67, "LR": 0.33}  # the guaranteed pull; banners without an LR give a UR
 HIGH_RARITIES = ("SSR", "UR", "LR")
 PITY_RESETS = ("UR", "LR")  # an SSR no longer resets pity: only what pity itself guarantees does
 SPARK_COST = 20  # every 10-pull earns a spark; this many buy any SSR from a banner
@@ -292,8 +292,7 @@ def roll_shiny(char: Character) -> Character:
 
 def _template_of(banner: dict, rarity: str, exclude=()) -> dict:
     """A banner stand of that rarity; if the banner has none, the nearest rarity below, then above.
-    Stands already drawn in this pull (exclude) are skipped while others of the rarity remain:
-    small pools otherwise repeat the same stand in most 10-pulls."""
+    exclude: stands to skip while others of the rarity remain (pulls no longer pass any: duplicates are allowed)."""
     order = ["R", "SR", "SSR", "UR", "LR"]
     i = order.index(rarity)
     for r in order[i::-1] + order[i + 1:]:
@@ -383,23 +382,44 @@ def begin(user: User):
     check_achievements(user, "register")
 
 
-# Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over.
+# Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over. Every full week kept
+# raises the ladder's Meteor Dust by STREAK_WEEK_BONUS (up to STREAK_MAX_MULT); a missed single day is forgiven once a
+# week (the shield); long streaks pay STREAK_MILESTONES on the day they're reached.
 STREAK_REWARDS = [
     {"fragments": 70, "items": [47]}, {"fragments": 100}, {"items": [13]}, {"fragments": 180, "items": [47]},
     {"items": [2]}, {"fragments": 280}, {"super": 1},
 ]
+STREAK_WEEK_BONUS, STREAK_MAX_MULT = 0.2, 2.0
+STREAK_SHIELD_DAYS = 7
+STREAK_MILESTONES = {14: {"super": 1}, 30: {"super": 2, "title": "Golden Spirit"},
+                     100: {"super": 3, "title": "Unbreakable Diamond"}}
+
+
+def _streak_mult(day_count: int) -> float:
+    """The Dust multiplier on day `day_count` of a streak: +20% per full week before it."""
+    return min(STREAK_MAX_MULT, 1 + STREAK_WEEK_BONUS * ((max(1, day_count) - 1) // 7))
 
 
 def streak(user: User) -> dict:
-    """{"count": days in a row, "day": position in the 7-day ladder (1-7), "alive": not broken yet}."""
+    """The streak as the daily tile shows it: count, today's state, the ladder (scaled), the shield, the next milestone."""
     data = user.data.get("web_streak") or {}
     last = data.get("last")
     today = now().date()
-    alive = bool(last) and (today - datetime.date.fromisoformat(last)).days <= 1
+    gap = (today - datetime.date.fromisoformat(last)).days if last else None
+    used = data.get("shield")
+    shield_ready = not used or (today - datetime.date.fromisoformat(used)).days >= STREAK_SHIELD_DAYS
+    alive = gap is not None and (gap <= 1 or (gap == 2 and shield_ready))
     count = data.get("count", 0) if alive else 0
     claimed_today = alive and last == today.isoformat()
     upcoming = count if claimed_today else count + 1
-    return {"count": count, "claimed_today": claimed_today, "next_day": (upcoming - 1) % 7 + 1}
+    mult = _streak_mult(upcoming)
+    ladder = [{**b, "fragments": int(round(b.get("fragments", 0) * mult))} for b in STREAK_REWARDS]
+    goal = next((d for d in sorted(STREAK_MILESTONES) if d > count), None)
+    prev = max([0] + [d for d in STREAK_MILESTONES if d <= count])
+    return {"count": count, "claimed_today": claimed_today, "next_day": (upcoming - 1) % 7 + 1, "mult": mult,
+            "week": (upcoming - 1) // 7 + 1, "ladder": ladder, "shield_ready": shield_ready,
+            "saved": bool(alive and gap == 2 and not claimed_today),
+            "goal": goal, "goal_reward": STREAK_MILESTONES.get(goal), "goal_pct": int(100 * (count - prev) / (goal - prev)) if goal else 100}
 
 
 def _claim_streak(user: User) -> Optional[dict]:
@@ -408,15 +428,28 @@ def _claim_streak(user: User) -> Optional[dict]:
     if s["claimed_today"]:
         return None
     count = s["count"] + 1
-    user.data["web_streak"] = {"count": count, "last": now().date().isoformat()}
+    data = dict(user.data.get("web_streak") or {})
+    data.update(count=count, last=now().date().isoformat())
+    if s["saved"]:  # yesterday was missed: the shield kept the streak
+        data["shield"] = now().date().isoformat()
+    user.data["web_streak"] = data
     day = (count - 1) % 7 + 1
     bonus = STREAK_REWARDS[day - 1]
-    user.fragments += bonus.get("fragments", 0)
+    dust = int(round(bonus.get("fragments", 0) * _streak_mult(count)))
+    user.fragments += dust
     user.super_fragments += bonus.get("super", 0)
     items = [item_from_dict({"id": i}) for i in bonus.get("items", [])]
     user.items.extend(items)
-    return {"count": count, "day": day, "fragments": bonus.get("fragments", 0), "super": bonus.get("super", 0),
-            "items": [i.name for i in items]}
+    res = {"count": count, "day": day, "fragments": dust, "super": bonus.get("super", 0),
+           "items": [i.name for i in items], "shielded": s["saved"], "milestone": None}
+    milestone = STREAK_MILESTONES.get(count)
+    if milestone:
+        user.super_fragments += milestone.get("super", 0)
+        if milestone.get("title"):
+            from app.game import titles
+            titles.grant(user, milestone["title"])
+        res["milestone"] = {"day": count, **milestone}
+    return res
 
 
 def daily(user: User) -> dict:
@@ -458,7 +491,7 @@ def banner_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dic
     for i in range(10):
         # 10-pull floor: the last stand is at least SR if the first nine were all R
         floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
-        c = _banner_draw(banner, user, floor, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 10))
+        c = _banner_draw(banner, user, floor, forced=_forced_at(force, i, 10))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
@@ -479,7 +512,7 @@ def arrow_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dict
     user.items.remove(arrow)
     drawn = []
     for i in range(5):
-        c = _arrow_draw(banner, user, exclude={d.id for d, _ in drawn}, forced=_forced_at(force, i, 5))
+        c = _arrow_draw(banner, user, forced=_forced_at(force, i, 5))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")

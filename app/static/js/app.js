@@ -722,6 +722,22 @@ document.addEventListener("htmx:load", (e) => {
   });
 });
 
+// The newest post's ribbon: shown until that post is read or the ribbon dismissed (remembered per browser).
+(() => {
+  const KEY = "news-seen";
+  const seen = () => { try { return localStorage.getItem(KEY); } catch (e) { return null; } };
+  const mark = (id) => { try { localStorage.setItem(KEY, id); } catch (e) { /* storage blocked */ } };
+  const read = document.querySelector("[data-news-read]");
+  if (read) mark(read.dataset.newsRead);
+  const ribbon = document.querySelector("[data-news-ribbon]");
+  if (!ribbon) return;
+  if (seen() !== ribbon.dataset.newsRibbon) ribbon.hidden = false;
+  ribbon.addEventListener("click", (e) => {
+    mark(ribbon.dataset.newsRibbon);
+    if (e.target.closest("[data-news-ribbon-x]")) { e.preventDefault(); ribbon.hidden = true; }
+  });
+})();
+
 // Pop-up toasts: rendered on full pages, or sent with an HTMX response as HX-Trigger {"toast": [...]}.
 (() => {
   const box = () => document.getElementById("toasts");
@@ -1356,6 +1372,7 @@ document.addEventListener("change", (e) => {
   const follow = new Map();
   const toBottom = (box) => { const l = box?.querySelector("[data-chat-list]"); if (l) l.scrollTop = l.scrollHeight; };
   document.querySelectorAll("[data-chat]").forEach(toBottom);
+  document.addEventListener("htmx:load", (e) => { if (e.detail.elt?.matches?.("[data-chat]")) toBottom(e.detail.elt); });  // a chat that just loaded (the bubble)
   document.addEventListener("htmx:beforeSwap", (e) => {
     const box = e.detail.target;
     if (!box?.matches?.("[data-chat]")) return;
@@ -1414,6 +1431,15 @@ const pushSameKey = (sub, key) => {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 };
 // This browser's subscription made with `key` (renewed if it was made with another one), or null. urls: {sub, unsub}.
+// The browser's push subscription, as a cookie the server reads to skip pushes to the device in use (push.py).
+async function pushDevice(sub) {
+  try {
+    if (!sub) { document.cookie = "pdev=; path=/; max-age=0; SameSite=Lax"; return; }
+    const hash = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(sub.endpoint));
+    const hex = [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    document.cookie = `pdev=${hex}; path=/; max-age=31536000; SameSite=Lax; Secure`;
+  } catch (e) { /* no SubtleCrypto (plain http): pushes then follow the old rule */ }
+}
 async function pushSync(key, urls, report) {
   const reg = await navigator.serviceWorker.ready;
   let sub = await reg.pushManager.getSubscription();
@@ -1425,6 +1451,7 @@ async function pushSync(key, urls, report) {
     report = true;
   }
   if (report) await pushPost(urls.sub, sub.toJSON());
+  pushDevice(sub);
   return sub;
 }
 (() => {
@@ -1465,6 +1492,7 @@ async function pushSync(key, urls, report) {
       if (old && !pushSameKey(old, card.dataset.key)) await old.unsubscribe();
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: pushB64(card.dataset.key) });
       const res = await pushPost(urls.sub, sub.toJSON());
+      if (res.ok) pushDevice(sub);
       show(res.ok, res.ok ? "On for this device." : "The server refused this device. Try again later.");
     } catch (err) { show(false, "Couldn't turn notifications on in this browser."); }
   });
@@ -1472,6 +1500,7 @@ async function pushSync(key, urls, report) {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
     if (sub) { await pushPost(urls.unsub, { endpoint: sub.endpoint }); await sub.unsubscribe(); }
+    pushDevice(null);
     show(false, "Off for this device.");
   });
   $("[data-push-test]").addEventListener("click", () => pushPost(card.dataset.test));

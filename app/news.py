@@ -1,7 +1,8 @@
 """News feed: posts written by admins, each with an optional cover image.
 
 Redis (web-only keys):
-    web:news:posts        HASH id -> JSON {id, title, body, cover, author, created, updated}
+    web:news:posts        HASH id -> JSON {id, kind, title, body, cover, author, created, updated}
+                          kind: "news", "patch" (patch notes) or "event" (written when an admin schedules one)
     web:news:order        ZSET id -> created timestamp (newest first)
     web:news:cover:<id>   uploaded cover bytes; web:news:cover_type:<id> its MIME type
 A cover is either an uploaded image (served from /news/cover/<id>) or an https link.
@@ -26,6 +27,9 @@ IMAGE_SIGNATURES = {
     b"GIF89a": "image/gif",
 }
 URL_RE = re.compile(r"^https://[^\s\"'<>]{4,500}$")
+KINDS = {"news": "News", "patch": "Patch notes", "event": "Event"}
+_latest = {"at": 0.0, "post": None}  # the newest post, kept LATEST_SECONDS per worker (every page's ribbon reads it)
+LATEST_SECONDS = 60
 
 
 class NewsError(Exception):
@@ -65,8 +69,21 @@ def latest_id() -> Optional[str]:
     return (ids[0].decode() if isinstance(ids[0], bytes) else ids[0]) if ids else None
 
 
+def latest() -> Optional[dict]:
+    """The newest post (for the ribbon on every page), cached for a minute."""
+    import time
+    if time.time() - _latest["at"] > LATEST_SECONDS:
+        pid = latest_id()
+        _latest.update(at=time.time(), post=get_post(pid) if pid else None)
+    return _latest["post"]
+
+
+def latest_of(kind: str) -> Optional[dict]:
+    return next((p for p in list_posts(30) if p.get("kind", "news") == kind), None)
+
+
 def save_post(author: str, title: str, body: str, cover_url: str = "", upload: Optional[bytes] = None,
-              post_id: Optional[str] = None, remove_cover: bool = False) -> dict:
+              post_id: Optional[str] = None, remove_cover: bool = False, kind: str = "news") -> dict:
     """Create (post_id None) or edit a post. An upload wins over a link."""
     title, body, cover_url = (title or "").strip(), (body or "").strip(), (cover_url or "").strip()
     if not 3 <= len(title) <= 120:
@@ -88,7 +105,7 @@ def save_post(author: str, title: str, body: str, cover_url: str = "", upload: O
         raise NewsError("That post no longer exists.")
     if post is None:
         post = {"id": secrets.token_hex(6), "created": _now(), "author": author, "cover": ""}
-    post.update(title=title, body=body, updated=_now())
+    post.update(title=title, body=body, updated=_now(), kind=kind if kind in KINDS else "news")
     if upload:
         r().set(f"web:news:cover:{post['id']}", upload)
         r().set(f"web:news:cover_type:{post['id']}", mime)
@@ -102,6 +119,7 @@ def save_post(author: str, title: str, body: str, cover_url: str = "", upload: O
     r().hset(POSTS, post["id"], json.dumps(post))
     if not r().zscore(ORDER, post["id"]):
         r().zadd(ORDER, {post["id"]: datetime.datetime.now(datetime.timezone.utc).timestamp()})
+    _latest["at"] = 0.0
     return post
 
 

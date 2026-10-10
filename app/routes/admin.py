@@ -620,7 +620,8 @@ def news_admin():
         data = upload.read() if upload and upload.filename else None
         try:
             post = news.save_post(session["uid"], f.get("title", ""), f.get("body", ""), f.get("cover_url", ""),
-                                  data, post_id=f.get("id") or None, remove_cover=bool(f.get("remove_cover")))
+                                  data, post_id=f.get("id") or None, remove_cover=bool(f.get("remove_cover")),
+                                  kind=f.get("kind", "news"))
         except news.NewsError as e:
             flash(str(e), "error")
             return render_template("admin/news.html", posts=news.list_posts(50), editing=editing, form=f,
@@ -709,6 +710,24 @@ def audit_log():
                            names=names, section="audit")
 
 
+def _event_news(ev: dict):
+    """A scheduled event announces itself in the news (kind "event")."""
+    from app import news
+    from app.game import events
+    h = events.KIND_HELP.get(ev["kind"], {})
+    lines = [ev["blurb"]] if ev.get("blurb") else []
+    lines += [f"**When:** {events.window(ev)}.",
+              f"**What changes:** {events.describe(ev)}",
+              *[f"- {line}" for line in h.get("does", [])[1:]],
+              f"Every PvE win that pays a reward earns +{events.TOKENS_PVE} event tokens and every ranked win "
+              f"+{events.TOKENS_PVP}. Spend them in the [event shop]({url_for('progress.events_page')}) before it ends: "
+              + ", ".join(s["label"] for s in events.SHOP) + "."]
+    try:
+        return news.save_post(session["uid"], f"🎉 {ev['name']}", "\n\n".join(lines), kind="event")
+    except news.NewsError:
+        return None
+
+
 @bp.route("/events", methods=["GET", "POST"])
 @admin_required
 def events_admin():
@@ -722,7 +741,8 @@ def events_admin():
                                    f.get("kind", ""), f.get("rarity") if f.get("kind") == "rarity" else f.get("synergy", ""))
                 audit("event_create", ev["id"], name=ev["name"], modifier=ev["kind"], spotlight=ev["target"],
                       start=ev["start"], end=ev["end"])
-                flash(f"Event “{ev['name']}” scheduled.", "ok")
+                announced = _event_news(ev) is not None
+                flash(f"Event “{ev['name']}” scheduled" + (", and announced in the news." if announced else "."), "ok")
             elif f.get("op") == "end":
                 events.end_now(r(), f.get("id", ""))
                 audit("event_end", f.get("id", ""))

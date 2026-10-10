@@ -341,6 +341,13 @@ def register(app):
                 resp.headers["HX-Trigger"] = json.dumps({"toast": toasts})
         return resp
 
+    def _latest_post():
+        try:
+            from app import news
+            return news.latest()
+        except Exception:
+            return None
+
     @app.context_processor
     def inject():
         if "csrf" not in session:
@@ -382,7 +389,8 @@ def register(app):
             "craft_ready": craft_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
-            "fight_fx": session.get("fight_fx", True),  # battle cries, heavy-hit sound effects, the eyecatch (app.js)
+            "fight_fx": session.get("fight_fx", True),
+            "latest_post": _latest_post(),  # battle cries, heavy-hit sound effects, the eyecatch (app.js)
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
                    "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
             "csrf_token": session["csrf"],

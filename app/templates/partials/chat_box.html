@@ -29,6 +29,6 @@
     <p class="chat-empty muted">{{ {'global': 'Nobody has said anything yet. Say hi!', 'dm': 'No messages yet. Say hi!', 'raid': 'Plan the raid here: who brings what?'}[ch.kind] }}</p>
   {% endif %}
   <p class="chat-error" role="alert" data-chat-error="{{ chat_error or '' }}">{{ chat_error or '' }}</p>
-  <div hidden hx-get="{{ url_for('chat.feed', token=ch.token, seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible']"
+  <div hidden hx-get="{{ url_for('chat.feed', token=ch.token, seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible' && !this.closest('details:not([open])')]"
        hx-target="#chat-{{ ch.token }}" hx-swap="outerHTML"></div>
 </div>

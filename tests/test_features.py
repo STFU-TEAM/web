@@ -476,7 +476,7 @@ def test_pity_floor_and_new_tags(client):
     user.pity = logic.PITY_LIMIT - 1
     drawn = logic._banner_draw(banner, user)
     assert drawn.rarity in ("UR", "LR") and user.pity == 0  # pity guarantees a UR or better
-    assert logic.PITY_ODDS == {"UR": 0.55, "LR": 0.45}
+    assert logic.PITY_ODDS == {"UR": 0.67, "LR": 0.33}
     user.pity = 10
     logic._banner_draw(banner, user, forced="SSR")
     assert user.pity == 11  # an SSR no longer resets pity

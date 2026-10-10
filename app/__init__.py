@@ -63,7 +63,9 @@ def create_app() -> Flask:
         from app.game import events
         try:
             events.current(r())
-            social.tick(seen=session.get("uid") if not request.path.startswith("/push/") else None)
+            dev = request.cookies.get("pdev", "")
+            social.tick(seen=session.get("uid") if not request.path.startswith("/push/") else None,
+                        device=dev if len(dev) == 40 and dev.isalnum() else None)
         except Exception:
             app.logger.exception("live state")
 

@@ -13,7 +13,7 @@
         <a class="news-card{% if loop.first and page == 0 %} lead{% endif %}" href="{{ url_for('main.news_post', post_id=p.id) }}">
           {% if p.cover %}<img src="{{ p.cover }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}
           <span class="news-card-body">
-            <time datetime="{{ p.created }}">{{ p.created[:10] }}</time>
+            <em class="news-kind kind-{{ p.kind or 'news' }}">{{ {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.get(p.kind or 'news') }}</em> <time datetime="{{ p.created }}">{{ p.created[:10] }}</time>
             <strong>{{ p.title }}</strong>
             <span class="muted">{{ p.body|news_summary(220 if loop.first and page == 0 else 140) }}</span>
           </span>

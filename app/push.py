@@ -7,6 +7,8 @@ push service. Off unless VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY are set (scripts
     web:push:<uid>        hash  sha1(endpoint) -> JSON subscription {endpoint, keys: {p256dh, auth}}
     web:push:energy:<uid> "1" when the player wants an "energy full" push
     web:seen:<uid>        set on every page load, expires after ACTIVE_SECONDS
+    web:seen:<uid>:<dev>  the same, for the browser holding push subscription <dev> (its "pdev" cookie): a push skips
+                          only the devices in use, so a phone still buzzes while the site is open on a PC
     web:push:stats        hash: sent / failed / dropped counters, last_error(_at), last_ok_at (admin Logs tab)
 """
 import hashlib
@@ -104,12 +106,21 @@ def set_energy(uid, on: bool):
         social.cancel_later(str(uid), "energy")
 
 
-def seen(uid):
+DEVICE_COOKIE = "pdev"
+
+
+def device_id(endpoint: str) -> str:
+    return hashlib.sha1((endpoint or "").encode()).hexdigest()
+
+
+def seen(uid, device: Optional[str] = None):
     r().set(f"web:seen:{uid}", "1", ex=ACTIVE_SECONDS)
+    if device:
+        r().set(f"web:seen:{uid}:{device}", "1", ex=ACTIVE_SECONDS)
 
 
-def active(uid) -> bool:
-    return bool(r().exists(f"web:seen:{uid}"))
+def active(uid, device: Optional[str] = None) -> bool:
+    return bool(r().exists(f"web:seen:{uid}:{device}" if device else f"web:seen:{uid}"))
 
 
 def send(uid, kind: str, text: str, url: Optional[str] = None, force: bool = False):
@@ -122,9 +133,11 @@ def send(uid, kind: str, text: str, url: Optional[str] = None, force: bool = Fal
             _warned_off = True
             log.warning("push is off: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY aren't set (or push.send ran outside the app)")
         return
-    if active(uid) and not force:
-        return
     subs = r().hgetall(_key(uid))
+    if subs and not force:  # skip only the devices open on the site right now (their page shows a toast instead)
+        fields = list(subs)
+        busy = r().mget([f"web:seen:{uid}:{f.decode() if isinstance(f, bytes) else f}" for f in fields])
+        subs = {f: v for (f, v), b in zip(subs.items(), busy) if not b}
     if not subs:
         if force:
             log.info("push test for %s: this player has no device subscribed", uid)

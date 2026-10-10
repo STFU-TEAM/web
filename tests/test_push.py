@@ -59,10 +59,19 @@ def test_a_push_is_encrypted_signed_and_sent_only_while_away(client, pushy):
     h = _player(client)
     r = client.post("/community/push/subscribe", json=_browser_sub(), headers=h)
     assert r.status_code == 200 and r.get_json()["devices"] == 1
+    # this browser (its pdev cookie names its subscription) has the site open: no push for it
+    client.set_cookie("pdev", push.device_id("https://push.example.com/abc"))
+    client.get("/story")
     with client.application.app_context():
-        push.send("111", "trade", "Jotaro sent you a trade offer.", "/trades")  # the login page load marked 111 as here
+        push.send("111", "trade", "Jotaro sent you a trade offer.", "/trades")
         assert not pushy
-        dbmod.r().delete("web:seen:111")
+        # a second device (a phone) still gets it while the first is in use
+        client.post("/community/push/subscribe", json=_browser_sub("https://push.example.com/phone"), headers=h)
+        push.send("111", "trade", "Jotaro sent you a trade offer.", "/trades")
+        assert [p["url"] for p in pushy] == ["https://push.example.com/phone"]
+        pushy.clear()
+        push.unsubscribe("111", "https://push.example.com/phone")
+        dbmod.r().delete("web:seen:111", f"web:seen:111:{push.device_id('https://push.example.com/abc')}")
         push.send("111", "achievement", "Achievement unlocked")  # not a push kind
         push.send("111", "trade", "Jotaro sent you a trade offer.", "/trades")
     assert len(pushy) == 1

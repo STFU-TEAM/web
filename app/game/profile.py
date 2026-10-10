@@ -106,7 +106,9 @@ def clean_image(url: str) -> str:
     return url
 
 
-def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: List[str], image: str = ""):
+def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: List[str], image: str = "",
+         avatar: Optional[str] = None):
+    """avatar: a web-only account's profile picture link (None leaves it as it is; Discord players use Discord's)."""
     """Validate and store a customization (the caller holds the save lock and saves)."""
     lock = locked(user.id)
     if lock:
@@ -121,8 +123,13 @@ def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: Li
     showcase = [u for u in dict.fromkeys(showcase or []) if u in owned][:SHOWCASE_MAX]
     unlocked = set(user.achievement_data.get("unlocked", []))
     pins = [p for p in dict.fromkeys(pins or []) if p in unlocked][:PIN_MAX]
+    old_avatar = (user.data.get("web_profile") or {}).get("avatar") or ""
+    from app.accounts import is_local
+    new_avatar = clean_image(avatar) if avatar is not None and is_local(user.id) else old_avatar
     user.data["web_profile"] = {"quote": clean_quote(quote), "theme": theme or "night", "image": clean_image(image),
-                                "stand": stand or None, "showcase": showcase, "pins": pins}
+                                "stand": stand or None, "showcase": showcase, "pins": pins, "avatar": new_avatar}
+    if new_avatar != old_avatar:
+        set_avatar(user.id, new_avatar)
 
 
 def view(user) -> dict:
@@ -141,8 +148,18 @@ def view(user) -> dict:
 # ── Moderation ───────────────────────────────────────────────────────────
 
 def clear(user):
-    """Remove every customization (the caller saves)."""
+    """Remove every customization (the caller saves), the profile picture of a web-only account included."""
+    had_avatar = (user.data.get("web_profile") or {}).get("avatar")
     user.data["web_profile"] = {}
+    if had_avatar:
+        set_avatar(user.id, None)
+
+
+def set_avatar(uid, url: Optional[str]):
+    """A web-only player's picture, everywhere their name shows (their identity)."""
+    from app.accounts import username_of
+    from app.db import identity, remember_identity
+    remember_identity(str(uid), identity(uid)["name"] or username_of(uid), url or None, ttl=None)
 
 
 def lock(uid, by: str, reason: str = ""):

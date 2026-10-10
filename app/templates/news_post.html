@@ -2,7 +2,7 @@
 {% block title %}{{ post.title }} | STFU Requiem{% endblock %}
 {% block main %}
 <article class="page narrow news-article">
-  <p class="kicker"><a href="{{ url_for('main.news_list') }}">News</a> · <time datetime="{{ post.created }}">{{ post.created[:10] }}</time></p>
+  <p class="kicker"><a href="{{ url_for('main.news_list') }}">{{ {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.get(post.kind or 'news') }}</a> · <time datetime="{{ post.created }}">{{ post.created[:10] }}</time></p>
   <h1 class="display sm">{{ post.title }}</h1>
   {% if post.cover %}<img class="news-cover" src="{{ post.cover }}" alt="" onerror="this.remove()">{% endif %}
   <div class="news-text">{{ post.body|news_body }}</div>

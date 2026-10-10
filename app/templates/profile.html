@@ -33,9 +33,7 @@
       {% endif %}
     </div>
     {% if best %}
-      <figure class="file-stand">
-        <img src="{{ best.id|stand_img }}" alt="{{ best.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
-      </figure>
+      <div class="file-stand file-card">{{ owned_card(best, size='small') }}</div>
     {% endif %}
     <span class="file-bars" aria-hidden="true"><i></i><i></i><i></i></span>
   </header>
@@ -148,6 +146,12 @@
         <label class="customize-field">Catchphrase <small class="muted">(up to {{ quote_max }} characters, shown in 「 」 under your name)</small>
           <input type="text" name="quote" maxlength="{{ quote_max }}" value="{{ my_profile.quote or '' }}" placeholder="Yare yare daze." autocomplete="off"></label>
 
+        {% if web_only %}
+          <label class="customize-field">Profile picture <small class="muted">(a link to a square picture, shown next to your name everywhere: same hosts as the banner below)</small>
+            <input type="url" name="avatar" maxlength="400" value="{{ my_profile.avatar or '' }}" placeholder="https://i.imgur.com/abc123.png" autocomplete="off" inputmode="url"></label>
+        {% else %}
+          <p class="muted small-print">Your profile picture is your Discord one. Change it on Discord and it follows here at your next login.</p>
+        {% endif %}
         <label class="customize-field">Banner image <small class="muted">(a link to a picture, shown behind your file: Imgur, ImgBB, Discord, the JoJo wiki, Reddit, X or Pinterest. Discord links stop working after a day, so Imgur is the safest.)</small>
           <input type="url" name="image" maxlength="400" value="{{ my_profile.image or '' }}" placeholder="https://i.imgur.com/abc123.png" autocomplete="off" inputmode="url"></label>
 
