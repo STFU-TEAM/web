@@ -53,6 +53,7 @@
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'An endless weekly climb that gets brutal fast. Weekly leaderboard.'),
+  'puzzle': ('Daily puzzle', url_for('progress.pz_page'), ep.startswith('progress.pz_'), '🧩', 'One puzzle a day for everyone: pick 3 of 6 stands, hand out the items, beat the crew. Fastest solve tops the ladder.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'A free daily delve: explore, loot, and choose when to get out.'),
   'events': ('Events', url_for('progress.events_page'), ep.startswith('progress.events'), '🎉', live_event.name ~ ' is on: a twist and a token shop.' if live_event else 'Limited-time twists with a token shop.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
@@ -70,22 +71,28 @@
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
   'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
-{#- Battle modes appear as the story opens them (app/game/progression.py): Mirror World, Tower and Dungeon after the
-    first fight, Ranked and the Alternate Universe after Part 3, Over Heaven at the end. -#}
-{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey'] -%}
-{%- set challenge_keys = (['wormhole'] if nav_unlocked.wormhole else []) + (['tower'] if nav_unlocked.tower else [])
-                         + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
-{%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles'] -%}
-{%- set battle_groups = [('Adventure', 'adventure', adventure_keys), ('Challenges', 'challenges', challenge_keys), ('PvP', 'pvp', pvp_keys)] -%}
-{%- set battle_keys = adventure_keys + challenge_keys + pvp_keys -%}
+{#- THE NAV, ONCE. Every surface (desktop sidebar, top-bar dropdowns, the phone menu sheet) reads these groups, so
+    a page is always in the same place, in the same order. Groups go from what you do most to what you do least:
+    the daily loop, the story path, the weekly challenges, PvP, then managing stands, goals, people, trading, help.
+    Within a group, pages follow the order you meet them. Battle modes appear as the story opens them
+    (app/game/progression.py). -#}
+{%- set daily_keys = ['quests'] + (['puzzle'] if nav_unlocked.puzzle else []) + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else [])
+                     + (['wormhole'] if nav_unlocked.wormhole else []) + ['journey'] -%}
+{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) -%}
+{%- set challenge_keys = (['events'] if live_event else []) + (['tower'] if nav_unlocked.tower else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
+{%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles', 'ladder'] -%}
+{%- set battle_groups = [('Daily', 'daily', daily_keys), ('Adventure', 'adventure', adventure_keys), ('Challenges', 'challenges', challenge_keys), ('PvP', 'pvp', pvp_keys)] -%}
+{%- set battle_keys = daily_keys + adventure_keys + challenge_keys + pvp_keys -%}
 {%- set collection_keys = ['items', 'chips', 'reforge', 'planner', 'simulator'] -%}
-{%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
-{%- set community_keys = ['chat', 'gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
+{%- set progress_keys = ['achievements', 'dex'] + ([] if live_event else ['events']) -%}
+{%- set community_keys = ['chat', 'friends', 'players', 'gangs', 'inbox'] -%}
+{%- set market_keys = ['trades', 'auction', 'shops'] -%}
+{%- set social_groups = [('People', 'community', community_keys), ('Market', 'market', market_keys)] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
-  {%- set sheet = [('Collection', ['team', 'items', 'chips', 'reforge', 'banners', 'planner', 'simulator']),
-                   ('Adventure', adventure_keys), ('Challenges', challenge_keys), ('PvP', pvp_keys),
-                   ('Progress', progress_keys), ('Community', community_keys), ('Explore', explore_keys)] -%}
+  {%- set sheet = [('Daily', daily_keys), ('Adventure', adventure_keys), ('Challenges', challenge_keys), ('PvP', pvp_keys),
+                   ('Collection', ['team', 'banners'] + collection_keys), ('Progress', progress_keys),
+                   ('Community', community_keys), ('Market', market_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
   {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
 {%- endif -%}
@@ -110,24 +117,26 @@
 {%- endmacro -%}
 {%- macro nav_menu(title, keys, tour, groups=None) -%}
   {%- set hot = any_hot(keys) -%}
-  <details class="nav-drop{% if hot %} hot{% endif %}" data-tour="{{ tour }}">
+  <details class="nav-drop{% if hot %} hot{% endif %}{% if groups %} has-cols{% endif %}" data-tour="{{ tour }}">
     <summary {% if any_active(keys) %}aria-current="page"{% endif %}>{{ title }}{% if hot %}<span class="nav-dot" aria-label="Something new"></span>{% endif %}</summary>
-    <div class="nav-menu wide">
-      {%- if groups %}{% for sub, _key, gkeys in groups if gkeys %}<p class="menu-sub">{{ sub }}</p>{% for k in gkeys %}{{ menu_link(k) }}{% endfor %}{% endfor %}
+    <div class="nav-menu wide{% if groups %} cols{% endif %}">
+      {#- grouped menus (Battle, Community) lay their groups out as columns, centred under the bar -#}
+      {%- if groups %}{% for sub, _key, gkeys in groups if gkeys %}<div class="menu-col"><p class="menu-sub">{{ sub }}</p>{% for k in gkeys %}{{ menu_link(k) }}{% endfor %}</div>{% endfor %}
       {%- else %}{% for k in keys %}{{ menu_link(k) }}{% endfor %}{% endif -%}
     </div>
   </details>
 {%- endmacro -%}
 {%- macro any_active(keys) -%}{% for k in keys if L[k][2] %}1{% endfor %}{%- endmacro -%}
-{#- Desktop sidebar (>= 1024px, signed in): the same destinations in collapsible groups. Collection and the battle
-    groups, the group of the page you're on and any group with something new start open; the player's own choices
-    are remembered (app.js). -#}
+{#- Desktop sidebar (>= 1024px, signed in): the same groups, collapsible. The play groups and Collection start open,
+    the rest closed (less to scroll past); the group of the page you're on and any group with something new open
+    anyway, and the player's own choices are remembered (app.js). Gangs and the inbox live elsewhere here (pinned,
+    and the bell). -#}
 {%- set side_pinned = ['team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
-{%- set side_groups = [('Collection', 'collection', ['items', 'chips', 'reforge', 'dex', 'planner', 'simulator'], True),
-                       ('Adventure', 'adventure', adventure_keys, True), ('Challenges', 'challenges', challenge_keys, True),
-                       ('PvP', 'pvp', pvp_keys, True), ('Progress', 'progress', progress_keys, False),
+{%- set side_groups = [('Daily', 'daily', daily_keys, True), ('Adventure', 'adventure', adventure_keys, True),
+                       ('Challenges', 'challenges', challenge_keys, True), ('PvP', 'pvp', pvp_keys, True),
+                       ('Collection', 'collection', collection_keys, True), ('Progress', 'progress', progress_keys, False),
                        ('Community', 'community', community_keys|reject('in', ['inbox', 'gangs'])|list, False),
-                       ('Explore', 'explore', explore_keys, False)] -%}
+                       ('Market', 'market', market_keys, False), ('Explore', 'explore', explore_keys, False)] -%}
 {%- macro side_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}
   <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot(key) %} hot{% endif %}{% if key in nav_new %} is-new{% endif %}" href="{{ href }}" data-tour="{{ key }}" {% if active %}aria-current="page"{% endif %}>
@@ -184,7 +193,7 @@
         {{ nav_menu('Collection', collection_keys, 'collection') }}
         {{ nav_menu('Battle', battle_keys, 'battle', groups=battle_groups) }}
         {{ nav_menu('Progress', progress_keys, 'progress') }}
-        {{ nav_menu('Community', community_keys, 'community') }}
+        {{ nav_menu('Community', community_keys + market_keys, 'community', groups=social_groups) }}
         {{ nav_menu('Explore', explore_keys, 'explore') }}
       {% else %}
         {{ nav_link('news') }}{{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}

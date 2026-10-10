@@ -59,6 +59,11 @@ def next_step(fight, my_side: int = 0) -> Optional[dict]:
             return {"label": "Next fight ▶", "action": action, "fields": {field: key, "stage": j + 1}}
         if not won and steps:
             return {"label": "↻ Try again", "action": action, "fields": {field: key, "stage": j}}
+    elif kind == "puzzle":
+        if not won:
+            fields = {"s": list(meta.get("picks", [])), "mode": meta.get("mode", "daily")}
+            fields.update({f"g{k}": v for k, v in (meta.get("gear") or {}).items()})
+            return {"label": "↻ Try again", "action": "progress.pz_fight", "fields": fields}
     elif kind == "carry_me":
         from app.game import carryme
         k = int(meta.get("stage", 0))

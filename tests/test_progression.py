@@ -33,7 +33,7 @@ def test_gates_follow_the_story():
     assert story.STAGES[progression.GATES["ranked"] - 1]["boss"] and story.STAGES[progression.GATES["ranked"]]["part"] == 4
     assert progression.requirement("tower") == "Win your first story fight"
     assert progression.requirement("ranked") == "Finish Part 3 · Stardust Crusaders in the story"
-    assert progression.next_unlock(0) == (1, ["Mirror World", "Tower", "Dungeon"])
+    assert progression.next_unlock(0) == (1, ["Mirror World", "Tower", "Dungeon", "Daily puzzle"])
     assert progression.next_unlock(1, skip=("dungeon",)) == (progression.done_at(3) - 1, ["Ranked", "Alternate Universe"])
     assert progression.next_unlock(story.TOTAL) is None
 
@@ -52,7 +52,7 @@ def test_side_modes_open_after_the_first_story_fight(gated):
     assert "This fight opens" in c.get("/story").data.decode()
 
     _win_story_fight(c, h)
-    opened = {"wormhole", "tower"} | ({"dungeon"} if c.application.config.get("DUNGEON_ENABLED") else set())
+    opened = {"wormhole", "tower", "puzzle"} | ({"dungeon"} if c.application.config.get("DUNGEON_ENABLED") else set())
     assert set(progression.new("111")) == opened
     assert any("Unlocked: Mirror World, Tower" in t for t in _inbox(c))
     page = c.get("/story").data.decode()

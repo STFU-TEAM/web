@@ -20,7 +20,7 @@ def client(monkeypatch):
     monkeypatch.setattr(logic, "rotation_ids", lambda day: [b["id"] for b in logic.BANNERS])
     # the side modes and ranked open with the story (test_progression.py); other tests start from a fresh save
     from app.game import progression
-    monkeypatch.setattr(progression, "GATES", {**progression.GATES, "wormhole": 0, "tower": 0, "dungeon": 0, "ranked": 0})
+    monkeypatch.setattr(progression, "GATES", {**progression.GATES, "wormhole": 0, "tower": 0, "dungeon": 0, "ranked": 0, "puzzle": 0})
     from app import create_app
     app = create_app()
     app.config.update(TESTING=True, SESSION_COOKIE_SECURE=False)

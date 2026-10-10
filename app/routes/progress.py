@@ -519,6 +519,140 @@ def cm_leave():
 
 
 # --------------------------------------------------------------------------- #
+# Puzzles: the daily one (one for everyone, a ladder for the fastest solve) and your personal ones (your own
+# path through the library). The library is filled by a background task (app/game/puzzle.py).
+# --------------------------------------------------------------------------- #
+PZ_KIND = "puzzle"
+
+
+def _pz_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == PZ_KIND else None
+
+
+def _named(rows):
+    from app.db import identities
+    who = identities(row["uid"] for row in rows)
+    return [{**row, "name": who[row["uid"]]["name"], "avatar": who[row["uid"]].get("avatar")} for row in rows]
+
+
+@bp.get("/puzzle")
+@player_required
+def pz_page():
+    from app.game import puzzle
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    fight = _pz_fight(uid)
+    tab = request.args.get("tab") or (fight.meta.get("mode") if fight else None) or "daily"
+    tab = tab if tab in ("daily", "personal") else "daily"
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != PZ_KIND and not other.finished else None
+    ctx = {"tab": tab, "u": user, "fight": fight, "error": error, "P": puzzle, "left": puzzle.seconds_left(),
+           "stock": puzzle.stock(), "last": session.get("puzzle_pick") or {},
+           "fight_action": url_for("progress.pz_attack"), "fight_leave_action": url_for("progress.pz_leave"),
+           "fight_label": "Puzzle"}
+    if tab == "daily":
+        spec = puzzle.get()
+        state = None
+        if spec:
+            solved = puzzle.solved(uid)
+            state = {"started": puzzle.started(uid), "tries": puzzle.tries(uid), "solved": solved,
+                     "clock": puzzle.clock(solved) if solved is not None else None,
+                     "rank": puzzle.rank(uid) if solved is not None else None, "solved_now": solved is not None}
+        ctx.update(spec=spec, p=puzzle.view(spec) if spec else None, state=state,
+                   ladder=_named(puzzle.ladder()), podium=_named(puzzle.ladder(puzzle.yesterday(), 3)),
+                   solvers=len(puzzle.ladder(size=None)))
+    else:
+        spec = puzzle.personal(uid)
+        mine = puzzle.me(uid)
+        ctx.update(spec=spec, p=puzzle.view(spec) if spec else None,
+                   state={**mine, "solved_now": None, "number": mine["idx"] + 1}, solved_board=_named(puzzle.solvers()))
+    return render_template("puzzle.html", **ctx)
+
+
+@bp.post("/puzzle/reveal")
+@player_required
+def pz_reveal():
+    from app.game import puzzle
+    mode = request.form.get("mode", "daily")
+    if mode == "personal":
+        puzzle.personal_reveal(session["uid"])
+    elif puzzle.get():
+        puzzle.reveal(session["uid"])
+    return redirect(url_for("progress.pz_page", tab=mode))
+
+
+@bp.post("/puzzle/skip")
+@player_required
+def pz_skip():
+    from app.game import puzzle
+    if not _pz_fight(session["uid"]) or _pz_fight(session["uid"]).finished:
+        puzzle.personal_skip(session["uid"])
+    return redirect(url_for("progress.pz_page", tab="personal"))
+
+
+@bp.post("/puzzle/fight")
+@player_required
+def pz_fight():
+    from app.game import puzzle
+    uid = session["uid"]
+    mode = "personal" if request.form.get("mode") == "personal" else "daily"
+    existing = load_fight(uid)
+    if existing and not (existing.kind == PZ_KIND and existing.finished):
+        return redirect(url_for("progress.pz_page", tab=mode))
+    spec = puzzle.personal(uid) if mode == "personal" else puzzle.get()
+    if not spec:
+        flash("That puzzle isn't ready yet.", "error")
+        return redirect(url_for("progress.pz_page", tab=mode))
+    try:
+        picks, gear = puzzle.parse(request.form)
+        if mode == "personal":
+            puzzle.personal_start(uid, spec)
+        else:
+            puzzle.start(uid, spec, picks, gear)
+    except GameError as e:
+        flash(str(e), "error")
+        return redirect(url_for("progress.pz_page", tab=mode))
+    key = spec["day"] if mode == "daily" else f"#{spec['id']}"
+    session["puzzle_pick"] = {"key": key, "s": picks, "g": {str(k): v for k, v in gear.items()}}
+    meta = {"mode": mode, "rules": spec["rules"], "picks": picks, "gear": {str(k): v for k, v in gear.items()},
+            **({"day": spec["day"]} if mode == "daily" else {"pid": spec["id"]})}
+    title = f"Daily puzzle · {spec['day']}" if mode == "daily" else f"Puzzle #{spec['id']}"
+    fight = Fight(Side(session.get("name", "You"), puzzle.team_for(spec, picks, gear), True, session.get("avatar")),
+                  Side(title, puzzle.crew(spec), False), kind=PZ_KIND, meta=meta)
+    fight.advance()
+    save_fight(uid, fight)
+    return redirect(url_for("progress.pz_page", tab=mode))
+
+
+def _pz_settle(user, fight):
+    from app.game import puzzle
+    if fight.winner != 0:
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    if fight.meta.get("mode") == "personal":
+        return puzzle.personal_win(user, int(fight.meta["pid"]))
+    return puzzle.win(user, fight.meta["day"])
+
+
+@bp.post("/puzzle/attack")
+@player_required
+def pz_attack():
+    return play_turn(PZ_KIND, url_for("progress.pz_page"), "Puzzle", "progress.pz_attack", "progress.pz_leave",
+                     _pz_settle)
+
+
+@bp.post("/puzzle/leave")
+@player_required
+def pz_leave():
+    fight = _pz_fight(session["uid"])
+    mode = fight.meta.get("mode", "daily") if fight else "daily"
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.pz_page", tab=mode))
+
+
+# --------------------------------------------------------------------------- #
 # Weekly boss rush
 # --------------------------------------------------------------------------- #
 def _rush_fight(uid):

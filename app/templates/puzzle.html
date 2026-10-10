@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}Puzzles | STFU Requiem{% endblock %}
+
+{#- The board: the crew and its rules beside a squad builder (3 slots, the 6 stand cards, the items). -#}
+{% macro board(mode, spec, p, state, prev) %}
+  <div class="pz-board">
+    <section class="pz-panel pz-crew" aria-label="The crew">
+      <h2 class="h3">The crew</h2>
+      <ul class="pz-foes">
+        {% for c in p.enemies %}
+          <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy" width="72" height="72"><span>{{ c.name }}</span></a></li>
+        {% endfor %}
+      </ul>
+      <p class="pz-foe-build">Level {{ P.LEVEL }} · ★{{ P.AWAKEN }} · <strong>×{{ p.mult }}</strong> health & damage</p>
+      <h3 class="pz-sub">☁ Over Heaven rules</h3>
+      <ul class="oh-rules pz-rules">{% for line in p.rules %}<li>{{ line }}</li>{% endfor %}</ul>
+      <p class="pz-check">✔ Checked solvable: {{ p.checked|num }} simulated fights, {{ p.good }} of 20 teams work.</p>
+    </section>
+
+    <form class="pz-panel pz-build" method="post" action="{{ url_for('progress.pz_fight') }}" data-pz-form>
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="mode" value="{{ mode }}">
+      <script type="application/json" data-pz-data>{{ {"cards": p.cards|map(attribute='slot')|list, "names": p.cards|map(attribute='name')|list,
+        "img": p.cards|map(attribute='id')|map('stand_img')|list, "syn": p.cards|map(attribute='syn')|list, "groups": p.synergies,
+        "items": p['items']|map(attribute='name')|list, "pick": P.PICK, "max": P.MAX_ITEMS}|tojson }}</script>
+
+      <h2 class="h3">Your squad</h2>
+      <ol class="pz-squad" data-pz-squad aria-live="polite">
+        {% for i in range(P.PICK) %}<li class="pz-slot empty"><span class="pz-slot-num">{{ i + 1 }}</span><span class="muted">Pick a stand</span></li>{% endfor %}
+      </ol>
+      <p class="pz-syn" data-pz-syn></p>
+
+      <h3 class="pz-sub">Choose {{ P.PICK }} of 6 <small class="muted">all level {{ P.LEVEL }} ★{{ P.AWAKEN }}, typed for their special</small></h3>
+      <div class="pz-cards">
+        {% for c in p.cards %}
+          <label class="pz-card rar-{{ c.rarity|rarity }}">
+            <input type="checkbox" name="s" value="{{ c.slot }}" data-pz-stand {{ 'checked' if c.slot in (prev.s or []) }}>
+            <span class="pz-card-art"><img src="{{ c.id|stand_img }}" alt="" loading="lazy" width="64" height="64"></span>
+            <span class="pz-card-body">
+              <strong>{{ c.name }}</strong> <span class="rar-tag {{ c.rarity|rarity }}">{{ c.rarity }}</span>
+              <span class="pz-stats"><span title="Health">❤ {{ c.hp|num }}</span><span title="Damage">⚔ {{ c.dmg|int }}</span><span title="Speed">💨 {{ c.spd|int }}</span><span title="Critical">✦ {{ c.crit }}%</span></span>
+              {% if c.syn %}<span class="pz-tags">{% for k in c.syn %}<span class="pz-tag" title="{{ p.synergies[k].label }}">{{ p.synergies[k].icon }} {{ p.synergies[k].label }}</span>{% endfor %}</span>{% endif %}
+              <small class="pz-special">{{ c.special }}</small>
+            </span>
+          </label>
+        {% endfor %}
+      </div>
+
+      <h3 class="pz-sub">Items <small class="muted">tap who carries each one · up to {{ P.MAX_ITEMS }} per stand</small></h3>
+      <div class="pz-gear-list">
+        {% for it in p['items'] %}
+          {% set k = loop.index0 %}
+          <fieldset class="pz-gear">
+            <legend><span class="pz-gear-icon">{{ (it.emoji or '◈')|emoji }}</span> <strong>{{ it.name }}</strong> <small class="muted">{{ it.line }}</small></legend>
+            <div class="seg pz-seg">
+              <label><input type="radio" name="g{{ k }}" value="" {{ 'checked' if not (prev.g or {}).get(k|string) and (prev.g or {}).get(k|string) != 0 }}><span>Unused</span></label>
+              {% for c in p.cards %}
+                <label data-pz-for="{{ c.slot }}"><input type="radio" name="g{{ k }}" value="{{ c.slot }}" {{ 'checked' if (prev.g or {}).get(k|string) == c.slot }}><span>{{ c.name }}</span></label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endfor %}
+      </div>
+
+      <div class="pz-go">
+        <span class="muted" data-pz-hint>Pick {{ P.PICK }} stands.</span>
+        <button class="btn gold big" data-pz-go>{{ 'Play it again' if state.solved_now else 'Fight' }} →</button>
+      </div>
+    </form>
+  </div>
+{% endmacro %}
+
+{% block main %}
+<section class="page puzzle" id="puzzle-main">
+  <header class="pz-hero">
+    <span class="pz-emblem" aria-hidden="true">🧩</span>
+    <div class="pz-title">
+      <p class="kicker">Puzzles · pick {{ P.PICK }} of 6, hand out the items, win</p>
+      <h1 class="display sm">{% call menacing() %}Puzzles{% endcall %}</h1>
+      <p class="muted">Every stand is level {{ P.LEVEL }} here: no collection needed, just the right team. The clock starts when you reveal a puzzle.</p>
+    </div>
+    <div class="pz-next"><span class="muted">Next daily in</span><strong data-countdown="{{ left }}">{{ left // 3600 }}h {{ '%02d'|format((left % 3600) // 60) }}m</strong></div>
+  </header>
+
+  <nav class="pz-tabs" aria-label="Puzzle modes">
+    <a href="{{ url_for('progress.pz_page', tab='daily') }}" class="{{ 'on' if tab == 'daily' }}" {% if tab == 'daily' %}aria-current="page"{% endif %}>🌍 Daily <small>same for everyone · ladder</small></a>
+    <a href="{{ url_for('progress.pz_page', tab='personal') }}" class="{{ 'on' if tab == 'personal' }}" {% if tab == 'personal' %}aria-current="page"{% endif %}>🧩 Personal <small>your own path · {{ stock.personal|num }} in the library</small></a>
+  </nav>
+  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+
+  <div class="pz-layout">
+    <div class="pz-main">
+      {% if fight %}
+        {% include "partials/fight.html" %}
+
+      {% elif tab == 'daily' %}
+        {% if not spec %}
+          <article class="pz-panel pz-wait">
+            <div class="spinner" aria-hidden="true"></div>
+            <h2 class="h2">The first puzzles are on their way</h2>
+            <p class="muted">Every puzzle is played through by the simulator before anyone sees it, a new one every few minutes. Today's will be here shortly.</p>
+          </article>
+        {% elif not state.started %}
+          <article class="pz-panel pz-reveal">
+            <p class="kicker">Daily puzzle · {{ spec.day }}</p>
+            <h2 class="h2">Today's puzzle is ready</h2>
+            <ul class="pz-facts">
+              <li>✔ Played through {{ p.checked|num }} times by the simulator before going live</li>
+              <li>🧩 Only {{ p.good }} of the 20 possible teams win most of the time</li>
+              <li>☁ {{ p.rules|length }} Over Heaven rule{{ 's' if p.rules|length != 1 }} in play</li>
+              <li>👥 {{ solvers }} solved so far</li>
+            </ul>
+            <form method="post" action="{{ url_for('progress.pz_reveal') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="mode" value="daily">
+              <button class="btn gold big">Reveal & start the clock ⏱</button></form>
+          </article>
+        {% else %}
+          <div class="pz-status">
+            {% if state.solved is not none %}
+              <p class="pz-solved">🏆 Solved in <strong>{{ state.clock }}</strong> · {{ state.tries }} attempt{{ 's' if state.tries != 1 }} · <strong>#{{ state.rank }}</strong> today</p>
+            {% else %}
+              <p class="pz-clock">⏱ <strong data-since="{{ state.started }}">…</strong> · attempt {{ state.tries + 1 }}</p>
+            {% endif %}
+          </div>
+          {{ board('daily', spec, p, state, last if last.key == spec.day else {}) }}
+        {% endif %}
+
+      {% else %}
+        {% if not spec %}
+          <article class="pz-panel pz-wait">
+            <h2 class="h2">You've cleared the whole library</h2>
+            <p class="muted">{{ state.solved }} solved, {{ state.skipped }} skipped. New puzzles arrive every few minutes; check back soon.</p>
+          </article>
+        {% elif not state.started %}
+          <article class="pz-panel pz-reveal">
+            <p class="kicker">Personal puzzle #{{ spec.id }} · your {{ state.number }}{{ 'st' if state.number % 10 == 1 and state.number % 100 != 11 else 'nd' if state.number % 10 == 2 and state.number % 100 != 12 else 'rd' if state.number % 10 == 3 and state.number % 100 != 13 else 'th' }}</p>
+            <h2 class="h2">Your next puzzle</h2>
+            <ul class="pz-facts">
+              <li>✔ Checked solvable: {{ p.good }} of 20 teams work</li>
+              <li>☁ {{ p.rules|length }} Over Heaven rule{{ 's' if p.rules|length != 1 }}</li>
+              <li>🎁 {{ [P.PERSONAL_PAID - state.paid, 0]|max }} of today's {{ P.PERSONAL_PAID }} rewarded solves left</li>
+            </ul>
+            <form method="post" action="{{ url_for('progress.pz_reveal') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="mode" value="personal">
+              <button class="btn gold big">Reveal ⏱</button></form>
+          </article>
+        {% else %}
+          <div class="pz-status">
+            <p class="pz-clock">🧩 Puzzle #{{ spec.id }} · ⏱ <strong data-since="{{ state.started }}">…</strong> · attempt {{ state.tries + 1 }}</p>
+            <form method="post" action="{{ url_for('progress.pz_skip') }}" onsubmit="return confirm('Skip this puzzle? It won\'t come back.')">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Skip ⏭</button></form>
+          </div>
+          {{ board('personal', spec, p, state, last if last.key == '#' ~ spec.id else {}) }}
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <aside class="pz-side">
+      {% if tab == 'daily' %}
+        <section class="pz-panel">
+          <h2 class="h3">Fastest today</h2>
+          {% if ladder %}
+            <ol class="pz-ladder">
+              {% for row in ladder %}
+                <li class="{{ 'me' if row.uid == me.id }}"><span class="pz-rank">{{ ['🥇','🥈','🥉'][row.rank - 1] if row.rank <= 3 else '#' ~ row.rank }}</span>
+                  <a href="{{ url_for('main.profile', uid=row.uid) }}">{{ row.name }}</a>
+                  <span class="pz-time">{{ row.clock }}</span><small class="muted">×{{ row.tries }}</small></li>
+              {% endfor %}
+            </ol>
+          {% else %}<p class="muted">Nobody yet. Be first.</p>{% endif %}
+        </section>
+        {% if podium %}
+          <section class="pz-panel">
+            <h2 class="h3">Yesterday's podium</h2>
+            <ol class="pz-ladder">{% for row in podium %}<li><span class="pz-rank">{{ ['🥇','🥈','🥉'][row.rank - 1] }}</span><a href="{{ url_for('main.profile', uid=row.uid) }}">{{ row.name }}</a><span class="pz-time">{{ row.clock }}</span></li>{% endfor %}</ol>
+          </section>
+        {% endif %}
+      {% else %}
+        <section class="pz-panel">
+          <h2 class="h3">Your path</h2>
+          <div class="pz-mystats"><div><strong>{{ state.solved }}</strong><span>solved</span></div><div><strong>{{ state.skipped }}</strong><span>skipped</span></div><div><strong>{{ state.paid }}/{{ P.PERSONAL_PAID }}</strong><span>rewarded today</span></div></div>
+        </section>
+        <section class="pz-panel">
+          <h2 class="h3">Most puzzles solved</h2>
+          {% if solved_board %}
+            <ol class="pz-ladder">{% for row in solved_board %}<li class="{{ 'me' if row.uid == me.id }}"><span class="pz-rank">{{ ['🥇','🥈','🥉'][row.rank - 1] if row.rank <= 3 else '#' ~ row.rank }}</span><a href="{{ url_for('main.profile', uid=row.uid) }}">{{ row.name }}</a><span class="pz-time">{{ row.solved }}</span></li>{% endfor %}</ol>
+          {% else %}<p class="muted">Nobody yet.</p>{% endif %}
+        </section>
+      {% endif %}
+    </aside>
+  </div>
+  <p class="muted wiki-note">Puzzles are generated in the background and checked with the team simulator before anyone plays them. The daily puzzle's first solve pays {{ P.REWARD.fragments|num }} Meteor Dust and {{ P.REWARD.xp }} XP; personal puzzles pay {{ P.PERSONAL_REWARD.fragments|num }} and {{ P.PERSONAL_REWARD.xp }} XP for the first {{ P.PERSONAL_PAID }} a day. Ladder ties go to fewer attempts.</p>
+</section>
+
+<script>
+// The squad builder: 3 stands at most; the squad slots, the synergy line and the item buttons follow the picks;
+// a stand holds MAX items. Plus the running clock and the countdown to the next daily.
+(() => {
+  const form = document.querySelector("[data-pz-form]");
+  if (form) {
+    const D = JSON.parse(form.querySelector("[data-pz-data]").textContent);
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const sync = () => {
+      const picked = [...form.querySelectorAll("[data-pz-stand]:checked")].map((i) => Number(i.value));
+      form.querySelectorAll("[data-pz-stand]").forEach((i) => { i.disabled = !i.checked && picked.length >= D.pick; });
+      // items: only picked stands can carry them, MAX each
+      const load = {};
+      form.querySelectorAll(".pz-gear").forEach((fs) => {
+        const on = fs.querySelector("input:checked");
+        if (on && on.value !== "" && !picked.includes(Number(on.value))) { fs.querySelector('input[value=""]').checked = true; }
+        const v = fs.querySelector("input:checked")?.value;
+        if (v) load[v] = (load[v] || 0) + 1;
+      });
+      form.querySelectorAll(".pz-gear").forEach((fs) => {
+        fs.querySelectorAll("[data-pz-for]").forEach((l) => {
+          const slot = l.dataset.pzFor, input = l.querySelector("input");
+          l.hidden = !picked.includes(Number(slot));
+          input.disabled = !input.checked && (load[slot] || 0) >= D.max;
+        });
+      });
+      // the squad slots
+      const gearOf = (slot) => [...form.querySelectorAll(".pz-gear")].map((fs, k) => (fs.querySelector("input:checked")?.value === String(slot) ? D.items[k] : null)).filter(Boolean);
+      const slots = form.querySelectorAll("[data-pz-squad] > li");
+      slots.forEach((li, n) => {
+        const slot = picked[n];
+        li.className = slot === undefined ? "pz-slot empty" : "pz-slot";
+        li.innerHTML = slot === undefined ? `<span class="pz-slot-num">${n + 1}</span><span class="muted">Pick a stand</span>`
+          : `<img src="${esc(D.img[slot])}" alt="" width="52" height="52"><span class="pz-slot-name">${esc(D.names[slot])}</span>`
+            + `<small class="pz-slot-gear">${gearOf(slot).map(esc).join(" · ") || "no items"}</small>`;
+      });
+      // synergies the squad lights (two members of a group)
+      const lit = Object.entries(D.groups).filter(([k]) => picked.filter((s) => D.syn[s].includes(k)).length >= 2);
+      form.querySelector("[data-pz-syn]").innerHTML = lit.length
+        ? lit.map(([, g]) => `<span class="pz-lit">${esc(g.icon)} ${esc(g.label)} lit</span>`).join("") : "";
+      const ready = picked.length === D.pick;
+      form.querySelector("[data-pz-go]").disabled = !ready;
+      form.querySelector("[data-pz-hint]").textContent = ready ? `${Object.values(load).reduce((a, b) => a + b, 0)} of ${D.items.length} items handed out` : `Pick ${D.pick - picked.length} more stand${D.pick - picked.length === 1 ? "" : "s"}.`;
+    };
+    form.addEventListener("change", sync);
+    sync();
+  }
+  const pad = (n) => String(n).padStart(2, "0");
+  const fmt = (s) => (s >= 3600 ? `${Math.floor(s / 3600)}h ${pad(Math.floor(s % 3600 / 60))}m ${pad(s % 60)}s` : `${Math.floor(s / 60)}m ${pad(s % 60)}s`);
+  const since = document.querySelector("[data-since]"), left = document.querySelector("[data-countdown]");
+  const end = Date.now() + Number(left?.dataset.countdown || 0) * 1000;
+  const tick = () => {
+    if (since) since.textContent = fmt(Math.max(0, Math.floor(Date.now() / 1000) - Number(since.dataset.since)));
+    if (left) { const s = Math.max(0, Math.floor((end - Date.now()) / 1000)); left.textContent = `${Math.floor(s / 3600)}h ${pad(Math.floor(s % 3600 / 60))}m`; }
+  };
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+{% endblock %}

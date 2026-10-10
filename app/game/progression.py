@@ -20,21 +20,23 @@ GATES = {
     "wormhole": 1,
     "tower": 1,
     "dungeon": 1,
+    "puzzle": 1,
     "ranked": done_at(3),
     "altverse": min(done_at(c["after"]) for c in altverse.CHAPTERS),
     "overheaven": story.TOTAL,
     "carryme": story.TOTAL,
 }
-LABELS = {"wormhole": "Mirror World", "tower": "Tower", "dungeon": "Dungeon", "ranked": "Ranked",
+LABELS = {"wormhole": "Mirror World", "tower": "Tower", "dungeon": "Dungeon", "puzzle": "Daily puzzle", "ranked": "Ranked",
           "altverse": "Alternate Universe", "overheaven": "Over Heaven", "carryme": "Carry Me (Part 10)"}
 
 # entry points a locked player is turned away from (Over Heaven and the Alternate Universe guard their own pages)
 ENTRY = {"play.mirror": "wormhole", "play.mirror_start": "wormhole",
          "play.tower": "tower", "play.tower_start": "tower",
          "play.dungeon": "dungeon", "play.dungeon_start": "dungeon",
+         "progress.pz_page": "puzzle", "progress.pz_fight": "puzzle",
          "battles.ranked_queue": "ranked", "battles.ranked_roster": "ranked"}
 # the page of each mode: opening it clears the mode's "New" tag (ranked: the battle page's ranked tab)
-PAGES = {"play.mirror": "wormhole", "play.tower": "tower", "play.dungeon": "dungeon",
+PAGES = {"play.mirror": "wormhole", "play.tower": "tower", "play.dungeon": "dungeon", "progress.pz_page": "puzzle",
          "progress.au_page": "altverse", "progress.oh_page": "overheaven", "progress.cm_page": "carryme"}
 
 NEW_TTL = 30 * 86400
@@ -172,6 +174,7 @@ def announce(uid, before: int, after: int, skip=()) -> List[str]:
         names = [LABELS[k] for k in rest]
         listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
         urls = {"wormhole": url_for("play.mirror"), "tower": url_for("play.tower"), "dungeon": url_for("play.dungeon"),
+                "puzzle": url_for("progress.pz_page"),
                 "altverse": url_for("progress.au_page"), "overheaven": url_for("progress.oh_page"),
                 "carryme": url_for("progress.cm_page")}
         social.notify(uid, "unlock", f"🔓 Unlocked: {listed}. Look for the New tags in the menu.", urls[rest[0]])
