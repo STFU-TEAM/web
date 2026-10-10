@@ -1,4 +1,4 @@
-{% from "macros.html" import template_card %}
+{% from "macros.html" import template_card, empty_state %}
 <p class="count" role="status">{{ stands|length }} stand{{ '' if stands|length == 1 else 's' }}{% if look %} · shown as {{ looks[look]|lower }}{% endif %}</p>
 {% if stands %}
 <div class="grid">{% for t in stands %}
@@ -13,5 +13,5 @@
   {% else %}{{ template_card(t) }}{% endif %}
 {% endfor %}</div>
 {% else %}
-<p class="notice">No stand matches. Try a shorter name, or clear the rarity{{ ' or unique art' if unique }} filter.</p>
+{{ empty_state('No stand matches. Try a shorter name, or clear the rarity' ~ (' or unique art' if unique else '') ~ ' filter.', quote='Nani?!') }}
 {% endif %}

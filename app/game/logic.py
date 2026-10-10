@@ -701,33 +701,41 @@ def _power(c: Character) -> float:
 
 def best_team(user: User) -> dict:
     """Strongest 3 among the owned stands: raw power, +8% for each member of an active synergy,
-    +5% for each native of a terrain the team itself sets. Tries every trio of the top 14."""
+    +5% for each native of a terrain the team itself sets. Tries every trio of the top 14.
+    Every per-stand lookup (power, synergy groups, terrain) is done once up front: the collection page runs this on
+    every visit, over ~360 trios."""
+    from collections import Counter
     from itertools import combinations
-    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO, active_synergies
+    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO, SYNERGY_MIN
     from app.game.effects import TERRAIN_BENEFITS, TERRAIN_SETTERS
     owned = user.main_characters + user.storage_characters
-    pool = sorted(owned, key=_power, reverse=True)[:14]
+    power = {id(c): _power(c) for c in owned}
+    pool = sorted(owned, key=lambda c: power[id(c)], reverse=True)[:14]
+    groups = {c.id: [name for name, members in SYNERGIES.items() if c.id in members] for c in pool}
+    sets = {c.id: TERRAIN_SETTERS.get(c.id) for c in pool}
     best, best_score, best_why = [], -1, []
     for trio in combinations(pool, min(3, len(pool))):
         ids = {c.id for c in trio}
         if len(ids) < len(trio):
             continue  # two copies of one stand: keep the slot for something else
         bonus, why = 0.0, []
-        for name in active_synergies(list(trio)):
-            bonus += 0.08 * len(ids & SYNERGIES[name])
-            why.append(SYNERGY_INFO.get(name, (name, ""))[0] + " synergy")
+        members = Counter(name for c in trio for name in groups[c.id])  # same rule as active_synergies
+        for name, n in members.items():
+            if n >= SYNERGY_MIN.get(name, 2):
+                bonus += 0.08 * n
+                why.append(SYNERGY_INFO.get(name, (name, ""))[0] + " synergy")
         for c in trio:
-            terrain = TERRAIN_SETTERS.get(c.id)
+            terrain = sets[c.id]
             natives = [o for o in trio if terrain in TERRAIN_BENEFITS.get(o.id, {})] if terrain else []
             if natives:
                 bonus += 0.05 * len(natives)
                 why.append(f"{terrain.display_name} terrain")
-        score = sum(_power(c) for c in trio) * (1 + bonus)
+        score = sum(power[id(c)] for c in trio) * (1 + bonus)
         if score > best_score:
             best, best_score, best_why = list(trio), score, sorted(set(why))
     current = sum(_power(c) for c in user.main_characters)
     return {"team": best, "why": best_why, "same": {c.uuid for c in best} == {c.uuid for c in user.main_characters},
-            "gain": int(round(100 * (sum(_power(c) for c in best) / current - 1))) if current else None}
+            "gain": int(round(100 * (sum(power.get(id(c)) or _power(c) for c in best) / current - 1))) if current else None}
 
 
 def use_team(user: User, uuids: List[str]) -> List[Character]:

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import empty_state %}
 {% block title %}News | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page news">
@@ -24,7 +25,7 @@
       {% if more %}<a class="btn small ghost" href="{{ url_for('main.news_list', page=page + 1) }}">Older →</a>{% endif %}
     </nav>
   {% else %}
-    <p class="notice">No news yet. Check back soon.</p>
+    {{ empty_state('No news yet. Check back soon.') }}
   {% endif %}
 </section>
 {% endblock %}

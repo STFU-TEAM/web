@@ -1,6 +1,14 @@
 {% extends "base.html" %}
 {% from "partials/picker.html" import picker, picker_data %}
 {% block title %}Co-op raid | STFU Requiem{% endblock %}
+{% macro heaven_card(open=True) %}
+  <div class="coop-heaven" style="--part: #D6246E">
+    <p class="kicker">☁ Over Heaven this week · {{ challenge.title }}</p>
+    <ul class="oh-rules">{% for line in challenge.lines %}<li>☁️ {{ line }}</li>{% endfor %}</ul>
+    <p class="notice">🧩 <strong>Preparation:</strong> {{ challenge.hint }}</p>
+    <p class="muted small-print">The first Over Heaven win of the week also pays {{ heaven_bonus|join(', ') }}{% if not heaven_bonus_ready %} <strong>(yours is claimed: back next week)</strong>{% endif %}.{% if not open %} Opens once you finish the story.{% endif %}</p>
+  </div>
+{% endmacro %}
 {% block main %}
 <section class="page coop">
   {% if fight %}
@@ -26,11 +34,12 @@
             <span class="pill tier-pill">{{ tiers[lb.tier].label }}</span>
           </div>
           {% include "partials/coop_lobby.html" %}
+          {% if tiers[lb.tier].heaven %}{{ heaven_card() }}{% endif %}
           {% if lb.host == me.id %}
             <form method="post" action="{{ url_for('coop.tier') }}" class="coop-row">
               <input type="hidden" name="csrf" value="{{ csrf_token }}">
               <label>Difficulty <select name="tier" onchange="this.form.submit()">
-                {% for key, t in tiers.items() %}<option value="{{ key }}" {{ 'selected' if key == lb.tier }}>{{ t.label }} · Lv {{ t.level }} ★{{ t.awaken }}</option>{% endfor %}
+                {% for key, t in tiers.items() %}<option value="{{ key }}" {{ 'selected' if key == lb.tier }}{{ ' disabled' if t.heaven and not heaven_open }}>{{ t.label }} · Lv {{ t.level }} ★{{ t.awaken }}{{ ' · 🔒 finish the story' if t.heaven and not heaven_open }}</option>{% endfor %}
               </select></label>
             </form>
             {% if friends %}
@@ -65,15 +74,17 @@
           <form method="post" action="{{ url_for('coop.create') }}" class="coop-create">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
             {% for key, t in tiers.items() %}
-              <label class="training-drill">
-                <input type="radio" name="tier" value="{{ key }}" {{ 'checked' if loop.first }}>
-                <span><strong>{{ t.label }}</strong>
-                  <small>Lv {{ t.level }} ★{{ t.awaken }} crew{% if t.mult > 1 %}, ×{{ t.mult }} stats{% endif %}</small>
+              {% set locked = t.heaven and not heaven_open %}
+              <label class="training-drill{{ ' heaven' if t.heaven }}{{ ' locked' if locked }}">
+                <input type="radio" name="tier" value="{{ key }}" {{ 'checked' if loop.first }}{{ ' disabled' if locked }}>
+                <span><strong>{{ '☁ ' if t.heaven }}{{ t.label }}{% if locked %} 🔒{% endif %}</strong>
+                  <small>Lv {{ t.level }} ★{{ t.awaken }} crew{% if t.mult > 1 %}, ×{{ t.mult }} stats{% endif %}{% if t.heaven %} under this week's rule: {{ challenge.title }}{% endif %}</small>
                   <small class="muted">A win: <span class="nowrap">{{ t.dust|dust }}</span> · +{{ t.stand_xp }} XP for your stand · {{ (t.chip * 100)|int }}% chip chance</small></span>
               </label>
             {% endfor %}
             <button class="btn gold">Open a lobby →</button>
           </form>
+          {{ heaven_card(heaven_open) }}
         </section>
         <section class="coop-panel">
           <h2 class="h3">Join with a code</h2>

@@ -1,8 +1,11 @@
 """Public pages: home, stand encyclopedia, leaderboard, public profiles."""
 import datetime
 import random
+import time
 
-from flask import Blueprint, Response, abort, current_app, jsonify, render_template, request, session, url_for
+from markupsafe import Markup
+
+from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 
 from app import social
 from app.db import get_db, identity, leaderboard as lb
@@ -88,7 +91,7 @@ def manifest():
 
 SERVICE_WORKER = """// STFU Requiem service worker: makes the site installable and survives a dropped connection.
 // Pages are always fetched fresh (they hold your save); only static files are cached.
-const CACHE = "stfu-static-v1";
+const CACHE = "stfu-static-v2";
 self.addEventListener("install", (e) => self.skipWaiting());
 self.addEventListener("activate", (e) => e.waitUntil(
   caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
@@ -115,7 +118,14 @@ self.addEventListener("fetch", (e) => {
   if (url.origin === location.origin && url.pathname.startsWith("/static/")) {
     e.respondWith(caches.open(CACHE).then(async (cache) => {
       const hit = await cache.match(req);
-      const fresh = fetch(req).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => hit);
+      const fresh = fetch(req).then((res) => {
+        if (res.ok) {
+          cache.put(req, res.clone());
+          // a new ?v= version replaces the old copies of the same file
+          cache.keys().then((keys) => keys.forEach((k) => { const u = new URL(k.url); if (u.pathname === url.pathname && u.search !== url.search) cache.delete(k); }));
+        }
+        return res;
+      }).catch(() => hit);
       return hit || fresh;
     }));
   } else if (req.mode === "navigate") {
@@ -142,6 +152,13 @@ def pref_fight_cosmetics():
     return "", 204
 
 
+@bp.post("/prefs/fight-fx")
+def pref_fight_fx():
+    """Battle cries on specials and the colour swap on crits (on), or plain fights (off). Kept in the session."""
+    session["fight_fx"] = request.form.get("on") == "1"
+    return "", 204
+
+
 @bp.get("/stands")
 def stands():
     q = request.args.get("q", "").strip()
@@ -159,9 +176,24 @@ def stands():
         art = current_app.extensions.get("art_files", {})
         kinds = {"": ("artwork", "shiny"), "full": ("artwork",), "shiny": ("shiny",), "both": ("artwork", "shiny")}[look]
         result = [c for c in result if any(c["id"] in art.get(k, {}) for k in kinds)]
-    tpl = "partials/stand_grid.html" if request.headers.get("HX-Request") else "stands.html"
-    return render_template(tpl, stands=result, q=q, rarity=rarity, rarities=RARITY_ORDER, look=look, unique=unique,
-                           looks=LOOKS)
+    # The grid is the same for everyone (public data): rendered once per filter and kept GRID_TTL seconds.
+    key = (q.lower(), rarity, look, unique)
+    hit = _grid_cache.get(key)
+    if hit and time.time() - hit[0] < GRID_TTL:
+        grid = hit[1]
+    else:
+        grid = Markup(render_template("partials/stand_grid.html", stands=result, look=look, unique=unique, looks=LOOKS))
+        if len(_grid_cache) >= 256:
+            _grid_cache.clear()
+        _grid_cache[key] = (time.time(), grid)
+    if request.headers.get("HX-Request"):
+        return grid
+    return render_template("stands.html", stands=result, q=q, rarity=rarity, rarities=RARITY_ORDER, look=look, unique=unique,
+                           looks=LOOKS, grid=grid)
+
+
+GRID_TTL = 600
+_grid_cache = {}  # (query, rarity, look, unique) -> (rendered at, grid HTML)
 
 
 # Cosmetic previews on the stands page: how each card looks at ★3 (full art), shiny, or both
@@ -261,8 +293,10 @@ def leaderboard():
         source, season = seasons.board(r()), seasons.standing(r(), "", 0)
     else:
         source, season = lb(by), None
+    from app.db import identities
+    who = identities(row["id"] for row in source)
     for rank, row in enumerate(source, start=1):
-        ident = identity(row["id"])
+        ident = who[str(row["id"])]
         value = row["value"]
         if by == "xp":
             value = min(100, int(0.09 * value ** 0.5))
@@ -290,7 +324,9 @@ def profile(uid: str):
         pool = {c["id"] for c in PLAYABLE if c["rarity"] == r}
         if pool:
             collection.append({"rarity": r, "have": len(unique & pool), "total": len(pool)})
-    showcase = sorted(stands, key=lambda c: (rank.get(c.rarity, 0), c.awaken, c.level), reverse=True)[:6]
+    from app.game import profile as P
+    pv = P.view(user)
+    showcase = pv["showcase"] or sorted(stands, key=lambda c: (rank.get(c.rarity, 0), c.awaken, c.level), reverse=True)[:6]
     # progress inside the current level (the level curve is LVLSCALING * sqrt(xp))
     lvl = user.level
     next_xp = ((lvl + 1) / LVLSCALING) ** 2 if lvl < USRXPTOLEVEL else None
@@ -316,5 +352,50 @@ def profile(uid: str):
         story_cleared=story.cleared(user), story_total=story.TOTAL,
         tower_week=tower.state(user)["best"], rush_best=rush.state(user)["best"], rush_total=len(rush.BOSSES),
         achievements_done=len(recent), achievements_total=len(achievements), recent=recent[:4],
-        is_me=is_me,
+        is_me=is_me, pv=pv, best=pv["stand"] or (showcase[0] if showcase else None),
+        themes=P.themes(user) if is_me else [], unlocked_achievements=[a for a in achievements if a["unlocked"]] if is_me else [],
+        my_profile=P.get(user) if is_me else {}, stands=stands if is_me else [], report_reasons=P.REASONS,
+        quote_max=P.QUOTE_MAX, showcase_max=P.SHOWCASE_MAX, pin_max=P.PIN_MAX,
         relation=social.relation(session["uid"], uid) if session.get("uid") else None)
+
+
+@bp.post("/profile")
+def profile_edit():
+    """Save the Stand User file: catchphrase, theme, signature stand, showcase, pinned achievements and title."""
+    from app.db import Busy, user_lock
+    from app.game import mastery, profile as P, titles
+    from app.game.logic import GameError
+    uid = session.get("uid")
+    if not uid or not get_db().user_exists(uid):
+        abort(403)
+    f = request.form
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            P.save(user, f.get("quote", ""), f.get("theme", ""), f.get("stand", ""), f.getlist("showcase"), f.getlist("pins"))
+            from app.db import r
+            titles.choose(user, f.get("title", ""), mastery.titles(r(), uid))
+            user.update()
+        flash("Profile saved.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("main.profile", uid=uid) + "#customize")
+
+
+@bp.post("/u/<uid>/report")
+def profile_report(uid: str):
+    from app.game import profile as P
+    from app.game.logic import GameError
+    me = session.get("uid")
+    if not me or not get_db().user_exists(me):
+        abort(403)
+    if not get_db().user_exists(uid):
+        abort(404)
+    try:
+        P.report(me, uid, request.form.get("reason", ""), request.form.get("note", ""))
+        flash("Thanks: an admin will look at this profile.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    return redirect(url_for("main.profile", uid=uid))

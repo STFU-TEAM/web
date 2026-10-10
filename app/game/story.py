@@ -34,6 +34,7 @@ PARTS = [
     {
         "part": 0,
         "title": "Prologue · The Arrow",
+        "jp": "プロローグ・矢",  # the Japanese title on its card
         "jojo": None,
         "color": "#B3A3CF",
         "intro": "An Arrow falls out of a clear sky and pierces your hand. The world folds. "
@@ -50,6 +51,7 @@ PARTS = [
     {
         "part": 3,
         "title": "Part 3 · Stardust Crusaders",
+        "jp": "スターダストクルセイダース",  # the Japanese title on its card
         "jojo": "Jotaro Kujo",
         "color": "#7A3FB8",
         "intro": "Cairo, 1989, by way of every road between. Jotaro Kujo and the Crusaders race to "
@@ -91,6 +93,7 @@ PARTS = [
     {
         "part": 4,
         "title": "Part 4 · Diamond is Unbreakable",
+        "jp": "ダイヤモンドは砕けない",  # the Japanese title on its card
         "jojo": "Josuke Higashikata",
         "color": "#D6246E",
         "intro": "Morioh, 1999. A quiet town with a murderer in it. Josuke Higashikata fixes "
@@ -132,6 +135,7 @@ PARTS = [
     {
         "part": 5,
         "title": "Part 5 · Golden Wind",
+        "jp": "黄金の風",  # the Japanese title on its card
         "jojo": "Giorno Giovanna",
         "color": "#F4C542",
         "intro": "Naples, 2001. Giorno Giovanna has a dream: to become a Gang-Star and clean up "
@@ -173,6 +177,7 @@ PARTS = [
     {
         "part": 6,
         "title": "Part 6 · Stone Ocean",
+        "jp": "ストーンオーシャン",  # the Japanese title on its card
         "jojo": "Jolyne Cujoh",
         "color": "#2BB3A8",
         "intro": "Green Dolphin Street Prison, Florida, 2011. Jolyne Cujoh was framed. Her father's "
@@ -214,6 +219,7 @@ PARTS = [
     {
         "part": 7,
         "title": "Part 7 · Steel Ball Run",
+        "jp": "スティール・ボール・ラン",  # the Japanese title on its card
         "jojo": "Johnny Joestar",
         "color": "#E3A93A",
         "intro": "America, 1890. A horse race across a continent, and the Saint's Corpse scattered "
@@ -256,6 +262,7 @@ PARTS = [
     {
         "part": 8,
         "title": "Part 8 · JoJolion",
+        "jp": "ジョジョリオン",  # the Japanese title on its card
         "jojo": "Gappy (Josuke Higashikata)",
         "color": "#3BA7E0",
         "intro": "Morioh again, 2011, but not the one you knew. A young man was found buried by the "

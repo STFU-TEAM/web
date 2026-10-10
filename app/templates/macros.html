@@ -18,7 +18,37 @@
   </p>
 {%- endmacro %}
 
-{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None, look='') %}
+{#- The anime's stand parameter hexagon, graded A-E from the stand's base stats (app/game/params.py). -#}
+{% macro param_chart(stand_id, cls='') -%}
+{%- set ch = stand_params(stand_id) -%}
+{%- if ch %}
+<svg class="param-chart {{ cls }}" viewBox="0 0 300 300" role="img" aria-label="Stand parameters: {% for a in ch.axes %}{{ a.en }} {{ a.letter }}{{ ', ' if not loop.last }}{% endfor %}">
+  {%- for ring in ch.rings %}<polygon class="pc-ring" points="{{ ring }}"/>{% endfor %}
+  {%- for a in ch.axes %}<line class="pc-axis" x1="{{ ch.center }}" y1="{{ ch.center }}" x2="{{ a.x2 }}" y2="{{ a.y2 }}"/>{% endfor %}
+  {%- for (x, y), l in ch.ring_labels %}<text class="pc-rg" x="{{ x + 4 }}" y="{{ y + 3 }}">{{ l }}</text>{% endfor %}
+  <polygon class="pc-shape" points="{{ ch.shape }}"/>
+  {%- for a in ch.axes %}
+    <circle class="pc-dot" cx="{{ a.dot[0] }}" cy="{{ a.dot[1] }}" r="3.5"/>
+    <text class="pc-grade" x="{{ a.gx }}" y="{{ a.gy + 5 }}" text-anchor="middle">{{ a.letter }}</text>
+    <text class="pc-jp" x="{{ a.lx }}" y="{{ a.ly - 3 }}" text-anchor="{{ a.anchor }}">{{ a.jp }}</text>
+    <text class="pc-en" x="{{ a.lx }}" y="{{ a.ly + 9 }}" text-anchor="{{ a.anchor }}">{{ a.en|upper }}</text>
+  {%- endfor %}
+</svg>
+{%- endif %}
+{%- endmacro %}
+
+{#- A page title with menacing ゴ marks floating around it: {% call menacing() %}The Tower{% endcall %} inside the h1. -#}
+{% macro menacing() -%}
+<span class="menacing-title">{{ caller() }}<span class="menacing-marks" aria-hidden="true"><i>ゴ</i><i>ゴ</i><i>ゴ</i><i>ゴ</i><i>ゴ</i></span></span>
+{%- endmacro %}
+
+{#- An empty list, said the JoJo way: a line from the series, then what to do about it. -#}
+{% macro empty_state(text, quote='Yare yare daze…') -%}
+<div class="empty-state"><img class="empty-mascot" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="64" height="64" loading="lazy">
+  <div class="empty-bubble"><p class="empty-quote">{{ quote }}</p><p class="muted">{{ text }}</p>{{ caller() if caller }}</div></div>
+{%- endmacro %}
+
+{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None, look='', params=False) %}
 {% set rar = s.rarity|rarity %}
 {% set b = badges or {} %}
 {# look: '' as owned, or a cosmetic preview for the encyclopedia: 'full', 'shiny' or 'both' #}
@@ -72,13 +102,25 @@
       </ul>{% endif %}
     {% endif %}
   </div>
+  {% if params %}
+    {#- the card's back: its parameter chart. A [data-params-flip] button turns the card over (app.js). -#}
+    <div class="card-params" id="params-{{ s.id }}-{{ owned.uuid if owned else 't' }}" hidden>
+      <p class="card-params-title"><span>スタンド</span> Stand parameters</p>
+      {{ param_chart(s.id) }}
+      <p class="card-params-name">{{ s.name }}</p>
+    </div>
+  {% endif %}
 </article>
+{% if params %}
+  <button type="button" class="params-flip" data-params-flip aria-controls="params-{{ s.id }}-{{ owned.uuid if owned else 't' }}" aria-pressed="false">
+    <span aria-hidden="true">⬡</span> <span data-flip-label>Parameters</span></button>
+{% endif %}
 {% endmacro %}
 
-{% macro template_card(t, size='', link=True, look='') -%}
-  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link, look=look) }}
+{% macro template_card(t, size='', link=True, look='', params=False) -%}
+  {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link, look=look, params=params) }}
 {%- endmacro %}
 
-{% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None) -%}
-  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, crit=c.start_critical, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal, badges=badges, href=href) }}
+{% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None, params=False) -%}
+  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, crit=c.start_critical, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal, badges=badges, href=href, params=params) }}
 {%- endmacro %}

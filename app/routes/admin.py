@@ -124,6 +124,16 @@ def _signups(joined: dict, today: datetime.date) -> dict:
             "web_share": round(100 * web_month / month) if month else 0, "year": total(SIGNUP_DAYS, 0)}
 
 
+def _profile_view(user):
+    from app.game import profile as P
+    return {"custom": user.data.get("web_profile") or {}, "locked": P.locked(user.id)}
+
+
+def _reports_about(uid: str):
+    from app.game import profile as P
+    return [e for e in P.reports("open", 1000) if e["target"] == str(uid)]
+
+
 def _find_by_name(query: str, limit=12):
     """Display-name or username search (the player search index, app/social.py)."""
     from app import social
@@ -156,8 +166,10 @@ def index():
     for key in ("rich", "newest"):
         stats[key] = [(value, uid, identity(uid)["name"]) for value, uid in stats[key]]
     signups = _signups(stats.get("joined") or {}, logic.now().date())
+    from app import wipe
     return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats, signups=signups,
-                           audit=_audit_rows(8), section="dashboard")
+                           audit=_audit_rows(8), section="dashboard", deleted=wipe.deleted(), keep_days=wipe.KEEP_DAYS,
+                           owner=is_owner(session["uid"]))
 
 
 # --------------------------------------------------------------------------- #
@@ -182,7 +194,8 @@ def player(uid):
                            items=sorted(counts.values(), key=lambda x: x[0].id), stands=stands,
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),
                            history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
-                           section="players")
+                           section="players", owner=is_owner(session["uid"]), profile_view=_profile_view(target),
+                           open_reports=[e for e in _reports_about(uid)])
 
 
 @bp.get("/player/<uid>/raw")
@@ -355,9 +368,95 @@ def player_action(uid, op):
             r().hset("web:ban_reason", uid, f.get("reason", "")[:200])
             audit("ban", uid, reason=f.get("reason", "")[:200])
             flash(f"{name} is banned from the website (the bot is unaffected).", "ok")
+
+    elif op in ("profile_clear", "profile_lock", "profile_unlock"):
+        from app.game import profile as P
+        if op == "profile_unlock":
+            P.unlock(uid)
+            audit("profile_unlock", uid)
+            flash(f"{name} can customize their profile again.", "ok")
+        else:
+            reason = f.get("reason", "").strip()[:200]
+            _edit(uid, lambda t: P.clear(t), op, f"{name}'s profile customization was removed.", reason=reason or None)
+            if op == "profile_lock":
+                P.lock(uid, session["uid"], reason)
+                flash(f"{name} can't customize their profile until you unlock it.", "ok")
+            P.resolve_all(uid, session["uid"], "cleared" if op == "profile_clear" else "locked")
+
+    elif op == "delete":
+        from app import wipe
+        if not is_owner(session["uid"]):
+            flash("Only the owners can delete a save.", "error")
+        elif f.get("confirm", "").strip() != wipe.CONFIRM_WORD:
+            flash(f"Type {wipe.CONFIRM_WORD} to confirm.", "error")
+        else:
+            try:
+                done = wipe.delete_save(uid, session["uid"])
+            except wipe.WipeError as e:
+                flash(str(e), "error")
+                return back
+            audit("delete_save", uid, name=name, gang=done["gang"], listings=done["listings"], trades=done["trades"],
+                  friends=done["friends"])
+            flash(f"{name}'s save is deleted: their next visit starts a new one. A copy is kept {wipe.KEEP_DAYS} days "
+                  "(Dashboard → Deleted saves) if you need it back.", "ok")
+            return redirect(url_for("admin.index") + "#deleted")
     else:
         flash("Unknown action.", "error")
     return back
+
+
+@bp.get("/reports")
+@admin_required
+def reports():
+    from app.game import profile as P
+    status = request.args.get("status", "open")
+    status = status if status in ("open", "closed", "all") else "open"
+    rows = P.reports(status)
+    people = {u for e in rows for u in (e["target"], e["reporter"], e.get("closed_by")) if u}
+    names = {u: identity(u)["name"] for u in people}
+    locked = {e["target"]: P.locked(e["target"]) for e in rows}
+    return render_template("admin/reports.html", rows=rows, status=status, names=names, reasons=P.REASONS,
+                           locked=locked, section="reports")
+
+
+@bp.post("/reports/<rid>/<op>")
+@admin_required
+def report_action(rid, op):
+    from app.game import profile as P
+    entry = next((e for e in P.reports("all", 10_000) if e["id"] == rid), None)
+    if not entry or op not in ("dismiss", "clear", "lock"):
+        flash("That report is gone.", "error")
+        return redirect(url_for("admin.reports"))
+    uid, name = entry["target"], identity(entry["target"])["name"]
+    if op == "dismiss":
+        P.resolve(rid, session["uid"], "dismissed")
+        audit("report_dismiss", uid, report=rid, reason=entry["reason"])
+        flash("Report dismissed.", "ok")
+    else:
+        reason = request.form.get("reason", "").strip()[:200] or P.REASONS[entry["reason"]]
+        _edit(uid, lambda t: P.clear(t), f"profile_{op}", f"{name}'s profile customization was removed.", report=rid, reason=reason)
+        if op == "lock":
+            P.lock(uid, session["uid"], reason)
+        n = P.resolve_all(uid, session["uid"], "cleared" if op == "clear" else "locked")
+        flash(f"{name}'s customization was removed{' and locked' if op == 'lock' else ''}; {n} report{'s' if n != 1 else ''} closed.", "ok")
+    return redirect(url_for("admin.reports"))
+
+
+@bp.post("/deleted/<uid>/restore")
+@admin_required
+def restore_save(uid):
+    from app import wipe
+    if not is_owner(session["uid"]):
+        flash("Only the owners can restore a save.", "error")
+        return redirect(url_for("admin.index") + "#deleted")
+    try:
+        name = wipe.restore_save(uid)
+    except wipe.WipeError as e:
+        flash(str(e), "error")
+        return redirect(url_for("admin.index") + "#deleted")
+    audit("restore_save", uid, name=name)
+    flash(f"{name}'s save is back (outside any gang).", "ok")
+    return redirect(url_for("admin.player", uid=uid))
 
 
 # --------------------------------------------------------------------------- #

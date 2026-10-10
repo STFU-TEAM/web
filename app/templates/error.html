@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ code }} | STFU Requiem{% endblock %}
 {% block main %}
-<section class="page narrow empty">
+<section class="page narrow error-page">
+  <img class="error-mascot" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="120" height="120">
   <h1 class="display">{{ code }}</h1>
-  <p>{{ message }}</p>
-  <p><a class="btn" href="{{ url_for('main.home') }}">Back to the start</a></p>
+  <p>{{ "Even a Stand can't find this page." if code == 404 else message }}</p>
+  {% if code == 404 %}<p class="muted">{{ message }}</p>{% endif %}
+  <p><a class="btn gold" href="{{ url_for('main.home') }}">Back to the start</a></p>
 </section>
 {% endblock %}

@@ -9,6 +9,9 @@ from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, PITY_ODDS, SHINY
 
 RARITY = {"R": "common", "SR": "rare", "SSR": "epic", "UR": "legend", "LR": "mythic"}
 RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
+# What a stand shouts when its special fires (fight effects); the others get a plain ドン!
+STAND_CRIES = {1: "ORA", 31: "ORA", 163: "ORA", 86: "ORA", 114: "ORA", 137: "ORA", 10: "MUDA", 110: "MUDA",
+               59: "MUDA", 84: "MUDA", 32: "DORA", 60: "ARI", 6: "HORA", 69: "UBASHAAA", 134: "WRYYY"}
 CUSTOM_EMOJI = re.compile(r"&lt;(a?):(\w+):(\d+)&gt;")  # matched after escaping
 
 
@@ -132,6 +135,10 @@ def register(app):
     from app.game import characterabilities as abilities
     app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
                                  STAT_INFO=abilities.STAT_INFO, special_text=special_text)
+    from app.game import params, story as story_mod
+    app.jinja_env.globals.update(stand_params=params.chart, story_stages=story_mod.STAGES)
+    from app.game import profile as profile_mod
+    app.jinja_env.globals.update(open_reports_count=profile_mod.open_count, profile_theme=profile_mod.theme_of)  # the A-E hexagon (macros.param_chart)
     app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
     app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
     app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")
@@ -229,6 +236,10 @@ def register(app):
     def news_summary(text, length=180):
         from app.news import summary
         return summary(text or "", length)
+
+    @app.template_filter("cry")
+    def cry(stand_id):
+        return STAND_CRIES.get(stand_id, "")
 
     @app.template_filter("rarity")
     def rarity(r):
@@ -368,7 +379,8 @@ def register(app):
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "craft_ready": craft_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
-            "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
+            "fight_cosmetics": session.get("fight_cosmetics", True),
+            "fight_fx": session.get("fight_fx", True),  # battle cries and the crit colour swap (app.js playFight)  # fighters drawn with their shiny / full art
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
                    "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
             "csrf_token": session["csrf"],

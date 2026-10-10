@@ -4,7 +4,7 @@
 {% set acts = 'hx-target="#collection" hx-swap="innerHTML" data-close-panel' %}
 <div class="panel-grid">
   <div class="panel-card">
-    {{ owned_card(c, size='big', link=False, badges={'team': in_team, 'locked': is_locked, 'copies': dupes|length}) }}
+    {{ owned_card(c, size='big', link=False, badges={'team': in_team, 'locked': is_locked, 'copies': dupes|length}, params=True) }}
   </div>
   <div class="panel-body">
     <p class="kicker">{{ c.rarity }} · {{ template.universe }}</p>

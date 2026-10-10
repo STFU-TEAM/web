@@ -162,8 +162,15 @@ def _challenges(uid: str) -> list:
 def pending_count(uid: str) -> int:
     """Things waiting on the player (the bell badge): unread news plus open requests."""
     from app import rewards
-    return (social.unread(uid) + r().scard(f"web:friendreq:in:{uid}") + r().scard(CHALLENGE_INBOX.format(uid))
-            + r().scard(f"web:trades:in:{uid}") + r().llen(f"web:gifts:{uid}") + rewards.count(uid))
+    pipe = r().pipeline(transaction=False)  # every page shows this badge: one round trip for its counters
+    pipe.get(f"web:notif:seen:{uid}")
+    pipe.lrange(f"web:notif:{uid}", 0, 19)
+    pipe.scard(f"web:friendreq:in:{uid}")
+    pipe.scard(CHALLENGE_INBOX.format(uid))
+    pipe.scard(f"web:trades:in:{uid}")
+    pipe.llen(f"web:gifts:{uid}")
+    seen, recent, *counts = pipe.execute()
+    return social.unread_in(recent, int(seen or 0)) + sum(counts) + rewards.count(uid)
 
 
 @bp.post("/push/subscribe")

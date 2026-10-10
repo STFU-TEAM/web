@@ -17,7 +17,9 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/icon-180.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+  {#- the fonts load without holding up the first paint: text shows in the fallback face, then swaps -#}
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap"></noscript>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {#- the desktop sidebar's collapsed (icon rail) state, set before the first paint so nothing jumps -#}
   <script>try { if (localStorage.getItem("side-mini") === "1") document.documentElement.classList.add("side-mini"); } catch (e) {}</script>
@@ -125,16 +127,16 @@
                        ('Explore', 'explore', explore_keys, False)] -%}
 {%- macro side_link(key) -%}
   {%- set label, href, active, icon, why = L[key] -%}
-  <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot(key) %} hot{% endif %}{% if key in nav_new %} is-new{% endif %}" href="{{ href }}" data-tour="{{ key }}" title="{{ label }}: {{ why }}" {% if active %}aria-current="page"{% endif %}>
-    <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>{{ badge(key) }}</a>
+  <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot(key) %} hot{% endif %}{% if key in nav_new %} is-new{% endif %}" href="{{ href }}" data-tour="{{ key }}" {% if active %}aria-current="page"{% endif %}>
+    <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>{{ badge(key) }}<span class="side-tip">{{ label }}<small>{{ why }}</small></span></a>
 {%- endmacro -%}
 <body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
   <a class="skip" href="#main">Skip to content</a>
   {% if me.id %}
   <aside class="sidenav" aria-label="Main">
     <a class="wordmark side-brand" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">
-      <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="36" height="36">
-      <span class="side-label"><span class="brand-name">STFU</span> <span class="brand-suffix">Requiem</span></span>
+      <span class="mascot" aria-hidden="true"><img src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="46" height="46"></span>
+      <span class="wordmark-text"><span class="wm-stfu">STFU</span><span class="wm-req">REQUIEM</span><span class="wm-go" aria-hidden="true">ゴゴ</span></span>
     </a>
     <nav class="side-scroll" aria-label="Pages">
       <div class="side-links side-pinned">{% for k in side_pinned %}{{ side_link(k) }}{% endfor %}</div>
@@ -169,8 +171,8 @@
   {% endif %}
   <header class="topbar">
     <a class="wordmark" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">
-      <img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="40" height="40">
-      <span class="brand-name">STFU</span><span class="brand-suffix">Requiem</span>
+      <span class="mascot" aria-hidden="true"><img src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="40" height="40"></span>
+      <span class="wordmark-text"><span class="wm-stfu">STFU</span><span class="wm-req">REQUIEM</span><span class="wm-go" aria-hidden="true">ゴゴ</span></span>
     </a>
 
     <nav class="nav" aria-label="Main">
@@ -214,11 +216,26 @@
 
   <nav class="dock" aria-label="Quick navigation">
     {% if me.id %}
-      {% for k, label, tour in [('team', 'Team', 'team'), ('gangs', 'Gang', 'gangs'), ('banners', 'Summon', 'banners'), ('story', 'Battle', 'battle'), ('quests', 'Quests', 'progress')] %}
+      {% for k, label, tour in [('team', 'Team', 'team'), ('gangs', 'Gang', 'gangs'), ('banners', 'Summon', 'banners'), ('story', 'Battle', 'battle')] %}
         {%- set _l, href, active, icon, why = L[k] -%}
         {%- set on = active or (k == 'story' and any_active(battle_keys)) -%}
         {%- set hot = k == 'story' and any_hot(battle_keys) -%}
+        {% if k == 'banners' %}
+        <a href="{{ href }}" data-tour="{{ tour }}" class="dock-summon" {% if on %}aria-current="page"{% endif %}>
+          <span class="arrow-btn"><svg class="arrow-svg" viewBox="0 0 64 64" aria-hidden="true">
+            <defs><linearGradient id="arrow-gold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFF3C4"/><stop offset=".45" stop-color="#F4C542"/><stop offset="1" stop-color="#C8931B"/></linearGradient></defs>
+            <rect x="29.5" y="41" width="5" height="20" rx="1.2" fill="url(#arrow-gold)" stroke="#1C0F2E" stroke-width="1.6"/>
+            <rect x="29.5" y="48" width="5" height="2" fill="#C8931B"/>
+            <path d="M32 3 C36 10 41 17 44 25 Q50 30 51 37 Q46 33 40 33 L36 37 L28 37 L24 33 Q18 33 13 37 Q14 30 20 25 C23 17 28 10 32 3 Z" fill="url(#arrow-gold)" stroke="#1C0F2E" stroke-width="1.6" stroke-linejoin="round"/>
+            <rect x="27.5" y="36.5" width="9" height="5" rx="1.2" fill="#C8931B" stroke="#1C0F2E" stroke-width="1.6"/>
+            <ellipse cx="32" cy="24" rx="5" ry="6.5" fill="#C8931B" stroke="#1C0F2E" stroke-width="1.6"/>
+            <path d="M32 17.5 V30.5" stroke="#1C0F2E" stroke-width="1.2"/>
+            <circle cx="32" cy="22" r="2.3" fill="#3AB4F2" stroke="#1C0F2E" stroke-width="1"/>
+            <path d="M31 7 L26 18" stroke="#FFF8DD" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>
+          </svg></span>{{ label }}</a>
+        {% else %}
         <a href="{{ href }}" data-tour="{{ tour }}" class="{{ 'hot' if hot }}" {% if on %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">{{ '⚔' if k == 'story' else icon }}</span>{{ label }}{% if hot %}<span class="nav-dot" aria-hidden="true"></span>{% endif %}</a>
+        {% endif %}
       {% endfor %}
     {% else %}
       <a href="{{ url_for('main.home') }}" {% if ep == 'main.home' %}aria-current="page"{% endif %}><span class="dock-icon" aria-hidden="true">⌂</span>Home</a>
@@ -232,6 +249,8 @@
 
   <dialog id="nav-sheet" class="sheet" aria-label="All pages">
     <div class="sheet-head">
+      <span class="sheet-hero" aria-hidden="true"><img src="{{ url_for('static', filename='img/mascot-banner.webp') }}" alt="" width="640" height="260" loading="lazy">
+        <span class="sheet-say">Where to next, Stand user?</span></span>
       {% if me.id %}
         <a class="sheet-me" href="{{ url_for('main.profile', uid=me.id) }}">
           {% if me.avatar %}<img src="{{ me.avatar }}" alt="" width="40" height="40">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (me.name or '?')[:1]|upper }}</span>{% endif %}
@@ -306,6 +325,7 @@
     </div>
   </aside>
 
+  <div class="dododo" role="status" aria-live="polite"><img class="dododo-face" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="30" height="30" loading="lazy"><span aria-hidden="true"><b>ド</b><b>ド</b><b>ド</b></span><span class="sr">Loading</span></div>
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
     <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a></p>

@@ -52,7 +52,7 @@ def char(cid, xp=0, awaken=0, items=None, types=("ATTACK",), quals=("GOOD",)):
 
 def test_public_pages(client):
     home = client.get("/")
-    assert home.status_code == 200 and b"randomAsset/avatar.png" in home.data
+    assert home.status_code == 200 and b"img/mascot-face.webp" in home.data
     r = client.get("/stands?q=star&rarity=SSR", headers={"HX-Request": "true"})
     assert r.status_code == 200 and b"Star platinum" in r.data
     assert client.get("/stands/1").status_code == 200
@@ -283,7 +283,7 @@ def test_tower_entry_and_bot_invite(client):
     response = client.post("/mirror-world/attack", data={"target": "0"}, headers=headers)
     assert response.status_code == 409
     assert dbmod.load_fight("111").turn == fight.turn
-    assert b"/randomAsset/avatar.png" in client.get("/stands/31").data
+    assert b"img/mascot-face.webp" in client.get("/stands/31").data
 
     client.application.config["DISCORD_CLIENT_ID"] = "123456"
     response = client.get("/auth/bot")

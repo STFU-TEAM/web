@@ -88,7 +88,14 @@
   <ol class="story-map">
     {% for p in journey %}
       <li class="story-part{% if p.cleared == p.stages|length %} complete{% endif %}" style="--part: {{ p.color }}">
-        <header><strong>{{ p.title }}</strong>{% if p.jojo %}<small>{{ p.jojo }}</small>{% endif %}<span class="muted">{{ p.cleared }}/{{ p.stages|length }}</span></header>
+        {% set label, name = p.title.split(' · ', 1) %}
+        <header class="part-card">
+          <span class="part-num" aria-hidden="true">{{ p.part or '序' }}</span>
+          <span class="part-label">{{ label }}{% if p.jojo %} · {{ p.jojo }}{% endif %}</span>
+          <strong class="part-title">{{ name }}</strong>
+          {% if p.jp %}<span class="part-jp" lang="ja">{{ p.jp }}</span>{% endif %}
+          <span class="part-count">{{ p.cleared }} / {{ p.stages|length }} stages</span>
+        </header>
         <ol class="story-nodes">
           {% for s in p.stages %}
             <li class="node {{ s.state }}{% if s.boss %} boss{% endif %}" title="{{ s.title }} · enemy level {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}">

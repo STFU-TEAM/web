@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Leaderboard | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page narrow">
   <p class="kicker">Global Elo ladder</p>
-  <h1 class="display sm">Ranked</h1>
+  <h1 class="display sm">{% call menacing() %}Ranked{% endcall %}</h1>
   {% set tabs = [('season','Season'),('global_elo','Ranked'),('xp','Level'),('tower_level','Tower')] + ([('missions_level','Dungeon')] if config.DUNGEON_ENABLED else []) + [('prestige','Prestige')] %}
   <nav class="tabs" aria-label="Rank by">
     {% for key, label in tabs %}

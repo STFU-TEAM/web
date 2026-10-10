@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Over Heaven | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page story au over-heaven">
   <header class="player-bar">
     <div>
       <p class="kicker">Endgame · Over Heaven</p>
-      <h1 class="display sm">Over Heaven</h1>
+      <h1 class="display sm">{% call menacing() %}Over Heaven{% endcall %}</h1>
       <p class="muted">Every mode has an Over Heaven track: hand-made fights at level 100 ★5, each one built around a rule. A stack of UR and LR stands won't brute-force them. Read the rule, then build the team that breaks it.</p>
     </div>
     <div class="story-progress" title="Over Heaven fights cleared">
@@ -14,6 +15,7 @@
     </div>
   </header>
   {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% if not fight %}<p class="notice">🤝 Raid with friends too: the <a href="{{ url_for('coop.index') }}">co-op raid</a> has an Over Heaven difficulty with a new rule every week, and its first win of the week pays an Arrowhead.</p>{% endif %}
 
   <nav class="tabs scroll-tabs" aria-label="Tracks">
     {% for t in tracks %}

@@ -31,6 +31,8 @@ def _lobby_ctx(uid):
     stands = sorted(user.main_characters + user.storage_characters, key=lambda c: (c.uuid in used, -power_score(c))) if user else []
     return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands, "used": used,
             "tiers": coop.TIERS, "boss": coop.boss_view(), "party": (coop.PARTY_MIN, coop.PARTY_MAX),
+            "challenge": coop.challenge(), "heaven_open": coop.unlocked(user, coop.HEAVEN),
+            "heaven_bonus": coop.weekly_bonus_text(), "heaven_bonus_ready": coop.weekly_bonus_ready(user) if user else False,
             "wins_left": coop.wins_left(user) if user else 0, "daily": coop.DAILY_WINS,
             "join_code": request.args.get("join", "")}
 
@@ -79,14 +81,16 @@ def _act(fn, ok=None):
 @bp.post("/create")
 @player_required
 def create():
-    _act(lambda: coop.create(session["uid"], session.get("name", "Player"), request.form.get("tier", "normal")))
+    user = get_db().get_user(session["uid"])
+    _act(lambda: coop.create(session["uid"], session.get("name", "Player"), request.form.get("tier", "normal"), user))
     return redirect(url_for("coop.index"))
 
 
 @bp.post("/join")
 @player_required
 def join():
-    _act(lambda: coop.join(session["uid"], session.get("name", "Player"), request.form.get("code", "")))
+    user = get_db().get_user(session["uid"])
+    _act(lambda: coop.join(session["uid"], session.get("name", "Player"), request.form.get("code", ""), user))
     return redirect(url_for("coop.index"))
 
 
@@ -110,7 +114,8 @@ def pick():
 @bp.post("/tier")
 @player_required
 def tier():
-    _act(lambda: coop.set_tier(session["uid"], request.form.get("tier", "")))
+    user = get_db().get_user(session["uid"])
+    _act(lambda: coop.set_tier(session["uid"], request.form.get("tier", ""), user))
     return redirect(url_for("coop.index"))
 
 
@@ -151,6 +156,9 @@ def start():
                 if char is None:
                     flash(f"{m['name']}'s stand isn't in their collection any more.", "error")
                     return redirect(url_for("coop.index"))
+                if not coop.unlocked(user, lb["tier"]):
+                    flash(f"{m['name']} hasn't finished the story yet: Over Heaven raids open after it.", "error")
+                    return redirect(url_for("coop.index"))
                 if m["stand"] in coop.used_today(user):
                     flash(f"{m['name']}'s {char.name} already raided today: they need to pick another stand.", "error")
                     return redirect(url_for("coop.index"))
@@ -158,10 +166,15 @@ def start():
                 users.append((user, m["stand"]))
             names = {m["uid"]: m["name"] for m in lb["members"]}
             boss = coop.boss_view()
+            heaven = coop.TIERS[lb["tier"]].get("heaven")
+            ch = coop.challenge() if heaven else None
+            foe_name = f"{boss['title']} · {coop.TIERS[lb['tier']]['label']}" + (f" · {ch['title']}" if ch else "")
+            meta = {"players": players, "owners": players, "names": names, "tier": lb["tier"],
+                    "stands": {m["uid"]: m["stand"] for m in lb["members"]}}
+            if ch:
+                meta["rules"] = ch["rules"]  # Over Heaven's fight rules, applied by the engine
             fight = Fight(Side("Raid party", fighting_copy(stands), True),
-                          Side(f"{boss['title']} · {coop.TIERS[lb['tier']]['label']}", coop.crew(lb["tier"], len(stands)), False),
-                          kind="coop", meta={"players": players, "owners": players, "names": names, "tier": lb["tier"],
-                                             "stands": {m["uid"]: m["stand"] for m in lb["members"]}})
+                          Side(foe_name, coop.crew(lb["tier"], len(stands)), False), kind="coop", meta=meta)
             fight.advance()
             coop.arm_timer(fight)
             for p in players:

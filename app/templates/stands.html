@@ -23,6 +23,6 @@
       <label class="unique-toggle" title="Only stands with a hand-made illustration for this look"><input type="checkbox" name="unique" value="1" {% if unique %}checked{% endif %}><span>🎨 Unique art only</span></label>
     </fieldset>
   </form>
-  <div id="grid">{% include "partials/stand_grid.html" %}</div>
+  <div id="grid">{{ grid }}</div>
 </section>
 {% endblock %}

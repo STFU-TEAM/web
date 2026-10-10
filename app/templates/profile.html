@@ -1,32 +1,68 @@
 {% extends "base.html" %}
 {% from "macros.html" import owned_card %}
+{% from "partials/picker.html" import picker, picker_data %}
 {% from "community/_macros.html" import friend_button, challenge_button with context %}
 {% block title %}{{ ident.name }} | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page profile">
-  <header class="profile-hero">
-    {% if ident.avatar %}<img class="avatar" src="{{ ident.avatar }}" alt="" width="104" height="104">
-    {% else %}<span class="avatar avatar-big" aria-hidden="true">{{ (ident.name or '?')[:1]|upper }}</span>{% endif %}
-    <div class="profile-id">
-      <p class="kicker">{{ u.global_elo|rank }}{% if u.is_donator() %} · <span class="supporter">★ Supporter</span>{% endif %}</p>
+  {% set th = pv.theme.colors %}
+  {#- The Stand User file: the player's chosen theme, catchphrase, signature stand and pinned achievements -#}
+  <header class="user-file" style="--t1: {{ th[0] }}; --t2: {{ th[1] }}; --t3: {{ th[2] }}">
+    <span class="file-tag" aria-hidden="true">スタンド使い</span>
+    {% if ident.avatar %}<img class="avatar file-avatar" src="{{ ident.avatar }}" alt="" width="96" height="96">
+    {% else %}<span class="avatar avatar-big file-avatar" aria-hidden="true">{{ (ident.name or '?')[:1]|upper }}</span>{% endif %}
+    <div class="file-who">
+      <p class="file-label">Stand user · {{ u.global_elo|rank }}{% if u.is_donator() %} · <span class="supporter">★ Supporter</span>{% endif %}</p>
       <h1 class="display sm">{{ ident.name }}</h1>
       {% if title %}<p class="profile-title"><span aria-hidden="true">✦</span> {{ title }}</p>{% endif %}
-      <p class="muted">Playing since {{ u.join_date.strftime('%B %Y') }}{% if gang %} · <strong>⚑ {{ gang.name }}</strong>{% endif %}</p>
+      {% if pv.quote %}<p class="file-quote">「{{ pv.quote }}」</p>{% endif %}
+      <dl class="file-facts">
+        {% if best %}<div><dt>{{ 'Signature stand' if pv.stand else 'Best stand' }}</dt><dd>{{ best.name }}{% if best.awaken %} ★{{ best.awaken }}{% endif %} · Lv {{ best.level }}</dd></div>{% endif %}
+        {% if gang %}<div><dt>Gang</dt><dd>⚑ {{ gang.name }}</dd></div>{% endif %}
+        <div><dt>Since</dt><dd>{{ u.join_date.strftime('%B %Y') }}</dd></div>
+      </dl>
       <div class="profile-level" title="{{ level_pct }}% to the next level">
         <span>Level <strong>{{ u.level }}</strong></span>
         <div class="meter" role="meter" aria-label="Progress to the next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ level_pct }}"><i style="width: {{ level_pct }}%"></i></div>
       </div>
-    </div>
-    <div class="profile-actions">
-      {% if live_fight %}<a class="btn small gold" href="{{ url_for('battles.watch', fight_id=live_fight) }}"><span class="live-dot" aria-hidden="true"></span> Watch live duel</a>{% endif %}
-      {% if relation and relation != 'self' %}
-        {{ friend_button(relation, uid) }}
-        {{ challenge_button(uid) }}
-        <a class="btn small ghost" href="{{ url_for('trades.new', **{'with': uid}) }}">⇄ Trade</a>
+      {% if pv.pins %}
+        <ul class="file-pins" aria-label="Pinned achievements">
+          {% for a in pv.pins %}<li title="{{ a.description }}"><span aria-hidden="true">{{ a.emoji|emoji }}</span> {{ a.name }}</li>{% endfor %}
+        </ul>
       {% endif %}
-      <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
     </div>
+    {% if best %}
+      <figure class="file-stand">
+        <img src="{{ best.id|stand_img }}" alt="{{ best.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+      </figure>
+    {% endif %}
+    <span class="file-bars" aria-hidden="true"><i></i><i></i><i></i></span>
   </header>
+  <div class="profile-actions">
+    {% if live_fight %}<a class="btn small gold" href="{{ url_for('battles.watch', fight_id=live_fight) }}"><span class="live-dot" aria-hidden="true"></span> Watch live duel</a>{% endif %}
+    {% if relation and relation != 'self' %}
+      {{ friend_button(relation, uid) }}
+      {{ challenge_button(uid) }}
+      <a class="btn small ghost" href="{{ url_for('trades.new', **{'with': uid}) }}">⇄ Trade</a>
+    {% endif %}
+    <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
+    {% if relation and relation != 'self' %}
+      <details class="report-box">
+        <summary class="btn small ghost">⚑ Report</summary>
+        <form method="post" action="{{ url_for('main.profile_report', uid=uid) }}" class="report-form">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <p class="muted small-print">Tell an admin what's wrong with this profile. They'll see it as it is right now.</p>
+          <label for="report-reason">What's wrong</label>
+          <select id="report-reason" name="reason" required>
+            {% for key, label in report_reasons.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+          </select>
+          <label for="report-note">Details <small class="muted">(optional)</small></label>
+          <textarea id="report-note" name="note" rows="2" maxlength="300"></textarea>
+          <button class="btn small danger">Send the report</button>
+        </form>
+      </details>
+    {% endif %}
+  </div>
 
   <ul class="profile-stats" aria-label="Records">
     <li><span>{{ season.icon }}</span><strong>{{ season.tier }}</strong><small>{{ season.label }} season · {{ season.rating|num }}{% if season.place %} · #{{ season.place }}{% endif %}</small></li>
@@ -100,20 +136,59 @@
     <div class="grid pull-grid">{% for c in showcase %}{{ owned_card(c, size='small') }}{% endfor %}</div>
   {% endif %}
   {% if is_me %}
-    <section class="social-panel title-picker" aria-labelledby="title-h">
-      <h2 class="h3" id="title-h">Your title</h2>
-      {% if my_titles %}
-        <form class="inline" method="post" action="{{ url_for('progress.choose_title') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <label class="sr" for="title-pick">Title shown under your name</label>
-          <select id="title-pick" name="title">
+    <section class="social-panel customize" id="customize" aria-labelledby="customize-h">
+      <h2 class="h2" id="customize-h">Customize your profile</h2>
+      {% if pv.locked %}
+        <p class="notice error">🔒 An admin removed your profile customization and locked it{% if pv.locked.reason %}: {{ pv.locked.reason }}{% endif %}. Ask on the Discord server to have it reopened.</p>
+      {% else %}
+      <form method="post" action="{{ url_for('main.profile_edit') }}" class="customize-form">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label class="customize-field">Catchphrase <small class="muted">(up to {{ quote_max }} characters, shown in 「 」 under your name)</small>
+          <input type="text" name="quote" maxlength="{{ quote_max }}" value="{{ my_profile.quote or '' }}" placeholder="Yare yare daze." autocomplete="off"></label>
+
+        <fieldset class="customize-field">
+          <legend>Theme</legend>
+          <div class="theme-grid">
+            {% for t in themes %}
+              <label class="theme-opt{{ ' locked' if not t.open }}" title="{{ t.unlock }}">
+                <input type="radio" name="theme" value="{{ t.key }}" {{ 'checked' if (my_profile.theme or 'night') == t.key }} {{ 'disabled' if not t.open }}>
+                <span class="theme-swatch" style="--t1: {{ t.colors[0] }}; --t2: {{ t.colors[1] }}; --t3: {{ t.colors[2] }}"></span>
+                <span><strong>{{ t.label }}</strong><small class="muted">{{ '✓ unlocked' if t.open else '🔒 ' ~ t.unlock }}</small></span>
+              </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+
+        <label class="customize-field">Title
+          <select name="title">
             <option value="">No title</option>
             {% for t in my_titles %}<option value="{{ t }}" {% if t == title %}selected{% endif %}>{{ t }}</option>{% endfor %}
           </select>
-          <button class="btn small gold">Show it</button>
-        </form>
-      {% else %}
-        <p class="muted">Earn titles by finishing a ranked season at ACT 3 or higher, mastering a stand, completing <a href="{{ url_for('progress.dex_page') }}">Stand Dex</a> rarity sets, or in the <a href="{{ url_for('progress.events_page') }}">event shop</a>.</p>
+          {% if not my_titles %}<small class="muted">Earn titles by finishing a ranked season at ACT 3 or higher, mastering a stand, completing <a href="{{ url_for('progress.dex_page') }}">Stand Dex</a> rarity sets, or in the <a href="{{ url_for('progress.events_page') }}">event shop</a>.</small>{% endif %}
+        </label>
+
+        {{ picker_data("sp-profile", picker_owned(stands)) }}
+        <div class="customize-field">
+          <span>Signature stand <small class="muted">(in your file's corner; your best stand if you leave it empty)</small></span>
+          {{ picker("stand", "sp-profile", selected=[my_profile.stand] if my_profile.stand else [], title="Your signature stand", placeholder="Pick a stand", empty_label="Best stand") }}
+        </div>
+        <div class="customize-field">
+          <span>Showcase <small class="muted">(up to {{ showcase_max }}; your strongest if you leave it empty)</small></span>
+          {{ picker("showcase", "sp-profile", max=showcase_max, unique=True, selected=my_profile.showcase or [], title="Stands to showcase", placeholder="Pick stands to show off") }}
+        </div>
+
+        {% if unlocked_achievements %}
+          <fieldset class="customize-field">
+            <legend>Pinned achievements <small class="muted">(up to {{ pin_max }})</small></legend>
+            <div class="pin-grid">
+              {% for a in unlocked_achievements %}
+                <label class="check"><input type="checkbox" name="pins" value="{{ a.id }}" data-pick-max="{{ pin_max }}" {{ 'checked' if a.id in (my_profile.pins or []) }}> {{ a.emoji|emoji }} {{ a.name }}</label>
+              {% endfor %}
+            </div>
+          </fieldset>
+        {% endif %}
+        <button class="btn gold">Save my profile</button>
+      </form>
       {% endif %}
     </section>
   {% endif %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import empty_state %}
 {% from "community/_macros.html" import player_row, form_btn with context %}
 {% block title %}Inbox | STFU Requiem{% endblock %}
 {% block main %}
@@ -50,7 +51,7 @@
   {% endif %}
 
   <h2 class="h2">Waiting on you {% if waiting %}<span class="count">{{ waiting }}</span>{% endif %}</h2>
-  {% if not waiting %}<p class="notice">Nothing waiting. Duel challenges, trade offers, friend requests and gang invites land here.</p>{% endif %}
+  {% if not waiting %}{{ empty_state('Nothing waiting. Duel challenges, trade offers, friend requests and gang invites land here.') }}{% endif %}
 
   {% if challenges %}
     <h3 class="h3 inbox-h">⚔ Duel challenges</h3>
@@ -101,7 +102,7 @@
     <ol class="feed">
       {% for n in feed %}
         <li class="feed-item {{ n.kind }}{% if n.at > seen_before %} new{% endif %}">
-          <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑', 'unlock': '🔓', 'gift': '🎁'}.get(n.kind, '🔔') }}</span>
+          <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑', 'unlock': '🔓', 'gift': '🎁', 'achievement': '🏆', 'title': '✦'}.get(n.kind, '🔔') }}</span>
           <span class="feed-text">{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</span>
           <time class="muted" datetime="{{ n.at }}" data-ago="{{ n.at }}"></time>
         </li>

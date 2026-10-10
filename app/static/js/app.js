@@ -202,11 +202,47 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("htmx:oobAfterSwap", (e) => { if (e.detail.target.id === "inventory") applyItems(); });
 
+// Big stand cards turn over to their parameter chart (macros.card params=True).
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-params-flip]");
+  if (!btn) return;
+  const card = btn.previousElementSibling;
+  const back = card?.querySelector(".card-params");
+  if (!back) return;
+  const on = btn.getAttribute("aria-pressed") !== "true";
+  btn.setAttribute("aria-pressed", String(on));
+  btn.querySelector("[data-flip-label]").textContent = on ? "Card" : "Parameters";
+  const swap = () => { back.hidden = !on; card.classList.toggle("params-on", on); };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return swap();
+  card.classList.add("turning");
+  setTimeout(() => { swap(); card.classList.remove("turning"); }, 180);
+});
+
+// Loading: a ドドド in the corner when something the player clicked takes a moment (not for background polling).
+(() => {
+  let busy = 0, timer;
+  const box = () => document.querySelector(".dododo");
+  document.addEventListener("htmx:beforeRequest", (e) => {
+    if (!e.detail.requestConfig?.triggeringEvent?.isTrusted) return;
+    e.detail.elt.dataset.dododo = "1";
+    busy += 1;
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (busy) box()?.classList.add("on"); }, 350);
+  });
+  document.addEventListener("htmx:afterRequest", (e) => {
+    if (!e.detail.elt.dataset.dododo) return;
+    delete e.detail.elt.dataset.dododo;
+    busy = Math.max(0, busy - 1);
+    if (!busy) { clearTimeout(timer); box()?.classList.remove("on"); }
+  });
+})();
+
 // Pull reveal: tap a card to flip it, or reveal all in sequence (rarest last).
 function flip(card) {
   if (card.classList.contains("flipped")) return;
   card.classList.add("flipped");
   card.setAttribute("aria-label", "Revealed");
+  if (+card.dataset.rank >= 3) burst(card.closest(".slot"));  // UR and LR: manga speed lines and ドドド
   const batch = card.closest("[data-pull]");
   if (batch && !batch.querySelector("[data-flip]:not(.flipped)")) {
     batch.querySelector("[data-pull-summary]").hidden = false;
@@ -215,6 +251,16 @@ function flip(card) {
     batch.querySelector("[data-cinematic]")?.setAttribute("hidden", "");
     document.dispatchEvent(new CustomEvent("pull:revealed"));
   }
+}
+// Manga focus lines and sound effects behind a UR / LR card as it turns over in the grid (sample C).
+function burst(slot) {
+  if (!slot || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const el = document.createElement("div");
+  el.className = "flip-burst";
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = '<i class="burst-lines"></i><b class="sfx s1">ドド</b><b class="sfx s2">ドドド</b><b class="sfx s3">ゴゴ</b>';
+  slot.prepend(el);
+  setTimeout(() => el.remove(), 2600);
 }
 document.addEventListener("click", (e) => {
   const card = e.target.closest("[data-flip]");
@@ -246,7 +292,8 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     el.setAttribute("aria-modal", "true");
     el.setAttribute("aria-label", "Cinematic pull");
     el.innerHTML = `
-      <div class="cine-bg"></div><div class="cine-rays"></div><div class="cine-flash"></div>
+      <div class="cine-bg"></div><div class="cine-rays"></div><div class="cine-lines"></div><div class="cine-flash"></div>
+      <div class="cine-sfx" aria-hidden="true"><b>ドド</b><b>ドドド</b><b>ゴゴ</b><b>ドドドド</b></div>
       <p class="cine-menace" aria-hidden="true"></p>
       <p class="cine-title" aria-hidden="true"></p>
       <div class="cine-stage"><div class="cine-card"><div class="cine-face"></div><div class="cine-back"><span>？</span></div></div></div>
@@ -678,9 +725,29 @@ document.addEventListener("htmx:load", (e) => {
 // Pop-up toasts: rendered on full pages, or sent with an HTMX response as HX-Trigger {"toast": [...]}.
 (() => {
   const box = () => document.getElementById("toasts");
+  // Achievements and titles stamp in at the top of the screen as a card (実績解除 / 称号獲得) instead of a plain toast.
+  const SLAM = { achievement: ["実績解除", "Achievement unlocked", /^.*?unlocked:\s*/i], title: ["称号獲得", "New title", /^New title:\s*/i] };
+  const slamify = (el) => {
+    const kind = Object.keys(SLAM).find((k) => el.classList.contains(k));
+    if (!kind) return;
+    const [jp, en, strip] = SLAM[kind];
+    const name = (el.querySelector("span")?.textContent || "").replace(strip, "").replace(/!$/, "").trim();
+    const card = document.createElement("span");
+    card.className = "slam-card";
+    card.innerHTML = '<span class="slam-medal" aria-hidden="true">★</span><span class="slam-jp" aria-hidden="true"></span><span class="slam-en"></span><strong></strong>';
+    card.querySelector(".slam-jp").textContent = jp;
+    card.querySelector(".slam-en").textContent = en;
+    card.querySelector("strong").textContent = name;
+    el.querySelector("span")?.replaceWith(card);
+    el.classList.add("slam");
+    let host = document.getElementById("slams");
+    if (!host) { host = document.createElement("div"); host.id = "slams"; host.className = "slams"; host.setAttribute("aria-live", "polite"); document.body.append(host); }
+    host.append(el);
+  };
   const arm = (el) => {  // errors stay longer; a toast under the pointer or finger waits
     if (el.dataset.armed) return;
     el.dataset.armed = "1";
+    slamify(el);
     let left = el.classList.contains("flash-error") ? 12000 : 7000, since = Date.now(), timer;
     const go = () => { timer = setTimeout(() => { el.classList.add("leaving"); setTimeout(() => el.remove(), 600); }, left); };
     el.addEventListener("pointerenter", () => { clearTimeout(timer); left = Math.max(1500, left - (Date.now() - since)); });
@@ -785,6 +852,26 @@ document.addEventListener("htmx:responseError", (e) => {
   setTimeout(() => p.remove(), 5000);
 });
 
+// The anime's eyecatch: colour bars sweep across with the fight's name, when a big fight opens (data-eyecatch).
+// Resolves when it's over; a click or a key skips it.
+function eyecatch(title, label) {
+  return new Promise((done) => {
+    const el = document.createElement("div");
+    el.className = "eyecatch";
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = '<i class="bar b1"></i><i class="bar b2"></i><i class="bar b3"></i><div class="eye-text"><b></b><span></span></div>';
+    el.querySelector("b").textContent = title;
+    el.querySelector(".eye-text span").textContent = label || "";
+    document.body.append(el);
+    let over = false;
+    const end = () => { if (over) return; over = true; el.remove(); removeEventListener("keydown", end); done(); };
+    el.addEventListener("click", end);
+    addEventListener("keydown", end);
+    setTimeout(end, 1650);
+  });
+}
+const HEAVY_SFX = ["ドゴォ!!", "バァーン!", "メメタァ!", "ドドン!"];
+
 // Fight replay: a fresh turn arrives with its log events as JSON. Rewind the bars to before the turn,
 // then play each event (lunge, hit, damage numbers, special GIF in the spotlight) and land on the server's final state.
 const FIGHT_STEP = { hit: 700, crit: 950, dodge: 700, special: 1900, item: 1000, info: 600, stun: 700, terrain: 1300, sudden: 900 };
@@ -805,7 +892,8 @@ function playFight(root) {
   const fighters = [...root.querySelectorAll(".fighter")];
   const byPos = new Map(fighters.map((f) => [`${f.dataset.side}:${f.dataset.idx}`, f]));
   const logItems = [...root.querySelectorAll(".log li.fresh")].sort((a, b) => a.dataset.i - b.dataset.i);
-  const EFFECTS = ["lunge", "hurt", "crit", "dodge", "cast", "swap", "flash-crit", "flash-special", "shake"];
+  const EFFECTS = ["lunge", "hurt", "crit", "dodge", "cast", "swap", "flash-crit", "flash-special", "shake", "fx-swap"];
+  const fx = () => root.dataset.fx === "1";  // battle cries and the crit colour swap (the 💥 Effects toggle)
   const restart = (el, ...cls) => { el.classList.remove(...EFFECTS, ...cls); void el.offsetWidth; el.classList.add(...cls); };
 
   // The server-rendered end state, restored when the replay finishes or is skipped.
@@ -825,6 +913,19 @@ function playFight(root) {
       f.querySelector(".hp-num").textContent = Math.round(hp);
     });
   };
+  // A heavy hit (a quarter of the target's health or more): a manga sound effect and a shake (💥 Effects).
+  const heavy = (f, lost) => {
+    if (!fx() || lost < 0.25 * (+f.dataset.max || Infinity)) return;
+    const s = document.createElement("span");
+    s.className = "heavy-sfx";
+    s.textContent = HEAVY_SFX[Math.floor(Math.random() * HEAVY_SFX.length)];
+    s.setAttribute("aria-hidden", "true");
+    s.style.left = `${5 + Math.random() * 35}%`;
+    s.style.rotate = `${Math.round(Math.random() * 20 - 10)}deg`;
+    f.appendChild(s);
+    s.addEventListener("animationend", () => s.remove());
+    restart(arena, "shake");
+  };
   const pop = (f, text, cls) => {
     const p = document.createElement("span");
     p.className = `dmg-pop ${cls}`;
@@ -832,6 +933,22 @@ function playFight(root) {
     p.setAttribute("aria-hidden", "true");
     f.appendChild(p);
     p.addEventListener("animationend", () => p.remove());
+  };
+  // A special shouts the stand's cry (ORA ORA ORA…), or a plain ドン! for stands without one.
+  const shout = (f) => {
+    const cry = f.dataset.cry;
+    const words = cry ? (cry.length <= 4 ? [cry, cry, cry, `${cry}!!`] : [`${cry}!`]) : ["ドン!"];
+    words.forEach((w, n) => setTimeout(() => {
+      const s = document.createElement("span");
+      s.className = `cry${cry ? "" : " plain"}`;
+      s.textContent = w;
+      s.setAttribute("aria-hidden", "true");
+      s.style.left = `${8 + Math.random() * 60}%`;
+      s.style.top = `${4 + Math.random() * 50}%`;
+      s.style.rotate = `${Math.round(Math.random() * 24 - 12)}deg`;
+      f.appendChild(s);
+      s.addEventListener("animationend", () => s.remove());
+    }, n * 140 * pace()));
   };
   const showSpot = (f, line, special) => {
     if (!f) return;
@@ -867,6 +984,7 @@ function playFight(root) {
   let lastSpecial = null;
 
   (async () => {
+    if (fromStart && root.dataset.eyecatch && fx()) await eyecatch(root.dataset.eyecatch, root.dataset.eyecatchLabel);
     for (const [k, e] of events.entries()) {
       if (skipped || !root.isConnected) break;
       const text = e.text.replaceAll("`", "");
@@ -878,21 +996,21 @@ function playFight(root) {
 
       if (src && e.kind !== "stun") restart(src, e.kind === "special" || e.kind === "item" ? "cast" : "lunge");
       showSpot(src, text, e.kind === "special");
-      if (e.kind === "special") { lastSpecial = [src, text]; restart(arena, "flash-special"); }
+      if (e.kind === "special") { lastSpecial = [src, text]; restart(arena, "flash-special"); if (src && fx()) shout(src); }
       await wait(e.kind === "special" ? 450 * pace() : 200 * pace());
 
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
       if (src && e.kind === "stun") pop(src, "STUNNED", "stun");
       if (e.kind === "terrain") restart(arena, "flash-special");
       if (e.kind === "sudden") restart(arena, "shake");
-      if (e.kind === "crit") restart(arena, "flash-crit", "shake");
+      if (e.kind === "crit") restart(arena, "flash-crit", "shake", ...(fx() ? ["fx-swap"] : []));
       // Any HP change since the previous event gets a number; covers specials, items and poison ticks too.
       if (e.hp) {
         fighters.forEach((f) => {
           const before = prev?.[f.dataset.side]?.[f.dataset.idx], after = e.hp[f.dataset.side]?.[f.dataset.idx];
           if (before === undefined || after === undefined || Math.round(before) === Math.round(after)) return;
           const crit = e.kind === "crit" && f === dst;
-          if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); }
+          if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); heavy(f, before - after); }
           else pop(f, `+${Math.round(after - before)}`, "miss");
           if (after <= 0 && before > 0) setTimeout(() => restart(f, "ko"), 300 * pace());
         });
@@ -901,6 +1019,7 @@ function playFight(root) {
       } else if (dst && e.dmg) {
         restart(dst, "hurt", ...(e.kind === "crit" ? ["crit"] : []));
         pop(dst, `-${e.dmg}`, critClass(e));
+        heavy(dst, e.dmg);
       }
       await wait(((FIGHT_STEP[e.kind] || 600) - (e.kind === "special" ? 450 : 200)) * pace());
     }
@@ -908,14 +1027,14 @@ function playFight(root) {
     if (!root.isConnected) return;
     arena.removeEventListener("click", skip);
     logItems.forEach((li) => li.classList.remove("pending"));
-    root.querySelectorAll(".dmg-pop").forEach((p) => p.remove());
+    root.querySelectorAll(".dmg-pop, .cry, .heavy-sfx").forEach((p) => p.remove());
     final.fighters.forEach(({ f, cls, width, num }) => {
       f.className = cls;
       f.querySelector(".hp i").style.width = width;
       f.querySelector(".hp-num").textContent = num;
     });
     [banner.className, banner.innerHTML] = final.banner;
-    arena.classList.remove("flash-crit", "flash-special", "shake");
+    arena.classList.remove("flash-crit", "flash-special", "shake", "fx-swap");
     // A special from this turn stays in the spotlight; otherwise show who acts next.
     if (lastSpecial && !skipped) {
       if (spotting !== lastSpecial[0] || !spot.classList.contains("special")) showSpot(lastSpecial[0], lastSpecial[1], true);
@@ -1024,6 +1143,20 @@ document.addEventListener("click", (e) => {
     spot.querySelector(".spotlight-img").src = shown.dataset.img;
     spot.classList.toggle("shiny-art", shown.dataset.hue === "1");
   }
+  const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
+  fetch(btn.dataset.url, { method: "POST", headers: { "X-CSRF-Token": token }, body: new URLSearchParams({ on: on ? "1" : "0" }) })
+    .catch(() => {});
+});
+
+// Fight effects on / off (battle cries, the crit colour swap): kept in the session like cosmetics.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-fx-toggle]");
+  if (!btn) return;
+  const on = btn.getAttribute("aria-pressed") !== "true";
+  btn.setAttribute("aria-pressed", String(on));
+  btn.textContent = `💥 Effects ${on ? "on" : "off"}`;
+  const root = btn.closest("#fight");
+  if (root) root.dataset.fx = on ? "1" : "0";
   const token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
   fetch(btn.dataset.url, { method: "POST", headers: { "X-CSRF-Token": token }, body: new URLSearchParams({ on: on ? "1" : "0" }) })
     .catch(() => {});

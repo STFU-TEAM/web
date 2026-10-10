@@ -97,10 +97,15 @@ def flush_due(now: Optional[float] = None, limit: int = 200) -> int:
     return sent
 
 
-def tick(every: int = 10):
+def tick(every: int = 10, seen: Optional[str] = None):
     """From a page load (and the background flusher): send what's due, at most once every few seconds across all
-    workers."""
-    if r().set("web:notif:tick", "1", nx=True, ex=every):
+    workers. seen: the player loading the page, marked as on the site (push.seen) in the same round trip."""
+    pipe = r().pipeline(transaction=False)
+    pipe.set("web:notif:tick", "1", nx=True, ex=every)
+    if seen:
+        from app.push import ACTIVE_SECONDS
+        pipe.set(f"web:seen:{seen}", "1", ex=ACTIVE_SECONDS)
+    if pipe.execute()[0]:
         flush_due()
 
 
@@ -132,8 +137,18 @@ def feed(uid: str, limit: int = NOTIF_KEEP) -> List[dict]:
 
 
 def unread(uid: str) -> int:
-    seen = int(r().get(f"web:notif:seen:{uid}") or 0)
-    return sum(1 for n in feed(uid, 20) if n["at"] > seen)
+    return unread_in(r().lrange(f"web:notif:{uid}", 0, 19), int(r().get(f"web:notif:seen:{uid}") or 0))
+
+
+def unread_in(raw_feed, seen: int) -> int:
+    """How many of these feed entries (raw JSON, newest first) arrived after `seen`."""
+    n = 0
+    for raw in raw_feed:
+        try:
+            n += json.loads(raw)["at"] > seen
+        except (ValueError, KeyError, TypeError):
+            continue
+    return n
 
 
 def mark_seen(uid: str):

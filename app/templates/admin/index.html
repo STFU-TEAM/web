@@ -74,6 +74,30 @@
   </section>
 </div>
 
+{% if deleted %}
+<section class="social-panel" id="deleted">
+  <h2 class="h2">Deleted saves</h2>
+  <p class="muted">A copy of each deleted save is kept {{ keep_days }} days. Restoring brings back the save only: the player is outside any gang, and their friendships, listings and offers stay gone.</p>
+  <div class="admin-table-wrap">
+  <table class="admin-table">
+    <thead><tr><th>Player</th><th>Deleted</th><th>By</th><th></th></tr></thead>
+    <tbody>
+      {% for d in deleted %}
+        <tr>
+          <td><strong>{{ d.name }}</strong> <small class="muted">{{ d.uid }}</small></td>
+          <td><time data-ago="{{ d.at }}"></time></td>
+          <td>{{ d.by_name }}</td>
+          <td>{% if d.restarted %}<span class="muted">Began a new save</span>
+              {% elif owner %}<form class="inline" method="post" action="{{ url_for('admin.restore_save', uid=d.uid) }}" onsubmit="return confirm('Restore this save?')">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Restore</button></form>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
 <section class="social-panel">
   <div class="social-heading"><h2 class="h2">Recent admin actions</h2><a href="{{ url_for('admin.audit_log') }}">Full log →</a></div>
   {% include "admin/_audit_rows.html" %}

@@ -266,7 +266,31 @@ def identity(user_id: str) -> dict:
     raw = _redis.get(f"web:identity:{user_id}")
     if raw:
         return json.loads(raw)
-    token = current_app.config.get("DISCORD_BOT_TOKEN")
+    return _resolve_identity(user_id, current_app.config.get("DISCORD_BOT_TOKEN"))
+
+
+def identities(user_ids) -> dict:
+    """{uid: identity} for many players at once: one MGET for the remembered ones, and the others looked up on
+    Discord side by side (a ladder of 50 strangers used to make 50 calls in a row, 3 s each at worst)."""
+    ids = list(dict.fromkeys(str(u) for u in user_ids))
+    if not ids:
+        return {}
+    out = {}
+    for uid, raw in zip(ids, _redis.mget([f"web:identity:{u}" for u in ids])):
+        if raw:
+            out[uid] = json.loads(raw)
+    missing = [u for u in ids if u not in out]
+    if missing:
+        from concurrent.futures import ThreadPoolExecutor
+        token = current_app.config.get("DISCORD_BOT_TOKEN")
+        with ThreadPoolExecutor(max_workers=min(8, len(missing))) as pool:
+            for uid, data in zip(missing, pool.map(lambda u: _resolve_identity(u, token), missing)):
+                out[uid] = data
+    return out
+
+
+def _resolve_identity(user_id: str, token: Optional[str]) -> dict:
+    """Look a player up (Discord, or their web account) and remember it. Needs no app context (thread pools)."""
     data = {"name": f"Player {user_id[-4:]}", "avatar": None}
     if not user_id.isdigit():  # web-only account: its username is the identity
         from app.accounts import username_of

@@ -14,6 +14,11 @@ def grant(user, title: str) -> bool:
         return False
     owned.append(title)
     user.data["web_titles"] = owned[-MAX_STORED:]
+    try:  # the 称号獲得 pop-up on the website (app.js); skipped outside it (simulations, scripts)
+        from app.social import notify
+        notify(str(user.id), "title", f"New title: {title}", f"/u/{user.id}")
+    except Exception:
+        pass
     return True
 
 

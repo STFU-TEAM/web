@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% from "macros.html" import template_card, special_scaling %}
+{% from "macros.html" import template_card, special_scaling, param_chart %}
 {% block title %}{{ s.name }} | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page stand-detail">
-  <div class="stage">{{ template_card(s, size='big', link=False) }}</div>
+  <div class="stage">{{ template_card(s, size='big', link=False, params=True) }}</div>
   <div class="detail-copy">
     <p class="kicker">{{ s.rarity }} stand from {{ s.universe }}</p>
     <h1 class="display sm">{{ s.name }}</h1>
@@ -26,6 +26,8 @@
       </ul>
     {% endif %}
     <h2 class="h3">Base stats</h2>
+    <div class="stand-params">
+    {{ param_chart(s.id) }}
     <table class="stats">
       <tr><th scope="row">Health</th><td>{{ s.base_hp }}</td></tr>
       <tr><th scope="row">Damage</th><td>{{ s.base_damage }}</td></tr>
@@ -33,7 +35,8 @@
       <tr><th scope="row">Speed</th><td>{{ s.base_speed }}</td></tr>
       <tr><th scope="row">Critical chance</th><td>{{ s.base_critical }} %</td></tr>
     </table>
-    <p class="muted">Levels, awakenings, items, types and qualities all raise these numbers.</p>
+    </div>
+    <p class="muted">Levels, awakenings, items, types and qualities all raise these numbers. The parameter grades (A best, E worst) compare this stand's base stats with every other stand's, and don't change with levels.</p>
     {% if banners %}
       <p>Found on:
         {% for x in banners %}<a href="{{ url_for('play.banners') }}#{{ 'banner-' ~ x.b.id if x.on else 'banner-calendar' }}">{{ x.b.name }}</a>

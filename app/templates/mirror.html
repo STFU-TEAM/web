@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Mirror World | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page">
@@ -6,8 +7,7 @@
     {% include "partials/fight.html" %}
   {% else %}
     <div class="crusade-intro narrow mirror-intro">
-      <p class="menace" aria-hidden="true">ゴゴゴ</p>
-      <h1 class="display sm">Mirror World</h1>
+      <h1 class="display sm">{% call menacing() %}Mirror World{% endcall %}</h1>
       <p class="lede">Man in the Mirror pulls your team through the glass. On the other side waits a reflection of it: as many stands as you bring, of similar rarity, near your team's level (Lv {{ team_level }}). How sharp the reflection is, is rolled each time:</p>
       <ul class="mirror-odds">
         {% set total = difficulties|sum(attribute=1) %}

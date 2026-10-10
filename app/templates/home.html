@@ -1,10 +1,9 @@
 {% extends "base.html" %}
-{% from "macros.html" import template_card %}
+{% from "macros.html" import template_card, menacing %}
 {% block main %}
 <section class="hero">
   <div class="hero-copy">
-    <p class="menace" aria-hidden="true">ゴゴゴゴ</p>
-    <h1 class="display">Your stand awakens here.</h1>
+    <h1 class="display">{% call menacing() %}Your stand awakens here.{% endcall %}</h1>
     <p class="lede">STFU Requiem is a JoJo stand gacha you play in the browser. Pull stands, build a team of three and follow the Joestars from Part 3 to Part 8. You start with an Arrowhead, enough for your first 10-pull.</p>
     <p class="cta">
       {% if registered %}

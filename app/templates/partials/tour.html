@@ -5,7 +5,7 @@
   {"target": ["team"], "title": "Team", "text": "Your three fighters and every stand you own. Put your best three in the team, lock favourites, and auto-fuse R and SR duplicates to make them stronger."},
   {"target": ["banners"], "title": "Summon", "text": "Arrowheads buy ten stands from a banner. You start with one, so pull now. Pity guarantees a UR or better within " ~ PITY_LIMIT ~ " pulls."},
   {"target": ["adventure", "battle"], "title": "Battle · start with the Story", "text": "The Story sends you through Parts 3 to 8 beside each JoJo, with Devil's Palms and Arrowheads on the way. It also opens the rest: Mirror World, Tower and Dungeon after your first fight, Ranked after Part 3. New modes show up here with a New tag."},
-  {"target": ["progress"], "title": "Progress", "text": "Daily and weekly quests are your steadiest source of Meteor Dust. Achievements pay out for long-term milestones."},
+  {"target": ["progress", "menu"], "title": "Progress", "text": "Daily and weekly quests are your steadiest source of Meteor Dust. Achievements pay out for long-term milestones."},
   {"target": ["community", "menu"], "title": "Community", "text": "Join a gang for wars and raids, trade stands with friends, and buy from player shops."},
   {"target": ["explore", "menu"], "title": "Explore", "text": "The wiki explains fights: terrains, synergies and status effects. Every stand's stats and special are in the encyclopedia."},
   {"title": "Ready?", "text": "Pull your first stands, then begin the journey in Part 3 alongside Jotaro.", "cta": [url_for('play.banners'), "Summon"], "cta2": [url_for('progress.story_page'), "Start the story"]},
@@ -13,6 +13,7 @@
 <div class="tour" id="tour" hidden data-autostart="{{ 1 if tour_pending else 0 }}" data-done="{{ url_for('progress.tour_done') }}">
   <div class="tour-spot" aria-hidden="true"></div>
   <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+    <img class="tour-mascot" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="52" height="52" loading="lazy">
     <p class="tour-count muted"></p>
     <h2 class="h3" id="tour-title"></h2>
     <p class="tour-text"></p>

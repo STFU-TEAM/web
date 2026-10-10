@@ -61,10 +61,12 @@
   <ol class="story-map">
     {% for c in chapters %}
       <li class="story-part{% if c.complete %} complete{% endif %}{% if not c.unlocked %} au-locked{% endif %}" style="--part: {{ c.color }}">
-        <header>
-          <strong>{% if c.unlocked %}<a href="{{ url_for('progress.au_page', ch=c.key) }}">AU · {{ c.title }}</a>{% else %}🔒 AU · {{ c.title }}{% endif %}</strong>
-          <small>{{ c.ally }}</small>
-          <span class="muted">{% if c.unlocked %}{{ c.cleared }}/{{ c.stages|length }}{% else %}Opens after {{ c.source }}{% endif %}</span>
+        <header class="part-card">
+          <span class="part-num" aria-hidden="true">IF</span>
+          <span class="part-label">Alternate Universe · {{ c.ally }}</span>
+          <strong class="part-title">{% if c.unlocked %}<a href="{{ url_for('progress.au_page', ch=c.key) }}">{{ c.title }}</a>{% else %}🔒 {{ c.title }}{% endif %}</strong>
+          <span class="part-jp" lang="ja">もしもの世界</span>
+          <span class="part-count">{% if c.unlocked %}{{ c.cleared }} / {{ c.stages|length }} stages{% else %}Opens after {{ c.source }}{% endif %}</span>
         </header>
         <ol class="story-nodes">
           {% for s in c.stages %}

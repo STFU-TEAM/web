@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import empty_state %}
 {% from "community/_macros.html" import player_row, form_btn, challenge_button with context %}
 {% block title %}Friends | STFU Requiem{% endblock %}
 {% block main %}
@@ -60,7 +61,7 @@
       {% endfor %}
     </ul>
   {% else %}
-    <p class="notice">No friends yet. <a href="{{ url_for('community.players') }}">Find players</a> or share your invite link above.</p>
+    {% call empty_state('No friends yet.') %}<p><a class="btn small gold" href="{{ url_for('community.players') }}">Find players</a> or share your invite link above.</p>{% endcall %}
   {% endif %}
 
   {% if outgoing %}

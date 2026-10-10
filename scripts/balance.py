@@ -5,6 +5,7 @@
     python scripts/balance.py stands        # win rate of every stand among its own rarity
     python scripts/balance.py story         # win rate of 5 team archetypes against each story stage
     python scripts/balance.py story --seed 3 --fights 100
+    python scripts/balance.py heaven        # co-op Over Heaven: a raw LR party vs a party built for each challenge
 
 Rerun after changing stats, specials, terrains or the story curve. Targets used so far:
 PvE fights about a minute; duels (ranked, friendly) 1-2 minutes on average and never over 5 (fight.PVP_*,
@@ -133,9 +134,53 @@ def report_story(fights):
               + "".join(f"{r:>8.0%}" for r in rates))
 
 
+# Co-op Over Heaven: for each weekly challenge, a party built for its rule (the same three stands whatever the boss,
+# except "story", which brings the boss's own part). Target: the raw LR party mostly loses, the built one mostly wins.
+HEAVEN_RAW = [84, 109, 114]
+HEAVEN_BUILT = {"ward": [1, 6, 2], "morning": [69, 49, 54], "acceleration": [49, 54, 1], "mirror": [69, 2, 49],
+                "borrowed": [32, 59, 86]}
+HEAVEN_PARTS = {3: [1, 6, 2], 4: [32, 49, 45], 5: [59, 60, 69], 6: [86, 95, 108], 7: [114, 120, 115], 8: [137, 149, 154]}
+
+
+def heaven_rates(fights, only=None):
+    """{challenge key: (raw rate, built rate)} averaged over every weekly boss, at the current powers."""
+    from app.game import coop, simulate
+    weeks = {}
+    for n in range(400):  # one week per boss
+        w = f"2026-W{n:03d}"
+        weeks.setdefault(coop.boss_stage(w), w)
+    out = {}
+    for ch in coop.CHALLENGES:
+        if only and ch["key"] not in only:
+            continue
+        raw = built = 0
+        for stage, week in weeks.items():
+            # force this challenge for the boss of `week`
+            rules = {k: ([story.STAGES[stage]["part"], v[1]] if k == "part_ward" else v) for k, v in ch["rules"].items()}
+            orig = coop.challenge
+            coop.challenge = lambda w=None, ch=ch, rules=rules: {**ch, "rules": rules}
+            try:
+                foe = {"name": "crew", "team": coop.crew("heaven", 3, week), "ai": "smart", "rules": rules}
+            finally:
+                coop.challenge = orig
+            ids = HEAVEN_PARTS[story.STAGES[stage]["part"]] if ch["key"] == "story" else HEAVEN_BUILT[ch["key"]]
+            raw += simulate.run([make(i, 100, 5, "SUPREME") for i in HEAVEN_RAW], foe, fights)["rate"]
+            built += simulate.run([make(i, 100, 5, "SUPREME") for i in ids], foe, fights)["rate"]
+        out[ch["key"]] = (raw / len(weeks), built / len(weeks))
+    return out
+
+
+def report_heaven(fights):
+    from app.game import coop
+    print("Co-op Over Heaven: win rate over every weekly boss (raw LR party / party built for the rule)")
+    for ch in coop.CHALLENGES:
+        raw, built = heaven_rates(fights, {ch["key"]})[ch["key"]]
+        print(f"  {ch['title']:<24} power {ch['power']:<5} raw {raw:>4.0f}%   built {built:>4.0f}%")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("report", nargs="?", choices=("length", "stands", "story"))
+    parser.add_argument("report", nargs="?", choices=("length", "stands", "story", "heaven"))
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--fights", type=int, default=300, help="fights per sample (story uses a fifth)")
     args = parser.parse_args()
@@ -146,6 +191,8 @@ def main():
         report_stands(args.fights)
     if args.report in (None, "story"):
         report_story(max(20, args.fights // 5))
+    if args.report == "heaven":
+        report_heaven(max(10, args.fights // 10))
 
 
 if __name__ == "__main__":

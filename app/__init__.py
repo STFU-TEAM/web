@@ -12,6 +12,8 @@ def create_app() -> Flask:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     init_db(app)
+    from app import perf
+    perf.install(app)  # registered first so its compression runs after every other after_request hook
     from app import logs
     logs.install(app, r())  # errors and warnings land in the admin Logs tab
     from app.game import events
@@ -55,13 +57,11 @@ def create_app() -> Flask:
         if request.endpoint in (None, "static", "healthz"):
             return
         from flask import session
-        from app import push, social
+        from app import social
         from app.game import events
         try:
             events.current(r())
-            social.tick()
-            if session.get("uid") and not request.path.startswith("/push/"):
-                push.seen(session["uid"])
+            social.tick(seen=session.get("uid") if not request.path.startswith("/push/") else None)
         except Exception:
             app.logger.exception("live state")
 

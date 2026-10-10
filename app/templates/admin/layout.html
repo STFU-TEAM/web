@@ -11,8 +11,8 @@
     </form>
   </header>
   <nav class="tabs admin-tabs" aria-label="Admin sections">
-    {% for key, label, endpoint in [('dashboard', 'Dashboard', 'admin.index'), ('stats', 'Balance', 'admin.stats'), ('gangs', 'Gangs', 'admin.gangs'), ('shops', 'Shops', 'admin.shops'), ('banners', 'Banners', 'admin.banners'), ('news', 'News', 'admin.news_admin'), ('events', 'Events', 'admin.events_admin'), ('rewards', 'Rewards', 'admin.rewards_admin'), ('admins', 'Admins', 'admin.admins'), ('logs', 'Logs', 'admin.logs_page'), ('audit', 'Audit log', 'admin.audit_log')] %}
-      <a href="{{ url_for(endpoint) }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% for key, label, endpoint in [('dashboard', 'Dashboard', 'admin.index'), ('stats', 'Balance', 'admin.stats'), ('gangs', 'Gangs', 'admin.gangs'), ('shops', 'Shops', 'admin.shops'), ('banners', 'Banners', 'admin.banners'), ('news', 'News', 'admin.news_admin'), ('events', 'Events', 'admin.events_admin'), ('rewards', 'Rewards', 'admin.rewards_admin'), ('reports', 'Reports', 'admin.reports'), ('admins', 'Admins', 'admin.admins'), ('logs', 'Logs', 'admin.logs_page'), ('audit', 'Audit log', 'admin.audit_log')] %}
+      <a href="{{ url_for(endpoint) }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}{% if key == 'reports' %}{% set n = open_reports_count() %}{% if n %} <span class="nav-badge new">{{ n }}</span>{% endif %}{% endif %}</a>
     {% endfor %}
   </nav>
   {% block admin %}{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Reports{% endblock %}
+{% block admin %}
+<h1 class="display sm">Reports</h1>
+<p class="muted">Profiles players reported. Each report shows what the profile looked like when it was sent. Removing a customization clears the catchphrase, theme, signature stand, showcase and pins; locking also stops the player from setting new ones until you unlock them from their page. Acting on one report closes every open report about that player.</p>
+
+<nav class="tabs" aria-label="Which reports">
+  {% for key, label in [('open', 'Open'), ('closed', 'Closed'), ('all', 'All')] %}
+    <a class="tab{{ ' active' if status == key }}" href="{{ url_for('admin.reports', status=key) }}"{% if status == key %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if rows %}
+<ol class="report-list">
+  {% for e in rows %}
+    <li class="report-item {{ e.status }}">
+      <div class="report-head">
+        <a href="{{ url_for('admin.player', uid=e.target) }}"><strong>{{ names.get(e.target, e.target) }}</strong></a>
+        <span class="pill">{{ reasons.get(e.reason, e.reason) }}</span>
+        <small class="muted">reported by <a href="{{ url_for('admin.player', uid=e.reporter) }}">{{ names.get(e.reporter, e.reporter) }}</a> · <time data-ago="{{ e.at }}"></time></small>
+        {% if locked.get(e.target) %}<span class="pill">🔒 locked</span>{% endif %}
+      </div>
+      {% if e.note %}<p class="report-note">“{{ e.note }}”</p>{% endif %}
+      <dl class="report-seen">
+        <div><dt>Name then</dt><dd>{{ e.seen.name }}</dd></div>
+        <div><dt>Catchphrase then</dt><dd>{{ ('「' ~ e.seen.quote ~ '」') if e.seen.quote else '—' }}</dd></div>
+        <div><dt>Theme</dt><dd>{{ profile_theme(e.seen.theme).label }}</dd></div>
+      </dl>
+      {% if e.status == 'open' %}
+        <div class="admin-actions">
+          <a class="btn small ghost" href="{{ url_for('main.profile', uid=e.target) }}" target="_blank" rel="noopener">See the profile now</a>
+          <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='dismiss') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Dismiss</button></form>
+          <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='clear') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Remove customization</button></form>
+          <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='lock') }}" onsubmit="return confirm('Remove the customization and lock it?')">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason shown to the player">
+            <button class="btn small danger">Remove and lock</button></form>
+        </div>
+      {% else %}
+        <p class="muted small-print">{{ e.status|title }} by {{ names.get(e.closed_by, e.closed_by) }} · <time data-ago="{{ e.closed_at }}"></time></p>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ol>
+{% else %}
+  <p class="notice">{{ 'No open reports.' if status == 'open' else 'No reports here.' }}</p>
+{% endif %}
+{% endblock %}

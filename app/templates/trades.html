@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import empty_state %}
 {% block title %}Trades | STFU Requiem{% endblock %}
 {% macro side(view) -%}
   <ul class="trade-goods">
@@ -30,7 +31,7 @@
       </div>
       <div class="trade-actions">{{ respond(o, 'accept', 'Accept trade', 'btn gold small') }}{{ respond(o, 'decline', 'Decline', 'btn ghost small') }}</div>
     </article>
-  {% else %}<p class="notice">No offers waiting.</p>{% endfor %}
+  {% else %}{{ empty_state("No offers waiting. Make one from a player's profile.") }}{% endfor %}
 
   <h2 class="h2">Your offers</h2>
   {% for o in outgoing %}

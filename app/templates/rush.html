@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Boss rush | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page rush">
   <header class="player-bar">
     <div>
       <p class="kicker">Weekly boss rush · resets in {{ ends_in|delta }}</p>
-      <h1 class="display sm">The Gauntlet</h1>
+      <h1 class="display sm">{% call menacing() %}The Gauntlet{% endcall %}</h1>
       <p class="muted">{{ bosses|length }} bosses back to back: the six story bosses, far stronger than in the story, then an encore where each comes back maxed and tougher every fight. Your team's health carries over, with a {{ patch_up }}% patch-up between fights. One run a day; your best run of the week counts.</p>
     </div>
     <div class="rush-best"><small>Your best this week</small><strong>{{ s.best.bosses }}/{{ bosses|length }}</strong>{% if s.best.bosses %}<span class="muted">{{ s.best.rounds }} rounds</span>{% endif %}</div>

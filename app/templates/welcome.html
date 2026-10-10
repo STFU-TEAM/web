@@ -1,9 +1,9 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Begin | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page narrow welcome">
-  <p class="menace" aria-hidden="true">ゴゴゴ</p>
-  <h1 class="display">Welcome, {{ me.name }}.</h1>
+  <h1 class="display">{% call menacing() %}Welcome, {{ me.name }}.{% endcall %}</h1>
   <p class="lede">{% if local %}Your account is ready. Beginning creates your save and gives you one Arrowhead, enough for a 10-pull on any banner.{% else %}This Discord account has never played STFU Requiem. Beginning creates your save and gives you one Arrowhead, enough for a 10-pull on any banner.{% endif %}</p>
   <form method="post">
     <input type="hidden" name="csrf" value="{{ csrf_token }}">

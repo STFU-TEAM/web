@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/picker.html" import picker, picker_data %}
-{% from "macros.html" import owned_card %}
+{% from "macros.html" import owned_card, empty_state %}
 {% block title %}Auction house | STFU Requiem{% endblock %}
 {% block main %}
 {% macro price(x) -%}
@@ -76,7 +76,7 @@
           {% endfor %}
         </ul>
       {% else %}
-        <p class="notice">No stands match. {% if q or rarity or pay or kind %}<a href="{{ url_for('auction.index') }}">Clear the filters</a>{% else %}Be the first to list one.{% endif %}</p>
+        {% call empty_state('No stands match.', quote='Nani?!' if (q or rarity or pay or kind) else 'Yare yare daze…') %}<p>{% if q or rarity or pay or kind %}<a href="{{ url_for('auction.index') }}">Clear the filters</a>{% else %}Be the first to list one.{% endif %}</p>{% endcall %}
       {% endif %}
       <p class="muted wiki-note">How bids work: your bid is taken from your wallet right away and held. If someone outbids you, it comes straight back. Each bid must beat the last by {{ raise_pct }}%. A bid in the last {{ snipe_min }} minutes pushes the end back {{ snipe_min }} minutes so nobody can snipe it. When time runs out the top bidder gets the stand.</p>
     </div>

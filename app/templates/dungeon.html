@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% from "macros.html" import menacing %}
 {% block title %}Dungeon | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page dungeon-page">
   <header class="player-bar dungeon-head">
-    <div><p class="kicker">Daily delve · free · a new dungeon every midnight</p><h1 class="display sm">Dungeon</h1>
+    <div><p class="kicker">Daily delve · free · a new dungeon every midnight</p><h1 class="display sm">{% call menacing() %}Dungeon{% endcall %}</h1>
       <p class="muted">Three floors under a fog. Fights and chests fill a loot bag that's only paid when you get out: take it home on the stairs, or go deeper for more. If your team falls, half the bag is lost.</p></div>
     <div class="rush-best"><small>{% if run %}Floor{% else %}Runs left today{% endif %}</small><strong>{% if run %}{{ run.depth }}/{{ D.DEPTHS }}{% else %}{{ runs_left }}{% endif %}</strong>
       <span class="muted">deepest today {{ s.best }}</span></div>

@@ -2,6 +2,7 @@
 {% block title %}Battles | STFU Requiem{% endblock %}
 {% block main %}
 {% from "partials/picker.html" import picker, picker_data %}
+{% from "macros.html" import menacing, empty_state %}
 <section class="page">
   {% if fight %}
     <header class="player-bar"><div><p class="kicker">Battle mode</p><h1 class="display sm">{{ {"dummy":"Practice Dummy", "ranked":"Ranked", "friend":"Friendly Duel"}.get(fight.kind, "Battle") }}</h1></div></header>
@@ -12,7 +13,7 @@
     {% include "partials/fight.html" %}
   {% else %}
     <header class="player-bar">
-      <div><p class="kicker">Combat arena</p><h1 class="display sm">Battles</h1></div>
+      <div><p class="kicker">Combat arena</p><h1 class="display sm">{% call menacing() %}Battles{% endcall %}</h1></div>
       <dl class="figures compact"><div><dt>Rank</dt><dd>{{ u.global_elo|rank }}</dd></div><div><dt>Elo</dt><dd>{{ u.global_elo|num }}</dd></div></dl>
     </header>
     {% include "partials/event_ribbon.html" %}
@@ -188,7 +189,7 @@
           </ul>
           <p class="muted small-print">Your last 30 fights are kept. Replays last 14 days and anyone with the link can watch them.</p>
         {% else %}
-          <p class="notice">No fights yet. Every fight you finish (story, tower, Mirror World, duels...) shows up here with a replay you can share.</p>
+          {{ empty_state('No fights yet. Every fight you finish (story, tower, Mirror World, duels...) shows up here with a replay you can share.') }}
         {% endif %}
       </section>
     {% else %}

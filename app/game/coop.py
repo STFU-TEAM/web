@@ -8,10 +8,15 @@ stand pick on its own; nobody loses for someone else's AFK.
 The crew is this week's story boss and as many of its henchmen as there are players; the boss leads with
 BOSS_HP times the health. The first DAILY_WINS wins of each player's day pay rewards.
 
+Over Heaven (the "heaven" tier, open once a player has finished the story): a maxed crew under this week's
+challenge, a fight rule from Over Heaven (app/game/overheaven.py) that raw power can't brute-force and the right
+party takes apart. The party has to agree on what to bring. The first Over Heaven win of each week also pays
+HEAVEN_WEEKLY, on top of the usual win rewards.
+
 Redis:  web:coop:lobby:<code>  JSON {code, host, tier, members: [{uid, name, stand}], at}, expires LOBBY_TTL
         web:coop:of:<uid>      the code of the lobby uid is in
-Save:   data["web_coop"] = {"day", "wins", "used": [stand uuids]}: a stand raids once a day (marked when the raid
-        starts, win or lose)
+Save:   data["web_coop"] = {"day", "wins", "used": [stand uuids], "heaven_week": week of the last weekly bonus}:
+        a stand raids once a day (marked when the raid starts, win or lose)
 """
 import json
 import random
@@ -41,7 +46,35 @@ TIERS = {
              "dust": 1000, "xp": 450, "stand_xp": stand_xp(700), "chip": 0.55},
     "nightmare": {"label": "Nightmare", "level": 100, "awaken": 3, "quality": "SUPREME", "items": 2, "mult": 1.0,
                   "dust": 1600, "xp": 650, "stand_xp": stand_xp(1000), "chip": 0.8},
+    "heaven": {"label": "Over Heaven", "level": 100, "awaken": 5, "quality": "UNIVERSAL", "items": 2, "mult": 1.0,
+               "dust": 2400, "xp": 900, "stand_xp": stand_xp(1400), "chip": 1.0, "heaven": True},
 }
+HEAVEN = "heaven"
+# The first Over Heaven win of each ISO week, per player (item ids: Golden Ratio Shard, Rokakaka Fruit)
+HEAVEN_WEEKLY = {"super": 1, "items": [38, 39]}
+# This week's challenge rotates through these. `power` multiplies the crew's health and damage on top of the tier,
+# calibrated with the simulator (scripts/balance.py heaven): a raw LR party mostly loses, a party built for the
+# rule mostly wins. "part_ward" with part None takes the part of this week's boss.
+CHALLENGES = [
+    {"key": "ward", "title": "Heaven's Ward", "power": 0.92, "rules": {"ward": 0.6, "enemy_first": True, "heaven_tax": 0.3},
+     "hint": "Stands outside an active synergy deal 60% less, UR and LR stands fight at 70%, and the crew moves first. Agree on a group before "
+             "you start: two or three of you bringing members of one crew, family or part lights it for the party."},
+    {"key": "morning", "title": "The Endless Morning", "power": 0.77, "rules": {"regen": 0.06, "stun_immune": True, "heaven_tax": 0.3},
+     "hint": "The crew heals 6% a turn and can't be stunned, and UR and LR stands fight at 70%. Out-damage the heal "
+             "with lower rarities: burst, poison, bleed and burn."},
+    {"key": "acceleration", "title": "Accelerating Time", "power": 0.79, "rules": {"enrage": 0.08, "heal_cut": 0.5, "heaven_tax": 0.3},
+     "hint": "The crew grows 8% stronger every turn, your healing is halved and UR and LR stands fight at 70%: you "
+             "have a handful of turns. Bring hard-hitting SSRs and specials that charge fast."},
+    {"key": "mirror", "title": "Requiem's Mirror", "power": 0.63, "rules": {"reflect": 0.35, "heal_cut": 0.5, "heaven_tax": 0.3},
+     "hint": "35% of every basic hit comes back to the attacker, healing is halved and UR and LR stands fight at "
+             "70%. Let specials and damage over time do the work."},
+    {"key": "borrowed", "title": "Borrowed Power", "power": 0.83, "rules": {"heaven_tax": 0.4, "pressure": 0.03},
+     "hint": "UR and LR stands fight at 60% and everyone loses 3% a turn. Lower rarities with sustain carry it: "
+             "Lifesteal, Second Wind, healers."},
+    {"key": "story", "title": "Their Own Story", "power": 0.86, "rules": {"part_ward": [None, 0.5]},
+     "hint": "Only stands from the boss's own part hit at full strength. Each of you brings a stand from that part, "
+             "and three of them light its synergy."},
+]
 BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
 
 
@@ -61,14 +94,34 @@ def boss_view(week: Optional[str] = None) -> dict:
     return {"title": stage["title"], "part": stage["part_title"], "lead": stage["enemies"][0], "crew": stage["enemies"]}
 
 
+def challenge(week: Optional[str] = None) -> dict:
+    """This week's Over Heaven challenge: {key, title, power, rules, hint, lines, part}, with the part filled in."""
+    week = week or week_key()
+    ch = CHALLENGES[(sum(map(ord, week)) * 7 + 3) % len(CHALLENGES)]
+    part = story.STAGES[boss_stage(week)]["part"]
+    rules = {k: ([part, v[1]] if k == "part_ward" else v) for k, v in ch["rules"].items()}
+    from app.game.overheaven import rule_lines
+    hint = ch["hint"].replace("the boss's own part", f"Part {part}").replace("that part", f"Part {part}")
+    return {**ch, "rules": rules, "hint": hint, "lines": rule_lines(rules), "part": part}
+
+
+def unlocked(user, tier: str) -> bool:
+    """Over Heaven raids open with the story's end (like Over Heaven itself); the other tiers are always open."""
+    if not TIERS.get(tier, {}).get("heaven"):
+        return True
+    from app.game import overheaven
+    return user is not None and overheaven.unlocked(user)
+
+
 def crew(tier: str, party: int, week: Optional[str] = None) -> list:
     t = TIERS[tier]
     ids = story.STAGES[boss_stage(week)]["enemies"][:max(PARTY_MIN, min(PARTY_MAX, party))]
+    power = t["mult"] * (challenge(week)["power"] if t.get("heaven") else 1)
     team = []
     for i, cid in enumerate(ids):
         c = character_from_dict({"id": cid, "xp": t["level"] * 100, "awaken": t["awaken"], "types": ["BALANCE"],
                                  "qualities": [t["quality"]], "items": [{"id": 1}] * t["items"]})
-        for stat, mult in (("hp", t["mult"] * (BOSS_HP if i == 0 else 1)), ("damage", t["mult"])):
+        for stat, mult in (("hp", power * (BOSS_HP if i == 0 else 1)), ("damage", power)):
             value = int(getattr(c, f"start_{stat}") * mult)
             setattr(c, f"start_{stat}", value)
             setattr(c, f"current_{stat}", value)
@@ -131,9 +184,11 @@ def _locked(code: str):
     return held()
 
 
-def create(uid, name: str, tier: str) -> dict:
+def create(uid, name: str, tier: str, user=None) -> dict:
     if tier not in TIERS:
         raise GameError("Pick a difficulty.")
+    if not unlocked(user, tier):
+        raise GameError("Over Heaven raids open once you finish the story.")
     if lobby_of(uid):
         raise GameError("You're already in a co-op lobby.")
     for _ in range(20):
@@ -146,7 +201,7 @@ def create(uid, name: str, tier: str) -> dict:
     return lb
 
 
-def join(uid, name: str, code: str) -> dict:
+def join(uid, name: str, code: str, user=None) -> dict:
     code = (code or "").strip().upper()
     mine = lobby_of(uid)
     if mine and mine["code"] == code:
@@ -159,6 +214,8 @@ def join(uid, name: str, code: str) -> dict:
             raise GameError("No open lobby with that code.")
         if len(lb["members"]) >= PARTY_MAX:
             raise GameError("That lobby is full.")
+        if not unlocked(user, lb["tier"]):
+            raise GameError("That lobby is an Over Heaven raid: it opens once you finish the story.")
         lb["members"].append({"uid": str(uid), "name": name, "stand": None})
         _save(lb)
     return lb
@@ -187,7 +244,7 @@ def today(user) -> dict:
     s = user.data.get("web_coop") or {}
     day = now().date().isoformat()
     if s.get("day") != day:
-        s = {"day": day, "wins": 0, "used": []}
+        s = {"day": day, "wins": 0, "used": [], "heaven_week": s.get("heaven_week")}
     s.setdefault("used", [])
     return s
 
@@ -224,12 +281,14 @@ def pick(user, uuid: str) -> dict:
     return lb
 
 
-def set_tier(uid, tier: str) -> dict:
+def set_tier(uid, tier: str, user=None) -> dict:
     lb = lobby_of(uid)
     if not lb or lb["host"] != str(uid):
         raise GameError("Only the host picks the difficulty.")
     if tier not in TIERS:
         raise GameError("Pick a difficulty.")
+    if not unlocked(user, tier):
+        raise GameError("Over Heaven raids open once you finish the story.")
     with _locked(lb["code"]):
         lb = lobby(lb["code"])
         lb["tier"] = tier
@@ -303,12 +362,20 @@ def settle(fight, users: dict) -> dict:
     from app.game import chips
     from app.game.economy import dust
     from app.game.logic import check_achievements, track_quest_progress, train
+    from app.game.items import item_from_dict
     t = TIERS[fight.meta["tier"]]
     won = fight.winner == 0
+    week = week_key()
     out = {}
     for uid, user in users.items():
         s = today(user)
         rewards = {"won": won, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None, "capped": False}
+        bonus = None
+        if won and t.get("heaven") and s.get("heaven_week") != week:  # the weekly Over Heaven bonus, cap or not
+            s["heaven_week"] = week
+            user.super_fragments += HEAVEN_WEEKLY["super"]
+            user.items.extend(item_from_dict({"id": i}) for i in HEAVEN_WEEKLY["items"])
+            bonus = f"this week's Over Heaven bonus: {', '.join(weekly_bonus_text())}"
         if won and s["wins"] < DAILY_WINS:
             s["wins"] += 1
             stand, _, _ = user.find_character_by_uuid(fight.meta["stands"].get(uid, ""))
@@ -327,6 +394,8 @@ def settle(fight, users: dict) -> dict:
             rewards = events.pve_win(user, rewards)  # event tokens, and the Dust rush bonus
         elif won:
             rewards["capped"] = True
+        if bonus:
+            rewards["item"] = f"{rewards['item']} and {bonus}" if rewards["item"] else bonus
         rewards["wins_left"] = max(0, DAILY_WINS - s["wins"])
         user.data["web_coop"] = s
         out[uid] = rewards
@@ -335,3 +404,13 @@ def settle(fight, users: dict) -> dict:
 
 def wins_left(user) -> int:
     return DAILY_WINS - today(user)["wins"]
+
+
+def weekly_bonus_text() -> list:
+    from app.game.items import item_file
+    n = HEAVEN_WEEKLY["super"]
+    return ([f"{n} Arrowhead{'s' if n > 1 else ''}"] if n else []) + [item_file[i - 1]["name"] for i in HEAVEN_WEEKLY["items"]]
+
+
+def weekly_bonus_ready(user) -> bool:
+    return today(user).get("heaven_week") != week_key()
