@@ -151,3 +151,45 @@ def test_the_reward_cap_on_personal_solves(client, monkeypatch, spec):
         pid = puzzle.personal("9")["id"]
         puzzle.personal_win(u, pid)
     assert u.fragments == puzzle.PERSONAL_REWARD["fragments"] and puzzle.me("9")["solved"] == 2
+
+
+def test_puzzle_answers_dont_leak_through_fight_history(client, spec):
+    """Your own history shows your puzzle team and replay; nobody else's view does (profile, replay link)."""
+    day = puzzle.today()
+    client.fake.set(f"web:puzzle:{day}", json.dumps({**spec, "day": day}))
+    player(client, "111")
+    player(client, "222")
+    h = login(client, "111")
+    client.post("/puzzle/reveal", headers=h)
+    client.post("/puzzle/fight", data={"s": ["0", "1", "2"]}, headers=h)
+    fight = dbmod.load_fight("111")
+    fid = fight.id
+    for c in fight.sides[1].chars:
+        c.current_hp = 0
+    dbmod.save_fight("111", fight)
+    client.post("/puzzle/attack", data={"log_len": len(fight.log)}, headers=h)
+    from app.game import history
+    mine = history.recent(client.fake, "111")[0]
+    assert mine["kind"] == "puzzle" and mine["mine"] and mine["replay"]
+    assert client.get(f"/battles/replay/{fid}").status_code == 200       # the player who fought it
+    seen = history.recent(client.fake, "111", viewer="222")[0]
+    assert seen["mine"] == [] and not seen["replay"] and seen["hidden"]
+    login(client, "222")
+    assert client.get(f"/battles/replay/{fid}").status_code == 403        # anyone else
+    assert f"/battles/replay/{fid}" not in client.get("/u/111").data.decode()
+    with client.session_transaction() as s:
+        s.clear()
+    assert client.get(f"/battles/replay/{fid}").status_code == 403        # or logged out
+
+
+def test_the_admin_page_shows_the_worker_log(client, monkeypatch, spec):
+    monkeypatch.setattr(puzzle, "generate", lambda seed: {**spec})
+    puzzle.generate_one()
+    puzzle.log("error", error="RuntimeError: boom")
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111")
+    login(client, "111")
+    page = client.get("/admin/puzzles").data.decode()
+    assert "Puzzle worker log" in page and "🧩 Built" in page and "#1 → daily" in page and "boom" in page
+    assert "silent" in page  # no heartbeat in tests: the thread isn't running
+    assert [row["kind"] for row in puzzle.read_log()][:2] == ["error", "built"]

@@ -1673,3 +1673,30 @@ def test_the_progression_guide_is_built_from_the_real_gates(client):
     player(client, "111")
     login(client, "111")
     assert "/wiki/guide" in client.get("/team?tour=1").data.decode()  # the tour points at it
+
+
+def test_inbox_read_all_claim_all_and_reading_one_by_one(client):
+    import json
+    from app import rewards, social
+    player(client, "111", fragments=0)
+    h = login(client, "111")
+    social.notify("111", "gift", "First", "/team")
+    social.notify("111", "quest", "Second")
+    social.notify("111", "quest", "Third")
+    assert social.unread("111") == 3
+    page = client.get("/community/inbox").data.decode()
+    assert "Read all" in page and page.count("feed-tick") == 3
+    assert social.unread("111") == 3  # opening the inbox no longer reads everything
+    first = json.loads(client.fake.lindex("web:notif:111", -1))
+    r = client.get(f"/community/inbox/open/{first['id']}?to=/team", headers=h)
+    assert r.headers["Location"].endswith("/team") and social.unread("111") == 2
+    assert client.get("/community/inbox/open/x?to=//evil.example", headers=h).headers["Location"].endswith("/community/inbox")
+    client.post("/community/inbox/read-all", headers=h)
+    assert social.unread("111") == 0 and "Read all" not in client.get("/community/inbox").data.decode()
+    # claim all: shown for a single reward too, and takes every waiting one
+    for title in ("One", "Two"):
+        rewards.create("admin", title, "", rewards.clean_rewards(fragments=100), "everyone")
+    page = client.get("/community/inbox").data.decode()
+    assert "Claim all 2" in page
+    client.post("/community/rewards/claim", headers=h)
+    assert rewards.count("111") == 0 and doc(client, "111")["fragments"] == 200

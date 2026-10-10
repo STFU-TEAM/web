@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Dungeon | STFU Requiem{% endblock %}
 {% macro floors(depth) -%}
   {#- B1 > B2 > B3 (boss): where the run is -#}
@@ -28,7 +28,7 @@
   {% if message and not (fight and not fight.finished) %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
 
   {% if other_fight %}
-    <p class="notice">Your {{ other_fight }} fight is still on. Finish it first.</p>
+    <p class="notice">Your {{ other_fight }} fight is still on. Finish it first. {{ back_to_fight() }}</p>
   {% elif run and not (fight and not fight.finished) %}
     {% set leader = (team|selectattr('current_hp', 'gt', 0)|first) if team else none %}
     <div class="dungeon-layout">

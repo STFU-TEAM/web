@@ -1,4 +1,4 @@
-<!doctype html>
+{% from "macros.html" import back_to_fight %}<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -300,7 +300,8 @@
   <div class="toasts" id="toasts" aria-live="polite">
     {% with msgs = get_flashed_messages(with_categories=true) %}
       {% for cat, m in msgs %}
-        <div class="toast-pop flash-{{ cat }}" data-toast role="{{ 'alert' if cat == 'error' else 'status' }}"><span>{{ m }}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></div>
+        {#- "busy": turned away because another fight is on; the pop-up carries the way back -#}
+        <div class="toast-pop flash-{{ 'error' if cat == 'busy' else cat }}" data-toast role="{{ 'alert' if cat in ('error', 'busy') else 'status' }}"><span>{{ m }}{% if cat == 'busy' %} {{ back_to_fight('btn small gold toast-btn') }}{% endif %}</span><button type="button" class="toast-x" aria-label="Dismiss" data-toast-x>✕</button></div>
       {% endfor %}
     {% endwith %}
     {% for t in toasts %}
@@ -318,6 +319,34 @@
     </a>
   {% endif %}
   {% if ep == 'main.news_post' and post is defined %}<span hidden data-news-read="{{ post.id }}"></span>{% endif %}
+  {% if live_event and me.id and not ep.startswith('progress.events') %}
+    {#- the live event, on every page: its rule, a countdown to the end, the shop. Dismissed for a day per event. -#}
+    <a class="event-strip" href="{{ url_for('progress.events_page') }}" data-event-strip="{{ live_event.id }}">
+      <span class="event-strip-tag">🎉 Event live</span>
+      <span class="event-strip-text"><strong>{{ live_event.name }}</strong> <span>{{ event_rule(live_event) }}</span></span>
+      <span class="event-strip-time">ends in <b data-event-ends="{{ event_ends(live_event) }}">…</b></span>
+      <span class="event-strip-go">Event shop →</span>
+      <button type="button" class="event-strip-x" data-event-strip-x aria-label="Hide the event banner for a day">✕</button>
+    </a>
+    <script>  /* hidden for a day once dismissed (per event); the countdown ticks every minute */
+      (() => {
+        const strip = document.querySelector("[data-event-strip]");
+        if (!strip) return;
+        const key = "event-strip:" + strip.dataset.eventStrip;
+        try { if (Number(localStorage.getItem(key) || 0) > Date.now()) strip.hidden = true; } catch (e) {}
+        strip.querySelector("[data-event-strip-x]").addEventListener("click", (e) => {
+          e.preventDefault(); e.stopPropagation(); strip.hidden = true;
+          try { localStorage.setItem(key, String(Date.now() + 864e5)); } catch (err) {}
+        });
+        const out = strip.querySelector("[data-event-ends]"), end = Number(out.dataset.eventEnds) * 1000;
+        const tick = () => {
+          const s = Math.max(0, Math.floor((end - Date.now()) / 1000)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+          out.textContent = d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+        };
+        tick(); setInterval(tick, 60000);
+      })();
+    </script>
+  {% endif %}
   <main id="main">{% block main %}{% endblock %}</main>
   <script>  /* back where you were after a form posts and the page reloads (app.js saves the spot on submit) */
     try {

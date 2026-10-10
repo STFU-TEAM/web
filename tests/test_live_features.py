@@ -380,3 +380,23 @@ def test_dex_remembers_stands_traded_away_without_opening_the_dex(client):
         u.storage_characters = []  # then traded away
         u.update()
     assert 57 in doc(client, "111")["web_dex"]
+
+
+def test_a_live_event_shows_on_every_page_and_marks_its_stands(client):
+    from app.game import events, logic
+    player(client, ADMIN, main_characters=[char(next(c["id"] for c in CHARACTER_FILE if c["rarity"] == "SR"))])
+    h = login(client, ADMIN)
+    page = client.get("/team").data.decode()
+    assert "event-strip" not in page  # nothing live
+    today = logic.now().date()
+    client.post("/admin/events", data={"op": "create", "name": "SR Week", "kind": "rarity", "rarity": "SR",
+                                       "start": today.isoformat(), "end": (today + datetime.timedelta(days=3)).isoformat()},
+                headers=h)
+    events._cache["at"] = 0  # drop the few-second cache
+    for path in ("/team", "/story", "/chat"):
+        page = client.get(path).data.decode()
+        assert 'class="event-strip"' in page and "SR Week" in page and "data-event-ends" in page, path
+    assert 'class="event-badge"' in client.get("/team").data.decode()  # the SR in the team is in the spotlight
+    assert "event-strip" not in client.get("/events").data.decode()  # not on the event's own page
+    ev = events.current(client.fake)
+    assert events.ends_epoch(ev) > logic.now().timestamp() - 86400

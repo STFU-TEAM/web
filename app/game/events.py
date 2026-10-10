@@ -201,6 +201,24 @@ def boosted_ids(ev: Optional[dict]) -> set:
     return set()
 
 
+_spot = {"event": None, "ids": frozenset()}
+
+
+def spotlight(stand_id) -> bool:
+    """Is this stand boosted by the live event? (the 🎉 badge on cards; the set is kept per event)"""
+    ev = cached()
+    key = ev["id"] if ev else None
+    if _spot["event"] != key:
+        _spot.update(event=key, ids=frozenset(boosted_ids(ev)))
+    return stand_id in _spot["ids"]
+
+
+def ends_epoch(ev: dict) -> int:
+    """When the event ends, as a unix time (the countdowns)."""
+    from datetime import timezone
+    return int(ends_at(ev).replace(tzinfo=timezone.utc).timestamp())
+
+
 # ── In fights ────────────────────────────────────────────────────────────────
 
 def _undo(c):
@@ -219,7 +237,7 @@ def apply_to_fight(fight) -> List[str]:
     ids = boosted_ids(ev)
     names = []
     for side in fight.sides:
-        for c in side.chars:
+        for c in side.chars or []:
             old = getattr(c, "_event_boost", None)
             if old and (not ev or old["event"] != ev["id"] or c.id not in ids):
                 _undo(c)

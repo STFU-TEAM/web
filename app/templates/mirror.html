@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Mirror World | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page">
@@ -18,7 +18,7 @@
       </ul>
       <p>Energy {{ u.energy }}/{{ u.total_energy }}{% if st.energy_next %}: +1 in {{ st.energy_next|delta }}, full in {{ st.energy_in|delta }}{% endif %}.</p>
       {% if other_fight %}
-        <p class="notice">Your {{ other_fight }} fight is active. <a href="{{ url_for('play.tower') if other_fight == 'tower' else url_for('play.mirror') }}">Return to it</a>.</p>
+        <p class="notice">Your {{ other_fight }} fight is active. {{ back_to_fight() }}</p>
       {% elif not u.main_characters %}
         <p class="notice">You need at least one stand in your team. <a href="{{ url_for('play.team') }}">Set up your team</a>.</p>
       {% elif st.wormhole %}

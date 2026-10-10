@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Tower | STFU Requiem{% endblock %}
 {% macro reward_chips(rw) -%}
   <span class="tower-chip dust" title="Meteor Dust">{{ rw.fragments|dust }}</span>
@@ -51,9 +51,9 @@
     </ol>
 
     <aside class="tower-side">
-      {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+      {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
       {% if other_fight %}
-        <p class="notice">Your {{ other_fight }} fight is still on. Finish it first.</p>
+        <p class="notice">Your {{ other_fight }} fight is still on. Finish it first. {{ back_to_fight() }}</p>
       {% elif not fight or fight.finished %}
         <div class="tower-panel">
           {% if s.run and team %}

@@ -7,6 +7,22 @@
 <section class="page narrow community">
   <p class="kicker">Community</p>
   <h1 class="display sm">Inbox</h1>
+  {% if unread or rewards %}
+    <div class="inbox-bar" role="toolbar" aria-label="Inbox actions">
+      {% if rewards %}
+        <form method="post" action="{{ url_for('community.claim_rewards') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn gold">🎁 Claim all{% if rewards|length > 1 %} {{ rewards|length }}{% endif %}</button>
+        </form>
+      {% endif %}
+      {% if unread %}
+        <form method="post" action="{{ url_for('community.read_all') }}">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <button class="btn ghost">✓ Read all <span class="count">{{ unread }}</span></button>
+        </form>
+      {% endif %}
+    </div>
+  {% endif %}
 
   {% if push_key %}
     <div class="push-card" data-push data-key="{{ push_key }}" data-sub="{{ url_for('community.push_subscribe') }}"
@@ -43,11 +59,6 @@
         </li>
       {% endfor %}
     </ul>
-    {% if rewards|length > 1 %}
-      <form method="post" action="{{ url_for('community.claim_rewards') }}">
-        <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Claim all {{ rewards|length }}</button>
-      </form>
-    {% endif %}
   {% endif %}
 
   <h2 class="h2">Waiting on you {% if waiting %}<span class="count">{{ waiting }}</span>{% endif %}</h2>
@@ -97,14 +108,19 @@
     </ul>
   {% endif %}
 
-  <h2 class="h2">Recent</h2>
+  <h2 class="h2" id="recent">Recent {% if unread %}<span class="count">{{ unread }} new</span>{% endif %}</h2>
   {% if feed %}
     <ol class="feed">
       {% for n in feed %}
-        <li class="feed-item {{ n.kind }}{% if n.at > seen_before %} new{% endif %}">
+        <li class="feed-item {{ n.kind }}{% if n.unread %} new{% endif %}">
           <span class="feed-icon" aria-hidden="true">{{ {'quest': '☑', 'friend': '♥', 'fight': '⚔', 'trade': '⇄', 'gang': '⚑', 'unlock': '🔓', 'gift': '🎁', 'achievement': '🏆', 'title': '✦', 'dm': '✉'}.get(n.kind, '🔔') }}</span>
-          <span class="feed-text">{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</span>
+          <span class="feed-text">{% if n.url %}<a href="{{ url_for('community.open_notif', key=n.key, to=n.url) if n.unread else n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}{% if n.unread %}<span class="sr"> (unread)</span>{% endif %}</span>
           <time class="muted" datetime="{{ n.at }}" data-ago="{{ n.at }}"></time>
+          {% if n.unread %}
+            <form class="inline feed-read" method="post" action="{{ url_for('community.read_one', key=n.key) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="feed-tick" aria-label="Mark as read" title="Mark as read">✓</button>
+            </form>
+          {% endif %}
         </li>
       {% endfor %}
     </ol>

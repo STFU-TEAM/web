@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import back_to_fight %}
 {% block title %}Story | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page story">
@@ -12,7 +13,7 @@
       <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
     </div>
   </header>
-  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
   {% include "partials/unlocked.html" %}
 
   {% if fight %}

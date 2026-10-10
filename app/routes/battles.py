@@ -227,7 +227,7 @@ def accept_friend(challenge_id):
     try:
         with users_lock(challenge["from"], uid):
             if load_fight(uid) or load_fight(challenge["from"]):
-                flash("One of you is already in a fight.", "error")
+                flash("One of you is already in a fight.", "busy")
             else:
                 fight = _create_duel(challenge["from"], uid, "friend")
                 if fight:
@@ -705,7 +705,7 @@ def watch_frame(fight_id):
         return Response(status=403)
     if not fight:
         fight = history.load_replay(r(), fight_id)  # it just ended
-        if not fight:
+        if not fight or not history.may_view(fight, session.get("uid")):
             return Response(status=286)
     elif len(fight.log) == log_len and not fight.finished:
         return Response(status=204)
@@ -719,6 +719,9 @@ def replay(fight_id):
     if not fight:
         return render_template("error.html", code=404, message="This replay has expired (replays are kept "
                                                                 f"{history.REPLAY_DAYS} days)."), 404
+    if not history.may_view(fight, session.get("uid")):
+        return render_template("error.html", code=403, message="Puzzle replays are private: they'd give the "
+                                                                "answer away."), 403
     return render_template("watch.html", fight=fight, fight_id=fight_id, mode="replay",
                            label=history.LABELS.get(fight.kind, "Battle"),
                            frame=Markup(_viewer_view(fight, "replay", fight_id, fresh_from=0)),

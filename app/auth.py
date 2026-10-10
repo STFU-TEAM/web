@@ -115,7 +115,8 @@ def login():
         if r().sismember("web:banned", account["uid"]):
             flash("This account is banned from the website.", "error")
             return render_template("login.html", next=nxt, username=username), 403
-        avatar = None if accounts.is_local(account["uid"]) else identity(account["uid"]).get("avatar")
+        # a web-only player's own picture (set on their profile) lives in their identity too, like Discord's
+        avatar = identity(account["uid"]).get("avatar")
         _start_session(account["uid"], account["name"], avatar, "password")
         if not get_db().user_exists(account["uid"]):
             return redirect(url_for("auth.welcome"))

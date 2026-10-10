@@ -82,3 +82,27 @@ def test_ranked_opens_after_part_3_and_is_announced(gated):
     assert 'data-tour="ranked"' in page and "unlock-card ranked" in page
     page = c.get("/battles?mode=ranked").data.decode()
     assert "Ranked roster" in page and "ranked" not in progression.new("111")
+
+
+def test_turned_away_by_another_fight_shows_the_way_back(client):
+    """Every "finish your fight first" carries a button to the fight that's on (the right page, tab or chapter)."""
+    import app.db as dbmod
+    from app.game.fight import Fight, Side
+    from app.game.character import character_from_dict
+    from app.routes.fightturn import resume
+    player(client, "111", energy=10, main_characters=[char(1, xp=3000)], web_story={"cleared": story.TOTAL})
+    h = login(client, "111")
+    f = Fight(Side("A", [character_from_dict(char(1))], True), Side("B", [character_from_dict(char(2))], False),
+              kind="over_heaven", meta={"track": "tower", "stage": 0})
+    dbmod.save_fight("111", f)
+    page = client.get("/carry-me").data.decode()
+    assert "Back to your Over Heaven fight" in page and "/over-heaven?t=tower#fight" in page
+    # a flashed refusal carries it too (the dungeon's "finish the fight you're in")
+    client.post("/adventure/dungeon/fight", headers=h)
+    page = client.get("/story").data.decode()
+    assert "Finish the fight you" in page and page.count("Back to your Over Heaven fight") >= 1
+    with client.application.test_request_context():
+        assert resume("111")["kind"] == "over_heaven" and resume("nobody") is None
+    f.finished = True
+    dbmod.save_fight("111", f)
+    assert "Back to your" not in client.get("/carry-me").data.decode()  # nothing on, no button

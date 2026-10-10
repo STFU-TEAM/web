@@ -344,7 +344,7 @@ def profile(uid: str):
     from app.routes.battles import live_fight_of
     mastery_titles = mastery.titles(r(), uid)
     is_me = session.get("uid") == uid
-    battles = history.recent(r(), uid, limit=6)
+    battles = history.recent(r(), uid, limit=6, viewer=session.get("uid"))
     shown_title = titles.shown(user, mastery_titles)
     if is_me:
         titles.remember(uid, shown_title)  # chats show it next to the name

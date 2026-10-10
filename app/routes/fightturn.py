@@ -83,6 +83,37 @@ def next_step(fight, my_side: int = 0) -> Optional[dict]:
     return None
 
 
+# The page each kind of fight is played on (and the arguments that bring the right tab or chapter back).
+RESUME = {
+    "story": ("progress.story_page", None), "alt_universe": ("progress.au_page", ("ch", "chapter")),
+    "over_heaven": ("progress.oh_page", ("t", "track")), "carry_me": ("progress.cm_page", None),
+    "puzzle": ("progress.pz_page", ("tab", "mode")), "training": ("progress.training_page", None),
+    "rush": ("progress.rush_page", None), "tower": ("play.tower", None), "wormhole": ("play.mirror", None),
+    "dungeon": ("play.dungeon", None), "coop": ("coop.index", None), "gang_war": ("gangs.fight_page", None),
+    "gang_raid": ("gangs.fight_page", None), "dummy": ("battles.index", None), "ranked": ("battles.index", None),
+    "friend": ("battles.index", None),
+}
+LABELS = {"wormhole": "Mirror World", "alt_universe": "Alternate Universe", "over_heaven": "Over Heaven",
+          "carry_me": "Carry Me", "gang_war": "gang war", "gang_raid": "gang raid", "coop": "co-op raid",
+          "dummy": "practice", "friend": "duel"}
+
+
+def resume(uid=None) -> Optional[dict]:
+    """{url, label} of the player's unfinished fight, for the "Back to your fight" buttons (None: no fight on)."""
+    from flask import session
+    from app.db import load_fight
+    uid = uid or session.get("uid")
+    fight = load_fight(uid) if uid else None
+    if not fight or fight.finished or fight.kind not in RESUME:
+        return None
+    endpoint, arg = RESUME[fight.kind]
+    kwargs = {}
+    if arg and (fight.meta or {}).get(arg[1]):
+        kwargs[arg[0]] = fight.meta[arg[1]]
+    return {"url": url_for(endpoint, **kwargs) + "#fight", "label": LABELS.get(fight.kind, fight.kind.replace("_", " ")),
+            "kind": fight.kind}
+
+
 def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
               settle: Optional[Callable] = None):
     """settle(user, fight) -> rewards dict; called once, under the save lock, then saved."""

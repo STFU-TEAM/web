@@ -380,7 +380,7 @@ def attack_start(mode):
         return _back()
     uid = session["uid"]
     if load_fight(uid):
-        flash("Finish your current fight first.", "error")
+        flash("Finish your current fight first.", "busy")
         return _back()
 
     def run(db, user, gang):

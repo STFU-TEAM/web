@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Carry Me · Part 10 | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page story carry-me">
@@ -33,7 +33,7 @@
     </ol>
   </section>
 
-  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
 
   {% if fight %}
     {% include "partials/fight.html" %}

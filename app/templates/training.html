@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import back_to_fight %}
 {% block title %}Training ground | STFU Requiem{% endblock %}
 {% block main %}
 {% from "partials/picker.html" import picker, picker_data %}
@@ -15,7 +16,7 @@
       <div class="rush-best"><small>Energy</small><strong>{{ u.energy }}/{{ u.total_energy }}</strong></div>
     </header>
 
-    {% if error %}<p class="notice error">{{ error }}</p>{% endif %}
+    {% if error %}<p class="notice error">{{ error }} {{ back_to_fight() }}</p>{% endif %}
 
     {% if not unlocked %}
       <div class="notice">

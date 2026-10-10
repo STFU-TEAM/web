@@ -4,7 +4,8 @@
     web:friendreq:in:<uid>       set of uids asking uid to be friends
     web:friendreq:out:<uid>      set of uids uid asked
     web:notif:<uid>              list of JSON {kind, text, url, at}, newest first, capped
-    web:notif:seen:<uid>         unix time the inbox was last opened
+    web:notif:seen:<uid>         unix time of the last "Read all": everything up to it is read
+    web:notif:read:<uid>         set of notification keys read one by one since (opened, or ticked)
     web:toast:<uid>              list of JSON {text, url}: pop-ups shown on the next page or HTMX response
     web:ref:<uid>                uid of the player who invited uid (set once, at save creation)
     web:ref:pending:<inviter>    set of invited uids waiting to clear REFERRAL_STAGE
@@ -39,7 +40,8 @@ def _ids(raw) -> List[str]:
 
 def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: bool = True):
     """Add to uid's inbox feed (and pop up a toast on their next page)."""
-    entry = json.dumps({"kind": kind, "text": text, "url": url, "at": int(time.time())})
+    import secrets
+    entry = json.dumps({"id": secrets.token_hex(4), "kind": kind, "text": text, "url": url, "at": int(time.time())})
     pipe = r().pipeline()
     pipe.lpush(f"web:notif:{uid}", entry)
     pipe.ltrim(f"web:notif:{uid}", 0, NOTIF_KEEP - 1)
@@ -138,23 +140,49 @@ def feed(uid: str, limit: int = NOTIF_KEEP) -> List[dict]:
     return out
 
 
+def notif_key(entry: dict) -> str:
+    """A notification's handle: its id, or (older entries, from before ids) its time and a hash of its text."""
+    import zlib
+    return entry.get("id") or f"{entry.get('at', 0)}-{zlib.crc32(str(entry.get('text', '')).encode()):x}"
+
+
+def read_keys(uid: str) -> set:
+    return {k.decode() if isinstance(k, bytes) else k for k in r().smembers(f"web:notif:read:{uid}")}
+
+
 def unread(uid: str) -> int:
-    return unread_in(r().lrange(f"web:notif:{uid}", 0, 19), int(r().get(f"web:notif:seen:{uid}") or 0))
+    return unread_in(r().lrange(f"web:notif:{uid}", 0, 19), int(r().get(f"web:notif:seen:{uid}") or 0), read_keys(uid))
 
 
-def unread_in(raw_feed, seen: int) -> int:
-    """How many of these feed entries (raw JSON, newest first) arrived after `seen`."""
+def is_unread(entry: dict, seen: int, read: set) -> bool:
+    return entry.get("at", 0) > seen and notif_key(entry) not in read
+
+
+def unread_in(raw_feed, seen: int, read=frozenset()) -> int:
+    """How many of these feed entries (raw JSON, newest first) are unread: after the last "Read all" and not
+    opened one by one."""
     n = 0
     for raw in raw_feed:
         try:
-            n += json.loads(raw)["at"] > seen
-        except (ValueError, KeyError, TypeError):
+            n += is_unread(json.loads(raw), seen, read)
+        except (ValueError, KeyError, TypeError, AttributeError):
             continue
     return n
 
 
 def mark_seen(uid: str):
-    r().set(f"web:notif:seen:{uid}", int(time.time()))
+    """Read all: everything so far is read (the one-by-one set isn't needed anymore)."""
+    pipe = r().pipeline()
+    pipe.set(f"web:notif:seen:{uid}", int(time.time()))
+    pipe.delete(f"web:notif:read:{uid}")
+    pipe.execute()
+
+
+def mark_read(uid: str, key: str):
+    pipe = r().pipeline()
+    pipe.sadd(f"web:notif:read:{uid}", key)
+    pipe.expire(f"web:notif:read:{uid}", 60 * 86400)
+    pipe.execute()
 
 
 def take_toasts(uid: str) -> List[dict]:

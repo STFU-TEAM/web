@@ -82,3 +82,30 @@ def test_events_announce_themselves_and_news_comes_first(client):
     assert page.index("What's new") < page.index("Today") if "Today" in page else True
     assert 'data-news-ribbon=' in client.get("/story").data.decode()
     assert "chat-bubble" in client.get("/story").data.decode()
+
+
+def test_a_web_only_picture_follows_the_player_everywhere(client):
+    """Set once on the profile, it comes back on every login (password logins used to drop it) and in every
+    session that started before it was set."""
+    from app import accounts
+    with client.application.app_context():
+        acc = accounts.create_account("jotaro", "a-good-password")
+    uid = acc["uid"]
+    put(client, create_user(uid))
+    h = login(client, uid)
+    client.post("/profile", data={"theme": "night", "avatar": "https://i.imgur.com/star123.png"}, headers=h)
+    with client.session_transaction() as s:  # a fresh password login
+        s.clear()
+    client.get("/auth/login")
+    with client.session_transaction() as s:
+        tok = s["csrf"]
+    assert client.post("/auth/login", data={"csrf": tok, "username": "jotaro", "password": "a-good-password"}).status_code == 302
+    with client.session_transaction() as s:
+        assert s["avatar"] == "https://i.imgur.com/star123.png"
+    assert "star123.png" in client.get("/team").data.decode()  # the nav's picture
+    with client.session_transaction() as s:  # an older session that never had it
+        s["avatar"] = None
+        s.pop("avatar_checked", None)
+    client.get("/team")
+    with client.session_transaction() as s:
+        assert s["avatar"] == "https://i.imgur.com/star123.png"

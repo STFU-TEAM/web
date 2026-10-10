@@ -26,6 +26,18 @@ ICONS = {"dummy": "🎯", "ranked": "♛", "friend": "⚔", "wormhole": "🪞", 
 PVP = {"ranked", "friend"}
 
 
+# Fights only their own player may look back on: a puzzle's team and replay are its answer (everyone gets the same
+# daily puzzle, and the personal library in the same order). Others see the line, not the team or the replay.
+PRIVATE = {"puzzle"}
+
+
+def may_view(fight, viewer: Optional[str]) -> bool:
+    """Can `viewer` watch this replay? Everyone, except a private fight's replay (only who fought it)."""
+    if fight.kind not in PRIVATE:
+        return True
+    return bool(viewer) and str(viewer) in [str(p) for p in (fight.meta or {}).get("players", [])]
+
+
 def players_of(fight, user_id: str) -> Dict[int, str]:
     """{side: uid} for the human sides of a fight."""
     players = (fight.meta or {}).get("players") or []
@@ -67,7 +79,9 @@ def record(redis, fight, user_id: str) -> Optional[str]:
     return fight.id
 
 
-def recent(redis, uid: str, limit: int = KEEP, kinds: Optional[set] = None) -> List[dict]:
+def recent(redis, uid: str, limit: int = KEEP, kinds: Optional[set] = None, viewer: Optional[str] = None) -> List[dict]:
+    """uid's history as `viewer` sees it (None: as uid). Private fights (puzzles) keep their team and replay to uid."""
+    others = viewer is not None and str(viewer) != str(uid)
     out = []
     for raw in redis.lrange(f"web:battles:{uid}", 0, KEEP - 1):
         try:
@@ -79,6 +93,8 @@ def recent(redis, uid: str, limit: int = KEEP, kinds: Optional[set] = None) -> L
         line["label"] = LABELS.get(line["kind"], "Battle")
         line["icon"] = ICONS.get(line["kind"], "⚔")
         line["replay"] = bool(redis.exists(f"web:replay:{line['id']}"))
+        if others and line["kind"] in PRIVATE:
+            line.update(mine=[], replay=False, hidden=True)
         out.append(line)
         if len(out) >= limit:
             break

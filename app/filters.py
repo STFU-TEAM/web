@@ -131,7 +131,10 @@ def register(app):
     app.jinja_env.globals.update(picker_owned=pickers.owned, picker_every=pickers.every_stand, picker_pool=pickers.pool,
                                  picker_items=pickers.owned_items, picker_catalog=pickers.catalog_items)
     from app.game import events, gear
-    app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost)
+    app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost,
+                                 event_spotlight=events.spotlight, event_ends=events.ends_epoch)
+    from app.routes.fightturn import resume as resume_fight
+    app.jinja_env.globals.update(resume_fight=resume_fight)  # the "Back to your fight" buttons
     from app.game import characterabilities as abilities
     app.jinja_env.globals.update(special_power=abilities.special_power, scaling_of=abilities.scaling_of,
                                  STAT_INFO=abilities.STAT_INFO, special_text=special_text)
@@ -361,6 +364,10 @@ def register(app):
         from app.game import progression
         nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
         if uid and request.endpoint != "static":
+            if "avatar_checked" not in session:  # sessions from before a web-only picture was set (or another device)
+                from app.db import identity
+                session["avatar"] = identity(uid).get("avatar") or session.get("avatar")
+                session["avatar_checked"] = 1
             from app.routes.progress import unlocks
             nav_unlocked = unlocks(uid)
             nav_new = progression.new(uid)  # modes the story just opened: tagged New until visited

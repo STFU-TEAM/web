@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Puzzles | STFU Requiem{% endblock %}
 
 {#- The board: the crew and its rules beside a squad builder (3 slots, the 6 stand cards, the items). -#}
@@ -86,7 +86,7 @@
     <a href="{{ url_for('progress.pz_page', tab='daily') }}" class="{{ 'on' if tab == 'daily' }}" {% if tab == 'daily' %}aria-current="page"{% endif %}>🌍 Daily <small>same for everyone · ladder</small></a>
     <a href="{{ url_for('progress.pz_page', tab='personal') }}" class="{{ 'on' if tab == 'personal' }}" {% if tab == 'personal' %}aria-current="page"{% endif %}>🧩 Personal <small>your own path · {{ stock.personal|num }} in the library</small></a>
   </nav>
-  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
 
   <div class="pz-layout">
     <div class="pz-main">

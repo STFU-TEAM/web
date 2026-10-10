@@ -195,14 +195,29 @@ def start(user, redis, fighters: list) -> dict:
     return s["run"]
 
 
+EXPIRED = "Your expedition expired. Half the loot bag was sent home."
+
+
+def close_if_stale(user, redis) -> Optional[str]:
+    """A run whose fighters are gone (their copy expired, or all fell outside a fight) is closed here, without an
+    error, so the caller saves it: raising after end() used to throw the close away and strand the run."""
+    run = state(user).get("run")
+    if not run:
+        return None
+    team = load_team(redis, user.id)
+    if team and any(c.is_alive() for c in team):
+        return None
+    end(user, redis, WIPE_KEEP, "lost")
+    return EXPIRED
+
+
 def _run(user, redis) -> tuple:
     run = state(user).get("run")
     if not run:
         raise GameError("Enter the dungeon first.")
     team = load_team(redis, user.id)
     if not team or not any(c.is_alive() for c in team):
-        end(user, redis, WIPE_KEEP, "lost")
-        raise GameError("Your expedition expired. Half the loot bag was sent home.")
+        raise GameError(EXPIRED + " Reload the dungeon page to settle it.")  # see close_if_stale
     return run, team
 
 

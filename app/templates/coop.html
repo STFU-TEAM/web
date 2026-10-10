@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "macros.html" import back_to_fight %}
 {% from "partials/picker.html" import picker, picker_data %}
 {% block title %}Co-op raid | STFU Requiem{% endblock %}
 {% macro heaven_card(open=True) %}
@@ -50,7 +51,7 @@
       </div>
     </header>
 
-    {% if busy %}<p class="notice">Finish your {{ busy }} fight first.</p>{% endif %}
+    {% if busy %}<p class="notice">Finish your {{ busy }} fight first. {{ back_to_fight() }}</p>{% endif %}
 
     {% if lb %}
       <div class="coop-lobby">

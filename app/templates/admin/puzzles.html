@@ -1,0 +1,42 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Puzzles{% endblock %}
+{% block admin %}
+<div class="stat-tiles">
+  <div><span>Worker</span><strong>{{ '🟢 alive' if st.alive else '🔴 silent' }}</strong>
+    <small>{% if st.beat %}last beat <time data-ago="{{ st.beat }}" datetime="{{ st.beat }}"></time>{% else %}never seen{% endif %}{% if st.building %} · building now{% endif %}</small></div>
+  <div><span>Daily queue</span><strong>{{ st.daily }}</strong><small>of {{ st.daily_buffer }} kept ahead</small></div>
+  <div><span>Personal library</span><strong>{{ st.personal|num }}</strong><small>of {{ st.library_max|num }}</small></div>
+  <div><span>Built in all</span><strong>{{ st.total|num }}</strong><small>one every {{ st.every // 60 }} min</small></div>
+  <div><span>Today's daily</span><strong>{{ ('#' ~ today.id) if today and today.id else '—' }}</strong><small>{{ today.day if today else 'none picked yet' }}</small></div>
+</div>
+
+<section class="social-panel">
+  <div class="social-heading"><h2 class="h2">Puzzle worker log</h2>
+    <form method="post" action="{{ url_for('admin.puzzles_build') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="btn small gold" {{ 'disabled' if st.building }}>⚙ Build one now</button></form></div>
+  <p class="muted small-print">The task runs inside the web workers (wsgi.py): one checked puzzle every {{ st.every // 60 }} minutes, daily queue first. "Silent" means no heartbeat for a while: the workers restarted or the thread died (errors show below and in Logs).</p>
+  {% if rows %}
+    <div class="wiki-table-wrap">
+      <table class="wiki-table pz-log">
+        <thead><tr><th scope="col">When</th><th scope="col">What</th><th scope="col">Details</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr class="pz-log-{{ row.kind }}">
+              <td><time data-ago="{{ row.at }}" datetime="{{ row.at }}"></time></td>
+              <td>{{ {'built': '🧩 Built', 'daily': '🌍 Daily picked', 'empty': '⚠ Queue empty', 'full': '✔ Library full', 'error': '❌ Error'}.get(row.kind, row.kind) }}</td>
+              <td>
+                {% if row.kind == 'built' %}#{{ row.id }} → {{ row.pool }} · {{ row.seconds }} s · try {{ (row.attempt or 0) + 1 }} · best team {{ ((row.best or 0) * 100)|round|int }}% · {{ row.good }} of 20 teams work · ×{{ row.mult }} · {{ row.checked|num }} fights{% if row.rules %} · {{ row.rules|join(', ') }}{% endif %}
+                {% elif row.kind == 'daily' %}#{{ row.id }} for {{ row.day }} · {{ row.left }} left in the queue
+                {% elif row.kind == 'error' %}<code>{{ row.error }}</code>
+                {% else %}{{ row.note or row.day or '' }}{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="muted">Nothing logged yet. The worker starts about 20 seconds after the app does.</p>
+  {% endif %}
+</section>
+{% endblock %}

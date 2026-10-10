@@ -701,3 +701,25 @@ def test_legacy_bytes_key_user_items_shop(client):
     assert doc(client, "b'333'")["energy"] == 10
     assert client.get("/u/333").status_code == 200
     assert client.get("/leaderboard?by=xp").status_code == 200
+
+
+def test_a_dungeon_run_whose_team_expired_closes_instead_of_crashing(client):
+    """The fighters' copy expires after 48 h while the run stays in the save: "fight again" used to build a fight
+    with no team (TypeError in the event boost), and the expiry close was thrown away with the error."""
+    user = create_user("444")
+    user["main_characters"] = [char(1, xp=10000)]
+    user["web_delve_waiting"] = None
+    put(client, user)
+    headers = login(client, "444")
+    client.post("/adventure/dungeon/start", headers=headers)
+    d = doc(client, "444")
+    d["web_delve"]["run"]["bag"]["fragments"] = 1000
+    put(client, d)
+    client.fake.delete("web:delve:team:444")
+    r = client.post("/adventure/dungeon/fight", headers=headers)
+    assert r.status_code == 302 and client.fake.get("web:fight:444") is None
+    saved = doc(client, "444")["web_delve"]
+    assert saved["run"] is None and saved["last"]["how"] == "lost"
+    # and the page alone settles one too
+    client.post("/adventure/dungeon/start", headers=headers)  # (no runs left today: stays closed)
+    assert client.get("/adventure/dungeon").status_code == 200

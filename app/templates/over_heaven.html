@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "macros.html" import menacing %}
+{% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Over Heaven | STFU Requiem{% endblock %}
 {% block main %}
 <section class="page story au over-heaven">
@@ -14,7 +14,7 @@
       <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
     </div>
   </header>
-  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+  {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
   {% if not fight %}<p class="notice">🤝 Raid with friends too: the <a href="{{ url_for('coop.index') }}">co-op raid</a> has an Over Heaven difficulty with a new rule every week, and its first win of the week pays an Arrowhead.</p>{% endif %}
 
   <nav class="tabs scroll-tabs" aria-label="Tracks">

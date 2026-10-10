@@ -998,6 +998,12 @@ def tower_leave():
 def dungeon():
     uid = session["uid"]
     user = _user()
+    if dungeon_logic.state(user).get("run") and not dungeon_logic.load_team(r(), uid):
+        def settle(u):  # a run whose fighters expired: close it (and pay half the bag) once, saved
+            msg = dungeon_logic.close_if_stale(u, r())
+            if msg:
+                u.data["web_dungeon_message"] = msg
+        user, _, _ = action(settle)
     s = dungeon_logic.state(user)
     run = s.get("run")
     fight = load_fight(uid)
@@ -1017,6 +1023,8 @@ def dungeon():
 
 def _dungeon_fight(user, kind, enemies):
     team = dungeon_logic.load_team(r(), user.id)
+    if not team:
+        raise GameError(dungeon_logic.EXPIRED)
     names = {"fight": "Dungeon monsters", "elite": "Dungeon elite", "boss": "Dungeon boss"}
     fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
                   Side(names[kind], enemies, False), kind="dungeon", meta={"event": kind})
@@ -1027,7 +1035,7 @@ def _dungeon_fight(user, kind, enemies):
 def _dungeon_busy():
     fight = load_fight(session["uid"])
     if fight and not fight.finished:
-        flash("Finish the fight you're in first.", "error")
+        flash("Finish the fight you're in first.", "busy")
         return True
     return False
 
@@ -1075,6 +1083,10 @@ def dungeon_fight():
         return redirect(url_for("play.dungeon"))
 
     def fight(user):
+        expired = dungeon_logic.close_if_stale(user, r())
+        if expired:
+            user.data["web_dungeon_message"] = expired
+            return
         kind = dungeon_logic.fight_tile(user)
         if not kind:
             raise GameError("Nothing to fight here.")

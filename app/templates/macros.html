@@ -61,6 +61,7 @@
     <header class="card-top">
       <span class="rar-badge">{{ s.rarity }}</span>
       {% if shiny %}<span class="shiny-badge" title="Shiny: a rare colour variant">✨</span>{% endif %}
+      {% if event_spotlight(s.id) %}<span class="event-badge" title="In the event spotlight: more damage and speed in every fight">🎉</span>{% endif %}
       {% if not compact %}{% for icon, tip in (s.id|stand_tags)[:3] %}<span class="tag" title="{{ tip }}">{{ icon }}</span>{% endfor %}{% endif %}
       {% if s.taunt %}<span class="tag" title="Taunt: takes basic attacks first{{ ' (from an item)' if s.natural_taunt is defined and not s.natural_taunt }}">🎯</span>{% endif %}
       {% if awaken and size == 'big' %}<span class="stars" aria-label="Awakening {{ awaken }}">{% for _ in range(awaken) %}<i class="st asc"></i>{% endfor %}</span>
@@ -119,6 +120,12 @@
 
 {% macro template_card(t, size='', link=True, look='', params=False) -%}
   {{ card(t, t.base_hp, t.base_damage, t.armor, t.base_speed, crit=t.base_critical, size=size, link=link, look=look, params=params) }}
+{%- endmacro %}
+
+{#- "Back to your fight": shown wherever a page turns you away because another fight is still on -#}
+{% macro back_to_fight(cls='btn small gold') -%}
+  {%- set rf = resume_fight() -%}
+  {%- if rf %}<a class="{{ cls }} back-to-fight" href="{{ rf.url }}">⚔ Back to your {{ rf.label }} fight →</a>{% endif -%}
 {%- endmacro %}
 
 {% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None, params=False) -%}

@@ -165,12 +165,14 @@ def pending_count(uid: str) -> int:
     pipe = r().pipeline(transaction=False)  # every page shows this badge: one round trip for its counters
     pipe.get(f"web:notif:seen:{uid}")
     pipe.lrange(f"web:notif:{uid}", 0, 19)
+    pipe.smembers(f"web:notif:read:{uid}")
     pipe.scard(f"web:friendreq:in:{uid}")
     pipe.scard(CHALLENGE_INBOX.format(uid))
     pipe.scard(f"web:trades:in:{uid}")
     pipe.llen(f"web:gifts:{uid}")
-    seen, recent, *counts = pipe.execute()
-    return social.unread_in(recent, int(seen or 0)) + sum(counts) + rewards.count(uid)
+    seen, recent, read, *counts = pipe.execute()
+    read = {k.decode() if isinstance(k, bytes) else k for k in read}
+    return social.unread_in(recent, int(seen or 0), read) + sum(counts) + rewards.count(uid)
 
 
 @bp.post("/push/subscribe")
@@ -250,18 +252,42 @@ def inbox():
     me = session["uid"]
     db = get_db()
     user = db.get_user(me)
-    seen_before = int(r().get(f"web:notif:seen:{me}") or 0)
+    seen = int(r().get(f"web:notif:seen:{me}") or 0)
+    read = social.read_keys(me)
+    feed = [{**n, "key": social.notif_key(n), "unread": social.is_unread(n, seen, read)} for n in social.feed(me)]
     gang_invites = [g for g in (db.get_gang(gid) for gid in (user.gang_invites if user else [])) if g]
     ctx = {
         "challenges": _challenges(me),
         "trades": [{"id": o["id"], "name": identity(o["from"])["name"]} for o in T.listing(r(), me, "in")],
         "friend_requests": [_card(u, me, db) for u in social.incoming(me)],
         "gang_invites": gang_invites,
-        "feed": social.feed(me),
+        "feed": feed,
+        "unread": sum(n["unread"] for n in feed),
         "rewards": rewards.claimable(me),
-        "seen_before": seen_before,
         "push_key": push.keys()["public"] if push.enabled() else None,
         "push_energy": push.wants_energy(me),
     }
-    social.mark_seen(me)
     return render_template("community/inbox.html", **ctx)
+
+
+@bp.post("/inbox/read-all")
+@player_required
+def read_all():
+    social.mark_seen(session["uid"])
+    return redirect(url_for("community.inbox"))
+
+
+@bp.post("/inbox/read/<key>")
+@player_required
+def read_one(key):
+    social.mark_read(session["uid"], key[:40])
+    return redirect(url_for("community.inbox") + "#recent")
+
+
+@bp.get("/inbox/open/<key>")
+@player_required
+def open_notif(key):
+    """A notification's link: read it, then go where it points (on this site only)."""
+    social.mark_read(session["uid"], key[:40])
+    to = request.args.get("to", "")
+    return redirect(to if to.startswith("/") and not to.startswith("//") else url_for("community.inbox"))

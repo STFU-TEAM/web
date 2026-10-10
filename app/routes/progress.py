@@ -175,7 +175,7 @@ def story_auto():
     uid = session["uid"]
     existing = load_fight(uid)
     if existing and not existing.finished:
-        flash("Finish the fight you're in first.", "error")
+        flash("Finish the fight you're in first.", "busy")
         return redirect(url_for("progress.story_page"))
     k, n = request.form.get("stage", type=int), max(1, min(AUTO_REPLAYS, request.form.get("count", 1, type=int)))
     try:
@@ -616,6 +616,7 @@ def pz_fight():
     key = spec["day"] if mode == "daily" else f"#{spec['id']}"
     session["puzzle_pick"] = {"key": key, "s": picks, "g": {str(k): v for k, v in gear.items()}}
     meta = {"mode": mode, "rules": spec["rules"], "picks": picks, "gear": {str(k): v for k, v in gear.items()},
+            "players": [uid],  # who may watch its replay (history.PRIVATE)
             **({"day": spec["day"]} if mode == "daily" else {"pid": spec["id"]})}
     title = f"Daily puzzle · {spec['day']}" if mode == "daily" else f"Puzzle #{spec['id']}"
     fight = Fight(Side(session.get("name", "You"), puzzle.team_for(spec, picks, gear), True, session.get("avatar")),
@@ -679,7 +680,7 @@ def rush_fight():
     uid = session["uid"]
     existing = load_fight(uid)
     if existing and not existing.finished:
-        flash("Finish your current fight first.", "error")
+        flash("Finish your current fight first.", "busy")
         return redirect(url_for("progress.rush_page"))
     try:
         with user_lock(uid):
@@ -760,7 +761,7 @@ def training_fight():
     uid = session["uid"]
     existing = load_fight(uid)
     if existing and not (existing.kind == "training" and existing.finished):
-        flash("Finish your current fight first.", "error")
+        flash("Finish your current fight first.", "busy")
         return redirect(url_for("progress.training_page"))
     drill = request.form.get("drill", "")
     uuids = request.form.getlist("uuid")

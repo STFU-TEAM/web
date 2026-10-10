@@ -778,6 +778,42 @@ def events_admin():
 # --------------------------------------------------------------------------- #
 # Logs: the server's errors and warnings (app/logs.py) and how push is doing
 # --------------------------------------------------------------------------- #
+@bp.get("/puzzles")
+@admin_required
+def puzzles_admin():
+    from app.game import puzzle
+    return render_template("admin/puzzles.html", st=puzzle.status(), rows=puzzle.read_log(), today=puzzle.peek(),
+                           section="puzzles")
+
+
+@bp.post("/puzzles/build")
+@admin_required
+def puzzles_build():
+    """Build one puzzle now (in the background: it takes ~10 s), as the task would."""
+    import threading
+    from flask import current_app
+    from app.game import puzzle
+    if not r().set("web:puzzle:gen:lock", "1", nx=True, ex=puzzle.GEN_EVERY):
+        flash("A puzzle is being built right now. Give it a few seconds.", "error")
+        return redirect(url_for("admin.puzzles_admin"))
+    app = current_app._get_current_object()
+
+    def build():
+        try:
+            with app.app_context():
+                if puzzle.generate_one() is None:
+                    puzzle.log("full", note="build asked from the admin page, but the library is full")
+        except Exception as e:
+            puzzle.log("error", error=f"{type(e).__name__}: {e}"[:300])
+        finally:
+            r().delete("web:puzzle:gen:lock")
+
+    threading.Thread(target=build, daemon=True, name="puzzle-admin-build").start()
+    audit("puzzle_build")
+    flash("Building one puzzle: it shows up in the log in about 10 seconds.", "ok")
+    return redirect(url_for("admin.puzzles_admin"))
+
+
 @bp.get("/logs")
 @admin_required
 def logs_page():

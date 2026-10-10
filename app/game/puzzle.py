@@ -25,6 +25,8 @@ Redis:
     web:puzzle:queue:daily       list of ids waiting to be a day's puzzle (DAILY_BUFFER ahead)
     web:puzzle:queue:personal    list of ids, the personal library in order (append only)
     web:puzzle:gen:lock          held while a worker generates
+    web:puzzle:gen:beat          the task's last heartbeat (unix time): the admin page shows if it's alive
+    web:puzzle:log               list of JSON entries, newest first (LOG_KEEP): built, daily picked, errors
     web:puzzle:<day>             the day's spec (a library puzzle with its day), and per day, kept KEEP_DAYS:
     web:puzzle:start:<day>       hash uid -> reveal time
     web:puzzle:tries:<day>       hash uid -> fights started
@@ -200,6 +202,39 @@ LIB, SEQ = "web:puzzle:lib", "web:puzzle:lib:seq"
 DAILY_Q, PERSONAL_Q = "web:puzzle:queue:daily", "web:puzzle:queue:personal"
 
 
+LOG_KEY, LOG_KEEP, BEAT_KEY = "web:puzzle:log", 300, "web:puzzle:gen:beat"
+
+
+def log(kind: str, **fields):
+    """One line in the puzzle task's log (the admin Puzzles tab). kind: built, daily, empty, full, error."""
+    try:
+        pipe = r().pipeline()
+        pipe.lpush(LOG_KEY, json.dumps({"at": int(time.time()), "kind": kind, **fields}))
+        pipe.ltrim(LOG_KEY, 0, LOG_KEEP - 1)
+        pipe.execute()
+    except Exception:  # the log never breaks the task
+        pass
+
+
+def read_log(limit: int = LOG_KEEP) -> list:
+    out = []
+    for raw in r().lrange(LOG_KEY, 0, limit - 1):
+        try:
+            out.append(json.loads(raw))
+        except ValueError:
+            continue
+    return out
+
+
+def status() -> dict:
+    """For the admin page: the stock, the task's heartbeat, whether a build is running right now."""
+    beat = r().get(BEAT_KEY)
+    beat = int(beat) if beat else None
+    return {**stock(), "beat": beat, "alive": bool(beat and time.time() - beat < GEN_EVERY * 2 + 60),
+            "building": bool(r().exists("web:puzzle:gen:lock")), "every": GEN_EVERY,
+            "daily_buffer": DAILY_BUFFER, "library_max": LIBRARY_MAX}
+
+
 def from_library(pid) -> Optional[dict]:
     raw = r().hget(LIB, str(pid))
     return json.loads(raw) if raw else None
@@ -215,8 +250,13 @@ def generate_one() -> Optional[str]:
     if not need:
         return None
     pid = int(r().incr(SEQ))
+    started_at = time.time()
     spec = generate(f"lib:{pid}")
     spec["id"] = pid
+    sol = spec.get("solution") or {}
+    log("built", id=pid, pool=need, seconds=round(time.time() - started_at, 1), attempt=spec.get("attempt"),
+        best=sol.get("rate"), good=spec.get("good"), checked=spec.get("checked"), mult=spec.get("mult"),
+        rules=list((spec.get("rules") or {}).keys()))
     pipe = r().pipeline()
     pipe.hset(LIB, str(pid), json.dumps(spec))
     pipe.rpush(DAILY_Q if need == "daily" else PERSONAL_Q, pid)
@@ -229,24 +269,35 @@ def start_generator(app, every: int = GEN_EVERY):
     seconds (sooner while no daily puzzle is ready). Started from wsgi.py, never in tests or scripts."""
     import logging
     import threading
-    log = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     def loop():
         time.sleep(20)
         while True:
             wait = every
             try:
+                r().set(BEAT_KEY, int(time.time()), ex=86400)
                 if r().set("web:puzzle:gen:lock", "1", nx=True, ex=every):
                     with app.app_context():
                         went = generate_one()
+                    if went is None and not r().exists("web:puzzle:log:full"):
+                        globals()["log"]("full", note="the library is full: nothing to build")
+                        r().set("web:puzzle:log:full", "1", ex=86400)  # said once a day, not every round
                     if went == "daily" and r().llen(DAILY_Q) < 2:
                         wait = 15  # nothing for tomorrow yet: catch up first
                         r().delete("web:puzzle:gen:lock")
-            except Exception:
-                log.exception("puzzle generator")
+            except Exception as e:
+                logger.exception("puzzle generator")
+                globals()["log"]("error", error=f"{type(e).__name__}: {e}"[:300])
             time.sleep(wait)
 
     threading.Thread(target=loop, name="puzzle-generator", daemon=True).start()
+
+
+def peek(day: Optional[str] = None) -> Optional[dict]:
+    """The day's puzzle if one was picked already (never picks: the admin page only looks)."""
+    raw = r().get(f"web:puzzle:{day or today()}")
+    return json.loads(raw) if raw else None
 
 
 def get(day: Optional[str] = None) -> Optional[dict]:
@@ -258,6 +309,8 @@ def get(day: Optional[str] = None) -> Optional[dict]:
         return json.loads(raw)
     pid = r().lpop(DAILY_Q)
     if pid is None:
+        if r().set(f"web:puzzle:log:empty:{day}", "1", nx=True, ex=86400):
+            log("empty", day=day, note="a player asked for the daily puzzle but the queue was empty")
         return None
     spec = from_library(int(pid))
     if not spec:
@@ -266,6 +319,7 @@ def get(day: Optional[str] = None) -> Optional[dict]:
     if not r().set(f"web:puzzle:{day}", json.dumps(spec), nx=True, ex=KEEP_DAYS * 86400):
         r().lpush(DAILY_Q, pid)  # another worker picked the day first: put ours back
         return json.loads(r().get(f"web:puzzle:{day}"))
+    log("daily", day=day, id=spec.get("id"), left=r().llen(DAILY_Q))
     return spec
 
 
