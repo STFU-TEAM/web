@@ -334,6 +334,8 @@ def end(user, redis, keep: float, how: str) -> dict:
     s["best"] = max(s.get("best", 0), run["depth"])
     s["last"] = {"how": how, "depth": run["depth"], "fragments": dust, "items": [item_name(i) for i in items],
                  "lost": bag["fragments"] - dust, "lost_items": len(bag["items"]) - len(items)}
+    if how == "cleared":  # down to the boss (the Deep Delver title)
+        user.data["web_dungeon_clears"] = int(user.data.get("web_dungeon_clears", 0)) + 1
     if how != "lost":
         user.data["web_dungeon_completions"] = int(user.data.get("web_dungeon_completions", 0)) + 1
         track_quest_progress(user, "dungeon_complete")

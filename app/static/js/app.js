@@ -880,7 +880,7 @@ const critClass = (e) => (e.kind !== "crit" ? "" : e.crit >= 3 ? "crit crit3" : 
 function playFight(root) {
   const data = root.querySelector(".fight-replay");
   if (!data || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const { start, fromStart, events } = JSON.parse(data.textContent);
+  const { start, fromStart, startField, events } = JSON.parse(data.textContent);
   if (!events.length) return;
 
   const arena = root.querySelector(".arena");
@@ -892,8 +892,8 @@ function playFight(root) {
   const fighters = [...root.querySelectorAll(".fighter")];
   const byPos = new Map(fighters.map((f) => [`${f.dataset.side}:${f.dataset.idx}`, f]));
   const logItems = [...root.querySelectorAll(".log li.fresh")].sort((a, b) => a.dataset.i - b.dataset.i);
-  const EFFECTS = ["lunge", "hurt", "crit", "dodge", "cast", "swap", "flash-crit", "flash-special", "shake", "fx-swap"];
-  const fx = () => root.dataset.fx === "1";  // battle cries and the crit colour swap (the 💥 Effects toggle)
+  const EFFECTS = ["lunge", "hurt", "crit", "dodge", "cast", "swap", "flash-special", "shake"];
+  const fx = () => root.dataset.fx === "1";  // battle cries, heavy-hit sound effects and the eyecatch (the 💥 Effects toggle)
   const restart = (el, ...cls) => { el.classList.remove(...EFFECTS, ...cls); void el.offsetWidth; el.classList.add(...cls); };
 
   // The server-rendered end state, restored when the replay finishes or is skipped.
@@ -902,6 +902,15 @@ function playFight(root) {
     banner: [banner.className, banner.innerHTML],
     spot: [spot.className, spotImg.src, spotImg.alt, spotName.textContent, spotLine.textContent],
   };
+
+  // the arena glows in the terrain's colour: back to the field before the turn, then each change as it happens
+  const finalField = arena.dataset.terrain;
+  const setField = (name) => {
+    if (!name) return;
+    arena.className = arena.className.replace(/\bterrain-\w+/g, "").trim() + ` terrain-${name.toLowerCase()}`;
+    arena.classList.toggle("has-terrain", name !== "DEFAULT");
+  };
+  setField(startField);
 
   const maxes = [[], []];
   fighters.forEach((f) => { maxes[f.dataset.side][f.dataset.idx] = +f.dataset.max; });
@@ -1001,9 +1010,9 @@ function playFight(root) {
 
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
       if (src && e.kind === "stun") pop(src, "STUNNED", "stun");
-      if (e.kind === "terrain") restart(arena, "flash-special");
+      if (e.kind === "terrain") { restart(arena, "flash-special"); setField(e.field); }
       if (e.kind === "sudden") restart(arena, "shake");
-      if (e.kind === "crit") restart(arena, "flash-crit", "shake", ...(fx() ? ["fx-swap"] : []));
+      if (e.kind === "crit") restart(arena, "shake");  // no flash: it was too much on every crit
       // Any HP change since the previous event gets a number; covers specials, items and poison ticks too.
       if (e.hp) {
         fighters.forEach((f) => {
@@ -1034,7 +1043,8 @@ function playFight(root) {
       f.querySelector(".hp-num").textContent = num;
     });
     [banner.className, banner.innerHTML] = final.banner;
-    arena.classList.remove("flash-crit", "flash-special", "shake", "fx-swap");
+    arena.classList.remove("flash-special", "shake");
+    setField(finalField);
     // A special from this turn stays in the spotlight; otherwise show who acts next.
     if (lastSpecial && !skipped) {
       if (spotting !== lastSpecial[0] || !spot.classList.contains("special")) showSpot(lastSpecial[0], lastSpecial[1], true);
@@ -1148,7 +1158,7 @@ document.addEventListener("click", (e) => {
     .catch(() => {});
 });
 
-// Fight effects on / off (battle cries, the crit colour swap): kept in the session like cosmetics.
+// Fight effects on / off (battle cries, heavy-hit sound effects, the eyecatch): kept in the session like cosmetics.
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-fx-toggle]");
   if (!btn) return;
@@ -1340,25 +1350,28 @@ document.addEventListener("change", (e) => {
   if (!field.hidden) field.querySelector("input").focus();
 });
 
-// Gang chat: follow new messages (unless you scrolled up to read), clear the box after a successful send.
+// Chats (gang, global, private, raid): follow new messages (unless you scrolled up to read), clear the box after
+// a successful send. Every chat box is a [data-chat] swapped whole; its form targets it by id.
 (() => {
-  let follow = true;
-  const list = () => document.querySelector("[data-chat-list]");
-  const toBottom = () => { const l = list(); if (l) l.scrollTop = l.scrollHeight; };
-  toBottom();
+  const follow = new Map();
+  const toBottom = (box) => { const l = box?.querySelector("[data-chat-list]"); if (l) l.scrollTop = l.scrollHeight; };
+  document.querySelectorAll("[data-chat]").forEach(toBottom);
   document.addEventListener("htmx:beforeSwap", (e) => {
-    if (e.detail.target.id !== "gang-chat") return;
-    const l = list();
-    follow = !l || l.scrollHeight - l.scrollTop - l.clientHeight < 60 || e.detail.requestConfig?.verb === "post";
+    const box = e.detail.target;
+    if (!box?.matches?.("[data-chat]")) return;
+    const l = box.querySelector("[data-chat-list]");
+    follow.set(box.id, !l || l.scrollHeight - l.scrollTop - l.clientHeight < 60 || e.detail.requestConfig?.verb === "post");
   });
   document.addEventListener("htmx:afterSettle", (e) => {
-    if (e.detail.target.id !== "gang-chat" && !e.detail.elt?.matches?.("#gang-chat")) return;
-    if (follow) toBottom();
+    const id = e.detail.target?.id;
+    if (!id || !follow.has(id)) return;
+    if (follow.get(id)) toBottom(document.getElementById(id));
   });
   document.addEventListener("htmx:afterRequest", (e) => {
     const form = e.detail.elt.closest?.("[data-chat-form]");
     if (!form || !e.detail.successful) return;
-    if (!document.querySelector("#gang-chat [data-chat-error]")?.dataset.chatError) {
+    const box = document.querySelector(form.getAttribute("hx-target"));
+    if (!box?.querySelector("[data-chat-error]")?.dataset.chatError) {
       form.reset();
       form.querySelector("[name=text]")?.focus();
     }

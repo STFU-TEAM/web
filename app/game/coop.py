@@ -13,8 +13,10 @@ challenge, a fight rule from Over Heaven (app/game/overheaven.py) that raw power
 party takes apart. The party has to agree on what to bring. The first Over Heaven win of each week also pays
 HEAVEN_WEEKLY, on top of the usual win rewards.
 
-Redis:  web:coop:lobby:<code>  JSON {code, host, tier, members: [{uid, name, stand}], at}, expires LOBBY_TTL
+Redis:  web:coop:lobby:<code>  JSON {code, host, tier, open, chat, members: [{uid, name, stand}], at}, expires LOBBY_TTL
         web:coop:of:<uid>      the code of the lobby uid is in
+        web:coop:open          zset code -> opened at: open lobbies, listed for anyone to join without the code
+        web:coop:chat:<id>     set of the uids in a raid's chat (the lobby's members, then the fight's players)
 Save:   data["web_coop"] = {"day", "wins", "used": [stand uuids], "heaven_week": week of the last weekly bonus}:
         a stand raids once a day (marked when the raid starts, win or lose)
 """
@@ -184,7 +186,61 @@ def _locked(code: str):
     return held()
 
 
-def create(uid, name: str, tier: str, user=None) -> dict:
+OPEN_KEY = "web:coop:open"
+
+
+def _chat_key(chat_id: str) -> str:
+    return f"web:coop:chat:{chat_id}"
+
+
+def chat_members(chat_id: str) -> list:
+    """Who may read and write a raid's chat (chat.resolve)."""
+    return [m.decode() if isinstance(m, bytes) else m for m in _r().smembers(_chat_key(chat_id))] if chat_id else []
+
+
+def _chat_set(chat_id: str, uids):
+    if not chat_id:
+        return
+    pipe = _r().pipeline()
+    pipe.delete(_chat_key(chat_id))
+    if uids:
+        pipe.sadd(_chat_key(chat_id), *[str(u) for u in uids])
+        pipe.expire(_chat_key(chat_id), 2 * 86400)
+    pipe.execute()
+
+
+def open_lobbies(limit: int = 20) -> list:
+    """Open lobbies with a free seat, newest first (stale entries are dropped as they're met)."""
+    out = []
+    for code in _r().zrevrange(OPEN_KEY, 0, 100):
+        code = code.decode() if isinstance(code, bytes) else code
+        lb = lobby(code)
+        if not lb or not lb.get("open"):
+            _r().zrem(OPEN_KEY, code)
+            continue
+        if len(lb["members"]) < PARTY_MAX:
+            out.append(lb)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def set_open(uid, on: bool) -> dict:
+    lb = lobby_of(uid)
+    if not lb or lb["host"] != str(uid):
+        raise GameError("Only the host opens or closes the lobby.")
+    with _locked(lb["code"]):
+        lb = lobby(lb["code"])
+        lb["open"] = bool(on)
+        _save(lb)
+    if on:
+        _r().zadd(OPEN_KEY, {lb["code"]: time.time()})
+    else:
+        _r().zrem(OPEN_KEY, lb["code"])
+    return lb
+
+
+def create(uid, name: str, tier: str, user=None, open_lobby: bool = False) -> dict:
     if tier not in TIERS:
         raise GameError("Pick a difficulty.")
     if not unlocked(user, tier):
@@ -195,9 +251,13 @@ def create(uid, name: str, tier: str, user=None) -> dict:
         code = "".join(random.choices(string.ascii_uppercase.replace("O", "").replace("I", "") + "23456789", k=5))
         if not lobby(code):
             break
-    lb = {"code": code, "host": str(uid), "tier": tier, "members": [{"uid": str(uid), "name": name, "stand": None}],
-          "at": int(time.time())}
+    import secrets
+    lb = {"code": code, "host": str(uid), "tier": tier, "open": bool(open_lobby), "chat": secrets.token_hex(6),
+          "members": [{"uid": str(uid), "name": name, "stand": None}], "at": int(time.time())}
     _save(lb)
+    _chat_set(lb["chat"], [uid])
+    if open_lobby:
+        _r().zadd(OPEN_KEY, {code: time.time()})
     return lb
 
 
@@ -218,6 +278,7 @@ def join(uid, name: str, code: str, user=None) -> dict:
             raise GameError("That lobby is an Over Heaven raid: it opens once you finish the story.")
         lb["members"].append({"uid": str(uid), "name": name, "stand": None})
         _save(lb)
+    _chat_set(lb.get("chat"), [m["uid"] for m in lb["members"]])
     return lb
 
 
@@ -234,9 +295,12 @@ def leave(uid):
             for m in lb["members"]:
                 _r().delete(_of_key(m["uid"]))
             _r().delete(_lobby_key(lb["code"]))
+            _r().zrem(OPEN_KEY, lb["code"])
+            _chat_set(lb.get("chat"), [])
             return
         lb["members"] = [m for m in lb["members"] if m["uid"] != str(uid)]
         _save(lb)
+        _chat_set(lb.get("chat"), [m["uid"] for m in lb["members"]])
 
 
 def today(user) -> dict:
@@ -309,7 +373,9 @@ def check_start(uid) -> dict:
 
 
 def close(lb: dict):
+    """The raid started: the lobby goes (its chat carries on with the fight's players)."""
     pipe = _r().pipeline()
+    pipe.zrem(OPEN_KEY, lb["code"])
     pipe.delete(_lobby_key(lb["code"]))
     for m in lb["members"]:
         pipe.delete(_of_key(m["uid"]))
@@ -376,6 +442,10 @@ def settle(fight, users: dict) -> dict:
             user.super_fragments += HEAVEN_WEEKLY["super"]
             user.items.extend(item_from_dict({"id": i}) for i in HEAVEN_WEEKLY["items"])
             bonus = f"this week's Over Heaven bonus: {', '.join(weekly_bonus_text())}"
+        if won:  # lifetime counters for the Raid Partner / Heaven's Raider titles
+            user.data["web_coop_wins"] = int(user.data.get("web_coop_wins", 0)) + 1
+            if t.get("heaven"):
+                user.data["web_coop_heaven_wins"] = int(user.data.get("web_coop_heaven_wins", 0)) + 1
         if won and s["wins"] < DAILY_WINS:
             s["wins"] += 1
             stand, _, _ = user.find_character_by_uuid(fight.meta["stands"].get(uid, ""))
@@ -394,6 +464,7 @@ def settle(fight, users: dict) -> dict:
             rewards = events.pve_win(user, rewards)  # event tokens, and the Dust rush bonus
         elif won:
             rewards["capped"] = True
+            check_achievements(user, "fight_win", 0)  # no reward, but the titles still count the win
         if bonus:
             rewards["item"] = f"{rewards['item']} and {bonus}" if rewards["item"] else bonus
         rewards["wins_left"] = max(0, DAILY_WINS - s["wins"])

@@ -4,6 +4,7 @@ password (app/accounts.py) works for web-only saves and for Discord players
 who added a password to their save."""
 import json
 import secrets
+import time
 from functools import wraps
 from urllib.parse import urlencode
 
@@ -21,6 +22,17 @@ from app.game.logic import begin
 bp = Blueprint("auth", __name__, url_prefix="/auth")
 
 API = "https://discord.com/api/v10"
+
+
+@bp.before_app_request
+def drop_removed_sessions():
+    """A session started before its account was removed (wipe.remove_everything) is logged out."""
+    uid = session.get("uid")
+    if not uid:
+        return
+    removed = r().get(f"web:purged:{uid}")
+    if removed and session.get("since", 0) <= int(removed):
+        session.clear()
 
 
 def login_required(view):
@@ -86,6 +98,7 @@ def _start_session(uid: str, name: str, avatar, method: str):
     if ref:
         session["ref"] = ref
     session["uid"], session["name"], session["avatar"], session["auth"] = uid, name, avatar, method
+    session["since"] = int(time.time())  # a session older than its account's removal is logged out (wipe.py)
 
 
 @bp.route("/login", methods=["GET", "POST"])

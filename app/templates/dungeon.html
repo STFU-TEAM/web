@@ -1,13 +1,24 @@
 {% extends "base.html" %}
 {% from "macros.html" import menacing %}
 {% block title %}Dungeon | STFU Requiem{% endblock %}
+{% macro floors(depth) -%}
+  {#- B1 > B2 > B3 (boss): where the run is -#}
+  <ol class="delve-floors" aria-label="Floors">
+    {% for d in range(1, D.DEPTHS + 1) %}
+      <li class="{{ 'here' if d == depth }}{{ ' past' if depth and d < depth }}"{% if d == depth %} aria-current="step"{% endif %}>
+        <b>B{{ d }}</b>{% if d == D.DEPTHS %}<span aria-hidden="true">♛</span><span class="sr">boss</span>{% endif %}</li>
+    {% endfor %}
+  </ol>
+{%- endmacro %}
 {% block main %}
 <section class="page dungeon-page">
   <header class="player-bar dungeon-head">
     <div><p class="kicker">Daily delve · free · a new dungeon every midnight</p><h1 class="display sm">{% call menacing() %}Dungeon{% endcall %}</h1>
       <p class="muted">Three floors under a fog. Fights and chests fill a loot bag that's only paid when you get out: take it home on the stairs, or go deeper for more. If your team falls, half the bag is lost.</p></div>
-    <div class="rush-best"><small>{% if run %}Floor{% else %}Runs left today{% endif %}</small><strong>{% if run %}{{ run.depth }}/{{ D.DEPTHS }}{% else %}{{ runs_left }}{% endif %}</strong>
-      <span class="muted">deepest today {{ s.best }}</span></div>
+    <div class="delve-status">
+      {{ floors(run.depth if run else 0) }}
+      <small class="muted">{% if run %}Floor {{ run.depth }} of {{ D.DEPTHS }}{% else %}{{ runs_left }} run{{ 's' if runs_left != 1 }} left today{% endif %} · deepest today B{{ s.best or 0 }}</small>
+    </div>
   </header>
 
   {% if fight %}
@@ -19,90 +30,126 @@
   {% if other_fight %}
     <p class="notice">Your {{ other_fight }} fight is still on. Finish it first.</p>
   {% elif run and not (fight and not fight.finished) %}
+    {% set leader = (team|selectattr('current_hp', 'gt', 0)|first) if team else none %}
     <div class="dungeon-layout">
-      <section class="dungeon-map" aria-label="Dungeon map, floor {{ run.depth }}" style="--cols: {{ D.W }}; --rows: {{ D.H }}">
-        {% for cell in cells %}
-          {% set label = 'You are here' if cell.current else ('Unexplored' if cell.fog else ('Wall' if cell.wall else (D.NAMES[cell.event] if cell.event else ('Cleared' if cell.done else 'Passage')))) %}
-          <div class="dungeon-cell{% if cell.fog %} fog{% elif cell.wall %} wall{% endif %}{% if cell.current %} current{% endif %}{% if cell.visited %} visited{% endif %}{% if cell.event %} event-{{ cell.event }}{% endif %}{% if cell.done %} done{% endif %}" title="{{ label }}">
-            {% if cell.current %}<span aria-hidden="true">◆</span>{% elif cell.event %}<span aria-hidden="true">{{ D.ICONS[cell.event] }}</span>{% endif %}
-          </div>
-        {% endfor %}
-      </section>
+      <div class="delve-map-wrap">
+        <section class="dungeon-map" aria-label="Dungeon map, floor {{ run.depth }}" style="--cols: {{ D.W }}; --rows: {{ D.H }}">
+          {% for cell in cells %}
+            {% set label = 'You are here' if cell.current else ('Unexplored' if cell.fog else ('Wall' if cell.wall else (D.NAMES[cell.event] if cell.event else ('Cleared' if cell.done else 'Passage')))) %}
+            <div class="dungeon-cell{% if cell.fog %} fog{% elif cell.wall %} wall{% endif %}{% if cell.current %} current{% endif %}{% if cell.visited %} visited{% endif %}{% if cell.event %} event-{{ cell.event }}{% endif %}{% if cell.done %} done{% endif %}" title="{{ label }}">
+              {% if cell.current %}
+                {% if leader %}<img class="delve-token" src="{{ leader.id|stand_img }}" alt="" onerror="this.replaceWith('◆')">{% else %}<span aria-hidden="true">◆</span>{% endif %}
+              {% elif cell.event %}<span class="delve-icon" aria-hidden="true">{{ D.ICONS[cell.event] }}</span>{% endif %}
+            </div>
+          {% endfor %}
+        </section>
+        <ul class="delve-legend" aria-label="Legend">
+          {% for k in ['fight', 'elite', 'chest', 'trap', 'camp', 'stairs', 'boss'] %}<li><span class="dungeon-cell event-{{ k }}"><span class="delve-icon" aria-hidden="true">{{ D.ICONS[k] }}</span></span>{{ D.NAMES[k] }}</li>{% endfor %}
+        </ul>
+      </div>
 
       <aside class="dungeon-controls">
         {% if waiting %}
-          <p class="kicker">{{ D.NAMES[waiting] }}</p>
-          <p>Enemies block the way.</p>
-          <form method="post" action="{{ url_for('play.dungeon_fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-            <button class="btn gold">Fight →</button></form>
+          <section class="delve-card delve-encounter event-{{ waiting }}">
+            <p class="delve-encounter-icon" aria-hidden="true">{{ D.ICONS[waiting] }}</p>
+            <h2 class="h3">{{ D.NAMES[waiting] }}{{ ' block the way' if waiting == 'fight' else ' blocks the way' }}</h2>
+            <p class="muted">{{ {'fight': 'A pack of stands bars the corridor.', 'elite': 'A stronger enemy, with better loot.', 'boss': 'The last floor\'s guardian. Beat it to take everything home, plus a bonus.'}.get(waiting, 'Enemies block the way.') }}</p>
+            <form method="post" action="{{ url_for('play.dungeon_fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <button class="btn gold big">Fight →</button></form>
+          </section>
         {% else %}
-          <div class="move-pad" aria-label="Move one tile">
-            {% for direction, symbol, label in [("up", "↑", "Move up"), ("left", "←", "Move left"), ("down", "↓", "Move down"), ("right", "→", "Move right")] %}
-              <form method="post" action="{{ url_for('play.dungeon_move') }}">
-                <input type="hidden" name="csrf" value="{{ csrf_token }}">
-                <input type="hidden" name="direction" value="{{ direction }}">
-                <button class="move-button" data-move="{{ direction }}" aria-label="{{ label }}" {% if direction not in moves %}disabled{% endif %}>{{ symbol }}</button>
-              </form>
-            {% endfor %}
-          </div>
-          <p class="muted small">Arrow keys or WASD move too.</p>
+          <section class="delve-card">
+            <h2 class="delve-card-title">Move</h2>
+            <div class="move-pad" aria-label="Move one tile">
+              {% for direction, symbol, label in [("up", "↑", "Move up"), ("left", "←", "Move left"), ("down", "↓", "Move down"), ("right", "→", "Move right")] %}
+                <form method="post" action="{{ url_for('play.dungeon_move') }}">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                  <input type="hidden" name="direction" value="{{ direction }}">
+                  <button class="move-button" data-move="{{ direction }}" aria-label="{{ label }}" {% if direction not in moves %}disabled{% endif %}>{{ symbol }}</button>
+                </form>
+              {% endfor %}
+            </div>
+            <p class="muted small-print">Arrow keys or WASD move too.</p>
+          </section>
         {% endif %}
 
         {% if on_stairs and not waiting %}
-          <div class="dungeon-stairs">
+          <section class="delve-card delve-stairs">
+            <h2 class="delve-card-title">⇩ The stairs</h2>
             {% if run.depth < D.DEPTHS %}
               <form method="post" action="{{ url_for('play.dungeon_descend') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-                <button class="btn gold">⇩ Go deeper (floor {{ run.depth + 1 }})</button></form>
+                <button class="delve-choice deeper"><strong>Go deeper</strong><small>Floor B{{ run.depth + 1 }}: harder fights, bigger loot{{ ', and the boss' if run.depth + 1 == D.DEPTHS }}</small></button></form>
             {% endif %}
             <form method="post" action="{{ url_for('play.dungeon_cashout') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-              <button class="btn">Take the bag home</button></form>
-          </div>
+              <button class="delve-choice home"><strong>Take the bag home</strong><small>Keep all of it: {{ bag.fragments|dust }}{% if bag['items'] %} and {{ bag['items']|length }} item{{ 's' if bag['items']|length != 1 }}{% endif %}</small></button></form>
+          </section>
         {% endif %}
 
-        <p class="kicker">Loot bag</p>
-        <ul class="dungeon-bag">
-          <li><strong>{{ bag.fragments|dust }}</strong></li>
-          {% for name in bag['items'] %}<li>{{ name }}</li>{% endfor %}
-        </ul>
+        <section class="delve-card delve-bag">
+          <h2 class="delve-card-title">Loot bag</h2>
+          <p class="delve-bag-dust">{{ bag.fragments|dust }}</p>
+          {% if bag['items'] %}<ul class="delve-items">{% for name in bag['items'] %}<li>{{ name }}</li>{% endfor %}</ul>{% endif %}
+          <p class="muted small-print">If your team falls or gives up, {{ (bag.fragments * D.WIPE_KEEP)|int|dust }} comes home.</p>
+        </section>
 
         {% if team %}
-          <p class="kicker">Your team</p>
-          <ul class="rush-team dungeon-team">
-            {% for c in team %}
-              <li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }}</span>
-                <div class="hp"><i style="width: {{ ([100 * c.current_hp / c.start_hp, 100]|min)|round }}%"></i></div><small>{{ c.current_hp|int }}/{{ c.start_hp|int }}</small></li>
-            {% endfor %}
-          </ul>
+          <section class="delve-card">
+            <h2 class="delve-card-title">Your team <small class="muted">wounds carry over</small></h2>
+            <ul class="delve-team">
+              {% for c in team %}
+                {% set pct = ([100 * c.current_hp / c.start_hp, 100]|min)|round %}
+                <li class="{{ 'down' if c.current_hp <= 0 }}{{ ' low' if 0 < pct < 35 }}">
+                  <img src="{{ c.id|stand_img }}" alt="" loading="lazy" width="44" height="44" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+                  <span class="delve-who"><strong>{{ c.name }}</strong>
+                    <span class="hp" role="meter" aria-label="{{ c.name }} health" aria-valuemin="0" aria-valuemax="{{ c.start_hp|int }}" aria-valuenow="{{ c.current_hp|int }}"><i style="width: {{ pct }}%"></i></span>
+                    <small class="muted">{{ c.current_hp|int }} / {{ c.start_hp|int }}{{ ' · knocked out' if c.current_hp <= 0 }}</small></span>
+                </li>
+              {% endfor %}
+            </ul>
+          </section>
         {% endif %}
 
-        <details class="dungeon-legend"><summary>Legend</summary>
-          <ul>{% for k in ['fight', 'elite', 'chest', 'trap', 'camp', 'stairs', 'boss'] %}<li><span class="dungeon-cell event-{{ k }}">{{ D.ICONS[k] }}</span> {{ D.NAMES[k] }}</li>{% endfor %}</ul>
-        </details>
         <form method="post" action="{{ url_for('play.dungeon_giveup') }}" onsubmit="return confirm('Leave now? Only half the loot bag comes home.')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
           <button class="btn small ghost">Give up (keep half)</button></form>
       </aside>
     </div>
   {% elif not run %}
     {% if s.last %}
-      <section class="dungeon-last">
-        <h2 class="h3">{{ {'cleared': '♛ Dungeon cleared!', 'left': 'You got out safely', 'lost': 'The expedition fell'}[s.last.how] }}</h2>
-        <p>Floor {{ s.last.depth }}. Brought home <strong>{{ s.last.fragments|dust }}</strong>{% if s.last['items'] %} and {{ s.last['items']|join(', ') }}{% endif %}.
-          {% if s.last.lost or s.last.lost_items %}<span class="muted">Left behind: {{ s.last.lost|dust }}{% if s.last.lost_items %} and {{ s.last.lost_items }} item{{ 's' if s.last.lost_items != 1 }}{% endif %}.</span>{% endif %}</p>
+      <section class="delve-last {{ s.last.how }}">
+        <p class="delve-last-mark" aria-hidden="true">{{ {'cleared': '♛', 'left': '⇧', 'lost': '再起不能'}[s.last.how] }}</p>
+        <div>
+          <h2 class="h3">{{ {'cleared': 'Dungeon cleared!', 'left': 'You got out safely', 'lost': 'The expedition fell'}[s.last.how] }}</h2>
+          <p>Reached B{{ s.last.depth }}. Brought home <strong>{{ s.last.fragments|dust }}</strong>{% if s.last['items'] %} and {{ s.last['items']|join(', ') }}{% endif %}.
+            {% if s.last.lost or s.last.lost_items %}<span class="muted">Left behind: {{ s.last.lost|dust }}{% if s.last.lost_items %} and {{ s.last.lost_items }} item{{ 's' if s.last.lost_items != 1 }}{% endif %}.</span>{% endif %}</p>
+        </div>
       </section>
     {% endif %}
-    <section class="dungeon-start">
-      <div><h2 class="h2">Enter today's dungeon</h2>
-        <p>Free: no energy, no Dust. {{ D.RUNS_PER_DAY }} run a day. Enemies are matched to your team's level, so bring your best three.</p></div>
-      {% if not u.main_characters %}
-        <p class="notice">Set a team before entering. <a href="{{ url_for('play.team') }}">Manage your team</a>.</p>
-      {% elif runs_left < 1 %}
-        <p class="notice">You've been down today. A new dungeon opens at midnight.</p>
-      {% else %}
-        <form method="post" action="{{ url_for('play.dungeon_start') }}">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <button class="btn gold big">Enter the dungeon</button>
-        </form>
-      {% endif %}
+    <section class="delve-gate">
+      <div class="delve-gate-art" aria-hidden="true"><span>⇩</span></div>
+      <div class="delve-gate-body">
+        <h2 class="h2">Enter today's dungeon</h2>
+        <ul class="delve-facts">
+          <li><strong>Free</strong><small>no energy, no Dust</small></li>
+          <li><strong>{{ D.DEPTHS }} floors</strong><small>a boss guards the last stairs</small></li>
+          <li><strong>{{ D.RUNS_PER_DAY }} run a day</strong><small>the same dungeon for everyone</small></li>
+        </ul>
+        <p class="muted">Enemies are matched to your team's level, and wounds carry from fight to fight: bring your best three.</p>
+        {% if u.main_characters %}
+          <ul class="delve-gate-team" aria-label="Your team">
+            {% for c in u.main_characters %}<li><img src="{{ c.id|stand_img }}" alt="" width="52" height="52" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"><small>{{ c.name }} · Lv {{ c.level }}</small></li>{% endfor %}
+          </ul>
+        {% endif %}
+        {% if not u.main_characters %}
+          <p class="notice">Set a team before entering. <a href="{{ url_for('play.team') }}">Manage your team</a>.</p>
+        {% elif runs_left < 1 %}
+          <p class="notice">You've been down today. A new dungeon opens at midnight.</p>
+        {% else %}
+          <form method="post" action="{{ url_for('play.dungeon_start') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn gold big">Enter the dungeon</button>
+          </form>
+        {% endif %}
+      </div>
     </section>
   {% endif %}
 </section>

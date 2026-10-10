@@ -1221,7 +1221,6 @@ details.menu[open] summary::before { content: "− "; }
   100% { opacity: 0; transform: translate(-50%, -48px) scale(.95); }
 }
 .arena-flash { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0; }
-.arena.flash-crit .arena-flash { z-index: 5; background: #fff; animation: flash .3s ease-out; }
 .arena.flash-special .arena-flash { z-index: 5; background: radial-gradient(circle, rgb(244 197 66 / .55), rgb(214 36 110 / .25) 60%, transparent); animation: flash .9s ease-out; }
 .arena.shake { animation: arena-shake .35s; }
 @keyframes flash { 10% { opacity: .7; } }
@@ -3237,17 +3236,11 @@ body.cine-open { overflow: hidden; }
 .menacing-marks i:nth-child(5) { left: -.45em; top: -.6em; --s: .28; --r: -14deg; --o: .45; animation-delay: -2.4s, -1.2s; }
 @keyframes jj-drift { to { translate: 0 -.12em; } }
 
-/* Fight effects (the 💥 Effects toggle): battle cries on specials, the anime's colour swap on crits */
+/* Fight effects (the 💥 Effects toggle): battle cries on specials */
 .cry { position: absolute; z-index: 5; pointer-events: none; white-space: nowrap; font: 400 1.5rem/1 var(--display); color: var(--gold);
   -webkit-text-stroke: 1.5px var(--night); text-shadow: 3px 3px 0 var(--magenta); animation: jj-cry .6s cubic-bezier(.2, 1.6, .4, 1) forwards; }
 .cry.plain { font-size: 1.9rem; color: var(--paper); }
 @keyframes jj-cry { 0% { opacity: 0; scale: 2; } 25% { opacity: 1; scale: 1; } 80% { opacity: 1; } 100% { opacity: 0; translate: 0 -14px; } }
-.arena.fx-swap::after { content: ""; position: absolute; inset: 0; z-index: 6; pointer-events: none; animation: jj-swap .5s steps(1) forwards; }
-@keyframes jj-swap {
-  0%, 40% { backdrop-filter: invert(1) hue-rotate(180deg) saturate(1.6); -webkit-backdrop-filter: invert(1) hue-rotate(180deg) saturate(1.6); }
-  20%, 60% { backdrop-filter: invert(1) hue-rotate(90deg) saturate(2); -webkit-backdrop-filter: invert(1) hue-rotate(90deg) saturate(2); }
-  80%, 100% { backdrop-filter: none; -webkit-backdrop-filter: none; }
-}
 .log-prefs { display: inline-flex; flex-wrap: wrap; gap: .4rem; margin-left: auto; }
 .log-toggle.pref-toggle { display: inline-flex; align-items: center; }
 .log-toggle.pref-toggle[aria-pressed="false"] { color: var(--muted); }
@@ -3294,7 +3287,7 @@ body.cine-open { overflow: hidden; }
 .btn.gold.big:is(:hover, :focus-visible)::before, .btn.gold.big:is(:hover, :focus-visible)::after { opacity: 1; translate: 0 -3px; animation: jj-jitter .6s steps(2) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .menacing-marks i, .dododo b, .burst-lines, .cine-lines, .cine-sfx b, .flip-burst, .flip-burst .sfx, .cry, .arena.fx-swap::after,
+  .menacing-marks i, .dododo b, .burst-lines, .cine-lines, .cine-sfx b, .flip-burst, .flip-burst .sfx, .cry,
   .card.turning, .btn.gold.big::before, .btn.gold.big::after { animation: none !important; }
 }
 
@@ -3615,3 +3608,258 @@ body.cine-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .wm-go, .arrow-btn::before, .arrow-btn::after, .dock-summon:active .arrow-svg, .dododo-face { animation: none !important; }
 }
+
+/* The arena glows in the colour of the terrain in play (terrain-* sets --accent; app.js follows changes during the replay) */
+.arena { transition: box-shadow .6s ease, border-color .6s ease; }
+.arena.has-terrain { border-color: color-mix(in srgb, var(--accent) 70%, var(--night-3));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 30px 2px color-mix(in srgb, var(--accent) 38%, transparent),
+              inset 0 0 48px color-mix(in srgb, var(--accent) 22%, transparent); }
+@media (prefers-reduced-motion: reduce) { .arena { transition: none; } }
+
+/* A player's banner image behind their Stand User file (app/game/profile.py IMAGE_HOSTS), dimmed so the text stays readable */
+.file-image { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; }
+.user-file.has-image::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(100deg, rgb(28 15 46 / .92), color-mix(in srgb, var(--t1) 30%, rgb(28 15 46 / .6)) 60%, rgb(28 15 46 / .35)); }
+.customize-field input[type=url] { font: inherit; font-weight: 400; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .45rem .6rem; max-width: 34rem; }
+.report-image { display: block; max-width: 220px; max-height: 120px; border-radius: 6px; border: 2px solid var(--night-3); object-fit: cover; }
+
+/* ===================================================================================
+   Dungeon (the Delve) and co-op raid pages, redone in the site's palette
+   =================================================================================== */
+
+/* the floors: B1 > B2 > B3 (boss) */
+.delve-status { display: grid; gap: .35rem; justify-items: end; }
+.delve-floors { list-style: none; display: flex; align-items: center; gap: .35rem; margin: 0; padding: 0; }
+.delve-floors li { display: flex; align-items: center; gap: .2rem; padding: .25rem .6rem; border-radius: 999px; border: 2px solid var(--night-3);
+  background: var(--night); color: var(--muted); font-size: .85rem; }
+.delve-floors li b { font: 400 1rem var(--display); }
+.delve-floors li + li::before { content: "›"; margin: 0 .35rem 0 -.75rem; color: var(--night-3); }
+.delve-floors li.past { color: var(--paper); border-color: var(--violet); }
+.delve-floors li.here { color: var(--ink); background: var(--gold); border-color: var(--ink); box-shadow: 2px 2px 0 var(--magenta); }
+@media (max-width: 760px) { .delve-status { justify-items: start; } }
+
+/* the map: stone floors in the site's violets, a screentone fog, events as coloured badges, the team leader as the token */
+.dungeon-layout { grid-template-columns: minmax(0, 1fr) 290px; }
+.delve-map-wrap { display: grid; gap: .7rem; min-width: 0; }
+.dungeon-map { gap: 4px; padding: 10px; border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--night-3);
+  background: radial-gradient(ellipse at 50% 40%, #2B1747, #140A22); }
+.dungeon-cell { position: relative; border-radius: 5px; border: 1px solid rgb(255 255 255 / .06); color: var(--paper);
+  background: linear-gradient(160deg, #4A2C74, #3D2263); font: 700 clamp(.6rem, 2vw, 1.05rem)/1 var(--body); }
+.dungeon-cell:not(.visited):not(.fog):not(.wall) { background: linear-gradient(160deg, #362052, #2B1747); }
+.dungeon-cell.visited:not(.current) { background: linear-gradient(160deg, #5A3889, #48296F); }
+.dungeon-cell.fog { border-color: transparent; background: radial-gradient(circle at 1px 1px, rgb(122 63 184 / .35) 1px, transparent 1.5px) 0 0 / 5px 5px, #0E0718; }
+.dungeon-cell.wall { border-color: transparent; background:
+  linear-gradient(90deg, transparent 48%, rgb(0 0 0 / .35) 48% 52%, transparent 52%) 0 0 / 50% 50%,
+  linear-gradient(0deg, transparent 46%, rgb(0 0 0 / .35) 46% 54%, transparent 54%), #1A0F2A; }
+.delve-icon { display: grid; place-items: center; width: 74%; aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--ink); background: var(--c, var(--night-3));
+  color: var(--ink); font: 400 clamp(.6rem, 1.8vw, 1rem)/1 var(--display); box-shadow: 1px 1px 0 var(--ink); }
+.dungeon-cell.event-fight { --c: #FF8DB9; color: inherit; background: linear-gradient(160deg, #5A3889, #48296F); }
+.dungeon-cell.event-elite { --c: #FF5C8A; color: inherit; background: linear-gradient(160deg, #5C2245, #42183A); }
+.dungeon-cell.event-boss { --c: var(--gold); color: inherit; background: linear-gradient(160deg, #6B1F45, #4A1535); box-shadow: inset 0 0 0 2px var(--magenta); }
+.dungeon-cell.event-chest { --c: var(--gold); color: inherit; }
+.dungeon-cell.event-trap { --c: #FF665C; color: inherit; }
+.dungeon-cell.event-camp { --c: #FFB35C; color: inherit; }
+.dungeon-cell.event-stairs { --c: var(--sky); color: inherit; background: linear-gradient(160deg, #1B5E8A, #164A6E); box-shadow: inset 0 0 0 2px var(--sky); }
+.dungeon-cell.done:not(.current):not(.event-stairs) { filter: saturate(.3) brightness(.8); }
+.dungeon-cell.current { background: var(--gold); box-shadow: inset 0 0 0 2px var(--ink), 0 0 0 2px var(--gold), 0 0 18px rgb(244 197 66 / .6); z-index: 1; }
+.delve-token { width: 92%; height: 92%; object-fit: cover; border-radius: 50%; border: 2px solid var(--ink); background: var(--night-3); animation: delve-bob 1.2s ease-in-out infinite alternate; }
+@keyframes delve-bob { to { translate: 0 -2px; } }
+.delve-legend { list-style: none; display: flex; flex-wrap: wrap; gap: .35rem .9rem; margin: 0; padding: 0; font-size: var(--step--1); color: var(--muted); }
+.delve-legend li { display: inline-flex; align-items: center; gap: .35rem; }
+.delve-legend .dungeon-cell { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; }
+.delve-legend .delve-icon { width: 1.25rem; font-size: .7rem; }
+
+/* the side panel: cards */
+.dungeon-controls { padding: 0; border-left: 0; gap: .7rem; }
+.delve-card { display: grid; gap: .45rem; padding: .8rem .9rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3); min-width: 0; }
+.delve-card-title { margin: 0; font: 700 .76rem var(--body); letter-spacing: .1em; text-transform: uppercase; color: var(--gold); display: flex; gap: .5rem; align-items: baseline; flex-wrap: wrap; }
+.delve-card-title small { font-weight: 500; letter-spacing: 0; text-transform: none; }
+.delve-card p { margin: 0; }
+.move-pad { margin-block: .3rem; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 52px); gap: 6px; }
+.move-button { width: 52px; height: 52px; border-radius: 12px; border: 2px solid var(--ink); background: var(--night-3); color: var(--gold);
+  box-shadow: 2px 3px 0 var(--ink); font: 700 1.35rem var(--body); transition: transform .06s, box-shadow .06s; }
+.move-button:hover:not(:disabled) { background: var(--gold); color: var(--ink); }
+.move-button:active:not(:disabled) { transform: translate(1px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.move-button:disabled { opacity: .25; box-shadow: none; }
+.delve-encounter { justify-items: center; text-align: center; border-color: var(--c, var(--magenta)); box-shadow: 0 0 22px color-mix(in srgb, var(--c, var(--magenta)) 30%, transparent); }
+.delve-encounter.event-fight { --c: #FF8DB9; } .delve-encounter.event-elite { --c: #FF5C8A; } .delve-encounter.event-boss { --c: var(--gold); }
+.delve-encounter h2 { margin: 0; }
+.delve-encounter-icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 50%; border: 3px solid var(--ink); background: var(--c);
+  color: var(--ink); font: 400 2rem/1 var(--display); box-shadow: 3px 3px 0 var(--ink); animation: jj-jitter .5s steps(2) infinite; }
+.delve-stairs { border-color: var(--sky); }
+.delve-stairs form { margin: 0; }
+.delve-choice { display: grid; gap: .1rem; width: 100%; padding: .6rem .8rem; text-align: left; cursor: pointer; border-radius: var(--radius-ui); border: 2px solid var(--ink);
+  font: inherit; box-shadow: 3px 3px 0 var(--ink); transition: transform .08s, box-shadow .08s; }
+.delve-choice:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.delve-choice strong { font-size: 1rem; }
+.delve-choice small { font-size: .78rem; opacity: .85; }
+.delve-choice.deeper { background: var(--gold); color: var(--ink); }
+.delve-choice.home { background: var(--night-3); color: var(--paper); border-color: var(--paper); }
+.delve-bag-dust { font: 400 1.6rem/1 var(--display); color: var(--gold); }
+.delve-items { list-style: none; display: flex; flex-wrap: wrap; gap: .3rem; margin: 0; padding: 0; }
+.delve-items li { padding: .1rem .5rem; border-radius: 999px; background: var(--night); border: 1px solid var(--night-3); font-size: .78rem; font-weight: 700; }
+.delve-team { list-style: none; display: grid; gap: .45rem; margin: 0; padding: 0; }
+.delve-team li { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.delve-team img { flex: none; width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 2px solid var(--night-3); background: var(--night-3); }
+.delve-who { display: grid; gap: .15rem; min-width: 0; flex: 1; }
+.delve-who strong { font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.delve-who .hp { height: 7px; }
+.delve-who small { font-size: .72rem; }
+.delve-team li.low .hp i { background: #FFB35C; }
+.delve-team li.down { opacity: .5; }
+.delve-team li.down img { filter: grayscale(1); }
+
+/* the entrance and the last run */
+.delve-gate { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1rem; padding: 1.3rem;
+  border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: radial-gradient(ellipse at 15% 50%, rgb(58 180 242 / .16), transparent 60%), var(--night-2); }
+.delve-gate-art { display: grid; place-items: center; width: 130px; aspect-ratio: 3 / 4; border-radius: 70px 70px 10px 10px; border: 3px solid var(--ink);
+  background: radial-gradient(circle at 1px 1px, rgb(122 63 184 / .4) 1px, transparent 1.5px) 0 0 / 5px 5px, radial-gradient(ellipse at 50% 80%, #2B1747, #0E0718);
+  box-shadow: inset 0 0 0 6px #3D2263, 0 0 26px rgb(58 180 242 / .25); }
+.delve-gate-art span { font: 400 2.6rem/1 var(--display); color: var(--sky); animation: delve-bob 1.4s ease-in-out infinite alternate; }
+.delve-gate-body { display: grid; gap: .8rem; min-width: 0; }
+.delve-gate-body h2, .delve-gate-body p { margin: 0; }
+.delve-facts { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; margin: 0; padding: 0; }
+.delve-facts li { display: grid; padding: .45rem .75rem; border-radius: var(--radius-ui); background: var(--night); border: 1px solid var(--night-3); }
+.delve-facts strong { color: var(--gold); }
+.delve-facts small { color: var(--muted); font-size: .74rem; }
+.delve-gate-team { list-style: none; display: flex; flex-wrap: wrap; gap: .6rem; margin: 0; padding: 0; }
+.delve-gate-team li { display: grid; justify-items: center; gap: .2rem; width: 92px; text-align: center; }
+.delve-gate-team img { width: 52px; height: 52px; border-radius: 12px; object-fit: cover; border: 2px solid var(--ink); box-shadow: 2px 2px 0 var(--gold); }
+.delve-gate-team small { font-size: .7rem; color: var(--muted); line-height: 1.2; }
+.delve-last { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; padding: .9rem 1.1rem; border-radius: var(--radius-card); background: var(--night-2);
+  border: 2px solid var(--c, var(--night-3)); }
+.delve-last.cleared { --c: var(--gold); } .delve-last.left { --c: var(--sky); } .delve-last.lost { --c: #E0302F; }
+.delve-last h2, .delve-last p { margin: 0; }
+.delve-last-mark { flex: none; display: grid; place-items: center; min-width: 56px; height: 56px; padding: 0 .4rem; border-radius: 12px; border: 2px solid var(--ink);
+  background: var(--c); color: var(--ink); font: 400 1.5rem/1 var(--display); box-shadow: 2px 2px 0 var(--ink); }
+.delve-last.lost .delve-last-mark { font-size: .85rem; background: var(--paper); color: #E0302F; border-color: #E0302F; rotate: -6deg; }
+@media (max-width: 760px) {
+  .delve-gate { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .delve-gate-body { justify-items: center; }
+  .delve-facts, .delve-gate-team { justify-content: center; }
+}
+
+/* co-op raid: the week's boss, how it goes, today's wins */
+.raid-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1.3rem; align-items: center; margin-bottom: 1.2rem; padding: 1.2rem 1.3rem;
+  border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: radial-gradient(ellipse at 10% 50%, rgb(214 36 110 / .22), transparent 55%), repeating-linear-gradient(-55deg, transparent 0 14px, rgb(255 255 255 / .03) 14px 15px), var(--night-2); }
+.raid-boss { margin: 0; width: 140px; aspect-ratio: 1; border-radius: 50%; overflow: hidden; border: 4px solid var(--ink); box-shadow: 0 0 0 3px var(--magenta), 0 0 28px rgb(214 36 110 / .5); background: var(--night-3); }
+.raid-boss img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+.raid-hero-body { display: grid; gap: .45rem; min-width: 0; }
+.raid-hero-body h1, .raid-hero-body p { margin: 0; }
+.raid-crew { list-style: none; display: flex; gap: .4rem; margin: 0; padding: 0; }
+.raid-crew img { width: 44px; height: 44px; border-radius: 10px; object-fit: cover; border: 2px solid var(--magenta); background: var(--night-3); }
+.raid-crew li:first-child img { border-color: var(--gold); }
+.raid-steps { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem .9rem; margin: .2rem 0 0; padding: 0; font-size: var(--step--1); color: var(--muted); }
+.raid-steps li { display: inline-flex; align-items: center; gap: .4rem; }
+.raid-steps b { display: grid; place-items: center; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--sky); color: var(--ink); font: 400 .78rem var(--display); }
+.raid-wins { display: grid; justify-items: center; gap: .3rem; padding: .7rem .9rem; border-radius: var(--radius-card); background: var(--night); border: 2px solid var(--night-3); text-align: center; }
+.raid-wins small { color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.raid-wins strong { font: 400 1.2rem var(--display); color: var(--gold); }
+.raid-pips { display: flex; gap: .3rem; }
+.raid-pips i { width: 14px; height: 14px; rotate: 45deg; border: 2px solid var(--ink); background: var(--night-3); }
+.raid-pips i.left { background: var(--gold); box-shadow: 0 0 8px rgb(244 197 66 / .5); }
+@media (max-width: 760px) {
+  .raid-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .raid-boss { width: 88px; align-self: start; }
+  .raid-wins { grid-column: 1 / -1; grid-template-columns: auto auto auto; justify-content: start; align-items: center; gap: .7rem; }
+}
+
+/* the difficulties: cards with a colour stripe each */
+.raid-tiers { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: .5rem; }
+.raid-tier { --c: var(--teal); position: relative; display: grid; gap: .15rem; align-content: start; padding: .7rem .75rem .65rem; cursor: pointer;
+  border-radius: var(--radius-ui); border: 2px solid var(--night-3); border-top: 5px solid var(--c); background: var(--night); }
+.raid-tier input { position: absolute; opacity: 0; pointer-events: none; }
+.raid-tier:has(input:checked) { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 3px 3px 0 var(--ink); background: color-mix(in srgb, var(--c) 10%, var(--night)); }
+.raid-tier:has(input:focus-visible) { outline: 3px solid var(--sky); outline-offset: 2px; }
+.raid-tier.tier-hard { --c: var(--gold); }
+.raid-tier.tier-nightmare { --c: var(--magenta); }
+.raid-tier.tier-heaven { --c: #FF4DA0; border-top: 5px solid; border-image: linear-gradient(90deg, #FF4DA0, #F4C542, #5FF2E4) 1; }
+.raid-tier.tier-heaven:has(input:checked) { border-image: none; border-color: #FF4DA0; }
+.raid-tier.locked { opacity: .55; cursor: not-allowed; }
+.raid-tier-name { font: 400 1.05rem var(--display); }
+.raid-tier-level { color: var(--c); font-weight: 700; font-size: .85rem; }
+.raid-tier-loot { color: var(--muted); font-size: .74rem; line-height: 1.35; }
+.raid-tier-loot b { color: var(--paper); }
+.raid-tier-rule { color: #FF8DB9; font-size: .72rem; font-weight: 700; }
+
+/* the lobby: the code as a ticket, the seats as cards */
+.coop-code { align-items: center; padding: .7rem .8rem; border-radius: var(--radius-ui); border: 2px dashed var(--gold); background: rgb(244 197 66 / .06); }
+.coop-code-label { display: grid; font-weight: 700; font-size: .8rem; color: var(--muted); }
+.coop-code-label small { font-weight: 400; font-size: .7rem; }
+.coop-code strong { cursor: text; user-select: all; }
+.coop-party li { background: var(--night); }
+.coop-party li.ready { position: relative; border-color: var(--teal); }
+.coop-party li.ready::after { content: "✓ Ready"; margin-left: auto; padding: .1rem .5rem; border-radius: 999px; background: var(--teal); color: var(--ink); font-size: .7rem; font-weight: 700; white-space: nowrap; }
+.coop-party li.waiting { border-color: var(--night-3); }
+.coop-party li.waiting .coop-empty-art { animation: delve-bob 1s ease-in-out infinite alternate; }
+
+@media (prefers-reduced-motion: reduce) {
+  .delve-token, .delve-encounter-icon, .delve-gate-art span, .coop-party li.waiting .coop-empty-art { animation: none !important; }
+}
+
+/* ===================================================================================
+   Chats (global, private, raid), open co-op lobbies, milestone titles
+   =================================================================================== */
+.chat-acts { position: absolute; top: .15rem; right: .2rem; display: flex; gap: .1rem; }
+.chat-acts .chat-del { position: static; }
+.chat-msg:has(.chat-acts > :nth-child(2)) .chat-meta { padding-right: 3.4rem; }
+.chat-report-form { margin: 0; }
+.chat-report { width: 26px; height: 26px; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; font-size: .75rem; opacity: .45; }
+.chat-msg:hover .chat-report, .chat-report:focus-visible { opacity: 1; }
+.chat-report:hover { background: rgb(214 36 110 / .25); color: var(--paper); }
+@media (hover: none) { .chat-report { opacity: .7; width: 32px; height: 32px; } }
+.chat-title { color: var(--sky); font-weight: 700; font-size: .68rem; }
+.chat-global .chat-list { height: clamp(300px, 58vh, 620px); }
+.chat-raid .chat-list { height: clamp(180px, 32vh, 320px); }
+.chat-page .tabs { margin-bottom: 1rem; }
+
+/* private messages */
+.conv-list { list-style: none; margin: 0 0 1rem; padding: 0; display: grid; gap: .4rem; }
+.conv-list a { display: flex; align-items: center; gap: .7rem; padding: .55rem .7rem; border-radius: var(--radius-ui); background: var(--night);
+  border: 2px solid var(--night-3); color: var(--paper); text-decoration: none; }
+.conv-list a:hover { border-color: var(--sky); }
+.conv-list li.unread a { border-color: var(--sky); background: var(--sky-soft); }
+.conv-list img, .conv-list .avatar-initial { flex: none; width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+.conv-who { display: grid; min-width: 0; flex: 1; }
+.conv-who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.conv-who time { font-size: .74rem; }
+.conv-list .nav-badge { margin-left: auto; }
+.chat-settings { margin-top: .4rem; }
+.dm-head { display: flex; align-items: center; gap: .8rem; margin: .4rem 0 1rem; flex-wrap: wrap; }
+.dm-head img, .dm-head .avatar-initial { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.dm-head > div { display: grid; flex: 1; min-width: 0; }
+.dm-head h1 { margin: 0; overflow-wrap: anywhere; }
+
+/* the raid chat */
+.raid-chat { margin-top: 1rem; }
+.raid-chat .chat { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
+.raid-chat .chat-form { border-radius: 0 0 var(--radius-ui) var(--radius-ui); }
+
+/* open co-op lobbies */
+.open-lobbies { margin: 0 0 1rem; padding: .9rem 1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--sky); }
+.open-lobbies h2 { margin: 0 0 .6rem; }
+.open-lobbies ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.open-lobbies li { --c: var(--teal); display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .55rem .7rem; border-radius: var(--radius-ui);
+  background: var(--night); border: 2px solid var(--night-3); border-left: 5px solid var(--c); }
+.open-lobbies li.tier-hard { --c: var(--gold); } .open-lobbies li.tier-nightmare { --c: var(--magenta); } .open-lobbies li.tier-heaven { --c: #FF4DA0; }
+.open-lobbies form { margin: 0 0 0 auto; }
+.open-lobby-who { display: grid; min-width: 0; }
+.open-lobby-seats { display: flex; gap: .25rem; }
+.open-lobby-seats i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--night-3); }
+.open-lobby-seats i.taken { background: var(--c); border-color: var(--ink); }
+.open-check { margin-top: .2rem; }
+
+/* milestone titles on the profile */
+.title-goals { margin-top: .2rem; font-weight: 400; }
+.title-goals summary { cursor: pointer; font-weight: 700; color: var(--gold); }
+.title-goals ul { list-style: none; margin: .5rem 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: .35rem .9rem; }
+.title-goals li { display: grid; padding: .35rem .55rem; border-radius: var(--radius-ui); background: var(--night); border: 1px solid var(--night-3); }
+.title-goals li.earned { border-color: var(--sky); }
+.title-goals li.earned strong { color: var(--sky); }
+.title-goals li small { font-size: .74rem; }
+
+/* admin: a reported message */
+.report-message { margin: 0; padding: .5rem .8rem; border-left: 4px solid var(--magenta); background: rgb(214 36 110 / .08); border-radius: 0 var(--radius-ui) var(--radius-ui) 0; }
+.report-message p { margin: .2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

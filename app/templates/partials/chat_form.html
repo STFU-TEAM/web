@@ -1,0 +1,8 @@
+{#- The message box under a chat_box (pass ch, and an optional placeholder). -#}
+<form class="chat-form" data-chat-form method="post" action="{{ url_for('chat.post', token=ch.token) }}"
+      hx-post="{{ url_for('chat.post', token=ch.token) }}" hx-target="#chat-{{ ch.token }}" hx-swap="outerHTML" hx-disabled-elt="find button">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <label class="sr" for="chat-text-{{ ch.token }}">Message</label>
+  <textarea id="chat-text-{{ ch.token }}" name="text" rows="1" maxlength="400" placeholder="{{ placeholder or 'Write a message…' }}" required enterkeyhint="send"></textarea>
+  <button class="btn gold" aria-label="Send">Send</button>
+</form>

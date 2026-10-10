@@ -2,10 +2,10 @@
 tools that remove a customization and lock it.
 
 What a player can set: a catchphrase, a colour theme (unlocked by clearing story parts, supporting the game, or
-reaching Over Heaven), a signature stand, up to SHOWCASE_MAX stands to showcase and up to PIN_MAX achievements to
-pin. An admin can wipe all of it and lock it (nothing can be set again until they unlock it).
+reaching Over Heaven), a banner image (a link to a picture on one of IMAGE_HOSTS), a signature stand, up to
+SHOWCASE_MAX stands to showcase and up to PIN_MAX achievements to pin. An admin can wipe all of it and lock it (nothing can be set again until they unlock it).
 
-Save:   data["web_profile"] = {"quote", "theme", "stand": uuid, "showcase": [uuids], "pins": [achievement ids]}
+Save:   data["web_profile"] = {"quote", "theme", "image": url, "stand": uuid, "showcase": [uuids], "pins": [achievement ids]}
 Redis:  web:profile:locked              hash uid -> JSON {by, at, reason}
         web:reports                     hash id -> JSON {id, target, reporter, reason, note, at, status, seen: snapshot}
         web:reports:open                zset id -> at (the admin queue)
@@ -29,8 +29,15 @@ DAILY_REPORTS = 10
 LOCKED_KEY = "web:profile:locked"
 REPORTS_KEY = "web:reports"
 OPEN_KEY = "web:reports:open"
-REASONS = {"text": "Offensive catchphrase", "name": "Offensive name or picture", "cheating": "Cheating or abuse",
-           "other": "Something else"}
+REASONS = {"text": "Offensive catchphrase", "image": "Offensive profile image", "name": "Offensive name or avatar",
+           "cheating": "Cheating or abuse", "other": "Something else"}
+CHAT_REASON = {"chat": "Offensive message"}  # sent from a chat's ⚑ button, with the message attached
+# Banner images load straight from these hosts in every visitor's browser, so only well-known image hosts are
+# allowed: any other link could point at a server that logs who looks at the profile.
+IMAGE_HOSTS = ("i.imgur.com", "i.ibb.co", "images.stfurequiem.com", "cdn.discordapp.com", "media.discordapp.net",
+               "static.wikia.nocookie.net", "i.redd.it", "preview.redd.it", "pbs.twimg.com", "i.pinimg.com")
+IMAGE_EXT = re.compile(r"\.(png|jpe?g|gif|webp)(/|$)", re.I)
+IMAGE_MAX = 400
 
 
 # ── Themes ───────────────────────────────────────────────────────────────
@@ -82,7 +89,24 @@ def clean_quote(text: str) -> str:
     return re.sub(r" +", " ", text).strip()[:QUOTE_MAX]
 
 
-def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: List[str]):
+def clean_image(url: str) -> str:
+    """A direct https link to a picture on one of IMAGE_HOSTS, or "" for none. Raises GameError otherwise."""
+    from urllib.parse import urlparse
+    url = (url or "").strip()
+    if not url:
+        return ""
+    parts = urlparse(url)
+    if len(url) > IMAGE_MAX or parts.scheme != "https" or parts.username or parts.password or parts.port:
+        raise GameError("The image link has to be a plain https:// link.")
+    if (parts.hostname or "").lower() not in IMAGE_HOSTS:
+        raise GameError("Images can come from Imgur, ImgBB, Discord, the JoJo wiki, Reddit, X or Pinterest. "
+                        "Upload yours to Imgur and paste the image's direct link (i.imgur.com/...).")
+    if not IMAGE_EXT.search(parts.path):
+        raise GameError("Paste the link to the picture itself (it ends in .png, .jpg, .gif or .webp).")
+    return url
+
+
+def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: List[str], image: str = ""):
     """Validate and store a customization (the caller holds the save lock and saves)."""
     lock = locked(user.id)
     if lock:
@@ -97,8 +121,8 @@ def save(user, quote: str, theme: str, stand: str, showcase: List[str], pins: Li
     showcase = [u for u in dict.fromkeys(showcase or []) if u in owned][:SHOWCASE_MAX]
     unlocked = set(user.achievement_data.get("unlocked", []))
     pins = [p for p in dict.fromkeys(pins or []) if p in unlocked][:PIN_MAX]
-    user.data["web_profile"] = {"quote": clean_quote(quote), "theme": theme or "night", "stand": stand or None,
-                                "showcase": showcase, "pins": pins}
+    user.data["web_profile"] = {"quote": clean_quote(quote), "theme": theme or "night", "image": clean_image(image),
+                                "stand": stand or None, "showcase": showcase, "pins": pins}
 
 
 def view(user) -> dict:
@@ -107,7 +131,7 @@ def view(user) -> dict:
     by_uuid = {c.uuid: c for c in user.main_characters + user.storage_characters}
     from app.game.achievements import ALL_ACHIEVEMENTS
     achievements = {a["id"]: a for a in ALL_ACHIEVEMENTS}
-    return {"quote": p.get("quote") or "", "theme": theme_of(p.get("theme")),
+    return {"quote": p.get("quote") or "", "theme": theme_of(p.get("theme")), "image": p.get("image") or "",
             "stand": by_uuid.get(p.get("stand") or ""),
             "showcase": [by_uuid[u] for u in p.get("showcase") or [] if u in by_uuid],
             "pins": [achievements[a] for a in p.get("pins") or [] if a in achievements],
@@ -129,14 +153,16 @@ def unlock(uid):
     r().hdel(LOCKED_KEY, str(uid))
 
 
-def report(reporter: str, target, reason: str, note: str = "") -> dict:
+def report(reporter: str, target, reason: str, note: str = "", message: Optional[dict] = None) -> dict:
+    """A profile report, or (reason "chat", message={text, chat, at}) a chat message report."""
     target = str(target)
     if reporter == target:
-        raise GameError("You can't report your own profile.")
-    if reason not in REASONS:
+        raise GameError("You can't report yourself.")
+    if reason not in REASONS and not (reason in CHAT_REASON and message):
         raise GameError("Pick what's wrong with this profile.")
-    if not r().set(f"web:report:by:{reporter}:{target}", "1", nx=True, ex=86400):
-        raise GameError("You already reported this profile today. An admin will look at it.")
+    once = f"web:report:by:{reporter}:{target}" + (f":{message['at']}" if message else "")
+    if not r().set(once, "1", nx=True, ex=86400):
+        raise GameError("You already reported this today. An admin will look at it.")
     count = r().incr(f"web:report:count:{reporter}")
     if count == 1:
         r().expire(f"web:report:count:{reporter}", 86400)
@@ -147,7 +173,9 @@ def report(reporter: str, target, reason: str, note: str = "") -> dict:
     seen = {"name": identity(target)["name"], "avatar": identity(target).get("avatar")}
     if user:
         p = user.data.get("web_profile") or {}
-        seen.update(quote=p.get("quote") or "", theme=p.get("theme") or "night")
+        seen.update(quote=p.get("quote") or "", theme=p.get("theme") or "night", image=p.get("image") or "")
+    if message:
+        seen["message"] = {"text": str(message.get("text", ""))[:400], "chat": message.get("chat"), "at": message.get("at")}
     rid = secrets.token_hex(5)
     entry = {"id": rid, "target": target, "reporter": reporter, "reason": reason, "note": clean_quote(note)[:300] if note else "",
              "at": int(time.time()), "status": "open", "seen": seen}

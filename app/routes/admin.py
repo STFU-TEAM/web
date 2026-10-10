@@ -129,6 +129,11 @@ def _profile_view(user):
     return {"custom": user.data.get("web_profile") or {}, "locked": P.locked(user.id)}
 
 
+def _chat_mute(uid: str):
+    from app.game import chat as C
+    return C.muted(uid)
+
+
 def _reports_about(uid: str):
     from app.game import profile as P
     return [e for e in P.reports("open", 1000) if e["target"] == str(uid)]
@@ -195,6 +200,7 @@ def player(uid):
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),
                            history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
                            section="players", owner=is_owner(session["uid"]), profile_view=_profile_view(target),
+                           chat_mute=_chat_mute(uid),
                            open_reports=[e for e in _reports_about(uid)])
 
 
@@ -369,6 +375,18 @@ def player_action(uid, op):
             audit("ban", uid, reason=f.get("reason", "")[:200])
             flash(f"{name} is banned from the website (the bot is unaffected).", "ok")
 
+    elif op in ("mute", "unmute"):
+        from app.game import chat as C
+        if op == "unmute":
+            C.unmute(uid)
+            audit("chat_unmute", uid)
+            flash(f"{name} can chat again.", "ok")
+        else:
+            hours = {"1": 1, "24": 24, "168": 168}.get(f.get("hours", ""), 24)
+            C.mute(uid, session["uid"], hours, f.get("reason", "").strip()[:200])
+            audit("chat_mute", uid, hours=hours, reason=f.get("reason", "")[:200] or None)
+            flash(f"{name} is muted in the chats for {hours} hour{'s' if hours != 1 else ''}.", "ok")
+
     elif op in ("profile_clear", "profile_lock", "profile_unlock"):
         from app.game import profile as P
         if op == "profile_unlock":
@@ -382,6 +400,22 @@ def player_action(uid, op):
                 P.lock(uid, session["uid"], reason)
                 flash(f"{name} can't customize their profile until you unlock it.", "ok")
             P.resolve_all(uid, session["uid"], "cleared" if op == "profile_clear" else "locked")
+
+    elif op == "remove_everything":
+        from app import wipe
+        if not is_owner(session["uid"]):
+            flash("Only the owners can remove a player's data.", "error")
+        elif f.get("confirm", "").strip() != wipe.REMOVE_WORD:
+            flash(f"Type {wipe.REMOVE_WORD} to confirm.", "error")
+        else:
+            try:
+                done = wipe.remove_everything(uid, session["uid"])
+            except wipe.WipeError as e:
+                flash(str(e), "error")
+                return back
+            audit("remove_everything", uid, login=done["login"], reports=done["reports"])  # no name: they asked to be gone
+            flash(f"Every piece of {name}'s data is removed. It can't be restored.", "ok")
+            return redirect(url_for("admin.index"))
 
     elif op == "delete":
         from app import wipe
@@ -415,7 +449,7 @@ def reports():
     people = {u for e in rows for u in (e["target"], e["reporter"], e.get("closed_by")) if u}
     names = {u: identity(u)["name"] for u in people}
     locked = {e["target"]: P.locked(e["target"]) for e in rows}
-    return render_template("admin/reports.html", rows=rows, status=status, names=names, reasons=P.REASONS,
+    return render_template("admin/reports.html", rows=rows, status=status, names=names, reasons={**P.REASONS, **P.CHAT_REASON},
                            locked=locked, section="reports")
 
 
@@ -424,7 +458,7 @@ def reports():
 def report_action(rid, op):
     from app.game import profile as P
     entry = next((e for e in P.reports("all", 10_000) if e["id"] == rid), None)
-    if not entry or op not in ("dismiss", "clear", "lock"):
+    if not entry or op not in ("dismiss", "clear", "lock", "mute"):
         flash("That report is gone.", "error")
         return redirect(url_for("admin.reports"))
     uid, name = entry["target"], identity(entry["target"])["name"]
@@ -432,6 +466,12 @@ def report_action(rid, op):
         P.resolve(rid, session["uid"], "dismissed")
         audit("report_dismiss", uid, report=rid, reason=entry["reason"])
         flash("Report dismissed.", "ok")
+    elif op == "mute":
+        from app.game import chat as C
+        C.mute(uid, session["uid"], 24, request.form.get("reason", "").strip()[:200] or "a reported message")
+        P.resolve(rid, session["uid"], "muted")
+        audit("chat_mute", uid, hours=24, report=rid)
+        flash(f"{name} is muted in the chats for 24 hours.", "ok")
     else:
         reason = request.form.get("reason", "").strip()[:200] or P.REASONS[entry["reason"]]
         _edit(uid, lambda t: P.clear(t), f"profile_{op}", f"{name}'s profile customization was removed.", report=rid, reason=reason)

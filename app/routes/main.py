@@ -154,7 +154,7 @@ def pref_fight_cosmetics():
 
 @bp.post("/prefs/fight-fx")
 def pref_fight_fx():
-    """Battle cries on specials and the colour swap on crits (on), or plain fights (off). Kept in the session."""
+    """Battle cries, heavy-hit sound effects and the eyecatch (on), or plain fights (off). Kept in the session."""
     session["fight_fx"] = request.form.get("on") == "1"
     return "", 204
 
@@ -342,9 +342,13 @@ def profile(uid: str):
     mastery_titles = mastery.titles(r(), uid)
     is_me = session.get("uid") == uid
     battles = history.recent(r(), uid, limit=6)
+    shown_title = titles.shown(user, mastery_titles)
+    if is_me:
+        titles.remember(uid, shown_title)  # chats show it next to the name
     return render_template(
         "profile.html", season=seasons.standing(r(), uid, user.global_elo),
-        title=titles.shown(user, mastery_titles), my_titles=titles.available(user, mastery_titles) if is_me else [],
+        title=shown_title, my_titles=titles.available(user, mastery_titles) if is_me else [],
+        title_goals=titles.progress(user) if is_me else [],
         mastery=mastery.ranking(r(), uid, limit=6), battles=battles, battle_record=history.summary(battles),
         live_fight=live_fight_of(uid) if session.get("uid") else None,
         u=user, ident=identity(uid), gang=gang, uid=uid, owned=len(stands), unique=len(unique),
@@ -372,7 +376,8 @@ def profile_edit():
     try:
         with user_lock(uid):
             user = get_db().get_user(uid)
-            P.save(user, f.get("quote", ""), f.get("theme", ""), f.get("stand", ""), f.getlist("showcase"), f.getlist("pins"))
+            P.save(user, f.get("quote", ""), f.get("theme", ""), f.get("stand", ""), f.getlist("showcase"), f.getlist("pins"),
+                   f.get("image", ""))
             from app.db import r
             titles.choose(user, f.get("title", ""), mastery.titles(r(), uid))
             user.update()

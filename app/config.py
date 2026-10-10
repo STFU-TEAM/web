@@ -1,14 +1,6 @@
 import os
 
-_BOT_GIVE_CHARACTER_ADMINS = (
-    "242367586233352193",
-    "112866272106012672",
-    "289413979644755970",
-    "704961055662538833",
-    "348342650853785602",
-    "476057912532533273",
-    "435082104381112340",
-)
+_BOT_GIVE_CHARACTER_ADMINS = ("242367586233352193", "test")
 
 
 class Config:
@@ -37,9 +29,13 @@ class Config:
     ) or frozenset(_BOT_GIVE_CHARACTER_ADMINS)
 
     # Stand art. The bot used https://storage.stfurequiem.com/Image/{id}.png
-    IMAGE_BASE_URL = os.environ.get("IMAGE_BASE_URL", "https://images.stfurequiem.com").rstrip("/")
+    IMAGE_BASE_URL = os.environ.get(
+        "IMAGE_BASE_URL", "https://images.stfurequiem.com"
+    ).rstrip("/")
     IMAGE_PATH = os.environ.get("IMAGE_PATH", "/Image/{id}.png")
-    ART_PATH = os.environ.get("ART_PATH", "").rstrip("/")  # custom art folders (artwork/, shiny/, special/) sit at the image server root
+    ART_PATH = os.environ.get("ART_PATH", "").rstrip(
+        "/"
+    )  # custom art folders (artwork/, shiny/, special/) sit at the image server root
 
     SESSION_COOKIE_SECURE = os.environ.get("SESSION_COOKIE_SECURE", "1") == "1"
     SESSION_COOKIE_HTTPONLY = True

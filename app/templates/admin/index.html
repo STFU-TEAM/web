@@ -89,7 +89,9 @@
           <td>{{ d.by_name }}</td>
           <td>{% if d.restarted %}<span class="muted">Began a new save</span>
               {% elif owner %}<form class="inline" method="post" action="{{ url_for('admin.restore_save', uid=d.uid) }}" onsubmit="return confirm('Restore this save?')">
-                <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Restore</button></form>{% endif %}</td>
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Restore</button></form>{% endif %}
+              {% if owner %}<form class="inline" method="post" action="{{ url_for('admin.player_action', uid=d.uid, op='remove_everything') }}" onsubmit="return confirm('Remove every piece of this player\'s data, the copy and their login included? This can\'t be undone.')">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="confirm" value="REMOVE"><button class="btn small danger">Remove everything</button></form>{% endif %}</td>
         </tr>
       {% endfor %}
     </tbody>

@@ -1,4 +1,5 @@
-"""Deleting a player's save so they can start over (admin panel, owners only), and restoring it.
+"""Deleting a player's save so they can start over (admin panel, owners only), restoring it, and removing every
+piece of a player's data (remove_everything).
 
 The save lives in the bot's `users` hash, so the bot sees a fresh player too. Their login stays: a web account keeps
 its username and password (web:account_uid), and the next page they open offers to begin a new save.
@@ -17,6 +18,13 @@ only, outside any gang (the friendships, listings and offers above are gone for 
 
     web:deleted:<uid>   the pickled save, as the bot stored it, expires after KEEP_DAYS
     web:deleted         hash uid -> JSON {at, by, name, field}
+
+remove_everything goes further, for a player who wants to be gone: the same clean-up with no copy kept, then their
+web login, remembered name and avatar, any earlier copy, admin rights, reports by or about them, their profile lock,
+their place in reward lists and the search index, and every other web key under their id. What stays: a website ban
+(so removing an account never lifts one) and the admin audit log line saying an admin removed it.
+
+    web:purged:<uid>    the removal time, for SESSION_DAYS: login sessions started before it are logged out
 """
 import json
 import pickle
@@ -28,6 +36,8 @@ from app.db import Busy, clear_fight, get_db, identity, load_fight, r, user_lock
 KEEP_DAYS = 30
 INDEX = "web:deleted"
 CONFIRM_WORD = "DELETE"
+REMOVE_WORD = "REMOVE"
+SESSION_DAYS = 31  # a login session lasts 30 days (config.PERMANENT_SESSION_LIFETIME)
 KEEP_PREFIXES = ("web:account_uid:", "web:identity:", "web:lock:", "web:deleted:", "web:login_fail:")
 
 
@@ -55,6 +65,51 @@ def delete_save(uid: str, actor: str) -> dict:
     field = _field(uid)
     if field is None:
         raise WipeError("That player has no save.")
+    return _erase(uid, actor, field, keep_copy=True)
+
+
+def remove_everything(uid: str, actor: str) -> dict:
+    """Every piece of uid's data, with no copy kept: the save (if any) and everything delete_save cleans, the login,
+    the identity, an earlier copy, and the rest listed above. Works whether or not they still have a save."""
+    uid = str(uid)
+    if uid == str(actor):
+        raise WipeError("You can't remove your own account from here.")
+    field = _field(uid)
+    done = _erase(uid, actor, field, keep_copy=False) if field else {"gang": None, "listings": 0, "bids": 0, "trades": 0,
+                                                                    "friends": _social(uid), "keys": 0}
+    from app.accounts import username_of
+    from app.db import NAMES
+    from app.game import profile as P
+    from app.auth import ADMINS_KEY
+    username = username_of(uid)
+    pipe = r().pipeline()
+    if username:
+        pipe.delete(f"web:account:{username.lower()}")
+    pipe.delete(f"web:account_uid:{uid}", f"web:identity:{uid}", f"web:deleted:{uid}")
+    pipe.hdel(INDEX, uid)
+    pipe.hdel(ADMINS_KEY, uid)
+    pipe.hdel(P.LOCKED_KEY, uid)
+    pipe.hdel(NAMES, uid)
+    pipe.execute()
+    reports = 0
+    for e in P.reports("all", 100_000):
+        if uid in (e["target"], e["reporter"]):
+            r().hdel(P.REPORTS_KEY, e["id"])
+            r().zrem(P.OPEN_KEY, e["id"])
+            reports += 1
+    for pattern in ("web:mail:to:*", "web:mail:claimed:*"):
+        for key in r().scan_iter(pattern, count=1000):
+            r().srem(key, uid)
+    for key in r().scan_iter(f"web:report:by:{uid}:*", count=1000):
+        r().delete(key)
+    _chats(uid)
+    done["keys"] += _own_keys(uid, keep=("web:lock:",))
+    done.update(login=bool(username), reports=reports)
+    r().set(f"web:purged:{uid}", int(time.time()), ex=SESSION_DAYS * 86400)  # logs out their open sessions
+    return done
+
+
+def _erase(uid: str, actor: str, field: str, keep_copy: bool) -> dict:
     fight = load_fight(uid)
     if fight and not fight.finished:
         raise WipeError("They're in a fight. Wait for it to end, or clear it first.")
@@ -63,9 +118,10 @@ def delete_save(uid: str, actor: str) -> dict:
         with user_lock(uid):
             raw = r().hget("users", field)
             user = get_db().get_user(uid)
-            r().set(f"web:deleted:{uid}", raw, ex=KEEP_DAYS * 86400)
-            r().hset(INDEX, uid, json.dumps({"at": int(time.time()), "by": str(actor), "name": identity(uid)["name"],
-                                             "field": field}))
+            if keep_copy:
+                r().set(f"web:deleted:{uid}", raw, ex=KEEP_DAYS * 86400)
+                r().hset(INDEX, uid, json.dumps({"at": int(time.time()), "by": str(actor), "name": identity(uid)["name"],
+                                                 "field": field}))
             done["gang"] = _leave_gang(uid, user.gang_id) if user and user.gang_id else None
             done["listings"], done["bids"] = _auctions(uid)
             done["shops"] = _shops(uid)
@@ -187,12 +243,34 @@ def _ladders(uid: str):
         r().delete(key)
 
 
-def _own_keys(uid: str) -> int:
-    """Every web:...:<uid> key (the id as the last part, so a longer id that contains it never matches)."""
-    doomed = [k for k in r().scan_iter(f"web:*:{uid}", count=1000) if not _s(k).startswith(KEEP_PREFIXES)]
+def _own_keys(uid: str, keep=KEEP_PREFIXES) -> int:
+    """Every web:...:<uid> key (the id as the last part, so a longer id that contains it never matches), but the
+    ones starting with `keep`."""
+    doomed = [k for k in r().scan_iter(f"web:*:{uid}", count=1000) if not _s(k).startswith(keep)]
     for i in range(0, len(doomed), 500):
         r().delete(*doomed[i:i + 500])
     return len(doomed)
+
+
+def _chats(uid: str):
+    """Their private conversations (both sides), their global chat messages and their mute."""
+    from app.game import chat as C
+    for other in r().zrange(f"web:dm:with:{uid}", 0, -1):
+        other = _s(other)
+        r().delete(f"web:chat:{C.dm_key(uid, other)}", f"web:chat:seq:{C.dm_key(uid, other)}")
+        r().zrem(f"web:dm:with:{other}", uid)
+        r().hdel(f"web:dm:unread:{other}", uid)
+    store = "web:chat:global"
+    for raw in r().lrange(store, 0, -1):
+        try:
+            if json.loads(raw).get("uid") == uid:
+                r().lrem(store, 1, raw)
+        except ValueError:
+            continue
+    r().incr("web:chat:seq:global")
+    r().hdel(C.MUTE_KEY, uid)
+    from app.game.titles import SHOWN_KEY
+    r().hdel(SHOWN_KEY, uid)
 
 
 def deleted() -> List[dict]:

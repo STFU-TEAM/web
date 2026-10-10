@@ -103,3 +103,34 @@ def test_fight_touches_render(client):
     client.post("/story/fight", headers=h)
     page = client.get("/story").data.decode()
     assert 'data-eyecatch="' in page and 'data-eyecatch-label="Boss fight"' in page
+
+
+def test_banner_image_link(client):
+    d, h = _me(client)
+    for bad in ("http://i.imgur.com/a.png", "https://evil.example.com/a.png", "https://i.imgur.com/gallery/abc",
+                "https://user:pw@i.imgur.com/a.png", "javascript:alert(1)"):
+        client.post("/profile", data={"theme": "night", "image": bad}, headers=h)
+        assert not (doc(client, "222").get("web_profile") or {}).get("image"), bad
+    good = "https://static.wikia.nocookie.net/jjba/images/a/ab/Jolyne.png/revision/latest?cb=1"
+    client.post("/profile", data={"theme": "night", "image": good}, headers=h)
+    assert doc(client, "222")["web_profile"]["image"] == good
+    page = client.get("/u/222").data.decode()
+    assert 'class="file-image"' in page and 'referrerpolicy="no-referrer"' in page
+    # reported, the admin sees the picture; removing the customization removes it
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111")
+    player(client, "333")
+    client.post("/u/222/report", data={"reason": "image"}, headers=login(client, "333"))
+    h1 = login(client, "111")
+    assert 'class="report-image"' in client.get("/admin/reports").data.decode()
+    client.post("/admin/player/222/profile_clear", headers=h1)
+    assert "image" not in doc(client, "222")["web_profile"]
+
+
+def test_terrain_changes_are_tagged_for_the_arena():
+    from app.game.character import character_from_dict
+    from app.game.fight import Fight, Side
+    # Dark Blue Moon (Ocean) against a stand that sets no terrain: the field turns to Ocean, and the log says so
+    f = Fight(Side("A", [character_from_dict(char(7, xp=9000))], True), Side("B", [character_from_dict(char(1))], False), kind="dummy")
+    f.advance()
+    assert [e["field"] for e in f.log if e.get("field")][:1] == ["OCEAN"]

@@ -82,7 +82,7 @@
   {% if viewer %}<div class="fight-stage">{% else %}
   <form class="fight-stage" hx-post="{{ fight_action }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
     <input type="hidden" name="log_len" value="{{ fight.log|length }}">{% endif %}
-    <div class="arena{% if fight.terrain.name != 'DEFAULT' %} has-terrain{% endif %}">
+    <div class="arena terrain-{{ fight.terrain.name|lower }}{% if fight.terrain.name != 'DEFAULT' %} has-terrain{% endif %}" data-terrain="{{ fight.terrain.name }}">
       {% if fight.finished and not viewer and fight.winner is not none and base < fight.log|length %}
         {#- the result slams in once the last turn's replay is over (hidden while #fight.playing) -#}
         <div class="fight-slam {{ 'win' if fight.winner == my_side else 'lose' }}" aria-hidden="true">
@@ -235,7 +235,7 @@
     <h2 class="log-title">Combat log <button type="button" class="log-toggle" data-log-toggle aria-expanded="false" aria-controls="fight-log">Show full log</button>
       <span class="log-prefs">
       <button type="button" class="log-toggle pref-toggle" data-fx-toggle data-url="{{ url_for('main.pref_fight_fx') }}"
-              aria-pressed="{{ 'true' if fight_fx else 'false' }}" title="Battle cries when a special fires, the colour swap on critical hits, sound effects on heavy hits and the eyecatch before big fights">💥 Effects {{ 'on' if fight_fx else 'off' }}</button>
+              aria-pressed="{{ 'true' if fight_fx else 'false' }}" title="Battle cries when a special fires, sound effects on heavy hits and the eyecatch before big fights">💥 Effects {{ 'on' if fight_fx else 'off' }}</button>
       {% if any_cos.on %}<button type="button" class="log-toggle pref-toggle" data-cosmetics-toggle data-url="{{ url_for('main.pref_fight_cosmetics') }}"
               aria-pressed="{{ 'true' if fight_cosmetics else 'false' }}" title="Show shiny and full-art stands with their own art, or everyone's classic picture">✨ Cosmetics {{ 'on' if fight_cosmetics else 'off' }}</button>{% endif %}
       </span></h2>
@@ -253,9 +253,13 @@
 
   {% if base < fight.log|length %}
     {% set prev = fight.log[base - 1] if base > 0 else none %}
+    {#- the field before this turn, so the arena's glow starts there and follows the turn's changes -#}
+    {% set field = namespace(name='DEFAULT' if base == 0 else none) %}
+    {% for e in fight.log[:base] %}{% if e.field %}{% set field.name = e.field %}{% endif %}{% endfor %}
     <script type="application/json" class="fight-replay">{{ {
       "start": prev.hp if prev and prev.hp else none,
       "fromStart": base == 0,
+      "startField": field.name,
       "events": fight.log[base:],
     }|tojson }}</script>
   {% endif %}

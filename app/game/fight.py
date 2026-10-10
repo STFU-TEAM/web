@@ -277,6 +277,7 @@ class Fight:
         if self.terrain != before:
             self._log(f"{self.terrain.emoji} The field becomes {self.terrain.display_name}. {self.terrain.rule}"
                       if self.terrain != Terrain.DEFAULT else "🏞️ The field returns to neutral ground.", "terrain")
+            self.log[-1]["field"] = self.terrain.name  # the web replay recolours the arena (app.js)
         self.round_started = True
 
     def _field(self, everyone: List[Character]) -> Terrain:

@@ -35,6 +35,7 @@ def create_app() -> Flask:
     from app.routes.auction import bp as auction_bp
     from app.routes.journey import bp as journey_bp
     from app.routes.coop import bp as coop_bp
+    from app.routes.chat import bp as chat_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -49,6 +50,7 @@ def create_app() -> Flask:
     app.register_blueprint(auction_bp)
     app.register_blueprint(journey_bp)
     app.register_blueprint(coop_bp)
+    app.register_blueprint(chat_bp)
 
     @app.before_request
     def live_state():

@@ -60,9 +60,17 @@
       {% else %}{% call act('ban', 'Ban from website', 'btn small danger', confirm='Ban this player from the website?', anchor='#account') %}<input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
     </div>
     <p class="muted">Story: {{ t.data.get('web_story', {}).get('cleared', 0) }}/{{ story_total }} stages cleared. Achievements: {{ t.achievement_data.get('unlocked', [])|length }}.</p>
+    <h3 class="h3" id="chat-mod">Chat</h3>
+    {% if chat_mute %}<p class="notice">🔇 Muted until <time data-ago="{{ chat_mute.until }}"></time>{% if chat_mute.reason %}: {{ chat_mute.reason }}{% endif %}.</p>{% endif %}
+    <div class="admin-actions">
+      {% if chat_mute %}{{ act('unmute', 'Unmute', 'btn small', anchor='#chat-mod') }}
+      {% else %}{% call act('mute', 'Mute in the chats', 'btn small danger', anchor='#chat-mod') %}
+        <select name="hours" aria-label="For how long"><option value="1">1 hour</option><option value="24" selected>1 day</option><option value="168">1 week</option></select>
+        <input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
+    </div>
     <h3 class="h3" id="profile-mod">Profile customization</h3>
     {% set pc = profile_view.custom %}
-    <p class="muted">{% if pc.quote %}Catchphrase: 「{{ pc.quote }}」 · {% endif %}Theme: {{ profile_theme(pc.theme).label }}{% if pc.stand %} · signature stand set{% endif %}{% if pc.showcase %} · {{ pc.showcase|length }} showcased{% endif %}{% if pc.pins %} · {{ pc.pins|length }} pinned{% endif %}.
+    <p class="muted">{% if pc.quote %}Catchphrase: 「{{ pc.quote }}」 · {% endif %}Theme: {{ profile_theme(pc.theme).label }}{% if pc.image %} · banner image: <a href="{{ pc.image }}" target="_blank" rel="noopener noreferrer">see it</a>{% endif %}{% if pc.stand %} · signature stand set{% endif %}{% if pc.showcase %} · {{ pc.showcase|length }} showcased{% endif %}{% if pc.pins %} · {{ pc.pins|length }} pinned{% endif %}.
       {% if open_reports %}<a href="{{ url_for('admin.reports') }}"><strong>{{ open_reports|length }} open report{{ 's' if open_reports|length != 1 }}</strong></a>{% endif %}</p>
     {% if profile_view.locked %}<p class="notice">🔒 Locked{% if profile_view.locked.reason %}: {{ profile_view.locked.reason }}{% endif %}. They can't customize their profile.</p>{% endif %}
     <div class="admin-actions">
@@ -76,6 +84,13 @@
         <p>The player starts over from scratch on their next visit, on the website and in the bot: every stand, item, currency and bit of progress goes. They keep their login. They leave their gang (a boss seat passes on), their auction listings close (bidders are refunded), and their trades, friendships and ladder entries are removed. A copy is kept 30 days, so it can be restored from the Dashboard.</p>
         {% call act('delete', 'Delete the save', 'btn small danger', confirm="Delete " ~ ident.name ~ "'s save? They start over from nothing.", anchor='#account') %}
           <label>Type DELETE to confirm <input type="text" name="confirm" required autocomplete="off" spellcheck="false" pattern="DELETE" aria-label="Type DELETE to confirm"></label>
+        {% endcall %}
+      </details>
+      <details class="danger-zone">
+        <summary>Remove all of this player's data…</summary>
+        <p>For a player who wants to be gone: everything "Delete this save" does, with <strong>no copy kept</strong>, plus their website login (username and password), their remembered name and avatar, admin rights, reports by or about them, and every other piece of data under their ID. Their open sessions are logged out. <strong>This can't be undone.</strong> A website ban stays, and the audit log keeps a line saying an admin did this.</p>
+        {% call act('remove_everything', 'Remove everything', 'btn small danger', confirm="Remove every piece of " ~ ident.name ~ "'s data? This can't be undone.", anchor='#account') %}
+          <label>Type REMOVE to confirm <input type="text" name="confirm" required autocomplete="off" spellcheck="false" pattern="REMOVE" aria-label="Type REMOVE to confirm"></label>
         {% endcall %}
       </details>
     {% endif %}

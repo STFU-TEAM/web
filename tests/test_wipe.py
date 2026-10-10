@@ -90,3 +90,60 @@ def test_no_delete_mid_fight_or_of_yourself(client):
         except wipe.WipeError as e:
             assert "fight" in str(e)
     assert client.fake.hexists("users", "222")
+
+
+def test_remove_everything_leaves_nothing_but_the_ban_and_the_audit_line(client):
+    from app import accounts
+    from app.game import profile as P
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111")
+    with client.application.app_context():
+        acc = accounts.create_account("jolyne", "a-good-password")
+    uid = acc["uid"]
+    player(client, uid, fragments=900)
+    client.fake.sadd("web:banned", uid)
+    client.fake.hset("web:admins", uid, "{}")
+    client.fake.set(f"web:identity:{uid}", json.dumps({"name": "jolyne", "avatar": None}))
+    client.fake.set(f"web:mastery:{uid}", "x")
+    client.fake.sadd("web:mail:claimed:m1", uid, "333")
+    with client.application.app_context():
+        P.report("333", uid, "text")
+        P.report(uid, "333", "text")
+    # their browser is still logged in
+    with client.session_transaction() as s:
+        s["uid"], s["csrf"], s["since"] = uid, "tok", 1
+    h = login(client, "111")
+    page = client.get(f"/admin/player/{uid}").data.decode()
+    assert "Remove all of this player" in page
+    client.post(f"/admin/player/{uid}/remove_everything", data={"confirm": "nope"}, headers=h)
+    assert client.fake.hexists("users", uid)
+    client.post(f"/admin/player/{uid}/remove_everything", data={"confirm": "REMOVE"}, headers=h)
+    assert not client.fake.hexists("users", uid) and not client.fake.exists(f"web:deleted:{uid}")
+    assert not client.fake.exists("web:account:jolyne") and not client.fake.exists(f"web:account_uid:{uid}")
+    assert not client.fake.exists(f"web:identity:{uid}") and not client.fake.exists(f"web:mastery:{uid}")
+    assert not client.fake.hexists("web:admins", uid) and client.fake.smembers("web:mail:claimed:m1") == {b"333"}
+    assert client.fake.hlen(P.REPORTS_KEY) == 0
+    assert client.fake.sismember("web:banned", uid)  # a ban survives
+    row = json.loads(client.fake.lindex("web:admin:audit", 0))
+    assert row["kind"] == "remove_everything" and "name" not in row
+    # the old session is logged out; a login made after the removal isn't
+    with client.session_transaction() as s:
+        s["uid"], s["csrf"], s["since"] = uid, "tok", 1
+    client.get("/")
+    with client.session_transaction() as s:
+        assert "uid" not in s
+    with client.session_transaction() as s:
+        s["uid"], s["csrf"], s["since"] = uid, "tok", 4_000_000_000
+    client.get("/")
+    with client.session_transaction() as s:
+        assert s.get("uid") == uid
+
+
+def test_remove_everything_after_a_delete(client):
+    _setup(client)
+    h = login(client, "111")
+    client.post("/admin/player/222/delete", data={"confirm": "DELETE"}, headers=h)
+    assert client.fake.exists("web:deleted:222")
+    client.post("/admin/player/222/remove_everything", data={"confirm": "REMOVE"}, headers=h)
+    assert not client.fake.exists("web:deleted:222") and not client.fake.hexists("web:deleted", "222")
+    assert not client.fake.exists("web:account_uid:222")

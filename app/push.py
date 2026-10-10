@@ -23,9 +23,10 @@ from app.db import r
 
 log = logging.getLogger(__name__)
 
-PUSH_KINDS = {"fight", "coop", "trade", "friend", "gift", "gang", "auction", "journey", "season", "energy"}
+PUSH_KINDS = {"fight", "coop", "trade", "friend", "gift", "gang", "auction", "journey", "season", "energy", "dm"}
 TITLES = {"fight": "⚔️ Duel", "coop": "🤝 Co-op raid", "trade": "⇄ Trade", "friend": "♥ Friends", "gift": "🎁 Gift",
-          "gang": "⚑ Gang", "auction": "🔨 Auction", "journey": "🐫 Journey", "season": "♛ Season", "energy": "⚡ Energy"}
+          "gang": "⚑ Gang", "auction": "🔨 Auction", "journey": "🐫 Journey", "season": "♛ Season", "energy": "⚡ Energy",
+          "dm": "✉ Message"}
 ACTIVE_SECONDS = 60
 MAX_DEVICES = 5
 STATS_KEY = "web:push:stats"

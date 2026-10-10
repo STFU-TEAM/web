@@ -347,7 +347,7 @@ def register(app):
             session["csrf"] = secrets.token_urlsafe(24)
         uid = session.get("uid")
         story_hot = tour_pending = False
-        inbox_count, toasts, duel_waiting = 0, [], False
+        inbox_count, toasts, duel_waiting, chat_unread = 0, [], False, 0
         from app import push
         from app.auth import is_admin
         from app.game import progression
@@ -369,6 +369,8 @@ def register(app):
             story_hot = not r().exists(f"web:story_done:{uid}")
             tour_pending = bool(r().exists(f"web:tour:{uid}"))
             inbox_count = pending_count(uid)
+            from app.game.chat import unread_total
+            chat_unread = unread_total(uid)
             from app.routes.battles import pvp_waiting
             duel_waiting = pvp_waiting(uid)
             if not request.headers.get("HX-Request"):  # HTMX responses get theirs through HX-Trigger
@@ -378,9 +380,9 @@ def register(app):
             "live_event": events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "craft_ready": craft_ready,
-            "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting,
-            "fight_cosmetics": session.get("fight_cosmetics", True),
-            "fight_fx": session.get("fight_fx", True),  # battle cries and the crit colour swap (app.js playFight)  # fighters drawn with their shiny / full art
+            "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread,
+            "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
+            "fight_fx": session.get("fight_fx", True),  # battle cries, heavy-hit sound effects, the eyecatch (app.js)
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
                    "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
             "csrf_token": session["csrf"],

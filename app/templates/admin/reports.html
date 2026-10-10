@@ -21,16 +21,26 @@
         {% if locked.get(e.target) %}<span class="pill">🔒 locked</span>{% endif %}
       </div>
       {% if e.note %}<p class="report-note">“{{ e.note }}”</p>{% endif %}
+      {% if e.seen.message %}
+        <blockquote class="report-message"><small class="muted">{{ {'global': 'Global chat', 'dm': 'Private message', 'raid': 'Raid chat'}.get(e.seen.message.chat, 'Chat') }} · <time data-ago="{{ e.seen.message.at }}"></time></small>
+          <p>{{ e.seen.message.text }}</p></blockquote>
+      {% endif %}
       <dl class="report-seen">
         <div><dt>Name then</dt><dd>{{ e.seen.name }}</dd></div>
         <div><dt>Catchphrase then</dt><dd>{{ ('「' ~ e.seen.quote ~ '」') if e.seen.quote else '—' }}</dd></div>
         <div><dt>Theme</dt><dd>{{ profile_theme(e.seen.theme).label }}</dd></div>
+        {% if e.seen.image %}<div><dt>Image then</dt><dd><a href="{{ e.seen.image }}" target="_blank" rel="noopener noreferrer">
+          <img class="report-image" src="{{ e.seen.image }}" alt="The reported banner image" referrerpolicy="no-referrer" loading="lazy"></a></dd></div>{% endif %}
       </dl>
       {% if e.status == 'open' %}
         <div class="admin-actions">
           <a class="btn small ghost" href="{{ url_for('main.profile', uid=e.target) }}" target="_blank" rel="noopener">See the profile now</a>
           <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='dismiss') }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Dismiss</button></form>
+          {% if e.seen.message %}
+            <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='mute') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">🔇 Mute 24h</button></form>
+          {% endif %}
           <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='clear') }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small">Remove customization</button></form>
           <form class="inline" method="post" action="{{ url_for('admin.report_action', rid=e.id, op='lock') }}" onsubmit="return confirm('Remove the customization and lock it?')">

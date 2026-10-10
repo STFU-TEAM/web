@@ -59,6 +59,8 @@ def check_achievements(user, action: str, count: int = 1) -> List[dict]:
             _notify(user, ach)
 
     ach_data["unlocked"] = list(unlocked)
+    from app.game import titles
+    titles.sync(user)  # milestone titles (a story part cleared, a tower floor, a big collection...)
     return newly_unlocked
 
 

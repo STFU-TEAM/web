@@ -60,6 +60,7 @@
   'players': ('Find players', url_for('community.players'), ep == 'community.players', '⌕', 'Search anyone by name: add them, challenge them, trade.'),
   'friends': ('Friends', url_for('community.friends'), ep == 'community.friends', '♥', 'Your friends, requests, and your invite link (a Devil’s Palm per friend).'),
   'inbox': ('Inbox', url_for('community.inbox'), ep == 'community.inbox', '🔔', 'Duel challenges, trade offers, friend and gang invites, quest news.'),
+  'chat': ('Chat', url_for('chat.index'), ep.startswith('chat.'), '💬', 'The global chat and your private messages.'),
   'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and Meteor Dust with players.'),
   'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖', 'Buy items other players listed, or sell yours.'),
   'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛', 'The top players by Elo, level and collection.'),
@@ -78,7 +79,7 @@
 {%- set battle_keys = adventure_keys + challenge_keys + pvp_keys -%}
 {%- set collection_keys = ['items', 'chips', 'reforge', 'planner', 'simulator'] -%}
 {%- set progress_keys = (['events'] if live_event else []) + ['quests', 'achievements', 'dex'] + ([] if live_event else ['events']) -%}
-{%- set community_keys = ['gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
+{%- set community_keys = ['chat', 'gangs', 'auction', 'friends', 'players', 'inbox', 'trades', 'shops', 'ladder'] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
   {%- set sheet = [('Collection', ['team', 'items', 'chips', 'reforge', 'banners', 'planner', 'simulator']),
@@ -98,6 +99,7 @@
 {%- macro badge(key) -%}
   {%- if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>
   {%- elif key in nav_new %} <em class="nav-badge new">New</em>
+  {%- elif key == 'chat' and chat_unread %} <em class="nav-badge" title="Unread private messages">{{ chat_unread }}</em>
   {%- elif key == 'items' and craft_ready %} <em class="nav-badge" title="Recipes you can craft now">{{ craft_ready }} to craft</em>{% endif -%}
 {%- endmacro -%}
 {%- macro menu_link(key) -%}

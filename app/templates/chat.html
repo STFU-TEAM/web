@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing, empty_state %}
+{% block title %}Chat | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page chat-page">
+  <header class="player-bar">
+    <div><p class="kicker">Community</p><h1 class="display sm">{% call menacing() %}Chat{% endcall %}</h1>
+      <p class="muted">Talk with every Stand user on the site, or privately with one. Be decent: admins can remove messages and mute players, and every message can be reported.</p></div>
+  </header>
+
+  <nav class="tabs" aria-label="Chats">
+    <a class="tab{{ ' active' if tab == 'global' }}" href="{{ url_for('chat.index') }}"{% if tab == 'global' %} aria-current="page"{% endif %}>🌐 Global</a>
+    <a class="tab{{ ' active' if tab == 'messages' }}" href="{{ url_for('chat.index', tab='messages') }}"{% if tab == 'messages' %} aria-current="page"{% endif %}>✉ Messages
+      {% set unread = convs|sum(attribute='unread') %}{% if unread %}<em class="nav-badge">{{ unread }}</em>{% endif %}</a>
+  </nav>
+
+  {% if mute %}<p class="notice error">🔇 An admin muted you until <time data-ago="{{ mute.until }}"></time>{% if mute.reason %}: {{ mute.reason }}{% endif %}. You can still write to an admin privately.</p>{% endif %}
+
+  {% if tab == 'global' %}
+    <section class="social-panel chat-panel" aria-label="Global chat">
+      {% include "partials/chat_box.html" %}
+      {% with placeholder='Say something to everyone…' %}{% include "partials/chat_form.html" %}{% endwith %}
+    </section>
+  {% else %}
+    <section class="social-panel" aria-labelledby="convs-h">
+      <h2 class="h3" id="convs-h">Conversations</h2>
+      {% if convs %}
+        <ul class="conv-list">
+          {% for c in convs %}
+            <li class="{{ 'unread' if c.unread }}"><a href="{{ url_for('chat.dm', uid=c.uid) }}">
+              {% if c.avatar %}<img src="{{ c.avatar }}" alt="" width="40" height="40" loading="lazy">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (c.name or '?')[:1]|upper }}</span>{% endif %}
+              <span class="conv-who"><strong>{{ c.name }}</strong><time class="muted" data-ago="{{ c.at }}" datetime="{{ c.at }}"></time></span>
+              {% if c.unread %}<em class="nav-badge">{{ c.unread }}</em>{% endif %}</a></li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        {{ empty_state("No conversations yet. Open a player's profile and press ✉ Message to start one.") }}
+      {% endif %}
+      <form class="inline chat-settings" method="post" action="{{ url_for('chat.settings') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label class="check"><input type="checkbox" name="friends_only" value="1" {{ 'checked' if friends_only }} onchange="this.form.requestSubmit()"> Only friends can start a conversation with me</label>
+        <noscript><button class="btn small">Save</button></noscript>
+      </form>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

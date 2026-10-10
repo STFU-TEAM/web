@@ -32,6 +32,7 @@ def _lobby_ctx(uid):
     return {"u": user, "lb": lb, "me_member": me, "friends": friends, "stands": stands, "used": used,
             "tiers": coop.TIERS, "boss": coop.boss_view(), "party": (coop.PARTY_MIN, coop.PARTY_MAX),
             "challenge": coop.challenge(), "heaven_open": coop.unlocked(user, coop.HEAVEN),
+            "open_lobbies": [] if lb else [o for o in coop.open_lobbies() if o["host"] != str(uid)],
             "heaven_bonus": coop.weekly_bonus_text(), "heaven_bonus_ready": coop.weekly_bonus_ready(user) if user else False,
             "wins_left": coop.wins_left(user) if user else 0, "daily": coop.DAILY_WINS,
             "join_code": request.args.get("join", "")}
@@ -44,6 +45,19 @@ def _fight_view(fight, uid, fresh_from=None):
                            fight_label="Co-op raid")
 
 
+def _raid_chat(uid, lb, fight):
+    """The raid chat's box for this player: the lobby's, or the running fight's."""
+    from app.routes.chat import box_ctx
+    from app.game import chat as C
+    chat_id = (fight.meta.get("chat") if fight else None) or (lb.get("chat") if lb else None)
+    if not chat_id:
+        return None
+    try:
+        return box_ctx(C.resolve(f"raid-{chat_id}", uid, raid_members=coop.chat_members))
+    except Exception:
+        return None
+
+
 @bp.get("")
 @player_required
 def index():
@@ -51,9 +65,10 @@ def index():
     fight = _fight(uid)
     other = load_fight(uid)
     busy = other.kind.replace("_", " ") if other and other.kind != "coop" and not other.finished else None
+    ctx = _lobby_ctx(uid)
     return render_template("coop.html", fight=fight, busy=busy, coop_me=str(uid), turn_left=coop.turn_left(fight) if fight else None,
                            fight_action=url_for("coop.attack"), fight_leave_action=url_for("coop.fight_leave"),
-                           fight_label="Co-op raid", **_lobby_ctx(uid))
+                           fight_label="Co-op raid", raid_chat=_raid_chat(uid, ctx["lb"], fight), **ctx)
 
 
 @bp.get("/lobby")
@@ -82,7 +97,8 @@ def _act(fn, ok=None):
 @player_required
 def create():
     user = get_db().get_user(session["uid"])
-    _act(lambda: coop.create(session["uid"], session.get("name", "Player"), request.form.get("tier", "normal"), user))
+    _act(lambda: coop.create(session["uid"], session.get("name", "Player"), request.form.get("tier", "normal"), user,
+                             open_lobby=request.form.get("open") == "1"))
     return redirect(url_for("coop.index"))
 
 
@@ -108,6 +124,13 @@ def pick():
     _act(lambda: coop.pick(user, request.form.get("uuid", "")))
     if request.headers.get("HX-Request"):
         return render_template("partials/coop_lobby.html", **_lobby_ctx(session["uid"]))
+    return redirect(url_for("coop.index"))
+
+
+@bp.post("/open")
+@player_required
+def open_lobby():
+    _act(lambda: coop.set_open(session["uid"], request.form.get("on") == "1"))
     return redirect(url_for("coop.index"))
 
 
@@ -173,6 +196,9 @@ def start():
                     "stands": {m["uid"]: m["stand"] for m in lb["members"]}}
             if ch:
                 meta["rules"] = ch["rules"]  # Over Heaven's fight rules, applied by the engine
+            if lb.get("chat"):  # the lobby's chat carries on in the fight, for its players
+                meta["chat"] = lb["chat"]
+                coop._chat_set(lb["chat"], players)
             fight = Fight(Side("Raid party", fighting_copy(stands), True),
                           Side(foe_name, coop.crew(lb["tier"], len(stands)), False), kind="coop", meta=meta)
             fight.advance()

@@ -1,0 +1,34 @@
+{#- One chat's messages (global, private or raid), swapped as a whole by its poll and by sending. The message box
+    (partials/chat_form.html) lives outside it, so typing is never lost. -#}
+<div id="chat-{{ ch.token }}" class="chat chat-{{ ch.kind }}" data-chat>
+  {% if msgs %}
+    <ol class="chat-list" data-chat-list aria-label="Messages">
+      {% for m in msgs %}
+        {% set mine = m.uid == me.id %}
+        <li class="chat-msg{{ ' mine' if mine }}">
+          <p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a>
+            {% if titles.get(m.uid) %}<span class="chat-title">✦ {{ titles[m.uid] }}</span>{% endif %}
+            <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
+          <p class="chat-text">{{ m.text }}</p>
+          <span class="chat-acts">
+            {% if mine or chat_admin %}
+              <button type="button" class="chat-del" aria-label="Delete this message" title="Delete"
+                      hx-post="{{ url_for('chat.delete', token=ch.token, msg_id=m.id) }}" hx-target="#chat-{{ ch.token }}" hx-swap="outerHTML"
+                      hx-confirm="Delete this message?">✕</button>
+            {% endif %}
+            {% if not mine %}
+              <form method="post" action="{{ url_for('chat.report', token=ch.token, msg_id=m.id) }}" class="chat-report-form" onsubmit="return confirm('Report this message to an admin?')">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="chat-report" aria-label="Report this message" title="Report">⚑</button>
+              </form>
+            {% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="chat-empty muted">{{ {'global': 'Nobody has said anything yet. Say hi!', 'dm': 'No messages yet. Say hi!', 'raid': 'Plan the raid here: who brings what?'}[ch.kind] }}</p>
+  {% endif %}
+  <p class="chat-error" role="alert" data-chat-error="{{ chat_error or '' }}">{{ chat_error or '' }}</p>
+  <div hidden hx-get="{{ url_for('chat.feed', token=ch.token, seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible']"
+       hx-target="#chat-{{ ch.token }}" hx-swap="outerHTML"></div>
+</div>

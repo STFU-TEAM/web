@@ -13,14 +13,41 @@
 <section class="page coop">
   {% if fight %}
     {% include "partials/fight.html" %}
+    {% if raid_chat %}
+      {#- the raid's chat: from the lobby into the fight, for its players only -#}
+      <section class="coop-panel raid-chat" aria-labelledby="raid-chat-h">
+        <h2 class="h3" id="raid-chat-h">💬 Raid chat</h2>
+        {% with ch=raid_chat.ch, msgs=raid_chat.msgs, names=raid_chat.names, titles=raid_chat.titles, seq=raid_chat.seq,
+                chat_error=none, chat_admin=raid_chat.chat_admin, placeholder='Tell your party what you bring…' %}
+          {% include "partials/chat_box.html" %}
+          {% include "partials/chat_form.html" %}
+        {% endwith %}
+      </section>
+    {% endif %}
   {% else %}
-    <header class="player-bar">
-      <div>
-        <p class="kicker">Co-op raid · {{ party[0] }} to {{ party[1] }} players</p>
+    {#- this week's raid: the boss and its crew, how a raid goes, today's rewarded wins -#}
+    <header class="raid-hero">
+      <figure class="raid-boss">
+        <img src="{{ boss.lead|stand_img }}" alt="" width="160" height="160" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+      </figure>
+      <div class="raid-hero-body">
+        <p class="kicker">Co-op raid · this week · {{ party[0] }} to {{ party[1] }} players</p>
         <h1 class="display sm">{{ boss.title }}</h1>
-        <p class="muted">This week's raid boss from {{ boss.part }}. Each player brings one stand and picks its targets; the boss brings one henchman per player and far more health. Run out of time and your stand picks on its own. Your first {{ daily }} wins of the day pay Meteor Dust, XP for your stand and often a stand chip, and each stand can raid once a day.</p>
+        <p class="muted">{{ boss.part }}. The boss leads with far more health and brings one henchman per player.</p>
+        <ul class="raid-crew" aria-label="The crew">
+          {% for cid in boss.crew %}<li><img src="{{ cid|stand_img }}" alt="" width="44" height="44" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></li>{% endfor %}
+        </ul>
+        <ol class="raid-steps">
+          <li><b>1</b>Open a lobby or join one with its code</li>
+          <li><b>2</b>Each player brings one stand (once a day each)</li>
+          <li><b>3</b>The host starts; everyone picks their own stand's targets</li>
+        </ol>
       </div>
-      <div class="rush-best"><small>Rewarded wins left today</small><strong>{{ wins_left }}/{{ daily }}</strong></div>
+      <div class="raid-wins" title="Your first {{ daily }} wins of the day pay rewards">
+        <small>Rewarded wins today</small>
+        <span class="raid-pips" aria-label="{{ wins_left }} of {{ daily }} left">{% for i in range(daily) %}<i class="{{ 'left' if i < wins_left }}"></i>{% endfor %}</span>
+        <strong>{{ wins_left }}/{{ daily }}</strong>
+      </div>
     </header>
 
     {% if busy %}<p class="notice">Finish your {{ busy }} fight first.</p>{% endif %}
@@ -28,10 +55,11 @@
     {% if lb %}
       <div class="coop-lobby">
         <section class="coop-panel">
-          <div class="coop-code">
-            <span class="muted">Lobby code</span>
-            <strong data-copy="{{ lb.code }}" title="Click to copy">{{ lb.code }}</strong>
-            <span class="pill tier-pill">{{ tiers[lb.tier].label }}</span>
+          <div class="coop-code tier-{{ lb.tier }}">
+            <span class="coop-code-label">Lobby code<small>share it with your party</small></span>
+            <strong>{{ lb.code }}</strong>
+            <button type="button" class="btn small sky" data-copy="{{ lb.code }}">Copy</button>
+            <span class="pill tier-pill">{{ '☁ ' if tiers[lb.tier].heaven }}{{ tiers[lb.tier].label }}</span>
           </div>
           {% include "partials/coop_lobby.html" %}
           {% if tiers[lb.tier].heaven %}{{ heaven_card() }}{% endif %}
@@ -41,6 +69,11 @@
               <label>Difficulty <select name="tier" onchange="this.form.submit()">
                 {% for key, t in tiers.items() %}<option value="{{ key }}" {{ 'selected' if key == lb.tier }}{{ ' disabled' if t.heaven and not heaven_open }}>{{ t.label }} · Lv {{ t.level }} ★{{ t.awaken }}{{ ' · 🔒 finish the story' if t.heaven and not heaven_open }}</option>{% endfor %}
               </select></label>
+            </form>
+            <form method="post" action="{{ url_for('coop.open_lobby') }}" class="coop-row">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="on" value="{{ '0' if lb.open else '1' }}">
+              <span class="muted small-print">{{ '🌐 Open: anyone can join from the list.' if lb.open else '🔒 Private: only with the code or an invite.' }}</span>
+              <button class="btn small {{ 'ghost' if lb.open else 'sky' }}">{{ 'Make it private' if lb.open else 'Open it to everyone' }}</button>
             </form>
             {% if friends %}
               <form method="post" action="{{ url_for('coop.invite') }}" class="coop-row">
@@ -58,6 +91,7 @@
 
         <section class="coop-panel">
           <h2 class="h3">Your stand{% if me_member and me_member.stand %} <small class="muted">· {{ me_member.stand_name }}</small>{% endif %}</h2>
+          <p class="muted small-print">Your party fights this week's crew together; you pick targets for your stand only. Run out of time and it picks on its own.</p>
           <p class="muted small-print">Each stand raids once a day, win or lose.{% if used %} {{ used|length }} of yours already did today.{% endif %}</p>
           {% set used_why = {} %}{% for c in stands %}{% if c.uuid in used %}{% set _ = used_why.update({c.uuid: 'Raided today: back tomorrow'}) %}{% endif %}{% endfor %}
           {{ picker_data("sp-coop", picker_owned(stands, blocked=used_why)) }}
@@ -67,21 +101,53 @@
           </form>
         </section>
       </div>
+    {% if raid_chat %}
+      {#- the raid's chat: from the lobby into the fight, for its players only -#}
+      <section class="coop-panel raid-chat" aria-labelledby="raid-chat-h">
+        <h2 class="h3" id="raid-chat-h">💬 Raid chat</h2>
+        {% with ch=raid_chat.ch, msgs=raid_chat.msgs, names=raid_chat.names, titles=raid_chat.titles, seq=raid_chat.seq,
+                chat_error=none, chat_admin=raid_chat.chat_admin, placeholder='Tell your party what you bring…' %}
+          {% include "partials/chat_box.html" %}
+          {% include "partials/chat_form.html" %}
+        {% endwith %}
+      </section>
+    {% endif %}
     {% else %}
+      {% if open_lobbies %}
+        <section class="open-lobbies" aria-labelledby="open-h">
+          <h2 class="h3" id="open-h">🌐 Open lobbies <small class="muted">join without a code</small></h2>
+          <ul>
+            {% for o in open_lobbies %}
+              {% set host = o.members|selectattr('uid', 'equalto', o.host)|first %}
+              <li class="tier-{{ o.tier }}">
+                <span class="open-lobby-who"><strong>{{ host.name if host else 'Someone' }}'s raid</strong>
+                  <small class="muted">{{ '☁ ' if tiers[o.tier].heaven }}{{ tiers[o.tier].label }} · {{ o.members|length }} / {{ party[1] }} players</small></span>
+                <span class="open-lobby-seats" aria-hidden="true">{% for _ in o.members %}<i class="taken"></i>{% endfor %}{% for _ in range(party[1] - o.members|length) %}<i></i>{% endfor %}</span>
+                <form method="post" action="{{ url_for('coop.join') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="code" value="{{ o.code }}">
+                  <button class="btn small gold">Join</button></form>
+              </li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
       <div class="coop-lobby">
         <section class="coop-panel">
           <h2 class="h3">Open a lobby</h2>
           <form method="post" action="{{ url_for('coop.create') }}" class="coop-create">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <div class="raid-tiers">
             {% for key, t in tiers.items() %}
               {% set locked = t.heaven and not heaven_open %}
-              <label class="training-drill{{ ' heaven' if t.heaven }}{{ ' locked' if locked }}">
+              <label class="raid-tier tier-{{ key }}{{ ' locked' if locked }}">
                 <input type="radio" name="tier" value="{{ key }}" {{ 'checked' if loop.first }}{{ ' disabled' if locked }}>
-                <span><strong>{{ '☁ ' if t.heaven }}{{ t.label }}{% if locked %} 🔒{% endif %}</strong>
-                  <small>Lv {{ t.level }} ★{{ t.awaken }} crew{% if t.mult > 1 %}, ×{{ t.mult }} stats{% endif %}{% if t.heaven %} under this week's rule: {{ challenge.title }}{% endif %}</small>
-                  <small class="muted">A win: <span class="nowrap">{{ t.dust|dust }}</span> · +{{ t.stand_xp }} XP for your stand · {{ (t.chip * 100)|int }}% chip chance</small></span>
+                <span class="raid-tier-name">{{ '☁ ' if t.heaven }}{{ t.label }}{% if locked %} 🔒{% endif %}</span>
+                <span class="raid-tier-level">Lv {{ t.level }} <span aria-label="awakening {{ t.awaken }}">{{ '★' * t.awaken }}</span>{% if t.mult > 1 %} · ×{{ t.mult }}{% endif %}</span>
+                <span class="raid-tier-loot"><b>{{ t.dust|dust }}</b> · +{{ t.stand_xp }} stand XP · {{ (t.chip * 100)|int }}% chip</span>
+                {% if t.heaven %}<small class="raid-tier-rule">{{ 'Opens when you finish the story' if locked else "This week's rule: " ~ challenge.title }}</small>{% endif %}
               </label>
             {% endfor %}
+            </div>
+            <label class="check open-check"><input type="checkbox" name="open" value="1"> 🌐 Open lobby: list it so anyone can join without the code</label>
             <button class="btn gold">Open a lobby →</button>
           </form>
           {{ heaven_card(heaven_open) }}
@@ -94,9 +160,6 @@
             <button class="btn gold">Join</button>
           </form>
           <p class="muted">Friends can also invite you from their lobby: the invite lands in your inbox (and on your phone, with notifications on) with the code.</p>
-          <ul class="coop-crew">
-            {% for cid in boss.crew %}<li><img src="{{ cid|stand_img }}" alt="" width="64" height="64" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></li>{% endfor %}
-          </ul>
         </section>
       </div>
     {% endif %}

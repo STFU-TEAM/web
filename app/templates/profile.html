@@ -7,7 +7,8 @@
 <section class="page profile">
   {% set th = pv.theme.colors %}
   {#- The Stand User file: the player's chosen theme, catchphrase, signature stand and pinned achievements -#}
-  <header class="user-file" style="--t1: {{ th[0] }}; --t2: {{ th[1] }}; --t3: {{ th[2] }}">
+  <header class="user-file{{ ' has-image' if pv.image }}" style="--t1: {{ th[0] }}; --t2: {{ th[1] }}; --t3: {{ th[2] }}">
+    {% if pv.image %}<img class="file-image" src="{{ pv.image }}" alt="" referrerpolicy="no-referrer" loading="lazy" onerror="this.remove()">{% endif %}
     <span class="file-tag" aria-hidden="true">スタンド使い</span>
     {% if ident.avatar %}<img class="avatar file-avatar" src="{{ ident.avatar }}" alt="" width="96" height="96">
     {% else %}<span class="avatar avatar-big file-avatar" aria-hidden="true">{{ (ident.name or '?')[:1]|upper }}</span>{% endif %}
@@ -43,6 +44,7 @@
     {% if relation and relation != 'self' %}
       {{ friend_button(relation, uid) }}
       {{ challenge_button(uid) }}
+      <a class="btn small ghost" href="{{ url_for('chat.dm', uid=uid) }}">✉ Message</a>
       <a class="btn small ghost" href="{{ url_for('trades.new', **{'with': uid}) }}">⇄ Trade</a>
     {% endif %}
     <button type="button" class="btn small ghost profile-share" data-copy="{{ request.url }}">🔗 Copy profile link</button>
@@ -146,6 +148,9 @@
         <label class="customize-field">Catchphrase <small class="muted">(up to {{ quote_max }} characters, shown in 「 」 under your name)</small>
           <input type="text" name="quote" maxlength="{{ quote_max }}" value="{{ my_profile.quote or '' }}" placeholder="Yare yare daze." autocomplete="off"></label>
 
+        <label class="customize-field">Banner image <small class="muted">(a link to a picture, shown behind your file: Imgur, ImgBB, Discord, the JoJo wiki, Reddit, X or Pinterest. Discord links stop working after a day, so Imgur is the safest.)</small>
+          <input type="url" name="image" maxlength="400" value="{{ my_profile.image or '' }}" placeholder="https://i.imgur.com/abc123.png" autocomplete="off" inputmode="url"></label>
+
         <fieldset class="customize-field">
           <legend>Theme</legend>
           <div class="theme-grid">
@@ -166,6 +171,16 @@
           </select>
           {% if not my_titles %}<small class="muted">Earn titles by finishing a ranked season at ACT 3 or higher, mastering a stand, completing <a href="{{ url_for('progress.dex_page') }}">Stand Dex</a> rarity sets, or in the <a href="{{ url_for('progress.events_page') }}">event shop</a>.</small>{% endif %}
         </label>
+        {% if title_goals %}
+          {% set earned = title_goals|selectattr('earned')|list|length %}
+          <details class="title-goals">
+            <summary>Milestone titles · {{ earned }} / {{ title_goals|length }} earned</summary>
+            <ul>
+              {% for g in title_goals %}<li class="{{ 'earned' if g.earned }}"><strong>{{ '✦' if g.earned else '🔒' }} {{ g.title }}</strong><small class="muted">{{ g.how }}</small></li>{% endfor %}
+            </ul>
+            <p class="muted small-print">More come from ranked seasons, stand mastery, Stand Dex sets, events and Over Heaven.</p>
+          </details>
+        {% endif %}
 
         {{ picker_data("sp-profile", picker_owned(stands)) }}
         <div class="customize-field">

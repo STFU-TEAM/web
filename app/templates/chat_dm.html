@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ ident.name }} · Messages | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow chat-page">
+  <p><a href="{{ url_for('chat.index', tab='messages') }}">← All conversations</a></p>
+  <header class="dm-head">
+    {% if ident.avatar %}<img src="{{ ident.avatar }}" alt="" width="48" height="48">{% else %}<span class="avatar-initial" aria-hidden="true">{{ (ident.name or '?')[:1]|upper }}</span>{% endif %}
+    <div><h1 class="h2">{{ ident.name }}</h1><a class="muted" href="{{ url_for('main.profile', uid=other) }}">View profile</a></div>
+    <form class="inline" method="post" action="{{ url_for('chat.block', uid=other) }}" {% if not blocked %}onsubmit="return confirm('Block this player? They won\'t be able to message you.')"{% endif %}>
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="on" value="{{ '0' if blocked else '1' }}">
+      <button class="btn small {{ 'ghost' if blocked else 'danger' }}">{{ 'Unblock' if blocked else '⛔ Block' }}</button>
+    </form>
+  </header>
+  <section class="social-panel chat-panel" aria-label="Conversation with {{ ident.name }}">
+    {% include "partials/chat_box.html" %}
+    {% if cant %}<p class="notice">{{ cant }}</p>
+    {% else %}{% with placeholder='Message ' ~ ident.name ~ '…' %}{% include "partials/chat_form.html" %}{% endwith %}{% endif %}
+  </section>
+  <p class="muted small-print">Private messages are only between the two of you. Admins don't read them, unless one is reported (⚑).</p>
+</section>
+{% endblock %}
