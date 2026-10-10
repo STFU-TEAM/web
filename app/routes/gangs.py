@@ -125,6 +125,7 @@ def index():
             now=logic.now(), msgs=G.chat_messages(r(), gang["_id"]), seq=G.chat_seq(r(), gang["_id"]),
         )
         ctx["names"] = {m["uid"]: identity(m["uid"])["name"] for m in ctx["msgs"]}
+        G.chat_mark_read(r(), user.id)  # the gang chat is on this page
         if ctx["last_war"]:
             for side in ("winner", "loser"):
                 other = db.get_gang(ctx["last_war"][side])
@@ -510,7 +511,9 @@ def chat():
     user = db.get_user(session["uid"])
     gang = db.get_gang(user.gang_id)
     if not gang:
+        G.chat_mark_read(r(), user.id)  # left the gang: nothing to read there anymore
         return Response(status=286)
+    G.chat_mark_read(r(), user.id)  # polled only while the chat is on screen
     if request.args.get("seq", type=int) == G.chat_seq(r(), gang["_id"]):
         return Response(status=204)
     return _chat_view(gang, user.id)

@@ -33,7 +33,9 @@ POOLS = {r: [c["id"] for c in CHARACTER_FILE if c["rarity"] == r and c["universe
 
 
 def unlocked(user) -> bool:
-    return story.cleared(user) >= story.TOTAL and altverse.total_cleared(user) >= altverse.TOTAL
+    from app.game.progression import is_forced
+    return (story.cleared(user) >= story.TOTAL and altverse.total_cleared(user) >= altverse.TOTAL) \
+        or is_forced(user, "training")
 
 
 def progress(user) -> dict:

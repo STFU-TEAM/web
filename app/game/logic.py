@@ -41,7 +41,7 @@ NORMAL_ADV_WAIT_TIME = 8
 STXPTOLEVEL = 100
 
 STORAGE_SIZE = 25
-MAX_TEAMS = 5
+MAX_TEAMS = 10
 RARITIES = ["R", "SR", "SSR", "UR", "LR"]
 
 # /shop default
@@ -1127,6 +1127,16 @@ def team_load(user: User, name: str) -> List[Character]:
             lst.pop(idx)
             user.main_characters.append(c)
     return user.main_characters
+
+
+def team_update(user: User, name: str) -> str:
+    """Overwrite a preset with the current team, keeping its name."""
+    if name not in user.teams:
+        raise GameError("That preset doesn't exist.")
+    if not user.main_characters:
+        raise GameError("Your team is empty.")
+    user.teams[name] = [c.uuid for c in user.main_characters]
+    return name
 
 
 def team_delete(user: User, name: str):

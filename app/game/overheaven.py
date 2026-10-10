@@ -377,8 +377,12 @@ REWARDS = [  # by stage within a track, paid on the first clear (at the economy'
 REPLAY_ENERGY = 2
 
 
+HARDER = 1.1  # every track but Trials (the way in), on top of each fight's power: endgame teams caught up
+
+
 def enemy_team(key: str, j: int) -> list:
     fight = BY_KEY[key]["fights"][j]
+    power = fight["power"] * (1 if key == "trials" else HARDER)
     team = []
     for cid, types, quals, items, extra in fight["enemies"]:
         c = character_from_dict({"id": cid, "xp": LEVEL * 100, "awaken": AWAKEN, "types": list(types),
@@ -386,7 +390,7 @@ def enemy_team(key: str, j: int) -> list:
         for stat in ("hp", "damage"):
             if stat in extra:
                 setattr(c, f"start_{stat}", extra[stat])
-            value = int(getattr(c, f"start_{stat}") * fight["power"])
+            value = int(getattr(c, f"start_{stat}") * power)
             setattr(c, f"start_{stat}", value)
             setattr(c, f"current_{stat}", value)
         for stat in ("speed", "armor", "critical"):
@@ -440,7 +444,8 @@ def total_cleared(user) -> int:
 def unlocked(user) -> bool:
     """Over Heaven opens once the story is finished."""
     from app.game import story
-    return story.cleared(user) >= story.TOTAL
+    from app.game.progression import is_forced
+    return story.cleared(user) >= story.TOTAL or is_forced(user, "overheaven")
 
 
 def difficulty(fight: dict) -> int:

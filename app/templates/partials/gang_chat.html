@@ -19,6 +19,6 @@
     <p class="chat-empty muted">No messages yet. Say hi to your gang!</p>
   {% endif %}
   <p class="chat-error" role="alert" data-chat-error="{{ chat_error or '' }}">{{ chat_error or '' }}</p>
-  <div hidden hx-get="{{ url_for('gangs.chat', seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible']"
+  <div hidden hx-get="{{ url_for('gangs.chat', seq=seq) }}" hx-trigger="every 4s [document.visibilityState === 'visible' && !this.closest('details:not([open])')]"
        hx-target="#gang-chat" hx-swap="outerHTML"></div>
 </div>

@@ -100,12 +100,20 @@
 <section class="social-panel" id="pve">
   {% set open_count = pve|selectattr('done')|list|length %}
   <h2 class="h2">PvE unlock checklist <small class="muted">{{ open_count }}/{{ pve|length }} open</small></h2>
+  <p class="muted small-print">🐞 Force opens a mode for this player regardless of progress, for debugging. It's kept apart from the save (the bot never sees it), changes nothing they've earned, and is logged in the audit.</p>
   <ul class="pve-check">
     {% for m in pve %}
       <li class="{{ 'done' if m.done else 'locked' }}{{ ' sub' if m.sub }}">
         <span class="pve-box" aria-hidden="true">{{ '✓' if m.done else '' }}</span>
         <span class="pve-name"><strong>{{ m.label }}</strong> <span class="sr">{{ 'unlocked' if m.done else 'locked' }}</span>
           <small class="muted">{{ m.need }}</small></span>
+        {% if m.key %}
+          <form class="pve-debug" method="post" action="{{ url_for('admin.player_action', uid=uid, op='debug_unlock') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="anchor" value="#pve">
+            <input type="hidden" name="key" value="{{ m.key }}"><input type="hidden" name="on" value="{{ '0' if m.forced else '1' }}">
+            <button class="btn small {{ 'gold' if m.forced else 'ghost' }}" title="{{ 'Remove the debug unlock' if m.forced else 'Debug: force this open for the player' }}" aria-pressed="{{ 'true' if m.forced else 'false' }}">🐞 {{ 'Forced' if m.forced else 'Force' }}</button>
+          </form>
+        {% endif %}
         <span class="pve-state">
           {% if m.done %}{{ m.played or 'Open' }}{% else %}
             <span class="meter" role="meter" aria-label="Progress toward {{ m.label }}" aria-valuemin="0" aria-valuemax="{{ m.of }}" aria-valuenow="{{ m.have }}"><i style="width: {{ (100 * m.have / m.of)|round }}%"></i></span>

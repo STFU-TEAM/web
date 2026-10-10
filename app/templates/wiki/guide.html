@@ -1,0 +1,82 @@
+{% extends "wiki/layout.html" %}
+{% block wiki_title %}Progression guide{% endblock %}
+{% block wiki %}
+<header class="wiki-head">
+  <p class="kicker">Start here</p>
+  <h1 class="display sm">Progression guide</h1>
+  <p>The whole path from your first pull to Over Heaven, in the order it opens. The story drives everything; past Part 3, each new part, universe and act also asks for a <strong>player level</strong>, so the rest of the game (quests, Mirror World, raids) is part of the climb, not a detour.</p>
+</header>
+
+<h2 class="wiki-h2" id="day-one">1 · Your first day</h2>
+<ol class="guide-steps">
+  <li><strong>Pull.</strong> You start with an Arrowhead: spend it on a <a href="{{ url_for('play.banners') }}">banner</a> for ten stands.</li>
+  <li><strong>Set your team.</strong> Put your best three in your <a href="{{ url_for('play.team') }}">team</a>. A team from one crew or part lights a synergy (<a href="{{ url_for('main.wiki', topic='synergies') }}">explorer</a>).</li>
+  <li><strong>Start the <a href="{{ url_for('progress.story_page') }}">story</a>.</strong>
+    {%- if g.parts[0].opens %} Your first win opens {{ g.parts[0].opens|join(', ') }}.{% endif %}
+    {%- if g.from_start %} {{ g.from_start|join(', ') }} {{ 'is' if g.from_start|length == 1 else 'are' }} open from the start.{% endif %}</li>
+  <li><strong>Claim your daily</strong> and check <a href="{{ url_for('play.quests') }}">quests</a>: they're your steadiest income.</li>
+</ol>
+
+<h2 class="wiki-h2" id="story">2 · The story</h2>
+<p>Each part opens when you clear the one before it <em>and</em> reach its player level. Clear a part's boss to open what's listed beside it.</p>
+<ol class="guide-road">
+  {% for p in g.parts %}
+    <li style="--part: {{ p.color }}">
+      <span class="guide-lv">{% if p.level %}Lv {{ p.level }}{% else %}Free{% endif %}</span>
+      <div><strong>{{ p.title }}</strong>{% if p.jojo %} <span class="muted">· beside {{ p.jojo }}</span>{% endif %}
+        <small class="muted">{{ p.stages }} stage{{ 's' if p.stages != 1 }}</small>
+        {% if p.opens %}<span class="guide-opens">🔓 {{ p.opens|join(', ') }}</span>{% endif %}</div>
+    </li>
+  {% endfor %}
+</ol>
+
+<h2 class="wiki-h2" id="alternate-universe">3 · The Alternate Universe</h2>
+<p>“What if the villains won?” Each chapter opens after its part of the story and at its own level, and you can work on several at once. They're harder than the part they branch from and pay more (crafting materials, Arrowheads, a Requiem Arrow at the end).</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Chapter</th><th scope="col">Opens after</th><th scope="col">Level</th><th scope="col">Stages</th></tr></thead>
+  <tbody>{% for c in g.chapters %}<tr><th scope="row">{{ c.title }}<br><small class="muted">with {{ c.ally }}</small></th><td>{{ c.after }}</td><td>{{ c.level }}</td><td>{{ c.stages }}</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+
+<h2 class="wiki-h2" id="carry-me">4 · Part 10 · Carry Me</h2>
+<p>Once the story is done, Joyce Joestar's begins. Her Stand, Carry Me, fights beside your team in the form of a past JoJo's Stand, a different one each act. The Encore comes last, under Over Heaven's rules.</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Act</th><th scope="col">Carry Me remembers</th><th scope="col">Level</th><th scope="col">Scenes</th></tr></thead>
+  <tbody>{% for a in g.acts %}<tr><th scope="row">{{ a.title }}{% if a.encore %} ☁{% endif %}</th><td>{{ a.jojo }}</td><td>{{ a.level }}</td><td>{{ a.stages }}</td></tr>{% endfor %}</tbody>
+</table>
+</div>
+
+<h2 class="wiki-h2" id="endgame">5 · The endgame</h2>
+<ul class="wiki-list">
+  <li><strong><a href="{{ url_for('progress.oh_page') }}">Over Heaven</a></strong> opens with the end of the story: {{ g.tracks|length }} tracks of puzzle fights where a team built for each fight's rule beats raw rarity. Start with <em>{{ g.tracks[0].title }}</em>, which teaches the rules one at a time.
+    <small class="muted">({% for t in g.tracks %}{{ t.title }} · {{ t.fights }}{{ ', ' if not loop.last }}{% endfor %})</small></li>
+  <li><strong>Over Heaven co-op raids</strong> open at the same time: the weekly raid boss with a rule, for 2 or 3 players.</li>
+  <li><strong><a href="{{ url_for('progress.training_page') }}">Training ground</a></strong> opens once the story <em>and</em> every Alternate Universe chapter are cleared: level any stand fast and earn chips.</li>
+</ul>
+
+<h2 class="wiki-h2" id="levels">How to level up</h2>
+<p>Player XP comes from almost everything you do. {{ g.how }}</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Source</th><th scope="col">Player XP</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Mirror World</th><td>{{ g.xp_per_fight }} a fight (1 energy)</td></tr>
+    <tr><th scope="row">Story, Alternate Universe, Carry Me</th><td>On each first clear, more the further you go</td></tr>
+    <tr><th scope="row">Co-op raids</th><td>{% for t in g.raids %}{{ t.label }} {{ t.xp }}{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
+    <tr><th scope="row">Dungeon</th><td>40 per floor you get out with</td></tr>
+    <tr><th scope="row">Quests</th><td>Daily and weekly rewards</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="muted">Energy refills one point every {{ g.regen }} minutes (up to {{ g.per_day }} a day if you spend it as it comes), and a full bar stops refilling, so a few short visits a day beat one long one. A steady daily player finishes the story around level {{ g.story_done_level }}, starts Carry Me at {{ g.cm_first }}, and reaches the Encore at {{ g.encore_level }}: about three to four weeks.</p>
+
+<h2 class="wiki-h2" id="stuck">Stuck on a fight?</h2>
+<ul class="wiki-list">
+  <li>Run it in the <a href="{{ url_for('battles.simulator') }}">team simulator</a> first, or try other stands and gear in the <a href="{{ url_for('battles.planner_page') }}">team planner</a>.</li>
+  <li>Level and fuse your team (<a href="{{ url_for('main.wiki', topic='stands') }}">upgrading stands</a>), equip and refine items, and socket <a href="{{ url_for('main.wiki', topic='items') }}">chips</a>.</li>
+  <li>Look for a synergy: a team that shares a crew or a part hits much harder (<a href="{{ url_for('main.wiki', topic='synergies') }}">explorer</a>).</li>
+  <li>Replay cleared stages for stand XP while you wait for a level gate.</li>
+</ul>
+{% endblock %}

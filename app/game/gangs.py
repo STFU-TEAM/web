@@ -443,6 +443,7 @@ def attack_rewards(user, won: bool) -> dict:
 # Gang chat (web): a short shared message board polled by the gang page.
 #   web:gang:chat:<gang_id>      list of JSON {id, uid, text, at}, newest last, capped CHAT_KEEP
 #   web:gang:chat:seq:<gang_id>  last message id (the page polls with it: nothing new, nothing sent)
+#   web:gang:unread:<uid>        messages from the gang this member hasn't seen (the chat bubble's red dot)
 # --------------------------------------------------------------------------- #
 CHAT_KEEP = 150
 CHAT_MAX_LEN = 300
@@ -462,8 +463,24 @@ def chat_post(redis, gang: dict, uid: str, text: str) -> dict:
     pipe = redis.pipeline()
     pipe.rpush(f"web:gang:chat:{gid}", json.dumps(msg))
     pipe.ltrim(f"web:gang:chat:{gid}", -CHAT_KEEP, -1)
+    for m in members(gang):
+        if str(m) != str(uid):
+            pipe.incr(f"web:gang:unread:{m}")
+            pipe.expire(f"web:gang:unread:{m}", UNREAD_TTL)
+    pipe.delete(f"web:gang:unread:{uid}")  # you've seen your own gang's chat
     pipe.execute()
     return msg
+
+
+UNREAD_TTL = 30 * 86400
+
+
+def chat_unread(redis, uid: str) -> int:
+    return int(redis.get(f"web:gang:unread:{uid}") or 0)
+
+
+def chat_mark_read(redis, uid: str):
+    redis.delete(f"web:gang:unread:{uid}")
 
 
 def chat_seq(redis, gang_id: str) -> int:

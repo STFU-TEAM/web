@@ -25,7 +25,10 @@
         {% if stage.index == 0 %}<p class="story-intro">{{ stage.intro }}</p>{% endif %}
         <p class="story-text">{{ stage.text }}</p>
         <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
-        {% if u.main_characters %}
+        {% if gate %}
+          <p class="notice level-gate" role="status">🔒 {{ gate.text }}
+            <span class="meter" role="meter" aria-label="Player level" aria-valuemin="0" aria-valuemax="{{ gate.level }}" aria-valuenow="{{ gate.have }}"><i style="width: {{ (100 * gate.have / gate.level)|round }}%"></i></span></p>
+        {% elif u.main_characters %}
           <form method="post" action="{{ url_for('progress.au_fight') }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="chapter" value="{{ stage.chapter }}">
             <button class="btn gold big">{{ 'Face the boss' if stage.boss else 'Cross over' }} →</button>
@@ -66,7 +69,7 @@
           <span class="part-label">Alternate Universe · {{ c.ally }}</span>
           <strong class="part-title">{% if c.unlocked %}<a href="{{ url_for('progress.au_page', ch=c.key) }}">{{ c.title }}</a>{% else %}🔒 {{ c.title }}{% endif %}</strong>
           <span class="part-jp" lang="ja">もしもの世界</span>
-          <span class="part-count">{% if c.unlocked %}{{ c.cleared }} / {{ c.stages|length }} stages{% else %}Opens after {{ c.source }}{% endif %}</span>
+          <span class="part-count">{% if c.unlocked %}{{ c.cleared }} / {{ c.stages|length }} stages{% else %}Opens after {{ c.source }}{% endif %}{% if not c.cleared %} · Lv {{ au_level(c.key) }}+{% endif %}</span>
         </header>
         <ol class="story-nodes">
           {% for s in c.stages %}

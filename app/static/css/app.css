@@ -1421,10 +1421,6 @@ table.odds thead th, table.odds tr:first-child th { color: var(--muted); }
   .pull-announcement .display.sm { font-size: 1.25rem; }
 }
 
-.presets { margin-top: 1.4rem; padding: 1rem; background: var(--night-2); border-radius: var(--radius-ui); }
-.presets ul { list-style: none; padding: 0; margin: 0 0 .8rem; display: grid; gap: .5rem; }
-.presets li { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
-.preset-name { font-weight: 700; }
 input[type=text] { font: inherit; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .4rem .6rem; }
 .tabs small { opacity: .7; }
 
@@ -1829,11 +1825,6 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
 .storage-full { color: #FF8DB9; font-weight: 700; }
 @media (min-width: 1024px) { .bulk-bar { bottom: 1rem; } .storage-tools { top: 70px; } }
 .collection-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1.1rem .9rem; }
-.preset-list { display: grid; gap: .4rem; list-style: none; margin: 0 0 .8rem; padding: 0; }
-.preset-list li { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .7rem; padding: .45rem .6rem; border-radius: var(--radius-ui); background: var(--night-2); }
-.preset-name { font-weight: 700; min-width: 6rem; }
-.preset-members { display: flex; gap: 4px; margin-right: auto; }
-.preset-members img { width: 34px; height: 34px; object-fit: cover; border-radius: 50%; border: 2px solid var(--night-3); background: var(--paper-2); }
 .timers { display: flex; flex-wrap: wrap; gap: .5rem; list-style: none; margin: 0 0 2rem; padding: 0; }
 .timers li { display: grid; padding: .45rem .8rem; border-radius: var(--radius-ui); background: var(--night-2); border: 1px solid var(--night-3); font-size: var(--step--1); }
 .timers li span { color: var(--muted); }
@@ -3894,7 +3885,6 @@ body.cine-open { overflow: hidden; }
 .chat-bubble > summary { list-style: none; position: relative; display: grid; place-items: center; width: 56px; height: 56px; border-radius: 50%; cursor: pointer;
   background: var(--sky); border: 3px solid var(--ink); box-shadow: 3px 3px 0 var(--sky-deep), 0 8px 20px rgb(0 0 0 / .4); font-size: 1.5rem; }
 .chat-bubble > summary::-webkit-details-marker { display: none; }
-.chat-bubble > summary b { position: absolute; top: -4px; right: -4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px; background: var(--magenta); color: #fff; font-size: .7rem; display: grid; place-items: center; border: 2px solid var(--ink); }
 .chat-bubble[open] > summary { background: var(--paper); }
 .chat-bubble-panel { position: absolute; right: 0; bottom: 66px; width: min(360px, calc(100vw - 32px)); display: grid; border-radius: var(--radius-card); overflow: hidden;
   background: var(--night-2); border: 2px solid var(--ink); box-shadow: 0 16px 40px rgb(0 0 0 / .55); }
@@ -4062,3 +4052,131 @@ body.cine-open { overflow: hidden; }
 .pve-state .meter { width: 7rem; height: 8px; margin: 0; }
 .pve-check li.locked .pve-name strong { color: var(--muted); }
 @media (max-width: 560px) { .pve-check li { grid-template-columns: 1.6rem minmax(0, 1fr); } .pve-state { grid-column: 2; justify-items: start; } .pve-check li.sub { margin-left: .6rem; } }
+
+/* ===================================================================================
+   Part 10 · Carry Me: Joyce's hero, her resolve (hope -> justice), the lineage strip
+   =================================================================================== */
+.cm-hero { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr) auto; grid-template-areas: "joyce title progress" "joyce resolve resolve";
+  gap: .8rem 1.3rem; align-items: center; margin-bottom: 1.2rem; padding: 1.1rem 1.2rem; border-radius: var(--radius-card);
+  border: 3px solid var(--ink); box-shadow: 5px 5px 0 var(--night-3);
+  background: radial-gradient(ellipse at 15% 50%, rgb(58 180 242 / .22), transparent 55%), repeating-linear-gradient(-55deg, transparent 0 14px, rgb(255 255 255 / .03) 14px 15px), var(--night-2); }
+.cm-joyce { grid-area: joyce; width: 100%; height: auto; border-radius: var(--radius-ui); border: 3px solid var(--ink); box-shadow: 0 0 0 3px var(--sky); }
+.cm-title { grid-area: title; min-width: 0; } .cm-title h1, .cm-title p { margin: 0 0 .3rem; }
+.cm-hero .story-progress { grid-area: progress; }
+.cm-resolve { grid-area: resolve; display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.cm-resolve-label { font-size: .75rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.cm-resolve ol { display: flex; flex: 1; gap: 0; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.cm-resolve li { flex: 1; padding: .3rem .4rem; text-align: center; font-size: .8rem; background: var(--night); color: var(--muted);
+  border: 2px solid var(--night-3); margin-left: -2px; }
+.cm-resolve li:first-child { border-radius: 999px 0 0 999px; margin-left: 0; } .cm-resolve li:last-child { border-radius: 0 999px 999px 0; }
+.cm-resolve li.on { background: linear-gradient(90deg, var(--sky-deep), var(--sky)); color: var(--ink); border-color: var(--ink); }
+.cm-resolve li.on:nth-child(n+4) { background: linear-gradient(90deg, var(--magenta), #FF7A3D); }
+.cm-resolve li.now { font-weight: 700; box-shadow: 0 0 12px rgb(58 180 242 / .5); }
+.cm-lineage { margin-bottom: 1.2rem; }
+.cm-lineage h2 { margin: 0 0 .5rem; }
+.cm-lineage ol { display: flex; gap: .55rem; margin: 0; padding: .2rem 0 .4rem; list-style: none; overflow-x: auto; }
+.cm-lineage li { flex: 0 0 auto; display: grid; justify-items: center; gap: .25rem; width: 76px; text-align: center; font-size: .7rem; }
+.cm-lineage img { width: 64px; height: 64px; object-fit: cover; border-radius: 50%; border: 3px solid var(--ink); box-shadow: 0 0 0 2px var(--sky); background: var(--night); }
+.cm-lineage li.lost img { filter: brightness(0) opacity(.45); box-shadow: 0 0 0 2px var(--night-3); }
+.cm-lineage li.lost span { color: var(--muted); }
+.cm-guest li a { border-color: var(--sky) !important; box-shadow: 0 0 0 2px var(--sky); }
+.cm-forms { display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0 .8rem; padding: .6rem; border: 2px dashed var(--sky); border-radius: var(--radius-ui); }
+.cm-forms legend { padding: 0 .3rem; font-size: .85rem; color: var(--sky); }
+.cm-forms label { display: grid; justify-items: center; gap: .2rem; width: 72px; padding: .3rem; border-radius: var(--radius-ui); border: 2px solid var(--night-3); font-size: .68rem; text-align: center; cursor: pointer; }
+.cm-forms label:has(input:checked) { border-color: var(--sky); background: rgb(58 180 242 / .12); }
+.cm-forms input { position: absolute; opacity: 0; pointer-events: none; }
+.cm-forms label:has(input:focus-visible) { outline: 2px solid var(--sky); outline-offset: 2px; }
+.cm-forms img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.carry-me .node-replay select { max-width: 8rem; font-size: .75rem; }
+@media (max-width: 760px) {
+  .cm-hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "joyce" "title" "progress" "resolve"; }
+  .cm-joyce { max-width: 360px; }
+  .cm-resolve li { font-size: .7rem; padding: .25rem .2rem; }
+}
+
+/* level gates on story / AU / Carry Me stages */
+.level-gate { display: grid; gap: .45rem; border-color: var(--gold); }
+.level-gate .meter { height: 8px; margin: 0; max-width: 18rem; }
+
+/* ===================================================================================
+   Team presets: a grid of MAX_TEAMS slot cards (filled first, then empty), the active one lit
+   =================================================================================== */
+.presets { margin-top: 1.4rem; padding: 1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3); }
+.presets-head { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; margin-bottom: .7rem; }
+.presets-head h3 { margin: 0; }
+.presets-count { font-size: .85rem; color: var(--muted); } .presets-count strong { font: 400 1.2rem/1 var(--display); color: var(--paper); }
+.preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: .6rem; margin: 0; padding: 0; list-style: none; }
+.preset-card { display: grid; align-content: start; gap: .55rem; padding: .65rem .7rem; border-radius: var(--radius-ui); background: var(--night); border: 2px solid var(--night-3); min-width: 0; }
+.preset-card.active { border-color: var(--sky); box-shadow: 0 0 0 1px var(--sky), 3px 3px 0 var(--ink); }
+.preset-card.broken { border-style: dashed; }
+.preset-card.empty { border-style: dashed; background: transparent; min-height: 5.5rem; }
+.preset-top { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.preset-num { display: grid; place-items: center; flex: 0 0 auto; width: 1.5rem; height: 1.5rem; border-radius: 6px; border: 2px solid var(--ink);
+  background: var(--gold); color: var(--ink); font: 400 .8rem/1 var(--display); rotate: -4deg; }
+.preset-card.empty .preset-num { background: var(--night-3); color: var(--muted); border-color: var(--night-3); }
+.preset-card.active .preset-num { background: var(--sky); }
+.preset-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; text-transform: capitalize; }
+.preset-badge { flex: 0 0 auto; padding: .05rem .45rem; border-radius: 999px; font-size: .7rem; background: var(--sky); color: var(--ink); font-weight: 700; }
+.preset-badge.warn { background: transparent; color: var(--gold); border: 1px solid var(--gold); }
+.preset-members { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.preset-members li { display: grid; justify-items: center; gap: .15rem; min-width: 0; font-size: .66rem; text-align: center; }
+.preset-members li span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.preset-members img { width: 52px; height: 52px; object-fit: cover; border-radius: 50%; border: 2px solid var(--muted); background: var(--night-2); }
+.preset-members .rar-rare img { border-color: var(--violet); } .preset-members .rar-epic img { border-color: var(--gold); }
+.preset-members .rar-legend img { border-color: var(--magenta); } .preset-members .rar-mythic img { border-color: var(--gold); box-shadow: 0 0 0 2px var(--magenta); }
+.preset-members .gone img { opacity: .35; border-style: dashed; } .preset-members .gone span { color: var(--muted); }
+.preset-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+.preset-actions .btn.danger { margin-left: auto; }
+.preset-save { display: flex; flex-wrap: wrap; gap: .4rem; }
+.preset-save label { flex: 1 1 8rem; } .preset-save input { width: 100%; }
+/* admin checklist debug toggles */
+.pve-check li { grid-template-columns: 1.6rem minmax(0, 1fr) auto minmax(7rem, auto); }
+.pve-debug { margin: 0; } .pve-check .pve-state { grid-column: -2; }
+@media (max-width: 560px) { .pve-check li { grid-template-columns: 1.6rem minmax(0, 1fr); } .pve-debug, .pve-check .pve-state { grid-column: 2; } }
+
+/* ===================================================================================
+   The unified chat bubble: tabs (global, gang, messages), conversations inline, red dots for unread
+   =================================================================================== */
+.red-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #FF3B3B; border: 2px solid var(--ink); box-shadow: 0 0 6px rgb(255 59 59 / .7); vertical-align: middle; }
+.chat-bubble > summary .chat-dots { position: absolute; top: -2px; right: -2px; line-height: 0; }
+.chat-bubble > summary .red-dot { width: 16px; height: 16px; animation: red-dot-pulse 1.6s ease-in-out infinite; }
+@keyframes red-dot-pulse { 50% { transform: scale(1.18); } }
+.bubble-inner { display: grid; min-width: 0; }
+.bubble-tabs { display: flex; align-items: stretch; gap: 0; background: var(--night-3); }
+.bubble-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: .35rem; padding: .55rem .4rem; border: 0; border-bottom: 3px solid transparent;
+  background: none; color: var(--muted); font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.bubble-tab:hover { color: var(--paper); }
+.bubble-tab.on { color: var(--paper); border-bottom-color: var(--sky); background: rgb(58 180 242 / .08); }
+.bubble-tab .tab-dot { line-height: 0; }
+.bubble-full { display: grid; place-items: center; padding: 0 .7rem; color: var(--sky); text-decoration: none; font-weight: 700; }
+.bubble-note { margin: 0; padding: 1.2rem 1rem; font-size: .88rem; }
+.bubble-convs { list-style: none; margin: 0; padding: .3rem; height: min(46vh, 340px); overflow-y: auto; background: var(--night-2); }
+.bubble-conv { display: flex; align-items: center; gap: .6rem; width: 100%; padding: .5rem .55rem; border: 0; border-radius: var(--radius-ui); background: none; color: var(--paper); font: inherit; text-align: left; cursor: pointer; }
+.bubble-conv:hover, .bubble-conv:focus-visible { background: var(--night-3); }
+.bubble-conv .avatar, .bubble-conv .avatar-initial { width: 34px; height: 34px; flex: 0 0 auto; border-radius: 50%; }
+.bubble-conv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bubble-conv.unread .bubble-conv-name { font-weight: 700; }
+.bubble-conv time { font-size: .72rem; }
+.bubble-dm-head { display: flex; align-items: center; gap: .6rem; padding: .4rem .6rem; background: var(--night-2); border-bottom: 1px solid var(--night-3); }
+.bubble-dm-head strong { color: var(--paper); }
+.bubble-dm-head a:last-child { margin-left: auto; text-decoration: none; }
+.chat-bubble .bubble-dm .chat-list { height: min(40vh, 300px); }
+@media (prefers-reduced-motion: reduce) { .chat-bubble > summary .red-dot { animation: none; } }
+
+/* wiki: the progression guide's roadmap */
+.guide-steps { display: grid; gap: .5rem; padding-left: 1.4rem; }
+.guide-road { list-style: none; margin: 1rem 0; padding: 0 0 0 1.1rem; display: grid; gap: .55rem; border-left: 3px solid var(--night-3); }
+.guide-road li { position: relative; display: flex; align-items: flex-start; gap: .8rem; padding: .55rem .7rem; border-radius: var(--radius-ui); background: var(--night-2); border-left: 4px solid var(--part, var(--sky)); }
+.guide-road li::before { content: ""; position: absolute; left: calc(-1.1rem - 9px); top: 1rem; width: 12px; height: 12px; border-radius: 50%; background: var(--part, var(--sky)); border: 2px solid var(--ink); }
+.guide-road li > div { display: grid; gap: .15rem; min-width: 0; }
+.guide-lv { flex: 0 0 auto; min-width: 3.4rem; padding: .15rem .4rem; border-radius: 6px; border: 2px solid var(--ink); background: var(--gold); color: var(--ink); font: 400 .8rem var(--display); text-align: center; rotate: -3deg; }
+.guide-opens { font-size: .82rem; color: var(--sky); }
+.wiki-feature-card.guide { border-color: var(--sky); box-shadow: 0 0 0 2px var(--sky); }
+
+/* picker repeat mode: the picked copies, each removable */
+.sp-picked { display: flex; flex-wrap: wrap; gap: .35rem; flex: 1 1 100%; }
+.sp-picked-chip { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .45rem .2rem .25rem; border-radius: 999px; border: 2px solid var(--night-3);
+  background: var(--night-2); color: var(--paper); font: inherit; font-size: .75rem; cursor: pointer; }
+.sp-picked-chip img, .sp-picked-chip .sp-emoji { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; font-size: .9rem; }
+.sp-picked-chip b { color: var(--muted); } .sp-picked-chip:hover b { color: #FF3B3B; }
+.sp-foot { flex-wrap: wrap; }

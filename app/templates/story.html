@@ -31,7 +31,10 @@
           <p class="story-unlock">🔓 {{ 'This fight opens' if left == 1 else left ~ ' more stages open' }}
             <strong>{{ names[:-1]|join(', ') ~ ' and ' ~ names[-1] if names|length > 1 else names[0] }}</strong>.</p>
         {% endif %}
-        {% if u.main_characters %}
+        {% if gate %}
+          <p class="notice level-gate" role="status">🔒 {{ gate.text }}
+            <span class="meter" role="meter" aria-label="Player level" aria-valuemin="0" aria-valuemax="{{ gate.level }}" aria-valuenow="{{ gate.have }}"><i style="width: {{ (100 * gate.have / gate.level)|round }}%"></i></span></p>
+        {% elif u.main_characters %}
           <form method="post" action="{{ url_for('progress.story_fight') }}">
             <input type="hidden" name="csrf" value="{{ csrf_token }}">
             <button class="btn gold big">{{ 'Face the boss' if stage.boss else 'Fight' }} →</button>
@@ -63,7 +66,8 @@
   {% endif %}
 
   {% if nav_unlocked.overheaven %}
-    <p class="notice">☁ The story is done, and <a href="{{ url_for('progress.oh_page') }}">Over Heaven</a> is open: the endgame fights of every mode.</p>
+    <p class="notice">🎭 The story is done, but Joyce Joestar's is just starting: <a href="{{ url_for('progress.cm_page') }}">Part 10 · Carry Me</a> is open.</p>
+    <p class="notice">☁ <a href="{{ url_for('progress.oh_page') }}">Over Heaven</a> is open too: the endgame fights of every mode.</p>
   {% endif %}
   {% if nav_unlocked.altverse %}
     <p class="notice">🌀 Every part you clear opens a new <a href="{{ url_for('progress.au_page') }}">Alternate Universe</a> chapter: what if the villains had won?</p>

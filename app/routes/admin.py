@@ -360,6 +360,16 @@ def player_action(uid, op):
             return "Supporter status removed."
         _edit(uid, run, "supporter", "", days=days or 0)
 
+    elif op == "debug_unlock":
+        from app.game import progression
+        key, on = f.get("key", ""), f.get("on") == "1"
+        if key not in progression.DEBUG_KEYS:
+            flash("Unknown mode.", "error")
+            return back
+        progression.set_forced(uid, key, on)
+        audit("debug_unlock", uid, key=key, on=on)
+        flash(f"Debug: {progression.DEBUG_KEYS[key]} {'forced open' if on else 'back to normal'} for {name}.", "ok")
+
     elif op == "clear_fight":
         clear_fight(uid)
         audit("clear_fight", uid)

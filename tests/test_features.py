@@ -566,7 +566,9 @@ def test_story_difficulty_curve_keeps_its_shape():
     for who in range(5):                                     # the end is harder than Part 3
         assert rate(who, first[8], story.TOTAL) <= rate(who, first[3], first[4])
     assert rate(starter, first[5], story.TOTAL) <= 0.03      # new teams can't skip ahead (a fluke at most)
-    assert rate(best, first[8], story.TOTAL) >= 0.3          # a maxed team can get through Part 8
+    # a ★3 UR/LR team without items can still get through Part 8 (story.HARDER made it a real wall: ★5, items
+    # and chips are what make it comfortable)
+    assert rate(best, first[8], story.TOTAL) >= 0.2
 
 
 def test_smart_ai_finishes_kills_and_respects_taunt():
@@ -1319,7 +1321,7 @@ def test_new_terrain_setters_are_natives():
 def test_alternate_universe_opens_with_the_story_and_pays_once(client):
     import app.db as dbmod
     from app.game import altverse
-    player(client, "111", fragments=0, super_fragments=0)
+    player(client, "111", fragments=0, super_fragments=0, xp=500_000)  # level 63: past every level gate
     h = login(client, "111")
     d = doc(client, "111")
     d["main_characters"] = [char(1)]
@@ -1615,3 +1617,59 @@ def test_admin_player_page_shows_the_pve_unlock_checklist(client):
     assert rows[f"Alternate Universe · {first['title']}"]["done"] and not rows["Training ground"]["done"]
     page = client.get("/admin/player/222").data.decode()
     assert "PvE unlock checklist" in page and "Finish the story" in page and "Training ground" in page
+
+
+def test_ten_presets_update_in_place_and_show_as_slots(client):
+    from app.game import logic
+    assert logic.MAX_TEAMS == 10
+    u = User({**create_user("1"), "main_characters": [char(1), char(2)]})
+    for i in range(10):
+        logic.team_save(u, f"team {i}")
+    with pytest.raises(logic.GameError):
+        logic.team_save(u, "one too many")
+    u.main_characters.pop()
+    logic.team_update(u, "team 0")
+    assert u.teams["team 0"] == [u.main_characters[0].uuid]
+    with pytest.raises(logic.GameError):
+        logic.team_update(u, "nope")
+    player(client, "111", main_characters=[char(1)], teams={"alpha": []})
+    login(client, "111")
+    d = doc(client, "111")
+    d["teams"] = {"alpha": [d["main_characters"][0]["uuid"]]}
+    put(client, d)
+    page = client.get("/team").data.decode()
+    assert "preset-grid" in page and page.count('class="preset-card empty"') == 9 and "In use" in page
+
+
+def test_admin_can_force_a_mode_open_for_debugging(client):
+    from app.game import carryme, gates, progression
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    put(client, create_user("111"))
+    put(client, create_user("222"))
+    h = login(client, "111")
+    target = User(doc(client, "222"))
+    assert not carryme.unlocked(target) and gates.carry_me(target, 0)
+    client.post("/admin/player/222/debug_unlock", data={"key": "carryme", "on": "1"}, headers=h)
+    client.post("/admin/player/222/debug_unlock", data={"key": "levels", "on": "1"}, headers=h)
+    target = User(doc(client, "222"))
+    assert carryme.unlocked(target) and gates.carry_me(target, 0) is None
+    rows = {m["label"]: m for m in progression.checklist(target)}
+    assert rows["Carry Me (Part 10)"]["done"] and rows["Carry Me (Part 10)"]["forced"]
+    page = client.get("/admin/player/222").data.decode()
+    assert "Forced" in page and "debug_unlock" in page
+    assert "story_cleared" not in str(doc(client, "222").get("web_story"))  # the save is untouched
+    client.post("/admin/player/222/debug_unlock", data={"key": "carryme", "on": "0"}, headers=h)
+    assert not carryme.unlocked(User(doc(client, "222")))
+    client.post("/admin/player/222/debug_unlock", data={"key": "bogus", "on": "1"}, headers=h)
+    assert progression.forced("222") == {"levels"}
+
+
+def test_the_progression_guide_is_built_from_the_real_gates(client):
+    from app.game import gates
+    page = client.get("/wiki/guide").data.decode()
+    assert "Progression guide" in page and f"Lv {gates.STORY[8]}" in page and "Carry Me" in page
+    assert "Mirror World" in page and "Over Heaven" in page and "Heaven&#39;s Trials" in page
+    assert "/wiki/guide" in client.get("/wiki").data.decode()
+    player(client, "111")
+    login(client, "111")
+    assert "/wiki/guide" in client.get("/team?tour=1").data.decode()  # the tour points at it

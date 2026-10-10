@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}Carry Me · Part 10 | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page story carry-me">
+  {#- the hero: Joyce, her resolve (hope -> justice) and the line Carry Me remembers -#}
+  <header class="cm-hero">
+    <img class="cm-joyce" src="{{ url_for('static', filename='img/mascot-banner.webp') }}" alt="Joyce Joestar" width="640" height="260">
+    <div class="cm-title">
+      <p class="kicker">Part 10 · ジョイス・ジョースター</p>
+      <h1 class="display sm">{% call menacing() %}Carry Me{% endcall %}</h1>
+      <p class="muted">Present day. The world has forgotten Stands, and Joyce Joestar, an actor in New York, never knew she had one until strange people started showing up at her work. Her Stand carries her bloodline: every act, it remembers one more JoJo.</p>
+    </div>
+    <div class="story-progress" title="Scenes cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} scenes
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+    <div class="cm-resolve" aria-label="Joyce's resolve: {{ resolve.word }}">
+      <span class="cm-resolve-label">Resolve</span>
+      <ol>{% for w in resolve.steps %}<li class="{{ 'on' if loop.index0 <= resolve.step }}{{ ' now' if loop.index0 == resolve.step }}">{{ w }}</li>{% endfor %}</ol>
+    </div>
+  </header>
+
+  <section class="cm-lineage" aria-label="The Joestar line Carry Me remembers">
+    <h2 class="h3">The line Carry Me remembers</h2>
+    <ol>
+      {% for f in lineage %}
+        <li class="{{ 'known' if f.known else 'lost' }} rar-{{ f.rarity|rarity }}" title="{{ f.name if f.known else 'Not remembered yet' }} · {{ f.jojo }}">
+          <img src="{{ f.id|stand_img }}" alt="" loading="lazy" width="64" height="64" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+          <span>{{ f.name if f.known else '???' }}</span>
+        </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  {% if error %}<p class="toast error" role="alert">{{ error }}</p>{% endif %}
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% elif stage %}
+    <article class="story-stage{% if stage.boss %} boss{% endif %}" style="--part: {{ stage.color }}">
+      <div class="story-stage-text">
+        <p class="kicker">{{ stage.act_title }} · Scene {{ stage.number }}{% if stage.boss %} · Boss{% endif %}</p>
+        <h2 class="h2">{{ stage.title }}</h2>
+        {% if stage.act_intro %}<p class="story-intro">{{ stage.act_intro }}</p>{% endif %}
+        <p class="story-text">{{ stage.text }}</p>
+        {% if stage.rule_lines %}
+          <ul class="oh-rules cm-rules" aria-label="Over Heaven rules">{% for line in stage.rule_lines %}<li>☁️ {{ line }}</li>{% endfor %}</ul>
+        {% endif %}
+        <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
+        {% if gate %}
+          <p class="notice level-gate" role="status">🔒 {{ gate.text }}
+            <span class="meter" role="meter" aria-label="Player level" aria-valuemin="0" aria-valuemax="{{ gate.level }}" aria-valuenow="{{ gate.have }}"><i style="width: {{ (100 * gate.have / gate.level)|round }}%"></i></span></p>
+        {% elif u.main_characters %}
+          <form method="post" action="{{ url_for('progress.cm_fight') }}" class="cm-go">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            {% if (stage.finale or stage.encore) and choices|length > 1 %}
+              <fieldset class="cm-forms">
+                <legend>Carry Me takes the form of…</legend>
+                {% for f in choices %}
+                  <label class="rar-{{ f.rarity|rarity }}"><input type="radio" name="form" value="{{ f.id }}" {{ 'checked' if f.id == stage.form }}>
+                    <img src="{{ f.id|stand_img }}" alt="" loading="lazy" width="48" height="48"><span>{{ f.name }}</span></label>
+                {% endfor %}
+              </fieldset>
+            {% endif %}
+            <button class="btn gold big">{{ 'Final scene' if stage.finale else ('Last bow' if stage.last else ('Encore!' if stage.encore else ('Face the boss' if stage.boss else 'Action!'))) }} →</button>
+          </form>
+        {% else %}
+          <p class="notice">Put at least one stand in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+        {% endif %}
+      </div>
+      <div class="story-foes" aria-label="Who fights">
+        <p class="muted">Beside you</p>
+        <ul class="cm-guest">
+          <li class="rar-{{ stage.form_view.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=stage.form) }}">
+            <img src="{{ stage.form|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+            <span>Carry Me ｢{{ stage.form_view.name }}｣</span><small>{{ stage.jojo }}'s form · guest</small></a></li>
+        </ul>
+        <p class="muted">Enemies · level {{ stage.level }} · ★{{ stage.awaken }} · {{ stage.quality_name }} · ×{{ stage.mult }} health & damage</p>
+        <ul>
+          {% for c in stage.enemy_stands %}
+            <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">
+              <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span>{{ c.name }}</span><small>{{ c.rarity }}</small></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </article>
+  {% else %}
+    <article class="story-stage done">
+      <h2 class="h2">Curtain, for real this time</h2>
+      <p class="story-text">The Archivist is stopped, the names she cut are remembered again, and the last bow is taken. Joyce still has a callback on Monday. Replay any scene below, with any form Carry Me remembers.</p>
+    </article>
+  {% endif %}
+
+  <h2 class="h3 story-map-title">The acts</h2>
+  <ol class="story-map">
+    {% for a in acts %}
+      <li class="story-part{% if a.complete %} complete{% endif %}{% if not a.open %} au-locked{% endif %}{% if a.encore %} cm-encore{% endif %}" style="--part: {{ a.color }}">
+        <header class="part-card">
+          <span class="part-num" aria-hidden="true">{{ a.title.split(' ')[1] }}</span>
+          <span class="part-label">{{ '☁ Over Heaven rules · any form' if a.encore else 'Carry Me remembers ' ~ a.jojo }}</span>
+          <strong class="part-title">{{ a.title.split('· ')[1] }}</strong>
+          <span class="part-jp">{{ a.resolve }}</span>
+          <span class="part-count">{{ a.cleared }} / {{ a.stages|length }} scenes{% if not a.cleared %} · Lv {{ act_levels[a.index] }}+{% endif %}</span>
+        </header>
+        <ol class="story-nodes">
+          {% for s in a.stages %}
+            <li class="node {{ s.state }}{% if s.boss %} boss{% endif %}" title="{{ s.title }} · Carry Me ｢{{ s.form.name }}｣ · ×{{ s.mult }}{% if s.rules %} · {{ s.rules|join(' ') }}{% endif %}">
+              <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if s.boss else s.index + 1) }}</span>
+              <span class="node-label">{{ s.title }}</span>
+              <small class="node-level">｢{{ s.form.name }}｣</small>
+              {% if s.state == 'cleared' and not fight %}
+                <form method="post" action="{{ url_for('progress.cm_fight') }}" class="node-replay">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="stage" value="{{ s.index }}">
+                  {% if choices|length > 1 %}
+                    <select name="form" aria-label="Carry Me's form for this replay">{% for f in choices %}<option value="{{ f.id }}" {{ 'selected' if f.id == s.form.id }}>{{ f.name }}</option>{% endfor %}</select>
+                  {% endif %}
+                  <button class="btn small ghost" title="Replay for stand XP and a fifth of the Meteor Dust">↻ {{ replay_energy }}⚡</button>
+                </form>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+      </li>
+    {% endfor %}
+  </ol>
+  <p class="muted wiki-note">An original story, not canon. Carry Me fights beside your team as a fourth, guest stand: in each act it takes the form of a past JoJo's Stand. Replays cost {{ replay_energy }} energy and let it take any form it remembers. Each act's boss drops an Arrowhead and a crafting material; the final scene a Requiem Arrow and the title “{{ title }}”. After it, the Encore plays under Over Heaven's rules: an Arrowhead every scene, and for the last bow two more, a Requiem Arrow and the title “Encore”.</p>
+</section>
+{% endblock %}

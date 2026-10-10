@@ -120,7 +120,8 @@ def collection_ctx(user):
         counts[c.id] = counts.get(c.id, 0) + 1
     fusable = sum(len(f) for _, f in logic.auto_fuse_plan(user))
     return {"locked": logic.locked(user), "copies": counts, "fusable": fusable, "suggested": logic.best_team(user),
-            "power": {c.uuid: power_score(c) for c in user.main_characters + user.storage_characters}}
+            "power": {c.uuid: power_score(c) for c in user.main_characters + user.storage_characters},
+            "max_teams": logic.MAX_TEAMS}
 
 
 def _collection(user, message=None, error=None):
@@ -428,6 +429,14 @@ def preset_load():
     name = request.form.get("name", "")
     user, res, err = action(lambda u: logic.team_load(u, name))
     return _collection(user, f"Preset “{name}” loaded." if res is not None and not err else None, err)
+
+
+@bp.post("/team/preset/update")
+@player_required
+def preset_update():
+    name = request.form.get("name", "")
+    user, res, err = action(lambda u: logic.team_update(u, name))
+    return _collection(user, f"Preset “{res}” now holds your current team." if res else None, err)
 
 
 @bp.post("/team/preset/delete")

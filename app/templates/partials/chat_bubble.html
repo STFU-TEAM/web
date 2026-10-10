@@ -1,0 +1,64 @@
+{#- The chat bubble's panel: every chat in one place. Swapped whole by its tabs; each chat box inside polls on its own
+    (only while the bubble is open). -#}
+{%- macro tab_btn(key, label, dot=none) -%}
+  <button type="button" role="tab" class="bubble-tab{{ ' on' if tab == key or (key == 'messages' and tab == 'dm') }}" aria-selected="{{ 'true' if tab == key else 'false' }}"
+          hx-get="{{ url_for('chat.bubble', tab=key, here=here) }}" hx-target="#bubble-inner" hx-swap="outerHTML">{{ label }}
+    {%- if dot is not none %}<span id="bubble-dot-{{ dot[0] }}" class="tab-dot">{% if dot[1] %}<b class="red-dot" aria-label="unread"></b>{% endif %}</span>{% endif -%}
+  </button>
+{%- endmacro -%}
+<div id="bubble-inner" class="bubble-inner bubble-{{ tab }}">
+  <nav class="bubble-tabs" role="tablist" aria-label="Chats">
+    {{ tab_btn('global', '🌐 Global') }}
+    {% if has_gang %}{{ tab_btn('gang', '⚑ Gang', ('gang', dots.gang)) }}{% endif %}
+    {{ tab_btn('messages', '✉ Messages', ('dm', dots.dm)) }}
+    <a class="bubble-full" href="{{ url_for('gangs.index') ~ '#chat' if tab == 'gang' else url_for('chat.index', tab='messages' if tab in ('messages', 'dm') else none) }}" aria-label="Open the full chat page" title="Full page">⤢</a>
+  </nav>
+
+  {% if tab == 'global' %}
+    {% include "partials/chat_box.html" %}
+    {% with placeholder = "Say something to everyone…" %}{% include "partials/chat_form.html" %}{% endwith %}
+
+  {% elif tab == 'gang' %}
+    {% if gang %}
+      {% include "partials/gang_chat.html" %}
+      <form class="chat-form" data-chat-form method="post" action="{{ url_for('gangs.chat_post') }}"
+            hx-post="{{ url_for('gangs.chat_post') }}" hx-target="#gang-chat" hx-swap="outerHTML" hx-disabled-elt="find button">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <label class="sr" for="bubble-gang-text">Message your gang</label>
+        <textarea id="bubble-gang-text" name="text" rows="1" maxlength="{{ R.CHAT_MAX_LEN }}" placeholder="Message {{ gang.name }}…" required enterkeyhint="send"></textarea>
+        <button class="btn gold" aria-label="Send">Send</button>
+      </form>
+    {% elif here == 'gangs.index' %}
+      <p class="bubble-note muted">Your gang's chat is right on this page. <a href="#chat">Jump to it ↓</a></p>
+    {% else %}
+      <p class="bubble-note muted">You're not in a gang anymore. <a href="{{ url_for('gangs.index') }}">Find one</a></p>
+    {% endif %}
+
+  {% elif tab == 'messages' %}
+    {% if bubble_error %}<p class="chat-error" role="alert">{{ bubble_error }}</p>{% endif %}
+    {% if convs %}
+      <ul class="bubble-convs">
+        {% for c in convs %}
+          <li><button type="button" class="bubble-conv{{ ' unread' if c.unread }}" hx-get="{{ url_for('chat.bubble_dm', uid=c.uid, here=here) }}" hx-target="#bubble-inner" hx-swap="outerHTML">
+            {% if c.avatar %}<img class="avatar" src="{{ c.avatar }}" alt="" width="34" height="34" loading="lazy">{% else %}<span class="avatar-initial" aria-hidden="true">{{ c.name[:1]|upper }}</span>{% endif %}
+            <span class="bubble-conv-name">{{ c.name }}</span>
+            <time class="muted" data-ago="{{ c.at }}" datetime="{{ c.at }}"></time>
+            {% if c.unread %}<b class="red-dot" aria-label="{{ c.unread }} unread"></b>{% endif %}
+          </button></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="bubble-note muted">No conversations yet. Open a player's profile and hit ✉ Message, or <a href="{{ url_for('community.players') }}">find players</a>.</p>
+    {% endif %}
+
+  {% elif tab == 'dm' %}
+    <div class="bubble-dm-head">
+      <button type="button" class="btn small ghost" hx-get="{{ url_for('chat.bubble', tab='messages', here=here) }}" hx-target="#bubble-inner" hx-swap="outerHTML" aria-label="Back to your conversations">←</button>
+      <a href="{{ url_for('main.profile', uid=other) }}"><strong>{{ ident.name }}</strong></a>
+      <a class="muted" href="{{ url_for('chat.dm', uid=other) }}" title="Full page">⤢</a>
+    </div>
+    {% include "partials/chat_box.html" %}
+    {% if cant %}<p class="bubble-note muted">{{ cant }}</p>
+    {% else %}{% with placeholder = "Message " ~ ident.name ~ "…" %}{% include "partials/chat_form.html" %}{% endwith %}{% endif %}
+  {% endif %}
+</div>

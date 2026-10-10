@@ -17,6 +17,7 @@ from app.game.effects import Emoji, EffectType, NEGATIVE_EFFECTS, TERRAIN_BENEFI
 
 TOPICS = [
     # slug, title, one-line blurb, group
+    ("guide", "Progression guide", "Your roadmap: what to do first, what opens when, and how to level up for it.", "Start here"),
     ("stands", "Getting & upgrading stands", "Banners, rarity odds, pity, levels, fusing and ascension.", "Basics"),
     ("types", "Types & qualities", "What each type boosts and how much each quality multiplies it.", "Basics"),
     ("teams", "Team management", "Main team, storage and saved presets.", "Basics"),
@@ -362,6 +363,30 @@ def stand_links(stand_id):
             synergies.append({"key": key, "name": label, "icon": icon, "effect": effect, "partners": partners,
                               "bonus": [fmt_perk(s, v) for s, v in SYNERGY_BONUS.get(key, [])]})
     return {"sets": sets, "boosts": boosts, "reacts": reacts, "synergies": synergies}
+
+
+def guide_rows() -> dict:
+    """The progression guide's roadmap, from the same tables the game checks (story, gates, chapters, acts)."""
+    from app.game import altverse, carryme, coop, gates, overheaven, progression, story
+    parts = [{"title": p["title"], "jojo": p["jojo"], "stages": len(p["stages"]), "level": gates.STORY.get(p["part"], 0),
+              "color": p["color"]} for p in story.PARTS]
+    opens = {}  # stages cleared -> what that opens (0: open from the start)
+    for key, n in progression.GATES.items():
+        opens.setdefault(max(n, 0), []).append(progression.LABELS[key])
+    for p, pp in zip(parts, story.PARTS):
+        p["opens"] = opens.get(progression.done_at(pp["part"]), [])
+    chapters = [{"title": c["title"], "after": next(p["title"] for p in story.PARTS if p["part"] == c["after"]),
+                 "level": gates.AU.get(c["after"], 0), "stages": len(c["stages"]), "ally": c["ally"]}
+                for c in altverse.CHAPTERS]
+    acts = [{"title": a["title"], "jojo": a["jojo"], "level": gates.CARRY_ME[i], "stages": len(a["stages"]),
+             "encore": a.get("encore", False)} for i, a in enumerate(carryme.ACTS)]
+    tracks = [{"title": t["title"], "mode": t["mode"], "fights": len(t["fights"])} for t in overheaven.TRACKS]
+    raids = [{"label": t["label"], "xp": t["xp"]} for t in coop.TIERS.values()]
+    return {"parts": parts, "from_start": opens.get(0, []), "chapters": chapters, "acts": acts, "tracks": tracks, "raids": raids,
+            "xp_per_fight": logic.PLAYER_XPGAINS, "regen": logic.ENERGY_REGEN_MINUTES,
+            "per_day": 24 * 60 // logic.ENERGY_REGEN_MINUTES, "how": gates.HOW,
+            "story_done_level": gates.STORY[max(gates.STORY)], "cm_first": gates.CARRY_ME[0],
+            "encore_level": gates.CARRY_ME[-1]}
 
 
 def facts():

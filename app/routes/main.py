@@ -220,6 +220,8 @@ def _wiki_ctx(topic: str) -> dict:
         ctx["shop"] = wiki_data.event_shop_rows()
     elif topic == "progress":
         ctx["mastery"], ctx["sets"] = wiki_data.mastery_rows(), wiki_data.dex_rows()
+    elif topic == "guide":
+        ctx["g"] = wiki_data.guide_rows()
     elif topic == "items":
         ctx["items"] = wiki_data.item_rows()
     return ctx

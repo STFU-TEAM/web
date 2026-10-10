@@ -42,6 +42,7 @@
   'story': ('Story', url_for('progress.story_page'), ep.startswith('progress.story'), '📜', 'Travel Parts 3 to 8 beside each JoJo. The best rewards for new players.'),
   'altverse': ('Alternate Universe', url_for('progress.au_page'), ep.startswith('progress.au_'), '🌀', 'What if the villains had won? Custom chapters that open as you clear the story.'),
   'overheaven': ('Over Heaven', url_for('progress.oh_page'), ep.startswith('progress.oh_'), '☁', 'The endgame: puzzle fights in every mode that only the right team preparation beats.'),
+  'carryme': ('Carry Me · Part 10', url_for('progress.cm_page'), ep.startswith('progress.cm_'), '🎭', 'Joyce Joestar’s story: her Stand takes the form of every JoJo before her.'),
   'journey': ("Crusaders' Journey", url_for('journey.index'), ep.startswith('journey.'), '🐫', 'Send a stand from Tokyo to Cairo on its own. Stronger stands bring back more.'),
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
   'rush': ('Boss rush', url_for('progress.rush_page'), ep.startswith('progress.rush'), '♛', 'Twelve bosses back to back, health carried over. Weekly leaderboard.'),
@@ -71,7 +72,7 @@
 } -%}
 {#- Battle modes appear as the story opens them (app/game/progression.py): Mirror World, Tower and Dungeon after the
     first fight, Ranked and the Alternate Universe after Part 3, Over Heaven at the end. -#}
-{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey'] -%}
+{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) + ['journey'] -%}
 {%- set challenge_keys = (['wormhole'] if nav_unlocked.wormhole else []) + (['tower'] if nav_unlocked.tower else [])
                          + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
 {%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles'] -%}
@@ -99,7 +100,7 @@
 {%- macro badge(key) -%}
   {%- if key == 'story' and story_hot %} <em class="nav-badge">Start here</em>{% elif key == 'events' and live_event %} <em class="nav-badge">Live</em>
   {%- elif key in nav_new %} <em class="nav-badge new">New</em>
-  {%- elif key == 'chat' and chat_unread %} <em class="nav-badge" title="Unread private messages">{{ chat_unread }}</em>
+  {%- elif key == 'chat' and chat_unread %} <em class="nav-badge" title="Unread private and gang messages">{{ chat_unread }}</em>
   {%- elif key == 'items' and craft_ready %} <em class="nav-badge" title="Recipes you can craft now">{{ craft_ready }} to craft</em>{% endif -%}
 {%- endmacro -%}
 {%- macro menu_link(key) -%}
@@ -339,19 +340,16 @@
   {% if me.id and not ep.startswith('chat.') %}
     {#- the chat bubble: the global chat in a corner panel (loaded on first open, polled only while open) -#}
     <details class="chat-bubble" data-chat-bubble>
-      <summary aria-label="Chat{% if chat_unread %}, {{ chat_unread }} unread private messages{% endif %}"><span aria-hidden="true">💬</span>{% if chat_unread %}<b>{{ chat_unread }}</b>{% endif %}</summary>
+      <summary aria-label="Chat">
+        <span aria-hidden="true">💬</span>
+        {% include "partials/chat_dots.html" with context %}
+      </summary>
       <div class="chat-bubble-panel">
-        <div class="chat-bubble-head"><strong>🌐 Global chat</strong>
-          <a href="{{ url_for('chat.index', tab='messages') }}">✉ Messages{% if chat_unread %} <em class="nav-badge">{{ chat_unread }}</em>{% endif %}</a>
-          <a href="{{ url_for('chat.index') }}" aria-label="Open the chat page">⤢</a></div>
-        <div hx-get="{{ url_for('chat.feed', token='global', seq=-1) }}" hx-trigger="toggle from:closest details once" hx-swap="outerHTML"><p class="chat-empty muted">Loading…</p></div>
-        <form class="chat-form" data-chat-form method="post" action="{{ url_for('chat.post', token='global') }}"
-              hx-post="{{ url_for('chat.post', token='global') }}" hx-target="#chat-global" hx-swap="outerHTML" hx-disabled-elt="find button">
-          <input type="hidden" name="csrf" value="{{ csrf_token }}">
-          <label class="sr" for="bubble-text">Message everyone</label>
-          <textarea id="bubble-text" name="text" rows="1" maxlength="400" placeholder="Say something to everyone…" required enterkeyhint="send"></textarea>
-          <button class="btn gold" aria-label="Send">Send</button>
-        </form>
+        {#- every chat lives here: the panel loads on first open, then each tab swaps it whole -#}
+        {%- set first_tab = 'messages' if chat_dots.dm else ('gang' if chat_dots.gang else 'global') -%}
+        <div id="bubble-inner" hx-get="{{ url_for('chat.bubble', tab=first_tab, here=ep) }}" hx-trigger="toggle from:closest details once" hx-swap="outerHTML">
+          <p class="chat-empty muted">Loading…</p>
+        </div>
       </div>
     </details>
   {% endif %}

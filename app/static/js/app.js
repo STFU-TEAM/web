@@ -1256,7 +1256,7 @@ document.addEventListener("click", (e) => {
     $("[data-tour-next]").hidden = last;
     for (const [sel, key] of [["[data-tour-cta]", "cta"], ["[data-tour-cta2]", "cta2"]]) {
       const a = $(sel);
-      a.hidden = !(last && step[key]);
+      a.hidden = !step[key] || (!last && key === "cta2");  // mid-tour: one link, opened beside the tour
       if (step[key]) { a.href = step[key][0]; a.textContent = step[key][1]; }
     }
     card.style.bottom = "auto";
@@ -1282,6 +1282,7 @@ document.addEventListener("click", (e) => {
     else if (e.target.closest("[data-tour-cta], [data-tour-cta2]")) {
       e.preventDefault();
       const href = e.target.closest("a").href;
+      if (i < steps.length - 1) { window.open(href, "_blank", "noopener"); return; }  // a peek: the tour goes on
       finish().finally(() => { location.href = href; });
     }
   });
@@ -1515,7 +1516,8 @@ document.addEventListener("click", (e) => {
 
 // Stand / item picker (templates/partials/picker.html): a big trigger that shows the choice and a sheet with search,
 // group tabs, rarity filters and portrait tiles. Single pick closes on tap; multi pick numbers the order (ranked uses
-// it) and stops at data-sp-max; data-sp-unique allows one copy of each stand. The choice lives in hidden inputs.
+// it) and stops at data-sp-max; data-sp-unique allows one copy of each stand; data-sp-repeat lets a tap add the same
+// option again (the planner's items), each copy removable from the sheet's footer. The choice lives in hidden inputs.
 (() => {
   const RAR = { R: "common", SR: "rare", SSR: "epic", UR: "legend", LR: "mythic" };
   const GROUP = { mine: "My stands", any: "Any stand", item: "Items", gear: "Gear", usable: "Consumables & materials" };
@@ -1606,12 +1608,14 @@ document.addEventListener("click", (e) => {
       <div class="sp-tools"><input type="search" class="sp-search" placeholder="Search by name" autocomplete="off" spellcheck="false" aria-label="Search">
         <div class="sp-tabs" role="tablist"></div><div class="sp-rar" role="group" aria-label="Rarity"></div></div>
       <div class="sp-grid" role="listbox"></div>
-      <footer class="sp-foot"><button type="button" class="btn ghost small" data-sp-clear>Clear</button>
+      <footer class="sp-foot"><div class="sp-picked" hidden></div><button type="button" class="btn ghost small" data-sp-clear>Clear</button>
         <button type="button" class="btn gold" data-sp-close>Done</button></footer></div>`;
     document.body.appendChild(dlg);
     dlg.addEventListener("click", (e) => {
       if (e.target === dlg || e.target.closest("[data-sp-close]")) return dlg.close();
       if (e.target.closest("[data-sp-clear]")) { state.sel = []; commit(state.sp, []); return draw(); }
+      const drop = e.target.closest("[data-sp-drop]");
+      if (drop) { state.sel.splice(Number(drop.dataset.spDrop), 1); commit(state.sp, state.sel.slice()); return draw(); }
       const tab = e.target.closest("[data-group]");
       if (tab) { state.group = tab.dataset.group; return draw(); }
       const rar = e.target.closest("[data-rar]");
@@ -1626,6 +1630,10 @@ document.addEventListener("click", (e) => {
   const pick = (v) => {
     const sp = state.sp, m = max(sp);
     if (m === 1) { state.sel = v === "" ? [] : [v]; commit(sp, state.sel); return dlg.close(); }
+    if ("spRepeat" in sp.dataset) {  // another copy, while there's room (remove copies from the footer)
+      if (state.sel.length < m) { state.sel.push(v); commit(sp, state.sel.slice()); }
+      return draw();
+    }
     const i = state.sel.indexOf(v);
     if (i >= 0) state.sel.splice(i, 1);
     else if (state.sel.length < m) state.sel.push(v);
@@ -1647,14 +1655,16 @@ document.addEventListener("click", (e) => {
     const shown = inGroup.filter((o) => (state.rar === "all" || o.r === state.rar)
       && (!state.q || fold(o.n).includes(state.q) || fold(o.m).includes(state.q)));
     const full = m > 1 && state.sel.length >= m;
+    const repeat = "spRepeat" in sp.dataset;
     const tiles = shown.map((o) => {
       const at = state.sel.indexOf(o.v), on = at >= 0;
+      const copies = repeat ? state.sel.filter((v) => v === o.v).length : 0;
       const dupe = !on && "spUnique" in sp.dataset && takenIds.has(o.id);
       const why = o.x || (dupe ? "A copy is already picked" : "");
-      const off = !on && (why || full);
+      const off = (!on || repeat) && (why || full);
       return `<button type="button" class="sp-tile ${RAR[o.r] || "item"}${on ? " is-on" : ""}${off ? " is-off" : ""}" data-v="${esc(o.v)}"
         role="option" aria-selected="${on}" ${why ? "disabled" : ""}>
-        <span class="sp-tile-art">${thumb(o)}${on ? `<b class="sp-mark">${qtyMode(sp) ? "×" + (counts(sp)[o.v] || 1) : m > 1 ? at + 1 : "✓"}</b>` : ""}
+        <span class="sp-tile-art">${thumb(o)}${on ? `<b class="sp-mark">${qtyMode(sp) ? "×" + (counts(sp)[o.v] || 1) : repeat ? "×" + copies : m > 1 ? at + 1 : "✓"}</b>` : ""}
           ${o.sh ? '<i class="sp-badge" title="Shiny">✨</i>' : ""}${o.t ? '<i class="sp-badge sp-taunt" title="Taunt">🎯</i>' : ""}</span>
         <span class="sp-tile-name">${esc(o.n)}</span>
         <small>${o.r ? `<span class="rar-tag ${RAR[o.r]}">${o.r}</span> ` : ""}${esc(o.m || "")}</small>
@@ -1666,6 +1676,12 @@ document.addEventListener("click", (e) => {
     }
     dlg.querySelector(".sp-grid").innerHTML = tiles.join("") || `<p class="muted sp-nothing">Nothing matches.</p>`;
     dlg.querySelector(".sp-count").textContent = m > 1 ? `${state.sel.length}/${m} picked` : "";
+    const strip = dlg.querySelector(".sp-picked");  // repeat mode: each copy, removable on its own
+    strip.hidden = !(repeat && state.sel.length);
+    strip.innerHTML = repeat ? state.sel.map((v, i) => {
+      const o = byV.get(v);
+      return o ? `<button type="button" class="sp-picked-chip ${RAR[o.r] || ""}" data-sp-drop="${i}" aria-label="Remove ${esc(o.n)}">${thumb(o)}<span>${esc(o.n)}</span><b aria-hidden="true">✕</b></button>` : "";
+    }).join("") : "";
     dlg.querySelector(".sp-foot").hidden = m === 1;
   };
 

@@ -18,10 +18,10 @@ REPLAY_DAYS = 14
 LABELS = {"dummy": "Practice", "ranked": "Ranked", "friend": "Friendly duel", "wormhole": "Mirror World",
           "story": "Story", "alt_universe": "Alternate Universe", "rush": "Boss rush", "tower": "Tower",
           "dungeon": "Dungeon", "gang_war": "Gang war", "gang_raid": "Gang raid", "coop": "Co-op raid",
-          "training": "Training", "over_heaven": "Over Heaven"}
+          "training": "Training", "over_heaven": "Over Heaven", "carry_me": "Carry Me"}
 ICONS = {"dummy": "🎯", "ranked": "♛", "friend": "⚔", "wormhole": "🪞", "story": "📜", "alt_universe": "🌀",
          "rush": "♛", "tower": "▲", "dungeon": "▦", "gang_war": "⚑", "gang_raid": "🐉", "coop": "🤝",
-         "training": "🥊", "over_heaven": "☁"}
+         "training": "🥊", "over_heaven": "☁", "carry_me": "🎭"}
 PVP = {"ranked", "friend"}
 
 

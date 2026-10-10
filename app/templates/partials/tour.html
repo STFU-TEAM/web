@@ -8,6 +8,7 @@
   {"target": ["progress", "menu"], "title": "Progress", "text": "Daily and weekly quests are your steadiest source of Meteor Dust. Achievements pay out for long-term milestones."},
   {"target": ["community", "menu"], "title": "Community", "text": "Join a gang for wars and raids, trade stands with friends, and buy from player shops."},
   {"target": ["explore", "menu"], "title": "Explore", "text": "The wiki explains fights: terrains, synergies and status effects. Every stand's stats and special are in the encyclopedia."},
+  {"target": ["explore", "menu"], "title": "Your roadmap", "text": "Lost on what to do next? The progression guide in the wiki lays out the whole path: the story parts, the Alternate Universe, Joyce's story and Over Heaven, what player level each one asks, and the fastest ways to level up.", "cta": [url_for('main.wiki', topic='guide'), "Open the guide ↗"]},
   {"title": "Ready?", "text": "Pull your first stands, then begin the journey in Part 3 alongside Jotaro.", "cta": [url_for('play.banners'), "Summon"], "cta2": [url_for('progress.story_page'), "Start the story"]},
 ]|tojson }}</script>
 <div class="tour" id="tour" hidden data-autostart="{{ 1 if tour_pending else 0 }}" data-done="{{ url_for('progress.tour_done') }}">

@@ -1,0 +1,14 @@
+{#- The chat bubble's red dot (unread private or gang messages), polled every 30 s while the page is visible. The
+    poll's answer also refreshes the dots on the bubble's tabs, when they're on the page. -#}
+{%- set d = dots if dots is defined else chat_dots -%}
+{%- set label = [] -%}
+{%- if d.dm %}{% set _ = label.append(d.dm ~ ' unread private message' ~ ('s' if d.dm != 1 else '')) %}{% endif -%}
+{%- if d.gang %}{% set _ = label.append(d.gang ~ ' unread gang message' ~ ('s' if d.gang != 1 else '')) %}{% endif -%}
+<span id="chat-dots" class="chat-dots" hx-get="{{ url_for('chat.dots_view', v=d.dm ~ '-' ~ d.gang) }}"
+      hx-trigger="every 30s [document.visibilityState === 'visible']" hx-swap="outerHTML">
+  {%- if label %}<b class="red-dot" role="status" aria-label="{{ label|join(', ') }}"></b>{% endif -%}
+</span>
+{%- if dots is defined %}
+  <span id="bubble-dot-dm" class="tab-dot" hx-swap-oob="true">{% if d.dm %}<b class="red-dot" aria-label="unread"></b>{% endif %}</span>
+  <span id="bubble-dot-gang" class="tab-dot" hx-swap-oob="true">{% if d.gang %}<b class="red-dot" aria-label="unread"></b>{% endif %}</span>
+{%- endif %}

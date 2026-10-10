@@ -23,9 +23,10 @@ GATES = {
     "ranked": done_at(3),
     "altverse": min(done_at(c["after"]) for c in altverse.CHAPTERS),
     "overheaven": story.TOTAL,
+    "carryme": story.TOTAL,
 }
 LABELS = {"wormhole": "Mirror World", "tower": "Tower", "dungeon": "Dungeon", "ranked": "Ranked",
-          "altverse": "Alternate Universe", "overheaven": "Over Heaven"}
+          "altverse": "Alternate Universe", "overheaven": "Over Heaven", "carryme": "Carry Me (Part 10)"}
 
 # entry points a locked player is turned away from (Over Heaven and the Alternate Universe guard their own pages)
 ENTRY = {"play.mirror": "wormhole", "play.mirror_start": "wormhole",
@@ -34,9 +35,45 @@ ENTRY = {"play.mirror": "wormhole", "play.mirror_start": "wormhole",
          "battles.ranked_queue": "ranked", "battles.ranked_roster": "ranked"}
 # the page of each mode: opening it clears the mode's "New" tag (ranked: the battle page's ranked tab)
 PAGES = {"play.mirror": "wormhole", "play.tower": "tower", "play.dungeon": "dungeon",
-         "progress.au_page": "altverse", "progress.oh_page": "overheaven"}
+         "progress.au_page": "altverse", "progress.oh_page": "overheaven", "progress.cm_page": "carryme"}
 
 NEW_TTL = 30 * 86400
+
+
+# Admin debug: a player can be given any mode regardless of progress (the admin checklist's tick boxes). Stored
+# apart from the save (web:debug_unlock:<uid>, a set of keys), so it's reversible and the bot never sees it.
+DEBUG_KEYS = {**{k: LABELS[k] for k in GATES}, "coop_heaven": "Co-op raids · Over Heaven", "training": "Training ground",
+              "levels": "Skip the player-level gates", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
+                                                           for c in altverse.CHAPTERS}}
+
+
+def _debug_key(uid) -> str:
+    return f"web:debug_unlock:{uid}"
+
+
+def forced(who) -> set:
+    """The modes an admin forced open for this player (a user, cached on it, or a uid)."""
+    user = who if hasattr(who, "data") else None
+    if user is not None and "_forced" in user.__dict__:
+        return user.__dict__["_forced"]
+    uid = str(user.id) if user is not None else str(who)
+    try:
+        keys = {k.decode() if isinstance(k, bytes) else k for k in r().smembers(_debug_key(uid))}
+    except Exception:  # no Redis (scripts, simulations): nothing forced
+        keys = set()
+    if user is not None:
+        user.__dict__["_forced"] = keys
+    return keys
+
+
+def is_forced(who, key: str) -> bool:
+    return key in forced(who)
+
+
+def set_forced(uid, key: str, on: bool):
+    if key not in DEBUG_KEYS:
+        raise ValueError(key)
+    (r().sadd if on else r().srem)(_debug_key(uid), key)
 
 
 def _new_key(uid) -> str:
@@ -62,28 +99,40 @@ def checklist(user, skip=()) -> List[dict]:
     for key, n in sorted(GATES.items(), key=lambda kv: kv[1]):
         if key in skip:
             continue
-        row = {"label": LABELS[key], "need": requirement(key), "done": cleared >= n, "have": min(cleared, n), "of": n,
-               "played": ""}
+        row = {"label": LABELS[key], "need": requirement(key), "done": cleared >= n or is_forced(user, key),
+               "have": min(cleared, n), "of": n, "played": "", "key": key}
         if key == "altverse":
             row["need"] += " (the first universe)"
         if key == "overheaven":
             row["played"] = f"{overheaven.total_cleared(user)}/{overheaven.TOTAL} fights"
+        if key == "carryme":
+            from app.game import carryme
+            row["played"] = f"{min(carryme.cleared(user), carryme.TOTAL)}/{carryme.TOTAL} scenes"
         rows.append(row)
         if key == "altverse":  # each universe opens with its own part
             for c in altverse.CHAPTERS:
                 need = done_at(c["after"])
-                rows.append({"label": f"Alternate Universe · {c['title']}", "need": requirement_at(need),
+                from app.game import gates
+                rows.append({"label": f"Alternate Universe · {c['title']}",
+                             "need": f"{requirement_at(need)}, player level {gates.AU.get(c['after'], 0)}",
                              "done": altverse.unlocked(user, c["key"]), "have": min(cleared, need), "of": need,
                              "played": f"{min(altverse.cleared(user, c['key']), len(c['stages']))}/{len(c['stages'])} stages",
-                             "sub": True})
+                             "sub": True, "key": f"au:{c['key']}"})
     rows.append({"label": "Co-op raids · Normal to Nightmare", "need": "Open from the start", "done": True,
                  "have": 1, "of": 1, "played": ""})
-    rows.append({"label": "Co-op raids · Over Heaven", "need": "Finish the story", "done": overheaven.unlocked(user),
-                 "have": min(cleared, story.TOTAL), "of": story.TOTAL, "played": ""})
+    from app.game import coop, gates
+    rows.append({"label": "Co-op raids · Over Heaven", "need": "Finish the story", "done": coop.unlocked(user, coop.HEAVEN),
+                 "have": min(cleared, story.TOTAL), "of": story.TOTAL, "played": "", "key": "coop_heaven"})
     au = altverse.total_cleared(user)
     rows.append({"label": "Training ground", "need": "Finish the story and every Alternate Universe",
                  "done": training.unlocked(user), "have": min(cleared, story.TOTAL) + min(au, altverse.TOTAL),
-                 "of": story.TOTAL + altverse.TOTAL, "played": ""})
+                 "of": story.TOTAL + altverse.TOTAL, "played": "", "key": "training"})
+    top = gates.CARRY_ME[-1]
+    rows.append({"label": "Player-level gates", "need": f"Story parts, universes and acts ask a level (up to {top})",
+                 "done": user.level >= top or is_forced(user, "levels"), "have": min(user.level, top), "of": top,
+                 "played": f"level {user.level}", "key": "levels"})
+    for row in rows:
+        row["forced"] = bool(row.get("key")) and is_forced(user, row["key"])
     return rows
 
 
@@ -123,7 +172,8 @@ def announce(uid, before: int, after: int, skip=()) -> List[str]:
         names = [LABELS[k] for k in rest]
         listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
         urls = {"wormhole": url_for("play.mirror"), "tower": url_for("play.tower"), "dungeon": url_for("play.dungeon"),
-                "altverse": url_for("progress.au_page"), "overheaven": url_for("progress.oh_page")}
+                "altverse": url_for("progress.au_page"), "overheaven": url_for("progress.oh_page"),
+                "carryme": url_for("progress.cm_page")}
         social.notify(uid, "unlock", f"🔓 Unlocked: {listed}. Look for the New tags in the menu.", urls[rest[0]])
     return keys
 

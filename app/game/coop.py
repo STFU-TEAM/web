@@ -112,7 +112,8 @@ def unlocked(user, tier: str) -> bool:
     if not TIERS.get(tier, {}).get("heaven"):
         return True
     from app.game import overheaven
-    return user is not None and overheaven.unlocked(user)
+    from app.game.progression import is_forced
+    return user is not None and (overheaven.unlocked(user) or is_forced(user, "coop_heaven"))
 
 
 def crew(tier: str, party: int, week: Optional[str] = None) -> list:

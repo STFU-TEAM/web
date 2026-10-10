@@ -59,6 +59,13 @@ def next_step(fight, my_side: int = 0) -> Optional[dict]:
             return {"label": "Next fight ▶", "action": action, "fields": {field: key, "stage": j + 1}}
         if not won and steps:
             return {"label": "↻ Try again", "action": action, "fields": {field: key, "stage": j}}
+    elif kind == "carry_me":
+        from app.game import carryme
+        k = int(meta.get("stage", 0))
+        if won and k + 1 < carryme.TOTAL:
+            return {"label": "Next scene ▶", "action": "progress.cm_fight", "fields": {"stage": k + 1}}
+        if not won:
+            return {"label": "↻ Try again", "action": "progress.cm_fight", "fields": {"stage": k, "form": meta.get("form", "")}}
     elif kind == "training":
         return {"label": "Train again ▶", "action": "progress.training_fight",
                 "fields": {"drill": meta.get("drill", "spar"), "uuid": list(meta.get("uuids", []))}}
@@ -92,7 +99,7 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
                 if fight.winner == fight.human_side and not getattr(fight, "forfeited", False):
                     from app.game import bounty, events
                     fight.rewards = events.pve_win(user, fight.rewards)
-                    line = bounty.record_win(user, fight.sides[fight.human_side].chars)  # the weekly off-meta bounty
+                    line = bounty.record_win(user, [c for c in fight.sides[fight.human_side].chars if not getattr(c, "guest", False)])  # the weekly off-meta bounty
                     if line and fight.rewards is not None:
                         fight.rewards = {**fight.rewards, "bounty": line}
                 fun_achievements(user, fight)

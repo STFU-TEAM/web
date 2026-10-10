@@ -198,7 +198,8 @@ def _boss_index(part: int) -> int:
 
 
 def unlocked(user, key: str) -> bool:
-    return story.cleared(user) > _boss_index(BY_KEY[key]["after"])
+    from app.game.progression import is_forced
+    return story.cleared(user) > _boss_index(BY_KEY[key]["after"]) or is_forced(user, f"au:{key}")
 
 
 def progress(user) -> dict:
@@ -228,6 +229,8 @@ def _base(key: str, j: int) -> tuple:
 # Like story.LATE_EASE: the later chapters' villain crews gained rarity leverage while UR/LR were trimmed,
 # so their health and damage are eased to keep them where they were for a maxed team. By source part.
 LATE_EASE = {6: 0.9, 7: 0.85, 8: 0.85}
+# on top, by source part: the early chapters fell in a day to strong rosters; the late ones were already a wall
+HARDER = {3: 1.3, 4: 1.3, 5: 1.3, 6: 1.1}
 
 
 def difficulty(key: str, j: int) -> dict:
@@ -235,7 +238,7 @@ def difficulty(key: str, j: int) -> dict:
     level, awaken, quality = _base(key, j)
     # past level 100 and ★5 there is nothing left to raise: health and damage grow each stage instead
     maxed = sum(_base(key, i)[:2] == (100, 5) for i in range(j + 1))
-    ease = LATE_EASE.get(BY_KEY[key]["after"], 1)
+    ease = LATE_EASE.get(BY_KEY[key]["after"], 1) * HARDER.get(BY_KEY[key]["after"], 1)
     return {"level": level, "awaken": awaken, "quality": quality, "mult": round(OVERFLOW ** maxed * ease, 2)}
 
 
@@ -341,6 +344,9 @@ def check_can_fight(user, key: str, j: int):
         raise GameError("That universe hasn't opened yet. Clear its part of the main story first.")
     if j < 0 or j >= len(chapter["stages"]) or j > cleared(user, key):
         raise GameError("That stage isn't open yet.")
+    if j == cleared(user, key):
+        from app.game import gates
+        gates.check(gates.au(user, key, j))
     if j < cleared(user, key):
         from app.game.logic import spend_energy
         spend_energy(user, REPLAY_ENERGY, f"Replaying a stage costs {REPLAY_ENERGY} energy. It refills over time.")

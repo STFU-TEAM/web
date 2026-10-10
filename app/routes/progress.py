@@ -53,7 +53,10 @@ def _cleared(uid) -> int:
 def unlocks(uid) -> dict:
     """Which story-gated modes the player has opened: {"wormhole": bool, "tower": bool, "ranked": bool, ...}
     (app/game/progression.py)."""
-    return progression.opened(_cleared(uid))
+    opened = progression.opened(_cleared(uid))
+    for key in progression.forced(uid) & opened.keys():  # an admin's debug unlock
+        opened[key] = True
+    return opened
 
 
 def _skip() -> tuple:
@@ -87,7 +90,10 @@ def unlocks_dismiss():
 
 
 def _story_ctx(user, fight=None, error=None):
+    from app.game import gates
+    done = story.cleared(user)
     return {"u": user, "fight": fight, "journey": story.journey(user), "stage": story.current(user),
+            "gate": gates.story(user, done) if done < story.TOTAL else None,
             "cleared": story.cleared(user), "total": story.TOTAL, "error": error,
             "next_unlock": progression.next_unlock(story.cleared(user), _skip()),
             "auto_max": AUTO_REPLAYS,
@@ -250,8 +256,11 @@ def au_page():
     other = load_fight(uid)
     error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != AU_KIND and not other.finished else None
     chosen = request.args.get("ch") or (fight.meta.get("chapter") if fight else None)
+    from app.game import gates
+    stage = altverse.current(user, chosen)
     return render_template("alt_universe.html", u=user, fight=fight, error=error, chapters=altverse.chapters(user),
-                           stage=altverse.current(user, chosen), cleared=altverse.total_cleared(user),
+                           stage=stage, cleared=altverse.total_cleared(user), au_level=gates.au_level,
+                           gate=gates.au(user, stage["chapter"], stage["index"]) if stage else None,
                            total=altverse.TOTAL, story_cleared=story.cleared(user),
                            fight_action=url_for("progress.au_attack"), fight_leave_action=url_for("progress.au_leave"),
                            fight_label="Alternate Universe")
@@ -413,6 +422,100 @@ def oh_leave():
     if fight and fight.finished:
         clear_fight(session["uid"])
     return redirect(url_for("progress.oh_page", t=key) if key else url_for("progress.oh_page"))
+
+
+# --------------------------------------------------------------------------- #
+# Part 10 · Carry Me: Joyce Joestar's story (app/game/carryme.py)
+# --------------------------------------------------------------------------- #
+CM_KIND = "carry_me"
+JOYCE_AVATAR = "img/mascot-face.webp"
+
+
+def _cm_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == CM_KIND else None
+
+
+@bp.get("/carry-me")
+@player_required
+def cm_page():
+    from app.game import carryme
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    fight = _cm_fight(uid)
+    if not fight and not carryme.unlocked(user):
+        flash("Joyce's story opens once you finish the main story.", "error")
+        return redirect(url_for("progress.story_page"))
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != CM_KIND and not other.finished else None
+    from app.game import gates
+    done = carryme.cleared(user)
+    return render_template("carry_me.html", u=user, fight=fight, error=error, acts=carryme.acts(user),
+                           gate=gates.carry_me(user, done) if done < carryme.TOTAL else None, act_levels=gates.CARRY_ME,
+                           stage=carryme.current(user), cleared=min(carryme.cleared(user), carryme.TOTAL),
+                           total=carryme.TOTAL, lineage=carryme.lineage(user), resolve=carryme.resolve(user),
+                           choices=[carryme.form_view(f) for f in carryme.forms(user)], title=carryme.TITLE,
+                           replay_energy=carryme.REPLAY_ENERGY,
+                           fight_action=url_for("progress.cm_attack"), fight_leave_action=url_for("progress.cm_leave"),
+                           fight_label="Carry Me")
+
+
+@bp.post("/carry-me/fight")
+@player_required
+def cm_fight():
+    from app.game import carryme
+    uid = session["uid"]
+    existing = load_fight(uid)
+    if existing and not (existing.kind == CM_KIND and existing.finished):
+        return redirect(url_for("progress.cm_page"))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            k = request.form.get("stage", type=int)
+            k = carryme.cleared(user) if k is None else k
+            try:
+                carryme.check_can_fight(user, k)
+            except GameError as e:
+                flash(str(e), "error")
+                return redirect(url_for("progress.cm_page"))
+            form = carryme.form_for(user, k, request.form.get("form", type=int))
+            stage = carryme.STAGES[k]
+            team = fighting_copy(user.main_characters) + [carryme.guest(form, k)]
+            fight = Fight(Side(session.get("name", "You"), team, True, url_for("static", filename=JOYCE_AVATAR)),
+                          Side(f"Carry Me · {stage['title']}", carryme.enemy_team(k), False),
+                          kind=CM_KIND, meta={"stage": k, "form": form, **({"rules": stage["rules"]} if stage["rules"] else {})})
+            fight._log(f"🎭 Joyce Joestar steps in. Carry Me remembers {stage['jojo']}: {team[-1].name}.", "terrain")
+            fight.advance()
+            save_fight(uid, fight)
+            user.update()  # replays spend energy
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.cm_page"))
+
+
+def _cm_settle(user, fight):
+    from app.game import carryme
+    if fight.winner != 0:
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    logic.check_achievements(user, "fight_win")
+    return carryme.win(user, int(fight.meta["stage"]))
+
+
+@bp.post("/carry-me/attack")
+@player_required
+def cm_attack():
+    return play_turn(CM_KIND, url_for("progress.cm_page"), "Carry Me", "progress.cm_attack", "progress.cm_leave",
+                     _cm_settle)
+
+
+@bp.post("/carry-me/leave")
+@player_required
+def cm_leave():
+    fight = _cm_fight(session["uid"])
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.cm_page"))
 
 
 # --------------------------------------------------------------------------- #

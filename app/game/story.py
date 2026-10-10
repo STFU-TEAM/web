@@ -335,10 +335,16 @@ LATE_EASE = {7: 0.88, 8: 0.85}
 STAGE_EASE = {6: 0.92, 8: 0.96, 9: 0.92, 16: 0.95, 17: 0.92, 27: 0.93, 28: 0.92}
 
 
+# Rosters got stronger (LR odds, no duplicate protection) and players cleared the story in days: from Part 4 on the
+# villains hit harder and last longer, part by part. Part 3 stays as it was for new players. With the level gates
+# (gates.py) this paces the story over about 9 days.
+HARDER = {4: 1.15, 5: 1.25, 6: 1.3, 7: 1.25, 8: 1.15}
+
+
 def enemy_team(k: int) -> list:
     stage = STAGES[k]
     lvl, awaken, quality = level_for(k), awaken_for(k), quality_for(k)
-    ease = LATE_EASE.get(stage["part"], 1) * STAGE_EASE.get(k, 1)
+    ease = LATE_EASE.get(stage["part"], 1) * STAGE_EASE.get(k, 1) * HARDER.get(stage["part"], 1)
     team = []
     for cid in stage["enemies"]:
         items = [{"id": 1}] * (
@@ -461,6 +467,9 @@ def check_can_fight(user, k: int):
         raise GameError("Put at least one stand in your team before you set out.")
     if k < 0 or k >= TOTAL or k > cleared(user):
         raise GameError("That stage isn't open yet.")
+    if k == cleared(user):
+        from app.game import gates
+        gates.check(gates.story(user, k))
     if k < cleared(user):
         from app.game.logic import spend_energy
         spend_energy(user, REPLAY_ENERGY, f"Replaying a stage costs {REPLAY_ENERGY} energy. It refills over time.")

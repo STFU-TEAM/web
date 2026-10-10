@@ -41,26 +41,58 @@
     </form>
   {% endif %}
 
-  <div class="presets">
-    <h3 class="h3">Team presets <small class="muted">{{ u.teams|length }}/5</small></h3>
-    {% if u.teams %}
-      <ul class="preset-list">
-        {% for name, uuids in u.teams.items() %}
-          <li>
-            <span class="preset-name">{{ name }}</span>
-            <span class="preset-members">{% for uid in uuids %}{% set found = u.find_character_by_uuid(uid)[0] %}<img src="{{ found.id|stand_img if found else url_for('static', filename='img/stand-fallback.svg') }}" alt="{{ found.name if found else 'missing' }}" title="{{ found.name if found else 'missing stand' }}" loading="lazy">{% endfor %}</span>
-            <button class="btn small" hx-post="{{ url_for('play.preset_load') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection">Load</button>
-            <button class="btn small ghost" hx-post="{{ url_for('play.preset_delete') }}" hx-vals='{"name": "{{ name }}"}' hx-target="#collection" hx-confirm="Delete the preset “{{ name }}”?" aria-label="Delete preset {{ name }}">✕</button>
-          </li>
-        {% endfor %}
-      </ul>
-    {% endif %}
-    {% if u.main_characters %}
-      <form class="inline" hx-post="{{ url_for('play.preset_save') }}" hx-target="#collection">
-        <label><span class="sr">Preset name</span><input type="text" name="name" maxlength="20" placeholder="Preset name" required></label>
-        <button class="btn small">Save current team</button>
-      </form>
-    {% endif %}
+  {#- Team presets: MAX_TEAMS slots, filled ones first. A preset is the uuids of up to 3 stands; the one matching the
+      team in place is marked active. -#}
+  {% set current = u.main_characters|map(attribute='uuid')|list %}
+  <div class="presets" id="presets">
+    <div class="presets-head">
+      <h3 class="h3">Team presets</h3>
+      <span class="presets-count"><strong>{{ u.teams|length }}</strong> / {{ max_teams }}</span>
+    </div>
+    <ol class="preset-grid">
+      {% for name, uuids in u.teams.items() %}
+        {% set members = [] %}{% for uid in uuids %}{% set _ = members.append(u.find_character_by_uuid(uid)[0]) %}{% endfor %}
+        {% set active = uuids|list == current %}
+        {% set missing = members|reject|list|length %}
+        <li class="preset-card{{ ' active' if active }}{{ ' broken' if missing }}">
+          <div class="preset-top">
+            <span class="preset-num" aria-hidden="true">{{ loop.index }}</span>
+            <strong class="preset-name">{{ name }}</strong>
+            {% if active %}<span class="preset-badge">In use</span>{% elif missing %}<span class="preset-badge warn" title="{{ missing }} stand{{ 's' if missing > 1 }} no longer in your collection">{{ missing }} missing</span>{% endif %}
+          </div>
+          <ul class="preset-members" aria-label="Stands">
+            {% for c in members %}
+              <li class="{{ ('rar-' ~ (c.rarity|rarity)) if c else 'gone' }}" title="{{ (c.name ~ ' · Lv ' ~ c.level) if c else 'No longer in your collection' }}">
+                <img src="{{ c.id|stand_img if c else url_for('static', filename='img/stand-fallback.svg') }}" alt="" loading="lazy" width="52" height="52">
+                <span>{{ c.name if c else 'Missing' }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          <div class="preset-actions">
+            <button class="btn small gold" hx-post="{{ url_for('play.preset_load') }}" hx-vals='{{ {"name": name}|tojson }}' hx-target="#collection" {{ 'disabled' if active or missing == members|length }}>{{ 'Loaded' if active else 'Load' }}</button>
+            {% if current and not active %}
+              <button class="btn small ghost" hx-post="{{ url_for('play.preset_update') }}" hx-vals='{{ {"name": name}|tojson }}' hx-target="#collection" hx-confirm="Replace “{{ name }}” with your current team?" title="Save your current team into this preset">⟳ Update</button>
+            {% endif %}
+            {% set plan = {} %}{% for c in members if c %}{% set _ = plan.update({'p' ~ (plan|length): 'u:' ~ c.uuid}) %}{% endfor %}
+            {% if plan %}<a class="btn small ghost" href="{{ url_for('battles.planner_page', **plan) }}" title="Open this preset in the team planner">📐</a>{% endif %}
+            <button class="btn small ghost danger" hx-post="{{ url_for('play.preset_delete') }}" hx-vals='{{ {"name": name}|tojson }}' hx-target="#collection" hx-confirm="Delete the preset “{{ name }}”?" aria-label="Delete preset {{ name }}">✕</button>
+          </div>
+        </li>
+      {% endfor %}
+      {% for i in range(max_teams - u.teams|length) %}
+        <li class="preset-card empty">
+          <div class="preset-top"><span class="preset-num" aria-hidden="true">{{ u.teams|length + loop.index }}</span><span class="muted">Empty slot</span></div>
+          {% if loop.first and u.main_characters %}
+            <form class="preset-save" hx-post="{{ url_for('play.preset_save') }}" hx-target="#collection">
+              <label><span class="sr">Preset name</span><input type="text" name="name" maxlength="20" placeholder="Name this team" required></label>
+              <button class="btn small sky">Save current team</button>
+            </form>
+          {% elif loop.first %}
+            <p class="muted small-print">Put stands in your team to save it here.</p>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
   </div>
 </section>
 

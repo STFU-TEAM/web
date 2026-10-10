@@ -56,6 +56,74 @@ def dm(uid):
                            cant=C.can_message(me, uid), **box_ctx(ch))
 
 
+# --------------------------------------------------------------------------- #
+# The chat bubble: every chat in one corner panel. Tabs: global, gang (if in one), messages (your conversations,
+# each opening inside the bubble). Red dots on the bubble and its tabs for unread private and gang messages.
+# --------------------------------------------------------------------------- #
+def dots(uid) -> dict:
+    from app.game import gangs as G
+    return {"dm": C.unread_total(uid), "gang": G.chat_unread(r(), uid)}
+
+
+def _bubble(tab: str, **extra):
+    me = session["uid"]
+    ctx = {"tab": tab, "dots": dots(me), "here": request.args.get("here", ""), **extra}
+    from app.db import get_db
+    from app.game import gangs as G
+    user = get_db().get_user(me)
+    gang = get_db().get_gang(user.gang_id) if user and user.gang_id else None
+    ctx["has_gang"] = bool(gang)
+    if tab == "gang" and gang:
+        if ctx["here"] != "gangs.index":  # the gang page has its own box (one #gang-chat per page)
+            msgs = G.chat_messages(r(), gang["_id"])
+            who = identities(m["uid"] for m in msgs)
+            ctx.update(gang=gang, msgs=msgs, names={u: who[u]["name"] for u in who}, chat_error=None,
+                       seq=G.chat_seq(r(), gang["_id"]), me_rank=G.rank_of(gang, me), R=G)
+        G.chat_mark_read(r(), me)
+        ctx["dots"]["gang"] = 0
+    elif tab == "messages":
+        convs = C.conversations(me, 30)
+        who = identities(c["uid"] for c in convs)
+        for c in convs:
+            c["name"], c["avatar"] = who[c["uid"]]["name"], who[c["uid"]].get("avatar")
+        ctx["convs"] = convs
+    elif tab == "dm":
+        pass  # filled by bubble_dm
+    else:
+        ctx["tab"] = "global"
+        ctx.update(box_ctx(_channel("global")))
+    return render_template("partials/chat_bubble.html", **ctx)
+
+
+@bp.get("/bubble")
+@player_required
+def bubble():
+    tab = request.args.get("tab", "global")
+    return _bubble(tab if tab in ("global", "gang", "messages") else "global")
+
+
+@bp.get("/bubble/dm/<uid>")
+@player_required
+def bubble_dm(uid):
+    me = session["uid"]
+    try:
+        ch = _channel(f"dm-{uid}")
+    except GameError as e:
+        return _bubble("messages", bubble_error=str(e))
+    C.mark_read(me, uid)
+    return _bubble("dm", other=uid, ident=identity(uid), cant=C.can_message(me, uid), **box_ctx(ch))
+
+
+@bp.get("/dots")
+@player_required
+def dots_view():
+    """Polled by the bubble: the red dots, 204 while they haven't changed."""
+    d = dots(session["uid"])
+    if request.args.get("v") == f"{d['dm']}-{d['gang']}":
+        return Response(status=204)
+    return render_template("partials/chat_dots.html", dots=d)
+
+
 @bp.get("/c/<token>")
 @player_required
 def feed(token):

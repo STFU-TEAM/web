@@ -143,3 +143,24 @@ def test_owned_copy_tries_other_items_and_the_team_page_plans_it(client):
     assert planner.build(refined, None).start_damage >= planner.build({**refined, "refine": 0}, None).start_damage
     page = client.get("/team").data.decode()
     assert "Plan this team" in page and f"p0=u:{uuid}" in page
+
+
+def test_the_same_item_can_be_planned_more_than_once(client):
+    _player(client, main_characters=[char(6)], energy=10)
+    page = client.get("/battles/planner").data.decode()
+    assert page.count("data-sp-repeat") >= 2 * planner.SLOTS  # build items and an owned copy's items, per slot
+    part = client.get("/battles/planner/review?p0=s:1&l0=100&a0=3&q0=perfect&t0=ATTACK&i0=42&i0=42&i0=42&blank=1",
+                      headers={"HX-Request": "true"}).data.decode()
+    assert "i0=42&amp;i0=42&amp;i0=42" in part or "i0=42&i0=42&i0=42" in part  # kept in the share link
+
+
+def test_refine_on_an_owned_copy_without_picking_items_refines_its_own():
+    from werkzeug.datastructures import MultiDict
+    mine = char(6)
+    mine["items"] = [{"id": 42, "refine": 1}]
+    u = User({**create_user("1"), "main_characters": [mine]})
+    uuid = u.main_characters[0].uuid
+    plain = planner.build(planner.parse(MultiDict([("p0", f"u:{uuid}"), ("blank", "1")]), u)[0], u)
+    tuned = planner.build(planner.parse(MultiDict([("p0", f"u:{uuid}"), ("ox0", "1"), ("or0", "5"), ("blank", "1")]), u)[0], u)
+    assert [(i.id, i.refine) for i in plain.items] == [(42, 1)] and [(i.id, i.refine) for i in tuned.items] == [(42, 5)]
+    assert tuned.start_damage > plain.start_damage

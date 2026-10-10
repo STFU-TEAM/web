@@ -136,3 +136,39 @@ def test_milestone_titles(client):
     client.post("/chat/c/global", data={"text": "ora"}, headers=h)
     assert "✦ Requiem Bearer" in client.get("/chat").data.decode()
     assert "Milestone titles" in client.get("/u/222").data.decode()
+
+
+def test_the_bubble_holds_every_chat_with_red_dots_for_dms_and_the_gang(client):
+    player(client, "111", fragments=50_000)
+    player(client, "222")
+    h = login(client, "111")
+    client.post("/gangs/create", data={"name": "Crusaders"}, headers=h)
+    gid = doc(client, "111")["gang_id"]
+    client.post("/gangs/invite", data={"user_id": "222"}, headers=h)
+    h2 = login(client, "222")
+    client.post(f"/gangs/join/{gid}", headers=h2)
+    # 222 messages the gang and 111 privately: 111 gets two red dots
+    client.post("/gangs/chat", data={"text": "raid tonight?"}, headers={**h2, "HX-Request": "true"})
+    client.post("/chat/c/dm-111", data={"text": "psst"}, headers=h2)
+    assert client.fake.get("web:gang:unread:111") == b"1" and client.fake.get("web:gang:unread:222") is None
+    h = login(client, "111")
+    page = client.get("/story").data.decode()
+    assert "red-dot" in page and "1 unread private message" in page and "1 unread gang message" in page
+    assert "tab=messages" in page  # the bubble opens on what's waiting
+    dots = client.get("/chat/dots?v=0-0")
+    assert dots.status_code == 200 and "bubble-dot-gang" in dots.data.decode()
+    assert client.get("/chat/dots?v=1-1").status_code == 204  # unchanged
+    # the tabs: global, gang, messages, and a conversation inside the bubble
+    tabs = client.get("/chat/bubble?tab=global").data.decode()
+    assert "chat-global" in tabs and "⚑ Gang" in tabs and "✉ Messages" in tabs
+    gang = client.get("/chat/bubble?tab=gang").data.decode()
+    assert "raid tonight?" in gang and "gangs/chat" in gang
+    assert client.fake.get("web:gang:unread:111") is None  # seen
+    convs = client.get("/chat/bubble?tab=messages").data.decode()
+    assert "/chat/bubble/dm/222" in convs and "red-dot" in convs
+    dm = client.get("/chat/bubble/dm/222").data.decode()
+    assert "psst" in dm and "chat-dm-222" in dm
+    assert client.fake.hget("web:dm:unread:111", "222") is None
+    assert "red-dot" not in client.get("/chat/dots?v=1-1").data.decode()
+    # on the gang page, the bubble points at the page's own chat instead of a second box
+    assert 'id="gang-chat"' not in client.get("/chat/bubble?tab=gang&here=gangs.index").data.decode()

@@ -30,14 +30,14 @@
           <div class="plan-owned" data-owned {% if not owned_pick %}hidden{% endif %}>
             <p><strong>Your copy, exactly as it is</strong></p>
             <p class="plan-owned-meta" data-owned-meta>{% if owned_pick and c %}Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.types %} · {{ c.types[0]|title }}{% endif %}{% endif %}</p>
-            {% if owned_pick and c and c.items %}<p class="plan-owned-items">{% for it in c.items %}<span title="{{ it.name }}">{{ (it.emoji or '◈')|emoji }} {{ it.name }}</span>{% endfor %}</p>{% endif %}
+            {% if owned_pick and c and c.items %}<p class="plan-owned-items">{% for it in c.items %}<span title="{{ it.label }}">{{ (it.emoji or '◈')|emoji }} {{ it.label }}</span>{% endfor %}</p>{% endif %}
             <p class="muted small-print">Level, stars, types and chips stay as they are on your copy. To try another level or type, pick the same stand under “Any stand”.</p>
             {% set over = s and s.get('override') %}
-            <label class="check plan-over"><input type="checkbox" name="ox{{ i }}" value="1" {{ 'checked' if over }} data-over> Try other items on this copy</label>
+            <label class="check plan-over"><input type="checkbox" name="ox{{ i }}" value="1" {{ 'checked' if over }} data-over> Try other items or another refine level on this copy</label>
             <div class="plan-row plan-over-items" data-over-items {% if not over %}hidden{% endif %}>
-              <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }}</small></span>
+              <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }} · none: keep its own</small></span>
               {{ picker("o" ~ i, "sp-items", max=P.MAX_ITEMS, selected=((s.get('over_items') if s else none) or [])|map('string')|list,
-                        title="Items to try on stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True) }}
+                        title="Items to try on stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True, repeat=True) }}
               <label class="plan-refine">Refined <select name="or{{ i }}">{% for r in range(P.REFINE_MAX + 1) %}<option value="{{ r }}" {{ 'selected' if s and s.get('over_refine') == r }}>+{{ r }}</option>{% endfor %}</select></label>
             </div>
           </div>
@@ -78,7 +78,7 @@
             <div class="plan-row">
               <span class="plan-label">Items <small class="muted">up to {{ P.MAX_ITEMS }}</small></span>
               {{ picker("i" ~ i, "sp-items", max=P.MAX_ITEMS, selected=((s.get('items') if s else none) or [])|map('string')|list,
-                        title="Items for stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True) }}
+                        title="Items for stand " ~ (i + 1), placeholder="Add items", kind="item", compact=True, repeat=True) }}
               <label class="plan-refine">Refined <select name="r{{ i }}">{% for r in range(P.REFINE_MAX + 1) %}<option value="{{ r }}" {{ 'selected' if s and s.get('refine') == r }}>+{{ r }}</option>{% endfor %}</select></label>
             </div>
           </fieldset>

@@ -80,8 +80,9 @@ def build(slot: Optional[dict], user):
             return None
         slot.update(level=char.level, awaken=char.awaken, owned=True)
         data = copy.deepcopy(char.to_dict())
-        if slot.get("override"):  # this copy, with other gear on
-            data["items"] = [{"id": i, "refine": slot.get("over_refine", 0)} for i in slot.get("over_items") or []][:MAX_ITEMS]
+        if slot.get("override"):  # this copy, with other gear on (none picked: its own items, at the chosen refine)
+            ids = slot.get("over_items") or [it["id"] for it in data.get("items", [])]
+            data["items"] = [{"id": i, "refine": slot.get("over_refine", 0)} for i in ids][:MAX_ITEMS]
         else:
             slot["over_items"] = [it["id"] for it in data.get("items", [])][:MAX_ITEMS]  # what the switch starts from
         return character_from_dict(data)

@@ -86,7 +86,7 @@ def ai_choice(enemies: List[Character], attacker: Optional[Character] = None, le
 
 
 PVP_KINDS = ("ranked", "friend")
-SIMULATABLE = ("wormhole", "story", "tower", "rush", "dungeon", "alt_universe", "over_heaven", "training")  # PvE a loss can replay
+SIMULATABLE = ("wormhole", "story", "tower", "rush", "dungeon", "alt_universe", "over_heaven", "training", "carry_me")  # PvE a loss can replay
 CRIT_WORDS = {1: "", 2: "DOUBLE", 3: "TRIPLE"}
 
 
