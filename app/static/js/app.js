@@ -1229,22 +1229,35 @@ document.addEventListener("click", (e) => {
     }
     return null;
   };
-  const place = () => {
+  // reveal: scroll the target into view first (a sidebar group can sit below the sidebar's fold); scrolling the page
+  // or the sidebar afterwards only moves the spotlight along, never scrolls back.
+  const place = (reveal = true) => {
     const el = targetOf(steps[i]);
-    if (!el) {  // no target: the spotlight shrinks to the middle, ringless (never toggled hidden: see .tour-spot)
+    if (el && reveal) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const r = el && el.getBoundingClientRect();
+    const seen = r && r.width && r.height && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+    if (!seen) {  // no target on screen: the spotlight shrinks to the middle, ringless (never toggled hidden: see .tour-spot)
       spot.classList.add("is-off");
       Object.assign(spot.style, { left: "50%", top: "50%", width: "0px", height: "0px" });
       Object.assign(card.style, { left: "50%", top: "50%", bottom: "auto", transform: "translate(-50%, -50%)" });
       return;
     }
-    const r = el.getBoundingClientRect();
+    // the spotlight hugs the visible part of the target (a tall open sidebar group is cut to the screen)
+    const top = Math.max(6, r.top), bottom = Math.min(innerHeight - 6, r.bottom);
     spot.classList.remove("is-off");
-    Object.assign(spot.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
-    const w = Math.min(340, innerWidth - 24);
-    const left = Math.max(12, Math.min(innerWidth - w - 12, r.left + r.width / 2 - w / 2));
-    const below = r.top < innerHeight / 2;
-    Object.assign(card.style, { left: `${left}px`, transform: "none", top: below ? `${r.bottom + 16}px` : "auto",
-                                bottom: below ? "auto" : `${innerHeight - r.top + 16}px` });
+    Object.assign(spot.style, { left: `${r.left - 6}px`, top: `${top - 6}px`, width: `${r.width + 12}px`, height: `${bottom - top + 12}px` });
+    const w = card.offsetWidth || Math.min(340, innerWidth - 24), h = card.offsetHeight || 200;
+    let x, y;
+    if (r.width < innerWidth / 3 && r.right + 16 + w <= innerWidth - 12 && r.left < innerWidth / 3) {
+      x = r.right + 16;  // a sidebar target: the card beside it, not on top of the sidebar
+      y = (top + bottom) / 2 - h / 2;
+    } else {
+      x = r.left + r.width / 2 - w / 2;
+      y = r.top < innerHeight / 2 ? bottom + 16 : top - 16 - h;  // below a target up top, above one down low
+    }
+    x = Math.max(12, Math.min(innerWidth - w - 12, x));
+    y = Math.max(12, Math.min(innerHeight - h - 12, y));  // always fully on screen
+    Object.assign(card.style, { left: `${x}px`, top: `${y}px`, bottom: "auto", transform: "none" });
   };
   const show = () => {
     const step = steps[i];
@@ -1293,6 +1306,11 @@ document.addEventListener("click", (e) => {
     else if (e.key === "ArrowLeft" && i > 0) { i -= 1; show(); }
   });
   addEventListener("resize", () => { if (!tour.hidden) place(); });
+  let moving = 0;  // the page or the sidebar scrolled: follow the target (once a frame)
+  addEventListener("scroll", () => {
+    if (tour.hidden || moving) return;
+    moving = requestAnimationFrame(() => { moving = 0; place(false); });
+  }, { capture: true, passive: true });
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-tour-start]")) { e.preventDefault(); document.getElementById("nav-sheet")?.close(); closeNavDrops(); start(); }
   });
