@@ -1415,10 +1415,18 @@ table.odds thead th, table.odds tr:first-child th { color: var(--muted); }
 .slot[style] .card.reveal { animation-delay: calc(var(--d, 0) * 120ms); }
 .where { margin: 0; font-size: var(--step--1); text-align: center; }
 @media (max-width: 620px) {
-  .pull-showcase { grid-template-columns: 76px minmax(0, 1fr) 56px; gap: .65rem; padding: .6rem; }
-  .pull-avatar { width: 76px; height: 76px; }
-  .pull-tier { width: 56px; height: 56px; }
-  .pull-announcement .display.sm { font-size: 1.25rem; }
+  /* phones: avatar and title side by side, the tier badge after them, the line below at full width (three columns
+     left the text a 160px sliver) */
+  .pull-batch { padding: .8rem; }
+  .pull-showcase { grid-template-columns: 60px minmax(0, 1fr) auto; grid-template-areas: "av title tier" "text text text";
+    gap: .45rem .7rem; padding: .65rem .7rem; }
+  .pull-announcement { display: contents; }
+  .pull-announcement .menace { display: none; }
+  .pull-avatar { grid-area: av; width: 60px; height: 60px; }
+  .pull-announcement .display { grid-area: title; margin: 0; }
+  .pull-announcement .display.sm { font-size: 1.2rem; line-height: 1.15; }
+  .pull-announcement p.muted { grid-area: text; margin: 0; font-size: var(--step--1); }
+  .pull-tier { grid-area: tier; width: 48px; height: 48px; }
 }
 
 input[type=text] { font: inherit; color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: var(--radius-ui); padding: .4rem .6rem; }
@@ -4550,3 +4558,133 @@ a.cup-name:hover { color: var(--gold); }
 .rq-tabs a.done:not(.on) { border-color: var(--gold); }
 .rq-odds { margin: .4rem 0; padding: .35rem .6rem; border-radius: var(--radius-ui); background: rgb(214 36 110 / .14); border-left: 4px solid var(--magenta); font-size: .9rem; }
 @media (max-width: 680px) { .rq-hero { grid-template-columns: auto minmax(0, 1fr); } .rq-hero .story-progress { grid-column: 1 / -1; } }
+
+/* Statuses drawn on the stand itself (status.view "aura"): stunned stands reel under circling stars with a 気絶 stamp,
+   poisoned ones glow toxic green with rising bubbles, burning ones flicker with flames and embers. Hidden while a turn
+   replays (they're the end state), then faded in. */
+.fighter.st-stun { border-color: #F4C542; border-style: dashed; }
+.fighter.st-stun .fighter-portrait img { filter: grayscale(.55) brightness(.85) contrast(1.1); animation: st-reel 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+.fighter.st-poison:not(.st-stun):not(.acting) { border-color: #7CD64A; box-shadow: 0 0 16px rgb(124 214 74 / .45); }
+.fighter.st-burn:not(.st-stun):not(.st-poison):not(.acting) { border-color: #FF7A26; box-shadow: 0 0 16px rgb(255 122 38 / .5); }
+.fighter.st-poison.st-burn:not(.st-stun):not(.acting) { border-color: #FF7A26; box-shadow: -6px 0 16px rgb(124 214 74 / .45), 6px 0 16px rgb(255 122 38 / .5); }
+/* the art itself turns sickly green or scorched (a stun's grey wins) */
+.fighter.st-poison:not(.st-stun) .fighter-portrait img { filter: sepia(.45) hue-rotate(45deg) saturate(1.6) brightness(.92); }
+.fighter.st-burn:not(.st-stun):not(.st-poison) .fighter-portrait img { filter: sepia(.4) saturate(1.7) hue-rotate(-12deg) brightness(1.05) contrast(1.05); }
+.fighter.st-poison.st-burn:not(.st-stun) .fighter-portrait img { filter: sepia(.45) hue-rotate(20deg) saturate(1.6); }
+#fight.playing .fighter:is(.st-stun, .st-poison, .st-burn) .fighter-portrait img { filter: none; animation: none; }  /* end-state tints wait for the replay */
+.aura { position: absolute; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; border-radius: inherit; }
+.aura-poison { background: linear-gradient(to top, rgb(98 196 52 / .7), rgb(140 60 190 / .25) 50%, transparent 78%);
+  box-shadow: inset 0 0 14px 3px rgb(124 214 74 / .85); animation: st-pulse 2.2s ease-in-out infinite; }
+.aura-poison i { position: absolute; bottom: -12px; width: 9px; height: 9px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #EFFFD6, #8FE34A 45%, #3E8F1E); box-shadow: 0 0 6px #8FE34A; animation: st-bubble 2.6s ease-in infinite; }
+.aura-poison i:nth-child(1) { left: 12%; animation-delay: 0s; }
+.aura-poison i:nth-child(2) { left: 34%; width: 6px; height: 6px; animation-delay: .9s; }
+.aura-poison i:nth-child(3) { left: 55%; width: 11px; height: 11px; animation-delay: 1.6s; }
+.aura-poison i:nth-child(4) { left: 74%; width: 7px; height: 7px; animation-delay: .4s; }
+.aura-poison i:nth-child(5) { left: 88%; width: 5px; height: 5px; animation-delay: 2s; }
+.aura-burn { background: linear-gradient(to top, rgb(255 80 20 / .8), rgb(255 160 40 / .4) 38%, transparent 68%);
+  box-shadow: inset 0 0 14px 3px rgb(255 122 38 / .9); animation: st-flicker .55s ease-in-out infinite alternate; }
+.aura-poison + .aura-burn { background: linear-gradient(to top, rgb(255 80 20 / .55), transparent 45%); box-shadow: inset 0 -10px 12px -2px rgb(255 122 38 / .9); }
+.aura-burn::before { content: ""; position: absolute; inset: auto -10% -6% -10%; height: 46%;
+  background: radial-gradient(ellipse at 20% 100%, #FFD45E 0 18%, transparent 45%), radial-gradient(ellipse at 55% 100%, #FF7A26 0 22%, transparent 50%),
+              radial-gradient(ellipse at 85% 100%, #FFB02E 0 16%, transparent 44%);
+  filter: blur(3px); animation: st-flame .8s ease-in-out infinite alternate; transform-origin: 50% 100%; }
+.aura-burn i { position: absolute; bottom: 4px; width: 4px; height: 4px; border-radius: 50%; background: #FFE08A; box-shadow: 0 0 6px 2px #FF7A26; animation: st-ember 1.8s ease-out infinite; }
+.aura-burn i:nth-child(1) { left: 18%; animation-delay: .2s; }
+.aura-burn i:nth-child(2) { left: 40%; animation-delay: 1s; }
+.aura-burn i:nth-child(3) { left: 58%; animation-delay: .5s; }
+.aura-burn i:nth-child(4) { left: 76%; animation-delay: 1.4s; }
+.aura-burn i:nth-child(5) { left: 90%; animation-delay: .8s; }
+.stun-stamp { position: absolute; left: 50%; top: 56%; z-index: 3; display: grid; justify-items: center; line-height: 1; pointer-events: none;
+  padding: .2rem .45rem .25rem; translate: -50% -50%; rotate: -12deg; border: 2px solid var(--ink); border-radius: 4px; background: #F4C542; color: var(--ink);
+  box-shadow: 3px 3px 0 var(--ink); animation: st-stamp .35s cubic-bezier(.2, 1.6, .4, 1) both; }
+.stun-stamp b { font-family: var(--display); font-size: 1.05rem; letter-spacing: .05em; }
+.stun-stamp small { font-family: var(--display); font-size: .5rem; letter-spacing: .2em; }
+.stun-halo { position: absolute; left: 50%; top: .45rem; z-index: 4; width: 70%; height: 22px; translate: -50% 0; pointer-events: none; }
+.stun-halo i { position: absolute; left: 50%; top: 50%; font-style: normal; font-size: .95rem; line-height: 1; color: #FFE27A;
+  text-shadow: 0 0 4px #F4C542, 1px 1px 0 var(--ink); animation: st-orbit 1.6s linear infinite; }
+.stun-halo i:nth-child(2) { animation-delay: -.53s; font-size: .75rem; color: #FFF6C8; }
+.stun-halo i:nth-child(3) { animation-delay: -1.07s; }
+.fighter .stun-note { margin: 0; font-size: .7rem; font-weight: 700; color: #F4C542; }
+@keyframes st-reel { 0%, 100% { rotate: -3deg; } 50% { rotate: 3deg; } }
+@keyframes st-pulse { 0%, 100% { opacity: .75; } 50% { opacity: 1; } }
+@keyframes st-bubble { 0% { transform: translateY(0) scale(.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(-120px) scale(1.1); opacity: 0; } }
+@keyframes st-flicker { from { opacity: .8; } to { opacity: 1; } }
+@keyframes st-flame { from { transform: scaleY(.85) skewX(-3deg); } to { transform: scaleY(1.15) skewX(3deg); } }
+@keyframes st-ember { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(8px, -90px); opacity: 0; } }
+@keyframes st-stamp { from { scale: 2.2; opacity: 0; } to { scale: 1; opacity: 1; } }
+/* an ellipse around the head: sideways across the width, a little up and down, the far side smaller and dimmer */
+@keyframes st-orbit {
+  0% { transform: translate(-50%, -50%) translate(-34px, 0) scale(1); opacity: 1; }
+  25% { transform: translate(-50%, -50%) translate(0, 7px) scale(1.15); opacity: 1; }
+  50% { transform: translate(-50%, -50%) translate(34px, 0) scale(1); opacity: 1; }
+  75% { transform: translate(-50%, -50%) translate(0, -7px) scale(.7); opacity: .6; }
+  100% { transform: translate(-50%, -50%) translate(-34px, 0) scale(1); opacity: 1; }
+}
+.aura, .stun-stamp, .stun-halo, .stun-note { transition: opacity .4s; }
+#fight.playing .aura, #fight.playing .stun-stamp, #fight.playing .stun-halo, #fight.playing .stun-note { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .aura, .aura::before, .aura i, .stun-halo i, .stun-stamp, .fighter.st-stun .fighter-portrait img { animation: none !important; }
+  .stun-halo i:nth-child(1) { transform: translate(-50%, -50%) translate(-24px, 0); }
+  .stun-halo i:nth-child(2) { transform: translate(-50%, -50%); }
+  .stun-halo i:nth-child(3) { transform: translate(-50%, -50%) translate(24px, 0); }
+  .aura-poison i, .aura-burn i { display: none; }
+}
+
+/* The forge: every upgrade bench (gear refining on the Items page, chip combining on the Chips page) shares this
+   look. A bench is a dark plate with a hammer mark; each row is icon | name, level pips and before -> after | the action. */
+.bench { margin: 0 0 2.4rem; padding: 1rem 1.1rem 1.1rem; border-radius: var(--radius-card); background: linear-gradient(160deg, var(--night-2), rgb(28 15 46 / .9));
+  border: 2px solid var(--night-3); border-left: 6px solid var(--gold); }
+.bench-head { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .2rem .8rem; margin-bottom: .8rem; }
+.bench-head .h2 { margin: 0; }
+.bench-head .kicker { margin: 0; }
+.bench-mark { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; rotate: -8deg; border: 2px solid var(--ink); border-radius: 8px;
+  background: var(--gold); color: var(--ink); font-size: 1.4rem; box-shadow: 3px 3px 0 var(--ink); }
+.bench-note { grid-column: 1 / -1; margin: .3rem 0 0; font-size: var(--step--1); }
+.bench-wallet, .bench-target { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .8rem; margin: 0 0 .7rem; font-weight: 700; }
+.bench-wallet span { color: var(--gold); font-size: 1.1rem; }
+.bench-target select { min-width: 0; max-width: 100%; font-weight: 400; }
+.bench-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.bench-row { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; align-items: center; gap: .3rem .8rem; padding: .55rem .7rem;
+  border-radius: var(--radius-ui); background: rgb(255 255 255 / .03); border: 1px solid var(--night-3); }
+.bench-row.ready { border-color: rgb(244 197 66 / .45); background: rgb(244 197 66 / .06); }
+.bench-row.maxed { opacity: .7; }
+.bench-icon { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 8px; background: var(--night-3); font-size: 1.35rem; line-height: 1; }
+.bench-icon img { width: 1.8rem; height: 1.8rem; object-fit: contain; }
+.bench-row[class*="tier-"] .bench-icon { color: var(--chip); background: color-mix(in srgb, var(--chip) 16%, var(--night-3)); }
+.bench-main { display: grid; gap: .2rem; min-width: 0; }
+.bench-name { margin: 0; overflow-wrap: anywhere; }
+.bench-name small { font-weight: 400; }
+.bench-pips { display: flex; gap: 3px; }
+.bench-pips i { width: 14px; height: 6px; border-radius: 2px; background: var(--night-3); transform: skewX(-20deg); }
+.bench-pips i.on { background: var(--gold); box-shadow: 0 0 6px rgb(244 197 66 / .5); }
+.bench-row[class*="tier-"] .bench-pips i.on { background: var(--chip); box-shadow: 0 0 6px color-mix(in srgb, var(--chip) 60%, transparent); }
+.bench-deltas { display: flex; flex-wrap: wrap; gap: .25rem .4rem; margin: 0; }
+.bench-delta { display: inline-flex; align-items: baseline; gap: .25rem; padding: .05rem .45rem; border-radius: 999px; background: var(--night-3); font-size: .8rem; font-variant-numeric: tabular-nums; }
+.bench-delta small { color: var(--muted); font-size: .68rem; font-weight: 700; letter-spacing: .04em; }
+.bench-delta b { color: #7CE38B; }
+.bench-delta.lucky { --chip: var(--gold); background: color-mix(in srgb, var(--chip) 18%, var(--night-3)); }
+.bench-delta.lucky b { color: var(--chip); }
+.bench-act { display: flex; justify-content: flex-end; }
+.bench-go { display: grid; justify-items: center; gap: .05rem; min-width: 7.5rem; padding: .4rem .8rem; border: 2px solid var(--ink); border-radius: var(--radius-ui);
+  background: var(--gold); color: var(--ink); font: inherit; cursor: pointer; box-shadow: 3px 3px 0 var(--ink); transition: transform .1s, box-shadow .1s; }
+.bench-go strong { font-family: var(--display); font-weight: 400; font-size: .95rem; letter-spacing: .02em; }
+.bench-go small { font-size: .7rem; font-weight: 700; }
+.bench-go:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.bench-go:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.bench-go:disabled { background: var(--night-3); color: var(--muted); border-color: var(--night-3); box-shadow: none; cursor: not-allowed; }
+.bench-done { font-family: var(--display); font-size: .85rem; color: var(--gold); letter-spacing: .04em; }
+@media (max-width: 600px) {
+  .bench { padding: .85rem .75rem .9rem; border-left-width: 4px; }
+  .bench-row { grid-template-columns: 2.3rem minmax(0, 1fr); padding: .55rem; }
+  .bench-icon { width: 2.3rem; height: 2.3rem; font-size: 1.2rem; }
+  .bench-act { grid-column: 1 / -1; }
+  .bench-go { width: 100%; grid-auto-flow: column; justify-content: center; align-items: baseline; gap: .5rem; }
+  .bench-target select { width: 100%; }
+}
+
+/* Dev mode tools (only rendered when the app runs with debug on, i.e. scripts/dev.py) */
+.dev-strip { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .7rem; margin: 0 0 1rem; padding: .5rem .7rem;
+  border: 2px dashed #39D0C0; border-radius: var(--radius-ui); background: rgb(57 208 192 / .08); }
+.dev-strip form { margin: 0; }
+.dev-tag { font-family: var(--display); font-size: .8rem; letter-spacing: .06em; color: #39D0C0; }

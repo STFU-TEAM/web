@@ -28,12 +28,16 @@ BAD = {EffectType.POISON, EffectType.BURN, EffectType.BLEED, EffectType.STUN, Ef
        EffectType.ARMORBREAK}
 
 
+AURA = {EffectType.STUN: "stun", EffectType.POISON: "poison", EffectType.BURN: "burn"}  # drawn on the portrait
+
+
 def _heal_amount(c, amount: float) -> float:
     return amount * TERRAIN_HEAL_MULT.get(c.terrain, 1) * getattr(c, "_heal_mult", 1)
 
 
 def view(c) -> dict:
-    """{"dot": health lost next turn, "regen": health gained next turn, "chips": [...]}"""
+    """{"dot": health lost next turn, "regen": health gained next turn, "chips": [...],
+    "aura": {"stun", "poison", "burn"} drawn on the stand itself}"""
     terrain = c.terrain
     dot = regen = 0.0
     chips = []
@@ -68,4 +72,8 @@ def view(c) -> dict:
     dot = min(dot, hp)
     regen = max(0, min(regen, c.start_hp - (hp - dot)))
     chips.sort(key=lambda ch: (not ch["bad"], ch["name"]))
-    return {"dot": int(dot), "regen": int(regen), "chips": chips}
+    live = {e.type for e in c.effects if e.duration > 0} if c.is_alive() else set()
+    aura = {name for t, name in AURA.items() if t in live}
+    if getattr(c, "_stun_guard", False):  # stunned last turn: this stun won't hold (no stun-locks)
+        aura.discard("stun")
+    return {"dot": int(dot), "regen": int(regen), "chips": chips, "aura": aura}

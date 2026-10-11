@@ -131,7 +131,7 @@ def register(app):
     app.jinja_env.globals.update(picker_owned=pickers.owned, picker_every=pickers.every_stand, picker_pool=pickers.pool,
                                  picker_items=pickers.owned_items, picker_catalog=pickers.catalog_items)
     from app.game import events, gear
-    app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost,
+    app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost, REFINE_MAX=gear.REFINE_MAX,
                                  event_spotlight=events.spotlight, event_ends=events.ends_epoch)
     from app.game import parts
     app.jinja_env.globals.update(part_style=parts.style, stand_part=parts.of_stand)  # part palettes (body data-part)

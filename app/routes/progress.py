@@ -118,6 +118,35 @@ def story_page():
     return render_template("story.html", **_story_ctx(user, _story_fight(uid), error))
 
 
+@bp.post("/story/dev")
+@player_required
+def story_dev():
+    """Dev mode only (the local server, app.debug): clear the whole story and force every mode open, or undo both.
+    No first-clear rewards are paid. 404 anywhere else, so it can't exist in production."""
+    from flask import abort
+    if not current_app.debug:
+        abort(404)
+    uid = session["uid"]
+    unlock = request.form.get("op") != "reset"
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            user.data.setdefault("web_story", {})["cleared"] = story.TOTAL if unlock else 0
+            user.update()
+    except Busy:
+        flash("Your last action is still running.", "error")
+        return redirect(url_for("progress.story_page"))
+    for key in progression.DEBUG_KEYS:
+        progression.set_forced(uid, key, unlock)
+    if unlock:
+        r().set(f"web:story_done:{uid}", 1)
+    else:
+        r().delete(f"web:story_done:{uid}")
+    flash("Dev: the whole story is cleared and every mode is unlocked." if unlock
+          else "Dev: story reset to stage 1 and the forced unlocks removed.", "ok")
+    return redirect(url_for("progress.story_page"))
+
+
 @bp.post("/story/fight")
 @player_required
 def story_fight():

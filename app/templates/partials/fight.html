@@ -4,7 +4,8 @@
     along as data so the toggle can switch without a reload -#}
 {% set art = fighter_art(c) %}
 {% set cos = fight_cosmetics and (art.shiny or art.full) %}
-<li class="fighter {% if not c.is_alive() %}down{% endif %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}{% if cos and art.shiny %} shiny{% endif %}{% if cos and art.full %} fullart{% endif %}"
+{% set st = fighter_status(c) %}
+<li class="fighter {% if not c.is_alive() %}down{% endif %}{% for a in st.aura|sort %} st-{{ a }}{% endfor %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}{% if cos and art.shiny %} shiny{% endif %}{% if cos and art.full %} fullart{% endif %}"
     data-side="{{ side }}" data-idx="{{ idx }}" data-name="{{ c.name }}" data-max="{{ [c.start_hp, 1]|max }}" data-cry="{{ c.id|cry }}"
     data-img="{{ art.spot if cos else art.classic }}" data-gif="{{ c.id|special_gif }}"{% if cos and art.shiny and not art.own %} data-hue="1"{% endif %}
     {% if art.shiny or art.full %}data-art-classic="{{ art.classic }}" data-art-portrait="{{ art.portrait }}" data-art-spot="{{ art.spot }}"
@@ -17,11 +18,15 @@
     <img src="{{ art.portrait if cos else art.classic }}" alt="" loading="lazy" decoding="async"{% if art.own %} class="own-art"{% endif %} onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
     {% if art.shiny %}<span class="fighter-shiny" title="Shiny" aria-label="Shiny">✨</span>{% endif %}
     {% if c.taunt %}<span class="fighter-badge" title="Taunt">🎯</span>{% endif %}
+    {#- statuses drawn on the stand itself: toxic bubbles, flames, and a 気絶 stamp when it will skip its turn -#}
+    {% if 'poison' in st.aura %}<span class="aura aura-poison" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>{% endif %}
+    {% if 'burn' in st.aura %}<span class="aura aura-burn" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>{% endif %}
+    {% if 'stun' in st.aura %}<span class="stun-stamp" aria-hidden="true"><b>気絶</b><small>STUN</small></span>{% endif %}
   </div>
+  {% if 'stun' in st.aura %}<span class="stun-halo" aria-hidden="true"><i>★</i><i>✦</i><i>★</i></span>{% endif %}
   <span class="retired" aria-hidden="true"><b>再起不能</b><small>RETIRED</small></span>
   <h3>{{ c.name }}</h3>
   {% if fight.kind == 'coop' and side == 0 and idx < fight.meta.owners|length %}<p class="fighter-owner">{{ fight.meta.names.get(fight.meta.owners[idx], '') }}</p>{% endif %}
-  {% set st = fighter_status(c) %}
   {% set maxhp = [c.start_hp, 1]|max %}
   <div class="hp" role="meter" aria-label="{{ c.name }} health" aria-valuemin="0" aria-valuemax="{{ c.start_hp|int }}" aria-valuenow="{{ hp|int }}">
     <i style="width: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%"></i>
@@ -45,6 +50,7 @@
   {% endif %}
   {% if c.is_alive() %}
     {% set left = c.turn_for_ability - c.special_meter %}
+    {% if 'stun' in st.aura %}<p class="stun-note">💫 Skips its next turn</p>{% endif %}
     <p class="charge {% if left <= 0 %}ready{% endif %}">{{ 'Special ready' if left <= 0 else 'Special in ' ~ left ~ (' turn' if left == 1 else ' turns') }}</p>
   {% endif %}
 </li>

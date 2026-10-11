@@ -1,0 +1,34 @@
+{#- The forge: one look for every upgrade bench (item refining on the Items page, chip combining on the Chips page).
+    {% call bench("Refine gear", "Forge · items", note) %} ...rows... {% endcall %}
+    {% call(part) row(icon, name, sub, level, level_max, state) %}{% if part == 'body' %}...{% else %}...action{% endif %}{% endcall %} -#}
+{% macro bench(title, kicker, note='', id='') -%}
+<section class="bench"{% if id %} id="{{ id }}"{% endif %}>
+  <header class="bench-head">
+    <span class="bench-mark" aria-hidden="true">⚒</span>
+    <div><p class="kicker">{{ kicker }}</p><h2 class="h2">{{ title }}</h2></div>
+    {% if note %}<p class="muted bench-note">{{ note }}</p>{% endif %}
+  </header>
+  {{ caller() }}
+</section>
+{%- endmacro %}
+
+{% macro row(icon, name, sub='', level=none, level_max=none, state='') -%}
+<li class="bench-row {{ state }}">
+  <span class="bench-icon" aria-hidden="true">{{ icon }}</span>
+  <div class="bench-main">
+    <p class="bench-name"><strong>{{ name }}</strong>{% if sub %} <small class="muted">{{ sub }}</small>{% endif %}</p>
+    {% if level is not none %}
+      <span class="bench-pips" role="meter" aria-label="{{ level }} of {{ level_max }}" aria-valuemin="0" aria-valuemax="{{ level_max }}" aria-valuenow="{{ level }}">
+        {%- for i in range(level_max) %}<i class="{{ 'on' if i < level }}"></i>{% endfor -%}
+      </span>
+    {% endif %}
+    {{ caller('body') }}
+  </div>
+  <div class="bench-act">{{ caller('act') }}</div>
+</li>
+{%- endmacro %}
+
+{#- before → after for one stat -#}
+{% macro delta(label, now, next) -%}
+<span class="bench-delta"><small>{{ label }}</small> {{ now }}{% if next is not none and next != now %} <span aria-hidden="true">→</span><span class="sr"> to </span> <b>{{ next }}</b>{% endif %}</span>
+{%- endmacro %}

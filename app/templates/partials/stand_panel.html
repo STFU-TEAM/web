@@ -65,7 +65,7 @@
           <li>{{ (it.emoji or '◈')|emoji }} {{ it.label }}
             {% if in_team and cost and bag_copies.get(it.id) %}
               <button class="btn small ghost" hx-post="{{ url_for('play.refine_equipped') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}, "item": {{ it.id }}}'
-                      title="Fuse a spare {{ it.name }} into it: +10% of its stats" {{ acts|safe }}>Refine → +{{ it.refine + 1 }} · {{ cost|dust }}</button>
+                      title="Fuse a spare {{ it.name }} into it: +10% of its stats" {{ acts|safe }}>⚒ +{{ it.refine + 1 }} · {{ cost|dust }}</button>
             {% endif %}
             <button class="btn small ghost" hx-post="{{ url_for('play.unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' {{ acts|safe }}>Unequip</button></li>
         {% endfor %}

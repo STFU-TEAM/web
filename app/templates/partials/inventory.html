@@ -1,4 +1,5 @@
 {% from "partials/picker.html" import picker, picker_data %}
+{% import "partials/forge.html" as fg %}
 {% set usable = groups|rejectattr('item.is_equipable')|list %}
 {% set gear = groups|selectattr('item.is_equipable')|list %}
 {% macro bonuses(it) -%}
@@ -105,11 +106,7 @@
           </form>
         {% endif %}
         {% set rf = refinable.get(it.id) %}
-        {% if rf and rf.cost and rf.spares and it.refine == rf.level %}
-          <button class="btn small ghost" hx-post="{{ url_for('play.item_refine') }}" hx-vals='{"item": {{ it.id }}}' hx-target="#use-result"
-                  title="Fuse a spare copy into it: each level adds 10% of its stats (up to +5)"
-                  hx-confirm="Refine {{ it.label }} to +{{ it.refine + 1 }}? It uses a spare copy and {{ rf.cost|num }} Meteor Dust.">Refine → +{{ it.refine + 1 }} · {{ rf.cost|dust }}</button>
-        {% endif %}
+        {% if rf and rf.cost and rf.spares and it.refine == rf.level %}<a class="btn small ghost" href="#forge" title="Refine it in the forge below">⚒ Refine</a>{% endif %}
         {{ sell_buttons(it, g.count) }}
       </div>
     </li>
@@ -133,6 +130,33 @@
     </ul>
   {% endif %}
 </section>
+
+{% if forge %}
+{% set ready = forge|selectattr('cost')|selectattr('spares')|list|length %}
+{% call fg.bench("Refine gear", "Forge · gear", "Fuse a spare copy into a piece of gear: each level adds 10% of its stats, up to +" ~ REFINE_MAX ~ ". What your team wears comes first.", id="forge") %}
+  <p class="bench-wallet"><span>{{ u.fragments|dust }}</span><small class="muted">{{ ready }} piece{{ 's' if ready != 1 }} ready to refine</small></p>
+  <ul class="bench-list">
+    {% for row in forge %}{% set it = row.item %}
+      {% set state = 'maxed' if not row.cost else ('ready' if row.spares and u.fragments >= row.cost else 'blocked') %}
+      {% call(part) fg.row(it.emoji|emoji, it.name, ('on ' ~ row.holder.name) if row.holder else ('in your bag' ~ (' · ' ~ row.spares ~ ' spare' ~ ('s' if row.spares != 1) if row.spares else '')), it.refine, REFINE_MAX, state) %}
+        {% if part == 'body' %}
+          <p class="bench-deltas">{% for l in row.lines %}{{ fg.delta(l.label, l.now, l.next) }}{% else %}<span class="muted">Special only: refining raises nothing it shows.</span>{% endfor %}</p>
+        {% elif not row.cost %}
+          <span class="bench-done">+{{ REFINE_MAX }} · maxed</span>
+        {% else %}
+          <button class="bench-go" hx-post="{{ url_for('play.item_refine') }}" hx-target="#use-result" hx-disabled-elt="this"
+                  hx-vals='{"item": {{ it.id }}{% if row.holder %}, "uuid": "{{ row.uuid }}", "slot": {{ row.slot }}{% endif %}}'
+                  {% if state != 'ready' %}disabled{% endif %}
+                  hx-confirm="Refine {{ it.label }}{{ ' on ' ~ row.holder.name if row.holder }} to +{{ it.refine + 1 }}? It uses a spare copy and {{ row.cost|num }} Meteor Dust.">
+            <strong>⚒ +{{ it.refine + 1 }}</strong>
+            <small>{% if not row.spares %}needs a spare copy{% elif u.fragments < row.cost %}needs {{ row.cost|num }} Dust{% else %}{{ row.cost|num }} Dust{% endif %}</small>
+          </button>
+        {% endif %}
+      {% endcall %}
+    {% endfor %}
+  </ul>
+{% endcall %}
+{% endif %}
 
 <section class="shelf" id="crafting">
   <header class="shelf-head"><h2 class="h2">Crafting</h2></header>

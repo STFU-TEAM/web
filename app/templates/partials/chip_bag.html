@@ -1,4 +1,5 @@
 {% from "partials/chip_macros.html" import chip_tile %}
+{% import "partials/forge.html" as fg %}
 <div id="chip-bag">
   {% if message %}<p data-float class="toast ok">{{ message }}</p>{% endif %}
   {% if error %}<p data-float class="toast error">{{ error }}</p>{% endif %}
@@ -15,13 +16,39 @@
               hx-confirm="Scrap every spare common chip for Meteor Dust?">Scrap all commons</button>
     {% endif %}
   </div>
+  {% call fg.bench("Combine chips", "Forge · chips", "Fuse spare chips of one tier into a new chip of the synergy you pick. It usually keeps the tier, with a " ~ chance ~ "% chance to climb one. Your weakest rolls go in first; socketed chips are never used.") %}
+    <label class="bench-target">New chip's synergy
+      <select name="syn" id="combine-syn">
+        <optgroup label="Your stands">{% for o in syn_options if o.mine %}<option value="{{ o.key }}" {{ 'selected' if o.key == syn_default }}>{{ o.icon }} {{ o.label }}</option>{% endfor %}</optgroup>
+        <optgroup label="Other synergies">{% for o in syn_options if not o.mine %}<option value="{{ o.key }}" {{ 'selected' if o.key == syn_default }}>{{ o.icon }} {{ o.label }}</option>{% endfor %}</optgroup>
+      </select>
+    </label>
+    <ul class="bench-list">
+      {% for c in combine %}
+        {% set state = 'ready' if c.have >= c.need else 'blocked' %}
+        {% call(part) fg.row(c.icon, c.need ~ ' ' ~ c.tier ~ ' chips', 'you have ' ~ c.have, [c.have, c.need]|min, c.need, state ~ ' tier-' ~ c.tier) %}
+          {% if part == 'body' %}
+            <p class="bench-deltas"><span class="bench-delta"><small>Result</small> 1 {{ c.tier }}</span>
+              <span class="bench-delta lucky tier-{{ c.to }}"><small>{{ chance }}%</small> <b>{{ c.to_icon }} {{ c.to|capitalize }}</b></span></p>
+          {% else %}
+            <button class="bench-go" hx-post="{{ url_for('play.chips_combine') }}" hx-vals='{"tier": "{{ c.tier }}"}' hx-include="#combine-syn"
+                    hx-target="#chip-bag" hx-swap="outerHTML" hx-disabled-elt="this" {% if state != 'ready' %}disabled{% endif %}
+                    hx-confirm="Fuse your {{ c.need }} weakest spare {{ c.tier }} chips into one new chip?">
+              <strong>⚒ Combine</strong><small>{% if c.have < c.need %}{{ c.need - c.have }} more needed{% else %}{{ c.need }} → 1{% endif %}</small>
+            </button>
+          {% endif %}
+        {% endcall %}
+      {% endfor %}
+    </ul>
+  {% endcall %}
+
   {% if rows %}
     <div class="chip-grid">
       {% for x in rows %}
         {% call chip_tile(x) %}
           <p class="chip-fits muted" title="{{ x.fits|join(', ') }}">{% if not x.fits %}None of your stands fit yet{% elif x.fits|length <= 2 %}Fits {{ x.fits|join(' and ') }}{% else %}Fits {{ x.fits|length }} of your stands{% endif %}</p>
           <button class="btn small ghost" hx-post="{{ url_for('play.chips_reroll') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
-                  hx-confirm="Reroll this chip's stats for {{ x.reroll|num }} Meteor Dust?" title="New random stats, same synergy and tier">↻ {{ x.reroll|num }}</button>
+                  hx-confirm="Reroll this chip's stats for {{ x.reroll|num }} Meteor Dust?" title="New random stats, same synergy and tier">↻ Reroll · {{ x.reroll|num }}</button>
           <button class="btn small ghost" hx-post="{{ url_for('play.chips_scrap') }}" hx-vals='{"chip": "{{ x.id }}"}' hx-target="#chip-bag" hx-swap="outerHTML"
                   hx-confirm="Scrap this chip for {{ x.scrap|num }} Meteor Dust?" title="Break it down for Meteor Dust">Scrap +{{ x.scrap|num }}</button>
         {% endcall %}

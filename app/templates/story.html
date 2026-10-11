@@ -15,6 +15,17 @@
     </div>
   </header>
   {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
+  {% if config.DEBUG %}
+    {#- dev mode only (the local server runs with debug on): skip the climb to test endgame content -#}
+    <div class="dev-strip" role="group" aria-label="Dev tools">
+      <span class="dev-tag">🛠 Dev mode</span>
+      <form method="post" action="{{ url_for('progress.story_dev') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <button class="btn small gold" {{ 'disabled' if cleared >= total }}
+                title="Clears all {{ total }} story stages (no rewards) and forces every mode open: Over Heaven, Carry Me, every universe, Requiem...">Unlock everything</button></form>
+      <form method="post" action="{{ url_for('progress.story_dev') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="op" value="reset">
+        <button class="btn small ghost" title="Back to stage 1 and remove the forced unlocks">Reset story</button></form>
+    </div>
+  {% endif %}
   {% include "partials/unlocked.html" %}
 
   {% if fight %}

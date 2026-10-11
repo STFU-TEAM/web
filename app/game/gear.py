@@ -9,7 +9,6 @@ holds); the copy spent is the least refined spare.
 """
 from typing import List, Optional
 
-from app.game.economy import dust
 from app.game.items import REFINE_MAX, item_file, spare
 
 STAT_LABEL = {"hp_pct": "HP", "damage_pct": "damage", "armor_pct": "armor", "speed_flat": "speed", "crit_flat": "crit"}
@@ -73,6 +72,39 @@ def set_info(item_id: int) -> Optional[dict]:
 def refine_cost(level: int) -> Optional[int]:
     """Meteor Dust to take an item from level to level + 1, or None at the cap."""
     return REFINE_COST[level] if level < REFINE_MAX else None
+
+
+REFINE_STATS = (("bonus_hp", "HP"), ("bonus_damage", "ATK"), ("bonus_armor", "ARM"), ("bonus_speed", "SPD"),
+                ("bonus_critical", "CRT"))
+
+
+def refine_preview(item) -> List[dict]:
+    """The item's stat lines now and one refine level up: [{label, now, next}] (next is None at the cap)."""
+    from app.game.items import Item
+    up = Item({**item.data, "refine": item.refine + 1}) if item.refine < REFINE_MAX else None
+    return [{"label": label, "now": getattr(item, key), "next": getattr(up, key) if up else None}
+            for key, label in REFINE_STATS if getattr(item, key)]
+
+
+def forge_rows(user) -> List[dict]:
+    """Every piece of gear that can be refined: what the team wears first, then the best bag copy of each item.
+    [{item, holder (stand or None), uuid, slot, spares, cost, lines}]"""
+    from collections import Counter
+    in_bag = Counter(i.id for i in user.items if i.is_equipable)
+    rows = []
+    for c in user.main_characters:
+        for slot, it in enumerate(c.items):
+            rows.append({"item": it, "holder": c, "uuid": c.uuid, "slot": slot, "spares": in_bag.get(it.id, 0)})
+    best = {}
+    for it in user.items:
+        if it.is_equipable and (it.id not in best or it.refine > best[it.id].refine):
+            best[it.id] = it
+    for iid, it in sorted(best.items(), key=lambda kv: kv[1].name):
+        rows.append({"item": it, "holder": None, "uuid": None, "slot": None, "spares": in_bag[iid] - 1})
+    for row in rows:
+        row["cost"] = refine_cost(row["item"].refine)
+        row["lines"] = refine_preview(row["item"])
+    return rows
 
 
 def refine(user, item_id: int, uuid: Optional[str] = None, slot: Optional[int] = None):

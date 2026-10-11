@@ -156,3 +156,29 @@ def test_simulator_fights_enemies_at_their_real_strength(monkeypatch):
     foe = simulate.foe_for("tower:50")
     simulate.run([_stand(1)], foe, runs=1)
     assert seen[0] == [c.start_hp for c in foe["team"]] and seen[0][0] > tower.floor_team(50)[0].start_hp * 0.9
+
+
+def test_stun_poison_and_burn_show_on_the_stand_itself(client):
+    from flask import render_template, session
+    from app.game import status
+    from app.game.character import character_from_dict
+    from app.game.effects import Effect, EffectType
+    from app.game.fight import Fight, Side
+    you = [character_from_dict(char(1, xp=8000))]
+    foes = [character_from_dict(char(cid, xp=8000)) for cid in (4, 5, 6)]
+    fight = Fight(Side("You", you, True), Side("Foes", foes, False), kind="dummy")
+    stunned, poisoned, burning = fight.sides[1].chars
+    stunned._stun_guard = False
+    stunned.add_effect(Effect(EffectType.STUN, 1, 0, None))
+    poisoned.add_effect(Effect(EffectType.POISON, 3, 50, None))
+    burning.add_effect(Effect(EffectType.BURN, 2, 50, None))
+    assert status.view(stunned)["aura"] == {"stun"} and status.view(poisoned)["aura"] == {"poison"}
+    assert status.view(burning)["aura"] == {"burn"} and status.view(fight.sides[0].chars[0])["aura"] == set()
+    stunned._stun_guard = True  # stunned last turn: this one won't hold, so no stun look
+    assert status.view(stunned)["aura"] == set()
+    stunned._stun_guard = False
+    with client.application.test_request_context("/"):
+        session["uid"] = "111"
+        html = render_template("partials/fight.html", fight=fight, fight_action="/a", fight_leave_action="/b", fight_label="Test")
+    assert html.count("st-stun") == 1 and "stun-stamp" in html and "Skips its next turn" in html
+    assert "aura-poison" in html and "aura-burn" in html

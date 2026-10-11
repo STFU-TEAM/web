@@ -106,3 +106,23 @@ def test_turned_away_by_another_fight_shows_the_way_back(client):
     f.finished = True
     dbmod.save_fight("111", f)
     assert "Back to your" not in client.get("/carry-me").data.decode()  # nothing on, no button
+
+
+def test_dev_mode_unlocks_and_resets_the_whole_story(client):
+    player(client, "111", main_characters=[char(1)])
+    h = login(client, "111")
+    # production (no debug): no button, and the route doesn't exist
+    assert "Dev mode" not in client.get("/story", headers=h).data.decode()
+    assert client.post("/story/dev", headers=h).status_code == 404
+    assert doc(client, "111").get("web_story", {}).get("cleared", 0) == 0
+
+    client.application.debug = True
+    try:
+        assert "Unlock everything" in client.get("/story", headers=h).data.decode()
+        client.post("/story/dev", headers=h)
+        assert doc(client, "111")["web_story"]["cleared"] == story.TOTAL
+        assert progression.forced("111") == set(progression.DEBUG_KEYS)
+        client.post("/story/dev", data={"op": "reset"}, headers=h)
+        assert doc(client, "111")["web_story"]["cleared"] == 0 and progression.forced("111") == set()
+    finally:
+        client.application.debug = False

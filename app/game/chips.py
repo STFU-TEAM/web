@@ -179,6 +179,41 @@ def reroll(user, chip_id: str) -> dict:
     return chip
 
 
+COMBINE = {"common": 8, "rare": 4, "epic": 2}  # spare chips of one tier fused into one chip
+COMBINE_CHANCE = 0.10  # the chance it comes out one tier higher (else the same tier, of the chosen synergy)
+
+
+def next_tier(tier: str) -> Optional[str]:
+    order = list(TIERS)
+    i = order.index(tier)
+    return order[i + 1] if i + 1 < len(order) else None
+
+
+def strength(chip: dict) -> float:
+    """How good a chip's roll is (each line as a share of its common range, summed): the weakest go first."""
+    return sum(v / STATS[s][1] for s, v in chip["stats"] if s in STATS)
+
+
+def combine(user, tier: str, syn: str, rng=random) -> dict:
+    """Fuse COMBINE[tier] spare chips of a tier (the weakest rolls) into one chip of synergy syn:
+    COMBINE_CHANCE to climb a tier. Returns {"chip", "up": bool, "used": n}."""
+    from app.game.characterabilities import SYNERGIES
+    need = COMBINE.get(tier)
+    if not need:
+        raise GameError("Only common, rare and epic chips can be combined.")
+    if syn not in SYNERGIES:
+        raise GameError("Pick the synergy the new chip should have.")
+    pool = sorted((c for c in bag(user) if c["tier"] == tier), key=strength)
+    if len(pool) < need:
+        raise GameError(f"Combining takes {need} spare {tier} chips; you have {len(pool)}.")
+    for chip in pool[:need]:
+        _take(user, chip["id"])
+    up = rng.random() < COMBINE_CHANCE
+    chip = roll(syn, next_tier(tier) if up else tier, rng)
+    bag(user).append(chip)
+    return {"chip": chip, "up": up, "used": need}
+
+
 def give_back(user, chars: list) -> int:
     """Released or fused-away stands drop their chips into the bag (past BAG_MAX they're scrapped for dust)."""
     back = 0

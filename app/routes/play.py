@@ -376,8 +376,18 @@ def _chips_ctx(user, message=None, error=None):
     rows = [{**chips.view(x), "fits": [c.name for c in owned if chips.fits(x, c)]} for x in shown]
     worn = [{"stand": c, "chips": [chips.view(x) for x in chips.socketed(c)], "slots": chips.slots(c)}
             for c in owned if c.data.get("chips")]
+    # the combine bench: one row per tier, and the synergies to aim for (the player's own stands' first)
+    from app.game.characterabilities import SYNERGIES, SYNERGY_INFO
+    mine = {g for c in owned for g in chips.groups_of(c.id)}
+    team = [g for c in user.main_characters for g in chips.groups_of(c.id)]
+    syns = sorted(SYNERGIES, key=lambda k: (k not in mine, SYNERGY_INFO.get(k, (k,))[0].lower()))
+    combine = [{"tier": t, "need": n, "have": sum(1 for x in rows if x["tier"] == t), "to": chips.next_tier(t),
+                "icon": chips.TIER_ICON[t], "to_icon": chips.TIER_ICON[chips.next_tier(t)]} for t, n in chips.COMBINE.items()]
     return {"u": user, "rows": rows, "worn": worn, "bag_max": chips.BAG_MAX, "message": message, "error": error,
-            "slot_max": chips.SLOT_MAX}
+            "slot_max": chips.SLOT_MAX, "combine": combine, "chance": round(chips.COMBINE_CHANCE * 100),
+            "syn_options": [{"key": k, "label": SYNERGY_INFO.get(k, (k, "✶"))[0], "icon": SYNERGY_INFO.get(k, (k, "✶"))[1],
+                             "mine": k in mine} for k in syns],
+            "syn_default": team[0] if team else (sorted(mine)[0] if mine else syns[0])}
 
 
 @bp.get("/chips")
@@ -396,6 +406,20 @@ def chips_scrap():
     user, dust, err = action(lambda u: chips.scrap(u, ids))
     return render_template("partials/chip_bag.html", **_chips_ctx(
         user, f"Scrapped {len(ids)} chip{'s' if len(ids) != 1 else ''} for {dust:,} Meteor Dust." if dust else None, err))
+
+
+@bp.post("/chips/combine")
+@player_required
+def chips_combine():
+    from app.game import chips
+    tier, syn = request.form.get("tier", ""), request.form.get("syn", "")
+    user, res, err = action(lambda u: chips.combine(u, tier, syn))
+    msg = None
+    if res:
+        v = chips.view(res["chip"])
+        msg = (f"{v['tier_icon']} Lucky! {res['used']} {tier} chips fused into a {v['tier']} {v['label']} chip: {', '.join(v['lines'])}."
+               if res["up"] else f"{res['used']} {tier} chips fused into a {v['label']} chip: {', '.join(v['lines'])}.")
+    return render_template("partials/chip_bag.html", **_chips_ctx(user, msg, err))
 
 
 @bp.post("/chips/reroll")
@@ -640,7 +664,8 @@ def _items_ctx(user):
     groups = _grouped(user.items)
     remember_craftable(user)
     return {"u": user, "groups": groups, "recipes": _recipes(user), "shop": DEFAULT_SHOP,
-            "sell_price": logic.sell_price, "equip_opts": _equip_options(user, groups), "refinable": _refinable(user.items)}
+            "sell_price": logic.sell_price, "equip_opts": _equip_options(user, groups), "refinable": _refinable(user.items),
+            "forge": gear.forge_rows(user)}
 
 
 CRAFTABLE_KEY = "web:craftable:{}"
@@ -679,8 +704,9 @@ def craft():
 @bp.post("/items/refine")
 @player_required
 def item_refine():
-    item_id = _int("item")
-    user, res, err = action(lambda u: gear.refine(u, item_id))
+    """Refine from the forge: the best bag copy, or (uuid + slot) the copy a team stand wears."""
+    item_id, uuid, slot = _int("item"), request.form.get("uuid") or None, _int("slot")
+    user, res, err = action(lambda u: gear.refine(u, item_id, uuid, slot if uuid else None))
     return render_template("partials/use_result.html", res={"kind": "refined", "item": res} if res else None,
                            error=err, **_items_ctx(user))
 
