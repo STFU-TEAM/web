@@ -896,7 +896,8 @@ def test_requiem_arrow_rules_for_ger_and_the_star_cap(client):
 def test_requiem_is_a_choice_so_the_original_can_reach_five_stars(client):
     from app.game.logic import MAX_AWAKEN
     kq = char(49, xp=10_000, awaken=2)  # Killer Queen, level 100, ★2: could evolve right now
-    player(client, "111", main_characters=[kq], items=[{"id": 3}] * 5)
+    spares = [char(49), char(49)]  # ★4 and ★5 each eat a copy
+    player(client, "111", main_characters=[kq], storage_characters=spares, items=[{"id": 3}] * 5)
     h = login(client, "111")
     panel = client.get(f"/team/stand/{kq['uuid']}", headers=h).data.decode()
     assert "Evolve into Killer Queen bite the dust" in panel and "★3 with an Arrow" in panel
@@ -904,6 +905,7 @@ def test_requiem_is_a_choice_so_the_original_can_reach_five_stars(client):
         client.post("/team/arrow", data={"uuid": kq["uuid"], "mode": "awaken"}, headers=h)
     d = doc(client, "111")
     assert d["main_characters"][0]["id"] == 49 and d["main_characters"][0]["awaken"] == MAX_AWAKEN
+    assert not d["storage_characters"]
     assert "★6" not in client.get(f"/team/stand/{kq['uuid']}", headers=h).data.decode()  # no star past the cap
     # still free to make it Requiem later, from the inventory's own button
     r = client.post("/items/use", data={"item": 3, "uuid": kq["uuid"], "mode": "requiem"}, headers=h)

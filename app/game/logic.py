@@ -61,6 +61,15 @@ REQUIEMABLE = [49, 6, 59]
 # Stars a stand needs (at level 100) before a Requiem Arrow evolves it; Gold Experience needs ★3 for GER.
 REQUIEM_STARS = {49: 2, 6: 2, 59: 3}
 MAX_AWAKEN = 5  # ascension and fusion stop at ★3; Requiem Arrows can push to ★5, never further
+COPY_AWAKEN = 3  # from here on (★4 and ★5) an Arrow also eats a spare copy of the stand (web only, the bot has its own rule)
+
+
+def spare_copy(user: User, char: Character) -> Optional[Character]:
+    """The copy a ★4/★5 awakening would consume: an unlocked storage copy, the least advanced first."""
+    protected = locked(user)
+    copies = [c for c in user.storage_characters
+              if c.id == char.id and c.uuid != char.uuid and c.uuid not in protected]
+    return min(copies, key=lambda c: (c.awaken, c.xp)) if copies else None
 REQUIEM_TEMPLATE_INDEX = [57, 82, 83]
 SPECIAL_CHARACTERS = [163, 110, 84, 109, 161, 120, 114]
 
@@ -1012,6 +1021,17 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
         else:
             if char.awaken >= MAX_AWAKEN:
                 refund(f"{char.name} is at ★{MAX_AWAKEN}, the highest awakening.")
+            if char.awaken >= COPY_AWAKEN:
+                copy = spare_copy(user, char)
+                if copy is None:
+                    refund(f"★{char.awaken + 1} also needs a spare copy of {char.name} in storage (unlocked).")
+                user.storage_characters.remove(copy)
+                user.items.extend(copy.items)
+                from app.game import chips
+                chips.give_back(user, [copy])
+                for team in user.teams.values():
+                    if copy.uuid in team:
+                        team.remove(copy.uuid)
             char.awaken += 1
             user.main_characters[idx] = Character(char.to_dict())
             res = {"kind": "awaken", "stand": user.main_characters[idx]}

@@ -22,8 +22,8 @@ MAX_ROUNDS = 18
 # PvP duels are paced for 1-2 minutes (5 at most: battles.PVP_MAX_SECONDS): stands hit harder, sudden death comes
 # sooner and the round cap is lower. PvE fights already take under a minute and keep the numbers above.
 # Tuned with a pacing model (log replay as the client plays it, ~4 s a human pick): about 1.8 min on average.
-PVP_DAMAGE = 1.6
-PVP_SUDDEN_DEATH_ROUND = 4
+PVP_DAMAGE = 1.3  # was 1.6: maxed teams ended duels in 3 rounds; now about 5
+PVP_SUDDEN_DEATH_ROUND = 5
 PVP_SUDDEN_DEATH_STEP = 0.10
 PVP_MAX_ROUNDS = 10
 PVP_MAX_SECONDS = 300  # a duel never runs past 5 minutes: then the side with more health left wins (battles.py)

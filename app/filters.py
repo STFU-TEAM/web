@@ -121,7 +121,7 @@ def register(app):
     from app.game import logic
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
                                  FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form,
-                                 MAX_STARS=logic.MAX_AWAKEN)
+                                 MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
     from app.game import simulate

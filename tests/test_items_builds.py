@@ -103,12 +103,12 @@ def test_wonder_of_u_calamity_grows_exponentially_with_its_wounds():
         for f in foes:
             f.current_hp = f.start_hp = foe_hp
         abilities.wonder_of_u(wou, [wou], foes)
-        return foe_hp - foes[0].current_hp - foe_hp * 0.08, wou.start_hp  # the backlash, past the 8% base share
+        return foe_hp - foes[0].current_hp - foe_hp * abilities.WOU_SHARE[0], wou.start_hp  # the backlash, past the base share
 
     quarter, half, three_quarters = (calamity(s)[0] for s in (0.25, 0.5, 0.75))
     hp = calamity(0.5)[1]
     assert abs(half - hp * 0.5 * 0.30) <= 2  # 30% of what it lost at half health, as before
     assert half / quarter > 3 and three_quarters / half > 2.4  # each step down hurts much more than the last
-    # no one-shot: at most 60% of the enemy's max health on top of the base share
+    # no one-shot: at most CALAMITY_CAP of the enemy's max health on top of the base share
     capped, _ = calamity(0.95, foe_hp=1000)
-    assert capped <= 600 + 1
+    assert capped <= 1000 * abilities.CALAMITY_CAP + 1

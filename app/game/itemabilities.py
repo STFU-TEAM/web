@@ -180,6 +180,32 @@ def josephs_clackers(
     return f"｢{stand.name}｣ swings a Clacker Volley at {target.name} for {dealt}!"
 
 
+DETONATED = (EffectType.POISON, EffectType.BURN)
+
+
+def bites_the_dust(
+    stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
+) -> tuple:
+    # every poison and burn on the enemy team goes off at once: all their remaining ticks in one turn
+    from app.game.character import POISON_MAX_HP
+    from app.game.effects import TERRAIN_DOT_MULT
+    total, hit = 0, 0
+    for target in [i for i in ennemy_stand if i.is_alive()]:
+        dots = [e for e in target.effects if e.type in DETONATED and e.duration > 0]
+        if not dots:
+            continue
+        burst = 0
+        for e in dots:
+            tick = e.value + (POISON_MAX_HP * target.start_hp if e.type == EffectType.POISON else 0)
+            burst += tick * TERRAIN_DOT_MULT.get(getattr(target, "terrain", None), {}).get(e.type, 1) * e.duration
+        target.effects = [e for e in target.effects if e not in dots]
+        total += target.take(burst)
+        hit += 1
+    if not hit:
+        return "None"
+    return f"｢{stand.name}｣ presses the switch: BITES THE DUST! Every poison and burn detonates at once for {total} damage!"
+
+
 item_specials = {
     "1": dio_Knife,
     "2": stand_arrows,
@@ -197,4 +223,5 @@ item_specials = {
     "54": rokakaka_branch,
     "55": darbys_chips,
     "56": josephs_clackers,
+    "57": bites_the_dust,
 }

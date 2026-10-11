@@ -63,6 +63,16 @@ with open(os.path.join(_DATA, "characters.json"), "r", encoding="utf-8") as _f:
 character = TypeVar("character", bound="Character")
 
 
+# Poison stands lagged once teams stacked health (★5, refined items): each poison tick also takes this share of
+# the target's max health, so poison keeps up with tanky teams. Tuned against the Requiem benchmark team.
+POISON_MAX_HP = 0.025
+# Health each star past ★3 adds (a ★5 stand: twice this). Tuned so fights between maxed, refined teams (the Requiem
+# benchmark against itself and other top teams) average about 5 rounds: scripts/balance.py length.
+LATE_STAR_HP = 0.2
+# Each crit tier past the first adds this share of the one before (1 = every tier a full crit, the old way)
+CRIT_STACK_DECAY = 0.4
+
+
 class Character:
     def __init__(self, data: dict):
         character_file = CHARACTER_FILE
@@ -155,6 +165,8 @@ class Character:
             1 + stars / 3
         )
         self.current_armor = int(self.base_armor + bonus_armor * (1 + stars / 3))
+        # ★4 and ★5 add health on top (LATE_STAR_HP a star past ★3): fights between maxed teams last ~5 rounds
+        self.current_hp = int(self.current_hp * (1 + LATE_STAR_HP * max(0, stars - 3)))
         
         #TYPE and qualities final multiplier
         
@@ -223,7 +235,7 @@ class Character:
         tier = crit_tier(self.current_critical)
         if tier:
             crit_mult = getattr(self, "crit_multiplier", CRITMULTIPLIER)  # fights pickled before LUCK crit damage
-            multi *= 1 + (max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0)) - 1) * tier
+            multi *= 1 + (max(crit_mult, TERRAIN_CRIT_MULT.get(terrain, 0)) - 1) * crit_stack(tier)
             atck["critical"] = True
             atck["crit"] = tier
             pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
@@ -302,7 +314,10 @@ class Character:
             if effect.duration <= 0:
                 continue
             if effect.type in DOT_EFFECTS:
-                self.current_hp -= int(effect.value * TERRAIN_DOT_MULT.get(terrain, {}).get(effect.type, 1))
+                tick = effect.value
+                if effect.type == EffectType.POISON:  # poison also eats a share of the target's max health
+                    tick += POISON_MAX_HP * self.start_hp
+                self.current_hp -= int(tick * TERRAIN_DOT_MULT.get(terrain, {}).get(effect.type, 1))
             elif effect.type == EffectType.REGENERATION:
                 self.heal(effect.value)
             elif effect.type in STAT_EFFECTS and not effect.used:
@@ -406,6 +421,12 @@ def apply_chips(char, chips: list) -> None:
                 char.current_speed += value
             elif stat == "crit_flat":
                 char.current_critical += value
+
+
+def crit_stack(tier: int) -> float:
+    """How many crit bonuses a tier-crit hit gets: the first in full, each extra one CRIT_STACK_DECAY of the last
+    (stacking crit past 100% used to add a full crit per tier, and maxed crit teams ended fights in two hits)."""
+    return sum(CRIT_STACK_DECAY ** k for k in range(tier))
 
 
 def crit_tier(chance: float) -> int:

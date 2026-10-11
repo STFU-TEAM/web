@@ -121,8 +121,15 @@
         {% set heads3 = u['items']|selectattr('id', 'equalto', 3)|list|length %}
         {% set rq = requiem_form(c) %}
         {% if heads3 and c.awaken < MAX_STARS %}
-          <button class="btn small" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "awaken"}' {{ acts|safe }}
-                  title="Uses a Requiem Arrow: +1 star, {{ c.name }} stays {{ c.name }}{{ ' (it can still become ' ~ rq.name ~ ' later)' if rq }}">🏹 ★{{ c.awaken + 1 }} with an Arrow</button>
+          {% if c.awaken >= COPY_STARS %}
+            {% set copy = spare_copy(u, c) %}
+            <button class="btn small" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "awaken"}' {{ acts|safe }}
+                    {% if not copy %}disabled{% else %}hx-confirm="Awaken {{ c.name }} to ★{{ c.awaken + 1 }}? It uses a Requiem Arrow and consumes a spare copy (Lv {{ copy.level }} ★{{ copy.awaken }}); that copy's items and chips go back to your bag."{% endif %}
+                    title="★4 and ★5 take a Requiem Arrow plus a spare, unlocked copy of {{ c.name }} from storage">🏹 ★{{ c.awaken + 1 }} · Arrow + copy{{ '' if copy else ' (no spare copy)' }}</button>
+          {% else %}
+            <button class="btn small" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "awaken"}' {{ acts|safe }}
+                    title="Uses a Requiem Arrow: +1 star, {{ c.name }} stays {{ c.name }}{{ ' (it can still become ' ~ rq.name ~ ' later)' if rq }}">🏹 ★{{ c.awaken + 1 }} with an Arrow</button>
+          {% endif %}
         {% endif %}
         {% if rq and rq.ready and heads3 %}
           <button class="btn small gold" hx-post="{{ url_for('play.arrow') }}" hx-vals='{"uuid": "{{ c.uuid }}", "mode": "requiem"}' {{ acts|safe }}

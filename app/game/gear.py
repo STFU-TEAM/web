@@ -28,7 +28,7 @@ SETS = {
 }
 SET_OF = {iid: key for key, (_, _, pieces, _) in SETS.items() for iid in pieces}
 
-REFINE_COST = [dust(c) for c in (500, 1000, 2000, 3500, 5000)]  # Meteor Dust for +1 ... +5
+REFINE_COST = [2500, 5000, 10000, 10000, 10000]  # Meteor Dust for +1 ... +5: doubles, capped at 10,000 a level
 
 
 def _fmt(stat: str, value: float) -> str:

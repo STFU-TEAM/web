@@ -177,7 +177,11 @@ SYNERGY_EFFECTS = {
     },
     "plague": {
         69: "Its allies are carriers: the virus doesn't touch them.",
-        81: "The mold lasts 3 turns and takes −15% armor too.",
+        81: "The mold takes −15% armor too.",
+    },
+    "heavy_weather": {
+        94: "Heavy Weather: every enemy is poisoned for 3 turns (0.45× from 0.3×), −30% speed and −15% damage.",
+        107: "Steals 35% damage and speed (from 25%) and the stolen DISC poisons the target for 3 turns.",
     },
     "mirrors": {
         13: "Strikes from every reflection (1.4× ignoring armor, +25 critical) even off the Mirror field.",
@@ -451,6 +455,7 @@ ITEM_ABILITY = {
     54: "In fights, every 2 turns: an enemy takes 15% of the health the holder has lost, as true damage. Pairs with taunts and big health pools.",
     55: "In fights, every 3 turns: a bet of +10, +20, +30 or +40 crit for 2 turns.",
     56: "In fights, every 2 turns: a Clacker Volley for 30% of the holder's damage as true damage.",
+    57: "In fights, every 4 turns: every poison and burn on the enemy team detonates at once, dealing all its remaining ticks in one go. Event shop only.",
 }
 ITEM_USE = {
     2: "Spent on a banner: 5 stands at SR or better.",

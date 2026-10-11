@@ -167,6 +167,8 @@ SYNERGIES.update({
     "morioh_2011": {144, 146, 147, 149, 150, 151, 152, 153, 154, 155, 157, 160, 162},
     # Schott Key No. 1 and No. 2
     "schott_keys": {151, 152},
+    # Heavy Weather: Whitesnake gives Weather Report back the DISC of his memory, and the rainbow turns people to snails
+    "heavy_weather": {94, 107},
 })
 # Members who were missing from their crew: Abbacchio and Coco Jumbo, Ermes and Emporio, Pesci and Risotto
 SYNERGIES["passione"] |= {62, 70}
@@ -186,7 +188,7 @@ SYNERGY_MIN = {key: 3 for key in PART_GROUPS}  # members needed on the team (2 f
 # were tuned without them, so computer-controlled enemies get neither their bonus nor their special changes.
 CROSS_GROUPS = {"dio_pucci", "boingo_hol_horse", "pesci_prosciutto", "enyaba_geil", "nijimura", "trussardi",
                 "first_love", "polpo_test", "fate", "fugo_narancia", "cellmates", "tide", "swarm", "disguise", "fire",
-                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys"}
+                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys", "heavy_weather"}
 PLAYER_ONLY = set(PART_GROUPS) | CROSS_GROUPS
 
 
@@ -251,6 +253,7 @@ SYNERGY_INFO = {
     "gunslingers": ("Gunslingers", "🤠"),
     "soul": ("Souls & dreams", "👻"),
     "plague": ("The plague", "☣️"),
+    "heavy_weather": ("Heavy Weather", "🐌"),
     "mirrors": ("Through the looking glass", "🪞"),
     "morioh_2011": ("Morioh, 2011", "🏙️"),
     "schott_keys": ("Schott Keys", "🗝️"),
@@ -325,6 +328,7 @@ SYNERGY_BONUS = {
     "gunslingers": [("crit_flat", 12), ("damage_pct", 0.06)],
     "soul": [("damage_pct", 0.08), ("crit_flat", 8)],
     "plague": [("damage_pct", 0.10), ("hp_pct", 0.06)],
+    "heavy_weather": [("damage_pct", 0.10), ("speed_pct", 0.08)],
     "mirrors": [("crit_flat", 10), ("speed_pct", 0.08)],
     "morioh_2011": [("hp_pct", 0.08), ("damage_pct", 0.06)],
     "schott_keys": [("damage_pct", 0.12), ("speed_pct", 0.06)],
@@ -510,8 +514,14 @@ def _aoe(character, enemies, multiplier) -> int:
     return sum(_hit(character, e, multiplier) for e in _alive(enemies))
 
 
+# Poison stands fell behind once teams got their health up (★5, refined items): poison ticks harder than the other
+# damage over time. Tuned with scratch meta.py (level 100 ★5 teams), see scripts/balance.py.
+POISON_MULT = 1.25
+
+
 def _dot(target, kind: EffectType, turns: int, value: float, sender) -> None:
-    target.add_effect(Effect(kind, turns, max(1, int(value * _power())), sender))
+    mult = POISON_MULT if kind == EffectType.POISON else 1
+    target.add_effect(Effect(kind, turns, max(1, int(value * _power() * mult)), sender))
 
 
 def _regen(target, turns: int, value: float, sender) -> None:
@@ -1446,11 +1456,11 @@ def purple_haze(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     carriers = _has_synergy(character.id, allied_characters, "plague")
     for enemy in _alive(enemy_characters):
-        _dot(enemy, EffectType.POISON, 2, 0.45 * character.current_damage, character)
+        _dot(enemy, EffectType.POISON, 3, 0.6 * character.current_damage, character)
     if carriers:  # its allies are carriers too: the virus spares them
         return payload, f"｢{character.name}｣ releases the virus! Every enemy is poisoned; its fellow carriers are immune! ☣️ The plague!"
     for ally in _alive(allied_characters):
-        _dot(ally, EffectType.POISON, 1, 0.1 * character.current_damage, character)
+        _dot(ally, EffectType.POISON, 1, 0.05 * character.current_damage, character)
     return payload, f"｢{character.name}｣ releases the virus! Every enemy is poisoned... and so are its allies, a little."
 
 
@@ -1486,11 +1496,11 @@ def green_day(character, allied_characters, enemy_characters) -> tuple:
     spread = _has_synergy(character.id, allied_characters, "plague")
     for enemy in _alive(enemy_characters):
         _debuff(enemy, "damage", 0.20, 2, character)
-        _dot(enemy, EffectType.POISON, 3 if spread else 2, 0.2 * character.current_damage, character)
+        _dot(enemy, EffectType.POISON, 3, 0.4 * character.current_damage, character)
         if spread:
             _debuff(enemy, "armor", 0.15, 2, character)
     if spread:
-        return payload, f"｢{character.name}｣ spreads the mold with the plague: every enemy rots for 3 turns, -20% damage, -15% armor! ☣️ The plague!"
+        return payload, f"｢{character.name}｣ spreads the mold with the plague: every enemy rots, -20% damage, -15% armor! ☣️ The plague!"
     return payload, f"｢{character.name}｣ spreads the mold! Every enemy rots and loses 20% damage!"
 
 
@@ -1539,6 +1549,17 @@ def stone_free(character, allied_characters, enemy_characters) -> tuple:
 
 def weather_report(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    if _has_synergy(character.id, allied_characters, "heavy_weather"):
+        # Heavy Weather: the rainbow turns every enemy into a snail: a longer, stronger poison, slow and weak
+        for enemy in _alive(enemy_characters):
+            _dot(enemy, EffectType.POISON, 3, 0.45 * character.current_damage, character)
+            _debuff(enemy, "speed", 0.30, 2, character)
+            _debuff(enemy, "damage", 0.15, 2, character)
+        target = _target(character, enemy_characters)
+        damage = _hit(character, target, 1.0) if target else 0
+        return payload, (f"｢{character.name}｣ remembers: HEAVY WEATHER! The rainbow turns every enemy into a snail "
+                         f"(poisoned, -30% speed, -15% damage) and lightning strikes {target.name if target else 'nothing'} "
+                         f"for {damage}! 🐌 Heavy Weather!")
     for enemy in _alive(enemy_characters):
         _dot(enemy, EffectType.POISON, 2, 0.3 * character.current_damage, character)
     target = _target(character, enemy_characters)
@@ -2094,12 +2115,17 @@ def whitesnake(character, allied_characters, enemy_characters) -> tuple:
     if not valid:
         return payload, f"｢{character.name}｣ has no target to steal from!"
     target = max(valid, key=lambda e: e.current_speed)
+    heavy = _has_synergy(character.id, allied_characters, "heavy_weather")
     _hit(character, target, 0.8)
-    dmg = _debuff(target, "damage", 0.25, 3, character)
-    spd = _debuff(target, "speed", 0.25, 3, character)
+    dmg = _debuff(target, "damage", 0.35 if heavy else 0.25, 3, character)
+    spd = _debuff(target, "speed", 0.35 if heavy else 0.25, 3, character)
+    if heavy:  # the DISC carries the rainbow: the target starts turning into a snail
+        _dot(target, EffectType.POISON, 3, 0.35 * character.current_damage, character)
     character.add_effect(Effect(EffectType.DAMAGEUP, 3, dmg, character))
     character.add_effect(Effect(EffectType.SPEEDUP, 3, spd, character))
     message = f"｢{character.name}｣ steals {target.name}'s DISC! +{dmg} damage, +{spd} speed!"
+    if heavy:
+        message += " 🐌 Heavy Weather: the DISC's rainbow poisons it!"
     if synergy:
         _stun(target, character)
         message += " ☽ Pucci synergy! Target stunned!"
@@ -2519,7 +2545,7 @@ def doobie_wah(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ seeks its enemy!"
     damage = _hit(character, target, 1.5)
-    _dot(target, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+    _dot(target, EffectType.POISON, 3, 0.4 * character.current_damage, character)
     return payload, f"｢{character.name}｣'s tornado follows {target.name}'s breath: {damage} damage and suffocating!"
 
 
@@ -2625,7 +2651,8 @@ def awaking_iii_leaves(character, allied_characters, enemy_characters) -> tuple:
 # Wonder of U's calamity grows exponentially with the health it has lost: CALAMITY_SHARE of that health at half health,
 # doubling with every 1/CALAMITY_GROWTH of its health lost (18% at a quarter lost, 50% at three quarters, ~80% at
 # death's door). Each enemy takes at most CALAMITY_CAP of its own max health from it, so it can't wipe a full team.
-CALAMITY_SHARE, CALAMITY_GROWTH, CALAMITY_CAP = 0.30, 3, 0.60
+CALAMITY_SHARE, CALAMITY_GROWTH, CALAMITY_CAP = 0.30, 3, 0.20  # cap: was 0.60 (one blast ended maxed fights)
+WOU_SHARE = (0.04, 0.08)  # of each enemy's max health: healthy, wounded or impaired (was 0.08 / 0.16)
 
 
 def calamity_share(lost_share: float) -> float:
@@ -2639,7 +2666,7 @@ def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     lost = max(0, character.start_hp - character.current_hp)
     backlash = lost * calamity_share(lost / max(1, character.start_hp))  # every wound comes back to its pursuers
     for enemy in _alive(enemy_characters):
-        share = 0.16 if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else 0.08
+        share = WOU_SHARE[1] if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else WOU_SHARE[0]
         total += _take(enemy, enemy.start_hp * share + min(backlash, enemy.start_hp * CALAMITY_CAP))
     message = f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
     return payload, message + (f" Its own wounds return to its pursuers (+{int(backlash)} each)!" if backlash >= 1 else "")

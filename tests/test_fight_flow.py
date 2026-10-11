@@ -42,8 +42,10 @@ def test_each_extra_crit_adds_the_crit_bonus_again(monkeypatch):
     assert [hits[c]["crit"] for c in (0, 100, 200, 300)] == [0, 1, 2, 3]
     m = _stand(1).crit_multiplier
     base = hits[0]["damage"]
-    for tier, chance in ((1, 100), (2, 200), (3, 300)):
-        assert abs(hits[chance]["damage"] - base * (1 + (m - 1) * tier)) <= 1
+    from app.game.character import crit_stack
+    for tier, chance in ((1, 100), (2, 200), (3, 300)):  # each extra crit adds a smaller share (CRIT_STACK_DECAY)
+        assert abs(hits[chance]["damage"] - base * (1 + (m - 1) * crit_stack(tier))) <= 1
+    assert hits[300]["damage"] > hits[200]["damage"] > hits[100]["damage"]
 
 
 def test_fight_log_records_the_crit_tier(monkeypatch):

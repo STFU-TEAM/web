@@ -194,6 +194,10 @@ def test_admin_event_boosts_fights_and_pays_tokens(client):
     client.post("/events/buy", data={"key": "aja"}, headers=h)
     client.post("/events/buy", data={"key": "aja"}, headers=h)
     assert [i["id"] for i in doc(client, ADMIN)["items"]].count(6) == 1
+    assert "Bites the Dust Switch" in page
+    client.post("/events/buy", data={"key": "btd"}, headers=h)
+    d = doc(client, ADMIN)
+    assert [i["id"] for i in d["items"]].count(57) == 1 and d["web_event"][ev["id"]]["tokens"] == 500 - 55 - 150
     from app.wiki import item_rows
     sourceless = [it["name"] for it in item_rows() if not it["sources"] and it["kind"] != "Stand chip"]
     assert sourceless == []

@@ -32,6 +32,7 @@ SHOP = [  # key, label, cost, per-event limit, what it gives
     {"key": "aja", "label": "Red stone of Aja", "cost": 55, "limit": 1, "give": {"items": [6]}, "exclusive": True},
     {"key": "sha", "label": "Sheer Heart Attack", "cost": 45, "limit": 1, "give": {"items": [5]}, "exclusive": True},
     {"key": "lighter", "label": "Polpo's lighter", "cost": 30, "limit": 1, "give": {"items": [16]}, "exclusive": True},
+    {"key": "btd", "label": "Bites the Dust Switch", "cost": 150, "limit": 1, "give": {"items": [57]}, "exclusive": True},
     {"key": "title", "label": "Event title", "cost": 30, "limit": 1, "give": {"title": True}},
 ]
 SHOP_BY_KEY = {s["key"]: s for s in SHOP}

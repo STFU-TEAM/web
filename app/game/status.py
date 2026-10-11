@@ -42,7 +42,9 @@ def view(c) -> dict:
             continue
         value = e.value
         if e.type in DOT_EFFECTS:
-            value = int(e.value * TERRAIN_DOT_MULT.get(terrain, {}).get(e.type, 1))
+            from app.game.character import POISON_MAX_HP  # poison also takes a share of max health (Character.end_turn)
+            tick = e.value + (POISON_MAX_HP * c.start_hp if e.type == EffectType.POISON else 0)
+            value = int(tick * TERRAIN_DOT_MULT.get(terrain, {}).get(e.type, 1))
             dot += value
         elif e.type == EffectType.REGENERATION:
             value = int(_heal_amount(c, e.value))
