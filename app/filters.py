@@ -150,7 +150,12 @@ def register(app):
 
     @app.template_filter("stand_img")
     def stand_img(stand_id):
+        """A stand's normal picture: the replacement uploaded with scripts/art_helper.py (classic.json) if there is
+        one, else the original image."""
         cfg = current_app.config
+        name = art_files["classic"].get(int(stand_id)) if str(stand_id).isdigit() else None
+        if name:
+            return f"{cfg['IMAGE_BASE_URL']}{cfg['ART_PATH']}/classic/{name}"
         return cfg["IMAGE_BASE_URL"] + cfg["IMAGE_PATH"].format(id=stand_id)
 
     import json as _json
@@ -165,7 +170,8 @@ def register(app):
         files = {int(k): v for k, v in (data.get("files") or {}).items()}
         files.update({int(i): f"{i}.webp" for i in data.get("ids", []) if int(i) not in files})
         return files
-    art_files = {"artwork": _files("fullart.json"), "shiny": _files("shiny.json"), "special": _files("special.json")}
+    art_files = {"artwork": _files("fullart.json"), "shiny": _files("shiny.json"), "special": _files("special.json"),
+                 "classic": _files("classic.json")}
 
     def _stills(name):
         """{stand id: poster file}: the still frame of an animated artwork / shiny (scripts/art_helper.py)."""

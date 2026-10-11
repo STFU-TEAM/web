@@ -1732,3 +1732,20 @@ def test_gangs_have_a_public_page_and_a_ladder(client):
     page = client.get(f"/gangs/g/{gid}").data.decode()
     assert "Message the boss" in page and "Open your gang" not in page
     assert f"/gangs/g/{gid}" in client.get("/u/111").data.decode()  # profiles link the gang
+
+
+def test_a_replacement_normal_picture_is_used_everywhere(client):
+    """scripts/art_helper.py's "classic" kind: listed in classic.json, it replaces the original Image/<id>.png."""
+    with client.application.app_context():
+        flt = client.application.jinja_env.filters["stand_img"]
+        files = client.application.extensions["art_files"]
+        assert flt(1).endswith("/1.png") or "/Image/" in flt(1)
+        files["classic"][1] = "1.webp"
+        try:
+            assert flt(1).endswith("/classic/1.webp")
+            from app.game import pickers
+            with client.application.test_request_context():
+                assert pickers.stand_img(1) == flt(1)
+            assert "/classic/" not in flt(2)  # the others keep their original
+        finally:
+            files["classic"].pop(1, None)

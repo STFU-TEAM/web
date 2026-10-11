@@ -45,7 +45,7 @@ NEW_TTL = 30 * 86400
 # Admin debug: a player can be given any mode regardless of progress (the admin checklist's tick boxes). Stored
 # apart from the save (web:debug_unlock:<uid>, a set of keys), so it's reversible and the bot never sees it.
 DEBUG_KEYS = {**{k: LABELS[k] for k in GATES}, "coop_heaven": "Co-op raids · Over Heaven", "training": "Training ground",
-              "levels": "Skip the player-level gates", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
+              "levels": "Skip the player-level gates", "requiem": "Requiem mode (every track)", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
                                                            for c in altverse.CHAPTERS}}
 
 

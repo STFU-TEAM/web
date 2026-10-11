@@ -6,6 +6,7 @@
     python scripts/balance.py story         # win rate of 5 team archetypes against each story stage
     python scripts/balance.py story --seed 3 --fights 100
     python scripts/balance.py heaven        # co-op Over Heaven: a raw LR party vs a party built for each challenge
+    python scripts/balance.py requiem       # recalibrate Requiem mode against its benchmark team (writes requiem.json)
 
 Rerun after changing stats, specials, terrains or the story curve. Targets used so far:
 PvE fights about a minute; duels (ranked, friendly) 1-2 minutes on average and never over 5 (fight.PVP_*,
@@ -170,6 +171,17 @@ def heaven_rates(fights, only=None):
     return out
 
 
+def report_requiem():
+    """Bisect each Requiem stage's multiplier so the benchmark team wins its target share, then print the curve."""
+    from app.game import requiem
+    out = requiem.calibrate()
+    print("Requiem: enemy multiplier per stage (benchmark win-rate target in brackets)")
+    for t in requiem.TRACKS:
+        n = len(t["stages"])
+        print(f"  {t['short'][:22]:<22} " + " ".join(f"{m:.2f}({requiem.target(i, n, s):.0f})"
+                                                     for i, (m, s) in enumerate(zip(out[t["key"]], t["stages"]))))
+
+
 def report_heaven(fights):
     from app.game import coop
     print("Co-op Over Heaven: win rate over every weekly boss (raw LR party / party built for the rule)")
@@ -180,7 +192,7 @@ def report_heaven(fights):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("report", nargs="?", choices=("length", "stands", "story", "heaven"))
+    parser.add_argument("report", nargs="?", choices=("length", "stands", "story", "heaven", "requiem"))
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--fights", type=int, default=300, help="fights per sample (story uses a fifth)")
     args = parser.parse_args()
@@ -191,6 +203,9 @@ def main():
         report_stands(args.fights)
     if args.report in (None, "story"):
         report_story(max(20, args.fights // 5))
+    if args.report == "requiem":
+        report_requiem()
+        return
     if args.report == "heaven":
         report_heaven(max(10, args.fights // 10))
 

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% set page_part = stage.part if stage else none %}
+{% block title %}Requiem mode | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page story requiem">
+  <header class="player-bar rq-hero">
+    <span class="rq-emblem" aria-hidden="true">☠</span>
+    <div>
+      <p class="kicker">Requiem mode · for maxed teams</p>
+      <h1 class="display sm">{% call menacing() %}Requiem{% endcall %}</h1>
+      <p class="muted">The same stages and crews, every enemy at level {{ RQ.LEVEL }} ★{{ RQ.AWAKEN }} Universal with refined items, and each stage tuned against a real top team (three ★5 stands with refined item stacks) so that even it wins only some of the time. Expect to lose, adapt and come back.</p>
+    </div>
+    <div class="story-progress" title="Requiem stages cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} stages
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+  </header>
+
+  <nav class="rq-tabs" aria-label="Requiem tracks">
+    {% for t in tracks %}
+      <a href="{{ url_for('progress.rq_page', t=t.key) }}" class="{{ 'on' if t.key == track.key }}{{ ' locked' if not t.unlocked }}{{ ' done' if t.complete }}"
+         {% if t.key == track.key %}aria-current="page"{% endif %} style="--tc: {{ t.color }}">
+        <span aria-hidden="true">{{ '🔒' if not t.unlocked else ('✓' if t.complete else t.icon) }}</span> {{ t.short }}
+        <small>{{ t.cleared }}/{{ t.stages|length }}</small></a>
+    {% endfor %}
+  </nav>
+  {% if error %}<p class="toast error" role="alert">{{ error }} {% from "macros.html" import back_to_fight %}{{ back_to_fight() }}</p>{% endif %}
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% elif not track.unlocked %}
+    <article class="story-stage done"><h2 class="h2">🔒 {{ track.title }}</h2><p class="story-text">{{ track.opens }} to open its Requiem track.</p></article>
+  {% elif stage %}
+    <article class="story-stage rq-stage{% if stage.boss or stage.finale %} boss{% endif %}" style="--part: {{ track.color }}">
+      <div class="story-stage-text">
+        <p class="kicker">{{ stage.label }} · Requiem stage {{ stage.number }} of {{ stage.of }}{% if stage.finale %} · Finale{% elif stage.boss %} · Boss{% endif %}</p>
+        <h2 class="h2">{{ stage.title }}</h2>
+        {% if stage.text %}<p class="story-text">{{ stage.text }}</p>{% endif %}
+        <p class="rq-odds">☠ Tuned so a maxed team wins about <strong>{{ stage.target }}%</strong> of the time.</p>
+        <p class="story-reward">🎁 First clear: {{ stage.reward|join(', ') }}</p>
+        {% if u.main_characters %}
+          <form method="post" action="{{ url_for('progress.rq_fight') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="track" value="{{ track.key }}">
+            <button class="btn gold big">{{ 'Face the finale' if stage.finale else ('Face the boss' if stage.boss else 'Fight') }} →</button>
+          </form>
+        {% else %}<p class="notice">Put at least one stand in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>{% endif %}
+      </div>
+      <div class="story-foes" aria-label="Enemies">
+        {% if stage.guest %}
+          <p class="muted">Beside you</p>
+          <ul class="cm-guest"><li><a href="{{ url_for('main.stand', stand_id=stage.guest.id) }}"><img src="{{ stage.guest.id|stand_img }}" alt="" loading="lazy"><span>Carry Me ｢{{ stage.guest.name }}｣</span><small>guest</small></a></li></ul>
+        {% endif %}
+        <p class="muted">Enemies · level {{ RQ.LEVEL }} · ★{{ RQ.AWAKEN }} · Universal · refined items · ×{{ '%.2f'|format(stage.mult) }} health &amp; damage</p>
+        <ul>
+          {% for c in stage.enemy_stands %}
+            <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">
+              <img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
+              <span>{{ c.name }}</span><small>{{ c.rarity }}</small></a></li>
+          {% endfor %}
+        </ul>
+      </div>
+    </article>
+  {% else %}
+    <article class="story-stage done"><h2 class="h2">☠ {{ track.title }}: Requiem cleared</h2>
+      <p class="story-text">Every stage beaten at its hardest. Pick another track above, or replay a stage below for stand XP.</p></article>
+  {% endif %}
+
+  <h2 class="h3 story-map-title">{{ track.title }} · Requiem</h2>
+  <ol class="story-map">
+    <li class="story-part{{ ' complete' if track.complete }}" style="--part: {{ track.color }}">
+      <ol class="story-nodes">
+        {% for s in track.stages %}
+          <li class="node {{ s.state }}{% if s.boss or s.finale %} boss{% endif %}" title="{{ s.title }} · ×{{ '%.2f'|format(s.mult) }}">
+            <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('☠' if s.finale else ('♛' if s.boss else s.index + 1)) }}</span>
+            <span class="node-label">{{ s.title }}</span>
+            <small class="node-level">×{{ '%.2f'|format(s.mult) }}</small>
+            {% if s.state == 'cleared' and not fight %}
+              <form method="post" action="{{ url_for('progress.rq_fight') }}" class="node-replay">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="track" value="{{ track.key }}"><input type="hidden" name="stage" value="{{ s.index }}">
+                <button class="btn small ghost" title="Replay for stand XP and a fifth of the Meteor Dust">↻ {{ RQ.REPLAY_ENERGY }}⚡</button>
+              </form>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </li>
+  </ol>
+  <p class="muted wiki-note">A Requiem track opens once you've cleared its content normally. First clears are free and pay more than the normal stage, bosses an Arrowhead, finales two Arrowheads, a Requiem Arrow and a title. Replays cost {{ RQ.REPLAY_ENERGY }} energy. The tuning is checked with the team simulator against a real top team and redone after balance changes.</p>
+</section>
+{% endblock %}

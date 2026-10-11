@@ -10,6 +10,8 @@ Folders (next to this repo's app/, ignored by git); upload their contents to the
     art/artwork/{id}.webp   full-art cards (★3+)        -> https://images.stfurequiem.com/artwork/{id}.webp
     art/shiny/{id}.webp     shiny cards                  -> .../shiny/{id}.webp
     art/special/{id}.gif    the special's animation      -> .../special/{id}.gif (replaces the original)
+    art/classic/{id}.webp   the normal picture (every card below ★3, fights, pickers) -> .../classic/{id}.webp
+                            (replaces the original Image/{id}.png wherever the site shows the stand)
 
 Candidates come from, in this order: Google Images, Tenor GIFs, then the stand's page on the JoJo wiki
 (jojo.fandom.com); any other image can be saved by pasting its URL or dropping the file.
@@ -38,6 +40,7 @@ KINDS = {  # folder: (label, extension of still images, game list)
     "artwork": ("Artwork (full art)", ".webp", "fullart.json"),
     "shiny": ("Shiny", ".webp", "shiny.json"),
     "special": ("Special (animation)", ".gif", "special.json"),
+    "classic": ("Normal art (the base picture)", ".webp", "classic.json"),
 }
 ART_PATH = os.environ.get("ART_PATH", "").rstrip("/")  # artwork/, shiny/, special/ at the image server root
 WIKI = "https://jojo.fandom.com/api.php"
@@ -191,6 +194,9 @@ def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
             name = f"{stand_id}.gif" if img.format == "GIF" else f"{stand_id}.webp"
             open(os.path.join(out_dir, name), "wb").write(data)
             return name
+    elif kind == "classic" and animated:  # the normal picture is always a still: a frame a little in
+        img.seek(min(img.n_frames - 1, img.n_frames // 3))
+        img = img.copy()
     elif animated:  # an animated card art: a small animated WebP and a still poster for grids
         return write_optimized(kind, stand_id, img)
     img = img.convert("RGBA" if img.mode in ("RGBA", "LA", "P") else "RGB")
@@ -202,7 +208,7 @@ def save(kind: str, stand_id: int, data: bytes, crop: bool) -> str:
             img = img.crop((left, 0, left + nw, h))
         else:
             img = img.crop((0, 0, w, int(w / CARD_RATIO)))
-    if kind in ("artwork", "shiny"):
+    if kind in ("artwork", "shiny", "classic"):
         return write_optimized(kind, stand_id, img)
     if img.height > 1600:
         img = img.resize((int(img.width * 1600 / img.height), 1600), Image.LANCZOS)
@@ -393,7 +399,7 @@ STAND = """<p><a href="{{ url_for('index') }}">← All stands</a></p>
 <div class="current">
   <figure><img src="{{ image_base }}/Image/{{ s.id }}.png" alt=""><figcaption class="muted">Current card image (server)
     <button type="button" class="ghost" data-edit="{{ url_for('proxy', u=image_base ~ '/Image/' ~ s.id ~ '.png') }}" data-label="the server image">✂ Edit</button></figcaption></figure>
-  {% for k, (label, _e, _l) in kinds.items() %}<figure>{% if have[k] %}<img src="{{ url_for('file', kind=k, name=have[k]) }}" alt="">{% else %}<div class="drop muted" style="height:220px;display:grid;place-items:center">no {{ k }} yet</div>{% endif %}
+  {% for k, (label, _e, _l) in kinds.items() %}<figure>{% if have[k] %}<img src="{{ url_for('file', kind=k, name=have[k]) }}" alt="">{% else %}<div class="drop muted" style="height:220px;display:grid;place-items:center">{{ 'Using the original image' if k == 'classic' else 'no ' ~ k ~ ' yet' }}</div>{% endif %}
     <figcaption>{{ label }}{% if have[k] %} · <span class="ok">{{ have[k] }}</span>
       {% if not have[k].endswith('.gif') %}<button type="button" class="ghost" data-edit="{{ url_for('file', kind=k, name=have[k]) }}" data-label="{{ have[k] }}" data-kind="{{ k }}">✂ Edit</button>{% endif %}{% endif %}</figcaption></figure>{% endfor %}
 </div>
@@ -748,10 +754,11 @@ def preview(stand_id):
         name = existing(kind, stand_id)
         return (url_for("file", kind=kind, name=name), True) if name else (base, False)
 
-    full, shiny = art("artwork"), art("shiny")
+    full, shiny, classic = art("artwork"), art("shiny"), art("classic")
     shiny_full = shiny if shiny[1] else full  # the game prefers the shiny art, then the full art
     variants = [
-        {"label": "Classic (below ★3)", "src": base, "own": False, "full": False, "shiny": False},
+        {"label": "Classic (below ★3)" + (" · new normal art" if classic[1] else " · original image"),
+         "src": classic[0], "own": False, "full": False, "shiny": False},
         {"label": "Full art (★3)" + ("" if full[1] else " · no artwork yet"), "src": full[0], "own": full[1], "full": True, "shiny": False},
         {"label": "Shiny" + ("" if shiny[1] else " · colours shifted"), "src": shiny[0], "own": shiny[1], "full": False, "shiny": True},
         {"label": "Shiny full art", "src": shiny_full[0], "own": shiny_full[1], "full": True, "shiny": True},
@@ -931,7 +938,7 @@ def sync():
     return redirect(url_for("index"))
 
 
-def optimize_folders(kinds=("artwork", "shiny")) -> None:
+def optimize_folders(kinds=("artwork", "shiny", "classic")) -> None:
     """Re-encode every saved artwork / shiny for cards (python scripts/art_helper.py --optimize). The originals
     move to art/_originals/<kind>/ first, so nothing is lost. Then press "Update the game's lists" and upload."""
     import shutil

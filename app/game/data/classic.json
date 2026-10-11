@@ -1,0 +1,6 @@
+{
+    "_comment": "Custom classic files on the image server at /classic/<file>. Written by scripts/art_helper.py from the art/ folder.",
+    "files": {
+        "138": "138.webp"
+    }
+}

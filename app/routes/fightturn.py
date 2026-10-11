@@ -64,6 +64,14 @@ def next_step(fight, my_side: int = 0) -> Optional[dict]:
             fields = {"s": list(meta.get("picks", [])), "mode": meta.get("mode", "daily")}
             fields.update({f"g{k}": v for k, v in (meta.get("gear") or {}).items()})
             return {"label": "↻ Try again", "action": "progress.pz_fight", "fields": fields}
+    elif kind == "requiem":
+        from app.game import requiem
+        key, k = meta.get("track"), int(meta.get("stage", 0))
+        stages = (requiem.BY_KEY.get(key) or {}).get("stages") or []
+        if won and k + 1 < len(stages):
+            return {"label": "Next Requiem stage ▶", "action": "progress.rq_fight", "fields": {"track": key, "stage": k + 1}}
+        if not won and stages:
+            return {"label": "↻ Try again", "action": "progress.rq_fight", "fields": {"track": key, "stage": k}}
     elif kind == "carry_me":
         from app.game import carryme
         k = int(meta.get("stage", 0))
@@ -91,7 +99,7 @@ RESUME = {
     "rush": ("progress.rush_page", None), "tower": ("play.tower", None), "wormhole": ("play.mirror", None),
     "dungeon": ("play.dungeon", None), "coop": ("coop.index", None), "gang_war": ("gangs.fight_page", None),
     "gang_raid": ("gangs.fight_page", None), "gang_cup": ("gangs.fight_page", None), "dummy": ("battles.index", None), "ranked": ("battles.index", None),
-    "friend": ("battles.index", None),
+    "friend": ("battles.index", None), "requiem": ("progress.rq_page", ("t", "track")),
 }
 LABELS = {"wormhole": "Mirror World", "alt_universe": "Alternate Universe", "over_heaven": "Over Heaven",
           "carry_me": "Carry Me", "gang_war": "gang war", "gang_raid": "gang raid", "gang_cup": "Gang Cup", "coop": "co-op raid",

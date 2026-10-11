@@ -72,11 +72,11 @@
   {% set star = fight.acting_char or you.chars[0] %}
 {% endif %}
 {#- the anime's eyecatch when a big fight opens (bosses, ranked, co-op, Over Heaven, the rush, the alternate universe) -#}
-{% set big_fight = fight.kind in ('ranked', 'friend', 'coop', 'over_heaven', 'rush', 'alt_universe', 'puzzle', 'carry_me')
+{% set big_fight = fight.kind in ('ranked', 'friend', 'coop', 'over_heaven', 'rush', 'alt_universe', 'puzzle', 'carry_me', 'requiem')
    or (fight.kind == 'story' and story_stages[fight.meta.get('stage', 0)].get('boss') and not fight.meta.get('auto')) %}
 {% set eyecatch_label = {'ranked': 'Ranked duel', 'friend': 'Friendly duel', 'coop': 'Co-op raid', 'over_heaven': 'Over Heaven',
                          'rush': 'Boss rush', 'alt_universe': 'Alternate universe', 'story': 'Boss fight', 'puzzle': 'Daily puzzle',
-                         'carry_me': 'Carry Me'}.get(fight.kind, '') %}
+                         'carry_me': 'Carry Me', 'requiem': 'Requiem'}.get(fight.kind, '') %}
 <div id="fight" class="fight{% if fight.finished %} finished{% endif %}{% if viewer %} viewer{% endif %}" data-my-side="{{ my_side }}" data-fx="{{ 1 if fight_fx else 0 }}"
      {% if big_fight and not viewer %}data-eyecatch="{{ foe.name }}" data-eyecatch-label="{{ eyecatch_label }}"{% endif %}
      {% if viewer == 'replay' %}data-replay="full" data-speed="1"{% endif %}>

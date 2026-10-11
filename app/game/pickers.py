@@ -18,8 +18,7 @@ _EMOJI = re.compile(r"<(a?):(\w+):(\d+)>")
 
 
 def stand_img(stand_id) -> str:
-    cfg = current_app.config
-    return cfg["IMAGE_BASE_URL"] + cfg["IMAGE_PATH"].format(id=stand_id)
+    return current_app.jinja_env.filters["stand_img"](stand_id)  # one place decides (a replacement normal picture)
 
 
 RANK = {"UNIVERSAL": "A", "SUPREME": "B", "GREAT": "C", "GOOD": "D", "SUB_PAR": "E", "BAD": "F"}

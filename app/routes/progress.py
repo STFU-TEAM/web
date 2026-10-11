@@ -710,13 +710,106 @@ def wts_picture():
 
     def fetch(cid):
         import requests
-        res = requests.get(cfg["IMAGE_BASE_URL"] + cfg["IMAGE_PATH"].format(id=cid), timeout=6)
+        res = requests.get(current_app.jinja_env.filters["stand_img"](cid), timeout=6)
         res.raise_for_status()
         return res.content
     data = whos.mosaic(whos.today(), step, fetch)
     if not data:
         return Response(status=404)
     return Response(data, mimetype="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
+# --------------------------------------------------------------------------- #
+# Requiem mode: the story, every universe and Carry Me again, tuned for maxed teams (app/game/requiem.py)
+# --------------------------------------------------------------------------- #
+RQ_KIND = "requiem"
+
+
+def _rq_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == RQ_KIND else None
+
+
+@bp.get("/requiem")
+@player_required
+def rq_page():
+    from app.game import requiem
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    fight = _rq_fight(uid)
+    if not fight and not requiem.any_unlocked(user):
+        flash("Requiem mode opens once you finish the story.", "error")
+        return redirect(url_for("progress.story_page"))
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != RQ_KIND and not other.finished else None
+    tracks = requiem.tracks(user)
+    shown = request.args.get("t") or (fight.meta.get("track") if fight else None)
+    track = next((t for t in tracks if t["key"] == shown), None) or next((t for t in tracks if t["unlocked"] and not t["complete"]), tracks[0])
+    stage = requiem.stage_view(user, track["key"], track["cleared"]) if track["unlocked"] and not track["complete"] else None
+    return render_template("requiem.html", u=user, fight=fight, error=error, tracks=tracks, track=track, stage=stage,
+                           cleared=requiem.total_cleared(user), total=requiem.TOTAL, RQ=requiem,
+                           fight_action=url_for("progress.rq_attack"), fight_leave_action=url_for("progress.rq_leave"),
+                           fight_label="Requiem")
+
+
+@bp.post("/requiem/fight")
+@player_required
+def rq_fight():
+    from app.game import requiem
+    uid = session["uid"]
+    key = request.form.get("track", "")
+    existing = load_fight(uid)
+    if existing and not (existing.kind == RQ_KIND and existing.finished):
+        return redirect(url_for("progress.rq_page", t=key))
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            i = request.form.get("stage", type=int)
+            i = requiem.cleared(user, key) if i is None else i
+            try:
+                requiem.check_can_fight(user, key, i)
+            except GameError as e:
+                flash(str(e), "error")
+                return redirect(url_for("progress.rq_page", t=key))
+            stage = requiem.BY_KEY[key]["stages"][i]
+            team = fighting_copy(user.main_characters)
+            guest = requiem.guest(key, i)
+            if guest:
+                team.append(guest)
+            fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
+                          Side(f"Requiem · {stage['title']}", requiem.enemy_team(key, i), False),
+                          kind=RQ_KIND, meta={"track": key, "stage": i})
+            fight.advance()
+            save_fight(uid, fight)
+            user.update()  # replays spend energy
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.rq_page", t=key))
+
+
+def _rq_settle(user, fight):
+    from app.game import requiem
+    if fight.winner != 0:
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    logic.check_achievements(user, "fight_win")
+    return requiem.win(user, fight.meta["track"], int(fight.meta["stage"]))
+
+
+@bp.post("/requiem/attack")
+@player_required
+def rq_attack():
+    return play_turn(RQ_KIND, url_for("progress.rq_page"), "Requiem", "progress.rq_attack", "progress.rq_leave", _rq_settle)
+
+
+@bp.post("/requiem/leave")
+@player_required
+def rq_leave():
+    fight = _rq_fight(session["uid"])
+    key = fight.meta.get("track") if fight else None
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.rq_page", t=key) if key else url_for("progress.rq_page"))
 
 
 # --------------------------------------------------------------------------- #
