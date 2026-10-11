@@ -53,12 +53,14 @@
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'An endless weekly climb that gets brutal fast. Weekly leaderboard.'),
+  'whos': ("Who's that Stand?", url_for('progress.wts_page'), ep.startswith('progress.wts_'), '❓', 'One mystery stand a day: guess it in 8, keep your streak.'),
+  'cup': ('Gang Cup', url_for('gangs.cup_page'), ep == 'gangs.cup_page', '🏆', 'The monthly tournament of the top 8 gangs: a bout a day for your gang.'),
   'puzzle': ('Daily puzzle', url_for('progress.pz_page'), ep.startswith('progress.pz_'), '🧩', 'One puzzle a day for everyone: pick 3 of 6 stands, hand out the items, beat the crew. Fastest solve tops the ladder.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'A free daily delve: explore, loot, and choose when to get out.'),
   'events': ('Events', url_for('progress.events_page'), ep.startswith('progress.events'), '🎉', live_event.name ~ ' is on: a twist and a token shop.' if live_event else 'Limited-time twists with a token shop.'),
   'quests': ('Quests', url_for('play.quests'), ep == 'play.quests', '☑', 'Daily and weekly goals: your steadiest income.'),
   'achievements': ('Achievements', url_for('progress.achievements'), ep == 'progress.achievements', '🏆', 'Long-term milestones and their rewards.'),
-  'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.'), '⚑', 'Join a clan: shared vault, wars and raids.'),
+  'gangs': ('Gangs', url_for('gangs.index'), ep.startswith('gangs.') and ep not in ('gangs.ladder', 'gangs.public', 'gangs.cup_page'), '⚑', 'Join a clan: shared vault, wars and raids.'),
   'players': ('Find players', url_for('community.players'), ep == 'community.players', '⌕', 'Search anyone by name: add them, challenge them, trade.'),
   'friends': ('Friends', url_for('community.friends'), ep == 'community.friends', '♥', 'Your friends, requests, and your invite link (a Devil’s Palm per friend).'),
   'inbox': ('Inbox', url_for('community.inbox'), ep == 'community.inbox', '🔔', 'Duel challenges, trade offers, friend and gang invites, quest news.'),
@@ -66,6 +68,7 @@
   'trades': ('Trades', url_for('trades.index'), ep.startswith('trades.'), '⇄', 'Swap stands, items and Meteor Dust with players.'),
   'shops': ('Player shops', url_for('social.shops'), ep.startswith('social.shop'), '⚖', 'Buy items other players listed, or sell yours.'),
   'ladder': ('Ranked ladder', url_for('main.leaderboard'), ep == 'main.leaderboard', '♛', 'The top players by Elo, level and collection.'),
+  'gang_ladder': ('Gang ladder', url_for('gangs.ladder'), ep in ('gangs.ladder', 'gangs.public'), '⚑', 'Every gang ranked by war Elo, members and raid damage. Peek at any gang.'),
   'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
   'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖', 'How fights work: terrains, synergies, status effects.'),
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
@@ -76,7 +79,7 @@
     the daily loop, the story path, the weekly challenges, PvP, then managing stands, goals, people, trading, help.
     Within a group, pages follow the order you meet them. Battle modes appear as the story opens them
     (app/game/progression.py). -#}
-{%- set daily_keys = ['quests'] + (['puzzle'] if nav_unlocked.puzzle else []) + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else [])
+{%- set daily_keys = ['quests', 'whos'] + (['puzzle'] if nav_unlocked.puzzle else []) + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else [])
                      + (['wormhole'] if nav_unlocked.wormhole else []) + ['journey'] -%}
 {%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) -%}
 {%- set challenge_keys = (['events'] if live_event else []) + (['tower'] if nav_unlocked.tower else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
@@ -85,7 +88,7 @@
 {%- set battle_keys = daily_keys + adventure_keys + challenge_keys + pvp_keys -%}
 {%- set collection_keys = ['items', 'chips', 'reforge', 'planner', 'simulator'] -%}
 {%- set progress_keys = ['achievements', 'dex'] + ([] if live_event else ['events']) -%}
-{%- set community_keys = ['chat', 'friends', 'players', 'gangs', 'inbox'] -%}
+{%- set community_keys = ['chat', 'friends', 'players', 'gangs', 'cup', 'gang_ladder', 'inbox'] -%}
 {%- set market_keys = ['trades', 'auction', 'shops'] -%}
 {%- set social_groups = [('People', 'community', community_keys), ('Market', 'market', market_keys)] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
@@ -94,7 +97,7 @@
                    ('Collection', ['team', 'banners'] + collection_keys), ('Progress', progress_keys),
                    ('Community', community_keys), ('Market', market_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
-  {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder'])] -%}
+  {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder', 'gang_ladder'])] -%}
 {%- endif -%}
 {%- macro nav_link(key, cls='') -%}
   {%- set label, href, active, icon, why = L[key] -%}
@@ -142,7 +145,10 @@
   <a class="{{ 'nav-gang ' if key == 'gangs' }}side-link{% if is_hot(key) %} hot{% endif %}{% if key in nav_new %} is-new{% endif %}" href="{{ href }}" data-tour="{{ key }}" {% if active %}aria-current="page"{% endif %}>
     <span class="side-icon" aria-hidden="true">{{ icon }}</span><span class="side-label">{{ label }}</span>{{ badge(key) }}<span class="side-tip">{{ label }}<small>{{ why }}</small></span></a>
 {%- endmacro -%}
-<body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+{#- a page about one part (a story chapter, a universe, a stand, an act) sets page_part: its colours tint the page.
+    Every other page takes the part the player is on in the story (progress_part): the site's accent follows them. -#}
+{%- set body_part = page_part or progress_part -%}
+<body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% if body_part and part_style(body_part) %} data-part="{{ body_part }}" data-part-from="{{ 'page' if page_part else 'progress' }}" style="{{ part_style(body_part) }}"{% endif %}>
   <a class="skip" href="#main">Skip to content</a>
   {% if me.id %}
   <aside class="sidenav" aria-label="Main">

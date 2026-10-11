@@ -133,6 +133,8 @@ def register(app):
     from app.game import events, gear
     app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost,
                                  event_spotlight=events.spotlight, event_ends=events.ends_epoch)
+    from app.game import parts
+    app.jinja_env.globals.update(part_style=parts.style, stand_part=parts.of_stand)  # part palettes (body data-part)
     from app.routes.fightturn import resume as resume_fight
     app.jinja_env.globals.update(resume_fight=resume_fight)  # the "Back to your fight" buttons
     from app.game import characterabilities as abilities
@@ -363,6 +365,7 @@ def register(app):
         from app.auth import is_admin
         from app.game import progression
         nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
+        progress_part = None
         if uid and request.endpoint != "static":
             if "avatar_checked" not in session:  # sessions from before a web-only picture was set (or another device)
                 from app.db import identity
@@ -370,6 +373,10 @@ def register(app):
                 session["avatar_checked"] = 1
             from app.routes.progress import unlocks
             nav_unlocked = unlocks(uid)
+            from app.routes.progress import _cleared
+            from app.game import story as story_mod
+            done = _cleared(uid)  # the part you're on in the story colours the whole site (the prologue counts as Part 3)
+            progress_part = 8 if done >= story_mod.TOTAL else (story_mod.STAGES[done]["part"] or 3)
             nav_new = progression.new(uid)  # modes the story just opened: tagged New until visited
             from app.db import get_db, r  # the nav highlights the story until it's done; the tour runs once per new save
             from app.routes.play import CRAFTABLE_KEY, remember_craftable
@@ -395,6 +402,7 @@ def register(app):
         return {
             "live_event": events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
+            "progress_part": progress_part,
             "craft_ready": craft_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread, "chat_dots": chat_dots_now,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art

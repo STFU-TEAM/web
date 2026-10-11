@@ -654,6 +654,72 @@ def pz_leave():
 
 
 # --------------------------------------------------------------------------- #
+# Who's that Stand? the daily guessing game (app/game/whos.py)
+# --------------------------------------------------------------------------- #
+@bp.get("/whos-that-stand")
+@player_required
+def wts_page():
+    from app.game import whos
+    from app.db import identities
+    uid = session["uid"]
+    s = whos.state(uid)
+    target = whos.answer()
+    rows = [whos.compare(g, target) for g in s["guesses"]]
+    board = whos.ladder()
+    who = identities(row["uid"] for row in board)
+    return render_template("whos.html", s=s, rows=rows, W=whos, clues=whos.clues(s), names=whos.names(),
+                           streak=whos.streak(uid), solvers=whos.solvers(), day=whos.today(),
+                           board=[{**row, "name": who[row["uid"]]["name"]} for row in board],
+                           reveal=whos.facts(target) if s["over"] else None,
+                           share=whos.share_text(s) if s["over"] else None, step=whos.picture_step(s))
+
+
+@bp.post("/whos-that-stand/guess")
+@player_required
+def wts_guess():
+    from app.game import whos
+    uid = session["uid"]
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            out = whos.guess(user, request.form.get("name", ""))
+            if out.get("reward"):
+                user.update()
+                flash(f"Nice! It was {whos.facts(whos.answer())['name']}: +{out['reward']} Meteor Dust and "
+                      f"+{out['reward_xp']} player XP.", "ok")
+            elif out["over"]:
+                flash(f"Out of guesses. It was {whos.facts(whos.answer())['name']}. A new stand tomorrow!", "error")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.wts_page") + "#guesses")
+
+
+@bp.get("/whos-that-stand/picture.png")
+@player_required
+def wts_picture():
+    """The mystery stand at the sharpness this player has earned (more misses, sharper). Never the answer itself."""
+    from flask import Response, current_app
+    from app.game import whos
+    s = whos.state(session["uid"])
+    step = whos.picture_step(s)
+    if step is None:  # the first guess is blind
+        return Response(status=404)
+    cfg = current_app.config
+
+    def fetch(cid):
+        import requests
+        res = requests.get(cfg["IMAGE_BASE_URL"] + cfg["IMAGE_PATH"].format(id=cid), timeout=6)
+        res.raise_for_status()
+        return res.content
+    data = whos.mosaic(whos.today(), step, fetch)
+    if not data:
+        return Response(status=404)
+    return Response(data, mimetype="image/png", headers={"Cache-Control": "private, max-age=300"})
+
+
+# --------------------------------------------------------------------------- #
 # Weekly boss rush
 # --------------------------------------------------------------------------- #
 def _rush_fight(uid):

@@ -137,6 +137,69 @@ def index():
 
 
 # --------------------------------------------------------------------------- #
+# Public: the gang ladder and each gang's page (no login needed, like player profiles)
+# --------------------------------------------------------------------------- #
+@bp.get("/ladder")
+def ladder():
+    by = request.args.get("by", "elo")
+    by = by if by in G.LADDER_SORTS else "elo"
+    db = get_db()
+    me_gang = None
+    if session.get("uid"):
+        user = db.get_user(session["uid"])
+        me_gang = user.gang_id if user else None
+    return render_template("gang_ladder.html", rows=G.ladder(db, r(), by)[:100], by=by, sorts=G.LADDER_SORTS, me_gang=me_gang,
+                           raid_villain=G.weekly_boss())
+
+
+@bp.get("/cup")
+def cup_page():
+    """The monthly Gang Cup: the bracket, this round's live scores, your gang's bout (public, like the ladder)."""
+    from app.game import cup as CUP
+    db = get_db()
+    cup = CUP.open_cup(db)
+    viewer = db.get_user(session["uid"]) if session.get("uid") else None
+    ctx = {"cup": cup, "C": CUP, "viewer": viewer, "champions": CUP.champions(), "my_gang": viewer.gang_id if viewer else None}
+    if cup:
+        if viewer:
+            before = list(viewer.data.get("web_titles") or [])
+            CUP.claim_title(viewer, cup)
+            if list(viewer.data.get("web_titles") or []) != before:
+                viewer.update()
+        live = CUP.current_round(cup)
+        ctx.update(live=live, live_scores=CUP.scores(db, cup, live) if live is not None else {},
+                   round_names=CUP.ROUND_NAMES[cup["size"]], dates=[CUP.round_dates(cup, i) for i in range(len(cup["rounds"]))],
+                   seeds={s["id"]: s for s in cup["seeds"]},
+                   my_match=CUP.match_of(cup, viewer.gang_id) if viewer else None,
+                   my_status=CUP.status_of(cup, viewer.gang_id) if viewer else "not_in",
+                   bout_block=CUP.can_bout(cup, viewer.gang_id, viewer.id) if viewer and viewer.gang_id else None)
+    return render_template("gang_cup.html", **ctx)
+
+
+@bp.get("/g/<gang_id>")
+def public(gang_id):
+    from flask import abort
+    db = get_db()
+    gang = db.get_gang(gang_id)
+    if not gang:
+        abort(404)
+    from app.db import identities
+    ids = [str(m) for m in G.members(gang)]
+    who = identities(ids)
+    roster = sorted(({"id": m, "name": who[m]["name"], "avatar": who[m].get("avatar"), "rank": G.rank_of(gang, m)} for m in ids),
+                    key=lambda m: (m["rank"], m["name"].lower()))
+    viewer = db.get_user(session["uid"]) if session.get("uid") else None
+    pv = G.public_view(db, r(), gang)
+    if pv["last_war"]:
+        for side in ("winner", "loser"):
+            other = db.get_gang(pv["last_war"][side])
+            pv["last_war"][side + "_name"] = other["name"] if other else "a disbanded gang"
+    return render_template("gang_public.html", gang=gang, roster=roster, pv=pv, R=G,
+                           guardians=[character_from_dict(c) for c in gang.get("characters", [])],
+                           mine=bool(viewer and viewer.gang_id == gang["_id"]), viewer=viewer)
+
+
+# --------------------------------------------------------------------------- #
 # Joining and leaving
 # --------------------------------------------------------------------------- #
 @bp.post("/create")
@@ -376,7 +439,7 @@ def raid_claim():
 @bp.post("/<mode>/attack")
 @player_required
 def attack_start(mode):
-    if mode not in ("war", "raid"):
+    if mode not in ("war", "raid", "cup"):
         return _back()
     uid = session["uid"]
     if load_fight(uid):
@@ -389,7 +452,17 @@ def attack_start(mode):
         if not user.main_characters:
             raise GameError("Put stands in your team before attacking.")
         meta = {"gang": gang["_id"]}
-        if mode == "war":
+        if mode == "cup":  # one bout a day against the opposing gang's guardians (the raid crew if it has none)
+            from app.game import cup as CUP
+            the_cup = CUP.open_cup(db)
+            if not the_cup:
+                raise GameError("There's no Gang Cup on right now.")
+            rnd, opp_id = CUP.start_bout(the_cup, gang["_id"], user.id)
+            opp = db.get_gang(opp_id)
+            enemies = [character_from_dict(c) for c in (opp or {}).get("characters", [])] or G.raid_team()
+            foe = f"{(opp or {}).get('name', 'Rival gang')} · Gang Cup"
+            meta.update(cup=the_cup["id"], round=rnd)
+        elif mode == "war":
             if user.id in [str(x) for x in gang.get("war_attacks", [])]:
                 raise GameError("You already attacked in this war.")
             opp = db.get_gang(G.opponent_id(r(), gang["_id"]))
@@ -411,7 +484,9 @@ def attack_start(mode):
         save_fight(uid, fight)
 
     gang_action(run)
-    return redirect(url_for("gangs.fight_page")) if load_fight(uid) else _back()
+    if load_fight(uid):
+        return redirect(url_for("gangs.fight_page"))
+    return redirect(url_for("gangs.cup_page")) if mode == "cup" else _back()
 
 
 def _fight_ctx(fight):
@@ -467,6 +542,10 @@ def _settle(fight):
                 damage = G.war_damage(enemies)
                 if gang:
                     gang["damage_to_current_war"] = int(gang.get("damage_to_current_war", 0)) + damage
+            elif fight.kind == "gang_cup":
+                from app.game import cup as CUP
+                damage = G.war_damage(enemies)
+                CUP.record_damage(fight.meta["cup"], int(fight.meta["round"]), gang_id, damage)
             else:
                 damage = G.raid_damage(enemies)
                 if gang:

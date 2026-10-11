@@ -22,7 +22,8 @@
 {% else %}
   {% set order = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}
   <section class="pull-batch" data-pull data-cine-wait>
-    <div class="pull-showcase">
+    <div class="pull-showcase{% if top_rarity in ('UR', 'LR') %} big-pull{% endif %}">
+      {% if top_rarity in ('UR', 'LR') %}<i class="speedlines" aria-hidden="true"></i>{% endif %}
       <img class="pull-avatar" src="{{ 'randomAsset/avatar.png'|asset }}" alt="STFU Requiem" width="220" height="220" loading="eager">
       <div class="pull-announcement">
         <p class="menace small" aria-hidden="true">ドドドド</p>

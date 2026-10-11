@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set page_part = stand_part(s.id) %}
 {% from "macros.html" import template_card, special_scaling, param_chart %}
 {% block title %}{{ s.name }} | STFU Requiem{% endblock %}
 {% block main %}

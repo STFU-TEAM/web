@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}Gang Cup | STFU Requiem{% endblock %}
+{% macro team(gid, score, won, lost, live_score=None, decided=False) -%}
+  {%- set sd = seeds.get(gid) if gid else none -%}
+  <div class="cup-team{{ ' won' if won }}{{ ' lost' if lost }}{{ ' mine' if gid and gid == my_gang }}{{ ' tbd' if not gid }}">
+    {% if sd %}
+      <span class="cup-seed">{{ sd.seed }}</span>
+      <span class="cup-banner">{% if sd.image %}<img src="{{ sd.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>
+      <a class="cup-name" href="{{ url_for('gangs.public', gang_id=gid) }}">{{ sd.name }}</a>
+      <b class="cup-score">{% if live_score is not none %}{{ live_score }}{% elif score %}{{ score }}{% endif %}</b>
+    {% else %}<span class="cup-seed">·</span><span class="cup-name muted">{{ 'Bye' if decided else 'To be decided' }}</span>{% endif %}
+  </div>
+{%- endmacro %}
+{% block main %}
+<section class="page cup">
+  <header class="player-bar cup-hero">
+    <span class="cup-emblem" aria-hidden="true">🏆</span>
+    <div>
+      <p class="kicker">Monthly · the top {{ C.SEEDS }} gangs by war Elo · knockout</p>
+      <h1 class="display sm">{% call menacing() %}Gang Cup{% endcall %}</h1>
+      <p class="muted">Each round lasts a week. Every member gets one cup bout a day against the rival gang's guardians; more damage per member goes through. The champion's vault gets {{ C.PRIZES[0]|num }} Meteor Dust and every member a title; the runner-up gets {{ C.PRIZES[1]|num }}.</p>
+    </div>
+  </header>
+
+  {% if not cup %}
+    <section class="social-panel"><h2 class="h3">No cup yet</h2><p class="muted">The cup needs at least two gangs. <a href="{{ url_for('gangs.index') }}">Found or join one</a>, and it starts on the first visit of the month.</p></section>
+  {% else %}
+    {#- your gang's part in it -#}
+    {% if viewer and my_match %}
+      {% set i, m = my_match %}
+      {% set rival = m.b if m.a == my_gang else m.a %}
+      <section class="social-panel cup-mine">
+        <p class="kicker">{{ round_names[i] }} · ends {{ dates[i][1].strftime('%A %d %B') }}</p>
+        <h2 class="h2">Your gang vs {{ seeds[rival].name }}</h2>
+        <p class="cup-live">{{ live_scores.get(my_gang, 0) }} <small>damage per member</small> — {{ live_scores.get(rival, 0) }}</p>
+        {% if bout_block %}<p class="muted">{{ bout_block }}</p>
+        {% else %}
+          <form method="post" action="{{ url_for('gangs.attack_start', mode='cup') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn gold big">⚔ Fight today's cup bout</button></form>
+          <p class="muted small-print">Against {{ seeds[rival].name }}'s guardians. Every point of damage counts, win or lose.</p>
+        {% endif %}
+      </section>
+    {% elif viewer and viewer.gang_id and not cup.done %}
+      <p class="notice">{% if my_status == 'bye' %}🎟 Your gang has a bye this round: you're through to the {{ round_names[live + 1] if live is not none and live + 1 < round_names|length else 'next round' }} without playing.
+        {%- elif my_status == 'waiting' %}✔ Your gang is through. Your next match starts with the next round.
+        {%- elif my_status == 'out' %}Your gang is out of this cup. Cheer the others on!
+        {%- else %}Your gang isn't in this cup. Climb the <a href="{{ url_for('gangs.ladder') }}">gang ladder</a> by winning wars to be seeded next month.{% endif %}</p>
+    {% endif %}
+
+    {% if cup.done %}
+      <section class="cup-champion">
+        <span class="cup-crown" aria-hidden="true">👑</span>
+        <p class="kicker">Champion · {{ cup.id }}</p>
+        <h2 class="display sm"><a href="{{ url_for('gangs.public', gang_id=cup.champion) }}">{{ seeds[cup.champion].name }}</a></h2>
+      </section>
+    {% endif %}
+
+    {#- the bracket: a column per round -#}
+    <div class="cup-bracket" style="--rounds: {{ cup.rounds|length }}">
+      {% for matches in cup.rounds %}
+        {% set i = loop.index0 %}
+        <section class="cup-round{{ ' live' if live == i }}" aria-label="{{ round_names[i] }}">
+          <h3 class="cup-round-title">{{ round_names[i] }}{% if live == i %} <span class="cup-livetag">LIVE</span>{% endif %}
+            <small>{{ dates[i][0].strftime('%d %b') }} – {{ (dates[i][1] - C.datetime.timedelta(days=1)).strftime('%d %b') }}</small></h3>
+          <div class="cup-matches">
+            {% for m in matches %}
+              {% set playing = live == i and not m.winner %}
+              <div class="cup-match{{ ' playing' if playing }}">
+                {{ team(m.a, m.score_a, m.winner and m.winner == m.a, m.winner and m.a and m.winner != m.a, live_scores.get(m.a, 0) if playing and m.a else none, m.winner is not none) }}
+                <span class="cup-vs" aria-hidden="true">VS</span>
+                {{ team(m.b, m.score_b, m.winner and m.winner == m.b, m.winner and m.b and m.winner != m.b, live_scores.get(m.b, 0) if playing and m.b else none, m.winner is not none) }}
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% if champions %}
+    <section class="social-panel">
+      <h2 class="h3">Past champions</h2>
+      <ol class="cup-history">{% for c in champions %}<li><span>{{ c.cup }}</span><a href="{{ url_for('gangs.public', gang_id=c.gang) }}">🏆 {{ c.name }}</a></li>{% endfor %}</ol>
+    </section>
+  {% endif %}
+</section>
+{% endblock %}

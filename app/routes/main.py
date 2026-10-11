@@ -155,7 +155,8 @@ def pref_fight_cosmetics():
 
 @bp.post("/prefs/fight-fx")
 def pref_fight_fx():
-    """Battle cries, heavy-hit sound effects and the eyecatch (on), or plain fights (off). Kept in the session."""
+    """Battle cries, heavy-hit sound effects, the stand reveal and the VS splash (on), or plain fights (off). Kept in
+    the session."""
     session["fight_fx"] = request.form.get("on") == "1"
     return "", 204
 

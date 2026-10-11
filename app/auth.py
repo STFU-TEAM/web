@@ -290,4 +290,5 @@ def welcome():
 @bp.post("/logout")
 def logout():
     session.clear()
+    flash("Arrivederci! Your energy keeps refilling while you're away.", "ok")
     return redirect(url_for("main.home"))

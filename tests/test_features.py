@@ -1700,3 +1700,35 @@ def test_inbox_read_all_claim_all_and_reading_one_by_one(client):
     assert "Claim all 2" in page
     client.post("/community/rewards/claim", headers=h)
     assert rewards.count("111") == 0 and doc(client, "111")["fragments"] == 200
+
+
+def test_gangs_have_a_public_page_and_a_ladder(client):
+    from app.game import gangs as G
+    G._ladder_cache.update(at=0, rows=None)
+    player(client, "111", fragments=50_000)
+    player(client, "222", fragments=50_000)
+    h = login(client, "111")
+    client.post("/gangs/create", data={"name": "Crusaders", "motto": "Ora ora", "motd": "secret plan"}, headers=h)
+    gid = doc(client, "111")["gang_id"]
+    h2 = login(client, "222")
+    client.post("/gangs/create", data={"name": "Passione", "motto": "Arrivederci"}, headers=h2)
+    gid2 = doc(client, "222")["gang_id"]
+    gang = pickle.loads(client.fake.hget("gangs", gid))
+    gang["war_elo"] = 120
+    client.fake.hset("gangs", gid, pickle.dumps(gang))
+    client.fake.hset("war_records", f"{gid}:{gid2}:2026-10-01", pickle.dumps({"winner": gid, "loser": gid2, "winner_damage": 900,
+                                                                            "loser_damage": 400, "draw": False, "timestamp": "2026-10-01"}))
+    G._ladder_cache.update(at=0, rows=None)
+    with client.session_transaction() as s:
+        s.clear()
+    ladder = client.get("/gangs/ladder").data.decode()  # public, no login
+    assert ladder.index("Crusaders") < ladder.index("Passione") and "120 Elo" in ladder and "1–0" in ladder
+    assert client.get("/gangs/ladder?by=members").status_code == 200
+    page = client.get(f"/gangs/g/{gid}").data.decode()
+    assert "Crusaders" in page and "Ora ora" in page and "1W · 0L" in page and "#1 of 2" in page and "Passione" in page
+    assert "secret plan" not in page and "Vault" not in page  # members-only things stay private
+    assert client.get("/gangs/g/nope").status_code == 404
+    login(client, "222")
+    page = client.get(f"/gangs/g/{gid}").data.decode()
+    assert "Message the boss" in page and "Open your gang" not in page
+    assert f"/gangs/g/{gid}" in client.get("/u/111").data.decode()  # profiles link the gang

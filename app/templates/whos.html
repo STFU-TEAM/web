@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}Who's that Stand? | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page whos">
+  <header class="player-bar wts-hero">
+    <span class="wts-emblem" aria-hidden="true">？</span>
+    <div>
+      <p class="kicker">Daily · {{ day }} · the same stand for everyone</p>
+      <h1 class="display sm">{% call menacing() %}Who's that Stand?{% endcall %}</h1>
+      <p class="muted">Guess the mystery stand in {{ W.MAX_GUESSES }}. Your first guess is blind; after that, every guess shows how close it was and the picture sharpens with each miss.</p>
+    </div>
+    <dl class="wts-figures">
+      <div><dt>Streak</dt><dd>🔥 {{ streak.n }}</dd></div>
+      <div><dt>Best</dt><dd>{{ streak.best }}</dd></div>
+      <div><dt>Solved today</dt><dd>{{ solvers }}</dd></div>
+    </dl>
+  </header>
+
+  <div class="wts-layout">
+    <div class="wts-main">
+      <section class="wts-board">
+        {#- the mystery card: a mosaic made on the server at the sharpness earned, the real art once it's settled -#}
+        <figure class="wts-card{{ ' solved' if s.solved }}{{ ' failed' if s.over and not s.solved }}">
+          <div class="wts-window">
+            {% if reveal %}<img src="{{ reveal.id|stand_img }}" alt="{{ reveal.name }}" width="320" height="320">
+            {% elif step is not none %}<img src="{{ url_for('progress.wts_picture', s=step) }}" alt="The mystery stand, blurred" width="320" height="320" onerror="this.hidden=true">
+            {% else %}<span class="wts-blind">First guess is blind.<br>Miss once to see a blurred glimpse.</span>{% endif %}
+            {% if not reveal %}<span class="wts-q" aria-hidden="true">？</span>{% endif %}
+          </div>
+          <figcaption>
+            {% if reveal %}<strong>｢{{ reveal.name }}｣</strong><small>{{ reveal.rarity }}{% if reveal.part %} · Part {{ reveal.part }}{% endif %}</small>
+            {% else %}<strong>｢{{ ('▇' * (clues.length or 8)) if not clues.letter else (clues.letter ~ '▇' * (clues.length - 1)) }}｣</strong><small>{{ W.MAX_GUESSES - s.guesses|length }} guess{{ 'es' if W.MAX_GUESSES - s.guesses|length != 1 }} left</small>{% endif %}
+          </figcaption>
+        </figure>
+
+        <div class="wts-side">
+          {% if not s.over %}
+            <form class="wts-form" method="post" action="{{ url_for('progress.wts_guess') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <label for="wts-name">Your guess</label>
+              <div class="wts-input">
+                <input id="wts-name" name="name" list="wts-names" required autocomplete="off" spellcheck="false" placeholder="Type a stand's name…" autofocus>
+                <button class="btn gold">Guess</button>
+              </div>
+              <datalist id="wts-names">{% for n in names %}<option value="{{ n }}">{% endfor %}</datalist>
+            </form>
+          {% elif s.solved %}
+            <p class="wts-result win">🏆 <b>Nice!</b> Solved in {{ s.guesses|length }}/{{ W.MAX_GUESSES }}.</p>
+          {% else %}
+            <p class="wts-result lose">💀 Out of guesses. Your streak starts again tomorrow.</p>
+          {% endif %}
+
+          <ul class="wts-clues">
+            <li class="{{ 'on' if clues.special }}"><b>Special</b>{% if clues.special %}<span>{{ clues.special }}</span>{% else %}<span class="muted">after {{ W.CLUE_SPECIAL }} misses</span>{% endif %}</li>
+            <li class="{{ 'on' if clues.letter }}"><b>First letter</b>{% if clues.letter %}<span>{{ clues.letter }} · {{ clues.length }} characters</span>{% else %}<span class="muted">after {{ W.CLUE_LETTER }} misses</span>{% endif %}</li>
+          </ul>
+
+          {% if share %}
+            <div class="wts-share">
+              <pre id="wts-share-text">{{ share }}</pre>
+              <button type="button" class="btn small" data-copy-target="wts-share-text">📋 Copy my result</button>
+            </div>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="wts-guesses" id="guesses" aria-label="Your guesses">
+        <div class="wts-row head" aria-hidden="true"><span>Stand</span>{% for label in ['Rarity', 'Part', 'Special', 'Health', 'Damage', 'Speed'] %}<span>{{ label }}</span>{% endfor %}</div>
+        {% for row in rows|reverse %}
+          <div class="wts-row{{ ' correct' if row.correct }}">
+            <span class="wts-name"><img src="{{ row.id|stand_img }}" alt="" width="34" height="34" loading="lazy">{{ row.name }}</span>
+            {% for c in row.cells %}
+              <span class="wts-cell {{ c.state }}" title="{{ c.label }}: {{ {'hit': 'right', 'up': 'the answer is higher', 'down': 'the answer is lower', 'miss': 'not it'}[c.state] }}">
+                <small>{{ c.label }}</small>{{ c.value }}{% if c.state == 'up' %} ▲{% elif c.state == 'down' %} ▼{% endif %}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="muted wts-empty">No guesses yet. Start with any stand: the rows tell you which way to go.</p>
+        {% endfor %}
+      </section>
+    </div>
+
+    <aside class="wts-aside">
+      <section class="social-panel">
+        <h2 class="h3">Fastest today</h2>
+        {% if board %}
+          <ol class="pz-ladder">
+            {% for row in board %}<li class="{{ 'me' if row.uid == me.id }}"><span class="pz-rank">{{ ['🥇','🥈','🥉'][row.rank - 1] if row.rank <= 3 else '#' ~ row.rank }}</span>
+              <a href="{{ url_for('main.profile', uid=row.uid) }}">{{ row.name }}</a><span class="pz-time">{{ row.guesses }}/{{ W.MAX_GUESSES }}</span></li>{% endfor %}
+          </ol>
+        {% else %}<p class="muted">Nobody yet. Be first.</p>{% endif %}
+      </section>
+      <section class="social-panel">
+        <h2 class="h3">How it works</h2>
+        <ul class="wts-legend">
+          <li><span class="wts-cell hit">✓</span> right</li>
+          <li><span class="wts-cell up">▲</span> the answer is higher</li>
+          <li><span class="wts-cell down">▼</span> the answer is lower</li>
+          <li><span class="wts-cell miss">✗</span> not it</li>
+        </ul>
+        <p class="muted small-print">A solve pays {{ W.REWARD_BASE }} Meteor Dust and {{ W.XP_BASE }} player XP, plus {{ W.REWARD_PER_SPARE }} dust and {{ W.XP_PER_SPARE }} XP for every guess you didn't need. Solve on back-to-back days to grow your streak.</p>
+      </section>
+    </aside>
+  </div>
+</section>
+<script>
+  // copy the result grid (no names in it, safe to share)
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-copy-target]");
+    if (!b) return;
+    const text = document.getElementById(b.dataset.copyTarget).textContent;
+    navigator.clipboard?.writeText(text).then(() => { b.textContent = "✓ Copied"; }).catch(() => {});
+  });
+</script>
+{% endblock %}

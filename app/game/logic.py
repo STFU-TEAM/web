@@ -1181,7 +1181,7 @@ def refill_energy(user: User) -> bool:
 def spend_energy(user: User, amount: int, why: str = "") -> None:
     refill_energy(user)
     if user.energy < amount:
-        raise GameError(why or f"You need {amount} energy. It refills over time.")
+        raise GameError("Yare yare daze… " + (why or f"You need {amount} energy. It refills over time."))
     if user.energy >= user.total_energy:
         user.last_full_energy = now()  # the bar was full, so the next point starts charging now
     user.energy -= amount

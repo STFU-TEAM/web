@@ -868,25 +868,51 @@ document.addEventListener("htmx:responseError", (e) => {
   setTimeout(() => p.remove(), 5000);
 });
 
-// The anime's eyecatch: colour bars sweep across with the fight's name, when a big fight opens (data-eyecatch).
-// Resolves when it's over; a click or a key skips it.
-function eyecatch(title, label) {
+const HEAVY_SFX = ["ドゴォ!!", "バァーン!", "メメタァ!", "ドドン!"];
+
+// The VS splash when a big fight opens (it replaced the eyecatch): two slanted panels crash in with each side's
+// name and lead stand, fighting-game style. Built from the fight on screen; a click or a key skips it.
+function vsSplash(root, label) {
   return new Promise((done) => {
+    const sides = [root.querySelector(".side.you"), root.querySelector(".side.foe")];
     const el = document.createElement("div");
-    el.className = "eyecatch";
+    el.className = "vs-splash";
     el.setAttribute("aria-hidden", "true");
-    el.innerHTML = '<i class="bar b1"></i><i class="bar b2"></i><i class="bar b3"></i><div class="eye-text"><b></b><span></span></div>';
-    el.querySelector("b").textContent = title;
-    el.querySelector(".eye-text span").textContent = label || "";
+    el.innerHTML = '<i class="speedlines"></i><div class="vs-panel l"><img alt=""><small></small><b></b></div>'
+      + '<div class="vs-panel r"><img alt=""><small></small><b></b></div><span class="vs-word">VS</span><em class="vs-label"></em>';
+    ["l", "r"].forEach((k, i) => {
+      const side = sides[i], lead = side?.querySelector(".fighter");
+      const panel = el.querySelector(`.vs-panel.${k}`);
+      panel.querySelector("small").textContent = side?.querySelector(".side-name")?.textContent.trim() || "";
+      panel.querySelector("b").textContent = lead ? `｢${lead.dataset.name.replace(/^｢|｣$/g, "")}｣` : "";
+      const img = panel.querySelector("img");
+      if (lead?.dataset.img) img.src = lead.dataset.img; else img.remove();
+    });
+    el.querySelector(".vs-label").textContent = label || "";
     document.body.append(el);
     let over = false;
     const end = () => { if (over) return; over = true; el.remove(); removeEventListener("keydown", end); done(); };
     el.addEventListener("click", end);
     addEventListener("keydown", end);
-    setTimeout(end, 1650);
+    setTimeout(end, 1900);
   });
 }
-const HEAVY_SFX = ["ドゴォ!!", "バァーン!", "メメタァ!", "ドドン!"];
+
+// The stand reveal: when a special fires, the stand's name slams in between ｢brackets｣ over speed lines, with
+// its side's name underneath, for about a second. A screen-wide title card (on <body>: the arena can be taller than
+// the screen, and it shakes); clicks go through to the fight beneath it.
+function standReveal(f) {
+  const side = f.closest(".side");
+  const el = document.createElement("div");
+  el.className = `stand-reveal ${side?.classList.contains("foe") ? "foe" : "you"}`;
+  el.setAttribute("aria-hidden", "true");
+  el.innerHTML = '<i class="speedlines"></i><b></b><span></span>';
+  el.querySelector("b").textContent = `｢${f.dataset.name.replace(/^｢|｣$/g, "").toUpperCase()}｣`;
+  el.querySelector("span").textContent = side?.querySelector(".side-name")?.textContent.trim() || "";
+  document.querySelectorAll(".stand-reveal").forEach((x) => x.remove());
+  document.body.append(el);
+  el.addEventListener("animationend", (e) => { if (e.target === el) el.remove(); });
+}
 
 // Fight replay: a fresh turn arrives with its log events as JSON. Rewind the bars to before the turn,
 // then play each event (lunge, hit, damage numbers, special GIF in the spotlight) and land on the server's final state.
@@ -1009,7 +1035,7 @@ function playFight(root) {
   let lastSpecial = null;
 
   (async () => {
-    if (fromStart && root.dataset.eyecatch && fx()) await eyecatch(root.dataset.eyecatch, root.dataset.eyecatchLabel);
+    if (fromStart && root.dataset.eyecatch && fx()) await vsSplash(root, root.dataset.eyecatchLabel);
     for (const [k, e] of events.entries()) {
       if (skipped || !root.isConnected) break;
       const text = e.text.replaceAll("`", "");
@@ -1021,7 +1047,10 @@ function playFight(root) {
 
       if (src && e.kind !== "stun") restart(src, e.kind === "special" || e.kind === "item" ? "cast" : "lunge");
       showSpot(src, text, e.kind === "special");
-      if (e.kind === "special") { lastSpecial = [src, text]; restart(arena, "flash-special"); if (src && fx()) shout(src); }
+      if (e.kind === "special") {
+        lastSpecial = [src, text]; restart(arena, "flash-special");
+        if (src && fx()) { standReveal(src); shout(src); }
+      }
       await wait(e.kind === "special" ? 450 * pace() : 200 * pace());
 
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
@@ -1053,6 +1082,7 @@ function playFight(root) {
     arena.removeEventListener("click", skip);
     logItems.forEach((li) => li.classList.remove("pending"));
     root.querySelectorAll(".dmg-pop, .cry, .heavy-sfx").forEach((p) => p.remove());
+    document.querySelectorAll(".stand-reveal").forEach((p) => p.remove());
     final.fighters.forEach(({ f, cls, width, num }) => {
       f.className = cls;
       f.querySelector(".hp i").style.width = width;

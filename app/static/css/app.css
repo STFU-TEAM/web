@@ -3298,7 +3298,7 @@ body.cine-open { overflow: hidden; }
 .danger-zone label { display: inline-flex; align-items: center; gap: .4rem; font-size: var(--step--1); }
 
 /* ===================================================================================
-   JoJo touches, round two: 再起不能, 勝利 / 敗北, the eyecatch, the stand aura, 実績解除, heavy hits, the Stand User file
+   JoJo touches, round two: 再起不能, 勝利 / 敗北, the VS splash, the stand aura, 実績解除, heavy hits, the Stand User file
    =================================================================================== */
 
 /* 再起不能: a knocked-out stand gets the manga's "retired" stamp. The card fades, the stamp doesn't. */
@@ -3335,21 +3335,6 @@ body.cine-open { overflow: hidden; }
 @keyframes jj-slam { 0% { opacity: 0; scale: 3; } 60% { opacity: 1; scale: .95; } 100% { opacity: 1; scale: 1; } }
 @keyframes jj-slam-out { 0%, 80% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 
-/* The eyecatch: colour bars sweep across with the fight's name when a big fight opens (app.js eyecatch) */
-.eyecatch { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; overflow: hidden; cursor: pointer; }
-.eyecatch .bar { position: absolute; left: -10%; width: 120%; height: 36%; rotate: -8deg; translate: -110% 0; animation: jj-bar 1.6s cubic-bezier(.7, 0, .2, 1) forwards; }
-.eyecatch .b1 { top: -6%; background: var(--magenta); }
-.eyecatch .b2 { top: 30%; background: var(--gold); animation-delay: .06s; }
-.eyecatch .b3 { top: 66%; background: var(--teal); animation-delay: .12s; }
-.eyecatch .eye-text { position: relative; z-index: 2; display: grid; justify-items: center; gap: .3rem; padding: 0 16px; text-align: center; opacity: 0;
-  animation: jj-eye-text 1.6s ease forwards; }
-.eyecatch .eye-text b { font: 400 clamp(1.8rem, 7vw, 4rem)/1.05 var(--display); color: var(--paper); -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill;
-  text-shadow: 5px 5px 0 var(--ink); text-wrap: balance; }
-.eyecatch .eye-text span { font: 700 .85rem var(--body); letter-spacing: .3em; text-transform: uppercase; color: var(--ink); background: var(--paper);
-  padding: .15rem .7rem; border: 2px solid var(--ink); }
-.eyecatch .eye-text span:empty { display: none; }
-@keyframes jj-bar { 0% { translate: -110% 0; } 30%, 70% { translate: 0 0; } 100% { translate: 110% 0; } }
-@keyframes jj-eye-text { 0%, 22% { opacity: 0; scale: 1.6; } 34%, 70% { opacity: 1; scale: 1; } 85%, 100% { opacity: 0; } }
 
 /* Stand aura: the stand whose turn it is gives off a moving glow in its rarity's colour, with ゴ beside it */
 @property --aura { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
@@ -3464,7 +3449,7 @@ body.cine-open { overflow: hidden; }
 
 @media (prefers-reduced-motion: reduce) {
   .fighter.ko .retired, .fight-slam, .fight-slam b, .fight-slam small, .slam-lines, .fighter.acting::before, .fighter.acting::after,
-  .heavy-sfx, .slam-card, .eyecatch .bar, .eyecatch .eye-text { animation: none !important; }
+  .heavy-sfx, .slam-card, .vs-splash *, .stand-reveal * { animation: none !important; }
   .fight-slam { display: none; }
 }
 
@@ -4320,3 +4305,233 @@ body.has-side .event-strip { max-width: none; }
 
 /* admin puzzle log */
 .pz-log-error td { color: #FF8A8A; } .pz-log-empty td { color: var(--gold); } .pz-log td:first-child { white-space: nowrap; }
+
+/* ===================================================================================
+   THE BIZARRE LAYER: screentone, part colours and the big moments.
+   H  screentone: halftone dots fade in from one corner of every hero and panel (an overlay; their own look is kept).
+   F  part palettes: a page about one part, or the part you're on (body[data-part]), tints the page, a stripe down
+      its panels' left edge and their dots.
+   I  speed lines (.speedlines) behind the big moments; B the stand reveal; C the VS splash.
+   =================================================================================== */
+:is(.player-bar, .summon-hero, .pz-hero, .cm-hero, .raid-hero, .gang-hero, .event-hero, .social-panel, .pz-panel, .admin-card, .story-stage, .action-tile, .gang-hub, .push-card) { --tone: var(--gold); position: relative; isolation: isolate; }
+/* the screentone: an overlay above the panel's own background, below its content, following its rounded corners */
+:is(.player-bar, .summon-hero, .pz-hero, .cm-hero, .raid-hero, .gang-hero, .event-hero, .social-panel, .pz-panel, .admin-card, .story-stage, .action-tile, .gang-hub, .push-card)::after {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(circle, color-mix(in srgb, var(--tone) 22%, transparent) 1.1px, transparent 1.5px) 0 0 / 6px 6px;
+  -webkit-mask-image: linear-gradient(130deg, transparent 45%, #000 100%); mask-image: linear-gradient(130deg, transparent 45%, #000 100%);
+}
+/* each panel's dots in its own colour */
+.pz-hero, .cm-hero, .pz-reveal { --tone: var(--sky); }
+.raid-hero, .gang-hero, .event-hero, .pz-crew, .gang-hub { --tone: var(--magenta); }
+.story-stage { --tone: var(--part); }
+
+/* F: a part's page takes its colours */
+body[data-part] {
+  background:
+    radial-gradient(ellipse 90% 45% at 50% -8%, color-mix(in srgb, var(--part) 38%, transparent), transparent 70%),
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--part) 22%, transparent) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    var(--night);
+}
+body[data-part] .kicker { color: var(--part-2); }
+body[data-part] :is(.player-bar, .summon-hero, .pz-hero, .cm-hero, .social-panel) { --tone: var(--part-2); border-left: 6px solid var(--part); }
+body[data-part] .display, body[data-part] .h2 { text-shadow: 3px 3px 0 color-mix(in srgb, var(--part) 70%, var(--ink)); }
+
+/* I: speed lines, behind the big moments (UR/LR pulls, a solved puzzle, the stand reveal, the VS splash) */
+.speedlines { position: absolute; inset: -25%; z-index: -1; pointer-events: none;
+  background: repeating-conic-gradient(from 0deg, var(--sl, rgb(255 243 220 / .4)) 0deg 1.2deg, transparent 1.2deg 6.5deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 15%, #000 45%); mask-image: radial-gradient(circle, transparent 15%, #000 45%);
+  animation: sl-flicker .24s steps(2) infinite; }
+@keyframes sl-flicker { 50% { transform: rotate(2.5deg); } }
+.pull-showcase.big-pull { position: relative; isolation: isolate; overflow: hidden; }
+.pull-showcase.big-pull .speedlines { --sl: rgb(244 197 66 / .32); }
+.pz-status.solved { position: relative; isolation: isolate; overflow: hidden; padding: .7rem .9rem; border-radius: var(--radius-ui); border: 3px solid var(--ink); background: var(--night-2); }
+.pz-status.solved .speedlines { --sl: rgb(244 197 66 / .22); }
+
+/* B: the stand reveal, a screen-wide title card when a special fires (app.js standReveal) */
+.stand-reveal { position: fixed; inset: 0; z-index: 85; display: grid; place-content: center; text-align: center; gap: .35rem; padding: 0 12px;
+  pointer-events: none; overflow: hidden; isolation: isolate; background: rgb(18 8 30 / .45); animation: sr-life 1.15s ease forwards; }
+.stand-reveal .speedlines { --sl: rgb(255 243 220 / .3); }
+.stand-reveal b { font: 400 clamp(1.4rem, 6vw, 3.1rem)/1.05 var(--display); color: var(--gold); letter-spacing: .02em;
+  -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; text-shadow: 5px 5px 0 var(--ink); animation: sr-slam .5s cubic-bezier(.2, 1.4, .3, 1) both; }
+.stand-reveal.foe b { color: #FF7FB6; }
+.stand-reveal span { justify-self: center; padding: .15rem .7rem; border-radius: 6px; background: var(--ink); color: var(--paper);
+  font-weight: 700; font-size: .72rem; letter-spacing: .25em; text-transform: uppercase; animation: sr-rise .4s .25s ease-out both; }
+.stand-reveal span:empty { display: none; }
+@keyframes sr-life { 0% { opacity: 0; } 8%, 78% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes sr-slam { from { transform: scale(2.6) rotate(-4deg); opacity: 0; filter: blur(5px); } 60% { transform: scale(.95) rotate(1deg); opacity: 1; filter: none; } }
+@keyframes sr-rise { from { transform: translateY(10px); opacity: 0; } }
+
+/* C: the VS splash when a big fight opens (app.js vsSplash) */
+.vs-splash { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; isolation: isolate; cursor: pointer;
+  background: var(--ink); animation: vs-life 1.9s ease forwards; }
+.vs-splash .speedlines { --sl: rgb(244 197 66 / .2); }
+.vs-panel { position: relative; display: grid; align-content: end; gap: .35rem; padding: 0 6vw 16vh; min-width: 0; }
+.vs-panel.l { background: linear-gradient(135deg, var(--sky, #3AB4F2), #1B5FA8); clip-path: polygon(0 0, 100% 0, 82% 100%, 0 100%);
+  animation: vs-in-l .45s cubic-bezier(.2, .9, .3, 1) both; }
+.vs-panel.r { background: linear-gradient(225deg, var(--magenta), #6B1240); clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
+  text-align: right; justify-items: end; animation: vs-in-r .45s cubic-bezier(.2, .9, .3, 1) both; }
+.vs-panel img { position: absolute; top: 12vh; width: min(30vw, 240px); aspect-ratio: 1; object-fit: cover; border-radius: 50%; border: 5px solid var(--ink); background: var(--night); }
+.vs-panel.l img { left: 7vw; } .vs-panel.r img { right: 7vw; }
+.vs-panel small { justify-self: start; padding: .1rem .6rem; border-radius: 6px; background: rgb(255 255 255 / .85); color: var(--ink); font-weight: 900; font-size: .8rem; }
+.vs-panel.r small { justify-self: end; }
+.vs-panel b { font: 400 clamp(1.1rem, 4vw, 2.2rem)/1.1 var(--display); color: #fff; text-transform: uppercase; -webkit-text-stroke: 6px var(--ink); paint-order: stroke fill; }
+.vs-word { position: absolute; left: 50%; top: 44%; translate: -50% -50%; z-index: 2; font: 400 clamp(4rem, 14vw, 9rem)/1 var(--display); color: var(--gold);
+  -webkit-text-stroke: 12px var(--ink); paint-order: stroke fill; text-shadow: 7px 7px 0 var(--ink); animation: vs-pop .5s .35s cubic-bezier(.2, 1.6, .4, 1) both; }
+.vs-label { position: absolute; left: 50%; bottom: 7vh; translate: -50% 0; z-index: 2; padding: .2rem .9rem; border-radius: 6px; background: var(--paper); color: var(--ink);
+  font: 700 .85rem var(--body); font-style: normal; letter-spacing: .3em; text-transform: uppercase; white-space: nowrap; }
+.vs-label:empty { display: none; }
+@keyframes vs-life { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes vs-in-l { from { transform: translateX(-100%); } }
+@keyframes vs-in-r { from { transform: translateX(100%); } }
+@keyframes vs-pop { from { transform: scale(3) rotate(-12deg); opacity: 0; } }
+@media (max-width: 640px) { .vs-panel img { top: 18vh; width: 34vw; } .vs-panel { padding-bottom: 20vh; } }
+@media (prefers-reduced-motion: reduce) { .speedlines, .stand-reveal, .stand-reveal *, .vs-splash, .vs-splash * { animation: none !important; } }
+
+/* 2. The part you're on colours every page that isn't about a part of its own: a softer glow than a part's own page */
+body[data-part-from="progress"] {
+  background:
+    radial-gradient(ellipse 90% 40% at 50% -10%, color-mix(in srgb, var(--part) 24%, transparent), transparent 70%),
+    radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--part) 16%, transparent) 1px, transparent 1.5px) 0 0 / 14px 14px,
+    var(--night);
+}
+body[data-part] .side-link[aria-current], body[data-part] .nav > a[aria-current] { color: var(--part-2); }
+body[data-part] .side-head .side-label { color: color-mix(in srgb, var(--part-2) 75%, var(--muted)); }
+
+/* 3. The menacing aura: UR and LR cards give off ゴゴゴ and a glow when hovered or focused */
+.card:is(.legend, .mythic)::before { content: "ゴゴゴ"; position: absolute; top: 6%; right: -4px; z-index: 6; pointer-events: none;
+  font: 400 1.35rem/1 var(--display); letter-spacing: -.12em; color: var(--violet); -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill;
+  opacity: 0; transform: translateY(6px) scale(.7) rotate(-6deg); transition: opacity .18s, transform .18s; }
+.card.mythic::before { color: var(--gold); }
+.card:is(.legend, .mythic):is(:hover, :focus-within)::before { opacity: 1; transform: none; animation: menace-float 1.6s ease-in-out .2s infinite; }
+.card.legend:is(:hover, :focus-within) { box-shadow: 0 0 0 2px var(--magenta), 0 0 22px 2px rgb(122 63 184 / .65); }
+.card.mythic:is(:hover, :focus-within) { box-shadow: 0 0 0 2px var(--gold), 0 0 26px 4px rgb(244 197 66 / .5), 0 0 40px 8px rgb(214 36 110 / .3); }
+.card.small:is(.legend, .mythic)::before { font-size: 1rem; }
+@keyframes menace-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .card:is(.legend, .mythic):is(:hover, :focus-within)::before { animation: none; } }
+
+/* gang ladder and a gang's public page */
+.gang-ladder { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .45rem; }
+.gang-ladder li { display: grid; grid-template-columns: 2.6rem minmax(0, 1fr) auto; align-items: center; gap: .7rem; padding: .55rem .8rem;
+  border-radius: var(--radius-ui); background: var(--night-2); border: 2px solid var(--night-3); }
+.gang-ladder li.top { border-color: var(--gold); }
+.gang-ladder li.mine { box-shadow: 0 0 0 2px var(--sky); }
+.gl-rank { font: 400 1.05rem var(--display); text-align: center; }
+.gl-main { display: flex; align-items: center; gap: .7rem; min-width: 0; color: var(--text); text-decoration: none; }
+.gl-main:hover strong { color: var(--gold); }
+.gl-banner { flex: none; width: 46px; height: 46px; border-radius: 10px; overflow: hidden; border: 2px solid var(--ink); background: var(--night-3); }
+.gl-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gl-text { display: grid; min-width: 0; } .gl-text strong, .gl-text small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-stats { display: flex; align-items: center; gap: .3rem .8rem; flex-wrap: wrap; justify-content: flex-end; font-size: .82rem; color: var(--muted); }
+.gl-stats b { font-family: var(--display); font-weight: 400; color: var(--gold); font-size: .95rem; }
+@media (max-width: 560px) { .gang-ladder li { grid-template-columns: 2.2rem minmax(0, 1fr); } .gl-stats { grid-column: 2; justify-content: flex-start; } }
+.gang-public-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0 0; }
+.gang-public-roster { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: .4rem; }
+.gang-public-roster a { display: flex; align-items: center; gap: .55rem; padding: .45rem .6rem; border-radius: var(--radius-ui); background: var(--night); color: var(--text); text-decoration: none; }
+.gang-public-roster a:hover { background: var(--night-3); }
+.gang-public-roster .avatar, .gang-public-roster .avatar-initial { width: 36px; height: 36px; border-radius: 50%; flex: none; }
+.gpr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gpr-rank { font-size: .7rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; background: var(--night-3); color: var(--muted); }
+.gpr-rank.rank-0 { background: var(--gold); color: var(--ink); } .gpr-rank.rank-1 { background: var(--violet); color: #fff; }
+.ladder-switch { margin: .3rem 0 0; font-size: .9rem; }
+
+/* ===================================================================================
+   Who's that Stand? — the mystery card (a tarot frame), the guess rows, the clues
+   =================================================================================== */
+.wts-hero { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 1rem 1.2rem; align-items: center; margin-bottom: 1.2rem; }
+.wts-emblem { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 16px; border: 3px solid var(--ink); background: var(--gold);
+  color: var(--ink); font: 400 2.6rem/1 var(--display); rotate: -6deg; box-shadow: 3px 3px 0 var(--ink); }
+.wts-figures { display: flex; gap: .5rem; margin: 0; }
+.wts-figures div { display: grid; justify-items: center; padding: .4rem .8rem; border-radius: var(--radius-ui); background: var(--night); border: 2px solid var(--night-3); }
+.wts-figures dt { font-size: .7rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.wts-figures dd { margin: 0; font: 400 1.3rem/1.2 var(--display); }
+.wts-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 1rem; align-items: start; }
+.wts-main { display: grid; gap: 1rem; min-width: 0; }
+.wts-board { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.wts-card { margin: 0; padding: 10px; border-radius: var(--radius-card); background: var(--paper); border: 3px solid var(--ink);
+  box-shadow: 0 0 0 3px var(--gold), 6px 6px 0 3px var(--ink); rotate: -1.5deg; }
+.wts-card.solved { box-shadow: 0 0 0 3px #4BD07A, 6px 6px 0 3px var(--ink); rotate: 0deg; }
+.wts-card.failed { box-shadow: 0 0 0 3px var(--magenta), 6px 6px 0 3px var(--ink); }
+.wts-window { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; border: 3px solid var(--ink);
+  background: repeating-linear-gradient(-45deg, #2B1747 0 10px, #24133E 10px 20px); }
+.wts-window img { display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.wts-card.solved .wts-window img, .wts-card.failed .wts-window img { image-rendering: auto; }
+.wts-q { position: absolute; right: 8px; bottom: 4px; font: 400 2.2rem/1 var(--display); color: var(--gold); -webkit-text-stroke: 5px var(--ink); paint-order: stroke fill; }
+.wts-card figcaption { display: grid; justify-items: center; gap: .1rem; padding: .5rem .2rem .1rem; color: var(--ink); text-align: center; }
+.wts-card figcaption strong { font: 400 1.15rem/1.15 var(--display); word-break: break-all; }
+.wts-card figcaption small { font-weight: 700; font-size: .78rem; }
+.wts-side { display: grid; gap: .9rem; min-width: 0; }
+.wts-form { display: grid; gap: .35rem; } .wts-form label { font-weight: 700; }
+.wts-input { display: flex; gap: .5rem; } .wts-input input { flex: 1; min-width: 0; font-size: 1.05rem; padding: .6rem .8rem; }
+.wts-result { margin: 0; padding: .7rem .9rem; border-radius: var(--radius-ui); border: 3px solid var(--ink); font-size: 1.05rem; }
+.wts-result.win { background: rgb(75 208 122 / .18); } .wts-result.lose { background: rgb(214 36 110 / .18); }
+.wts-clues { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
+.wts-clues li { display: grid; gap: .15rem; padding: .5rem .7rem; border-radius: var(--radius-ui); background: var(--night-2); border: 2px dashed var(--night-3); font-size: .88rem; }
+.wts-clues li.on { border-style: solid; border-color: var(--sky); }
+.wts-clues b { font-size: .72rem; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); }
+.wts-share pre { margin: 0 0 .4rem; padding: .6rem .8rem; border-radius: var(--radius-ui); background: var(--night); font: 1rem/1.35 ui-monospace, monospace; white-space: pre-wrap; }
+/* the guess rows */
+.wts-guesses { display: grid; gap: .35rem; overflow-x: auto; }
+.wts-row { display: grid; grid-template-columns: minmax(150px, 1.4fr) repeat(6, minmax(78px, 1fr)); gap: .3rem; min-width: 640px; }
+.wts-row.head span { font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 0 .2rem; }
+.wts-name { display: flex; align-items: center; gap: .45rem; padding: .35rem .5rem; border-radius: var(--radius-ui); background: var(--night-2); font-weight: 700; font-size: .85rem; min-width: 0; }
+.wts-name img { width: 34px; height: 34px; flex: none; border-radius: 50%; object-fit: cover; border: 2px solid var(--ink); }
+.wts-cell { display: grid; place-content: center; text-align: center; padding: .35rem .3rem; border-radius: var(--radius-ui); border: 2px solid var(--ink); font-weight: 700; font-size: .82rem; line-height: 1.2; }
+.wts-cell small { font-size: .6rem; font-weight: 400; opacity: .75; display: none; }
+.wts-cell.hit { background: #2E8B57; color: #fff; }
+.wts-cell.up, .wts-cell.down { background: var(--gold); color: var(--ink); }
+.wts-cell.miss { background: #6B1D3A; color: #FFD2E1; }
+.wts-row.correct .wts-name { box-shadow: 0 0 0 2px #4BD07A; }
+.wts-row:not(.head) { animation: wts-in .35s ease-out; }
+@keyframes wts-in { from { opacity: 0; transform: translateY(-6px); } }
+.wts-empty { margin: 0; }
+.wts-legend { list-style: none; margin: 0 0 .6rem; padding: 0; display: grid; gap: .3rem; }
+.wts-legend li { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+.wts-legend .wts-cell { width: 2rem; height: 1.6rem; padding: 0; }
+@media (max-width: 1100px) { .wts-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 680px) {
+  .wts-hero { grid-template-columns: auto minmax(0, 1fr); } .wts-figures { grid-column: 1 / -1; }
+  .wts-board { grid-template-columns: minmax(0, 1fr); } .wts-card { max-width: 300px; justify-self: center; }
+}
+@media (prefers-reduced-motion: reduce) { .wts-row:not(.head) { animation: none; } }
+
+/* ===================================================================================
+   The Gang Cup — a bracket of match cards, a column per round
+   =================================================================================== */
+.cup-hero { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1rem 1.2rem; align-items: center; margin-bottom: 1.2rem; }
+.cup-emblem { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 50%; border: 3px solid var(--ink); background: var(--gold);
+  font-size: 2.2rem; box-shadow: 0 0 0 3px var(--magenta), 0 0 22px rgb(244 197 66 / .45); }
+.cup-mine { border-color: var(--sky); }
+.cup-live { font: 400 1.6rem var(--display); color: var(--gold); margin: .2rem 0 .6rem; } .cup-live small { font: 400 .8rem var(--body); color: var(--muted); }
+.cup-champion { position: relative; display: grid; justify-items: center; gap: .2rem; margin: 0 0 1.2rem; padding: 1.4rem 1rem; text-align: center; overflow: hidden; isolation: isolate;
+  border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 0 0 0 3px var(--gold), 6px 6px 0 3px var(--ink);
+  background: radial-gradient(circle at 50% 0%, rgb(244 197 66 / .35), transparent 60%), var(--night-2); }
+.cup-champion::before { content: ""; position: absolute; inset: -40%; z-index: -1;
+  background: repeating-conic-gradient(from 0deg, rgb(244 197 66 / .14) 0deg 1.4deg, transparent 1.4deg 7deg); }
+.cup-crown { font-size: 2.4rem; } .cup-champion a { color: var(--gold); text-decoration: none; }
+.cup-bracket { display: grid; grid-template-columns: repeat(var(--rounds), minmax(240px, 1fr)); gap: 1rem; overflow-x: auto; padding-bottom: .4rem; margin-bottom: 1.2rem; }
+.cup-round { display: grid; grid-template-rows: auto 1fr; gap: .6rem; min-width: 0; }
+.cup-round-title { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: .2rem .5rem; font: 400 1rem var(--display); }
+.cup-round-title small { font: 400 .75rem var(--body); color: var(--muted); }
+.cup-livetag { padding: .05rem .45rem; border-radius: 5px; background: var(--magenta); color: #fff; font: 700 .65rem var(--body); letter-spacing: .12em; animation: event-tag-pulse 1.8s ease-in-out infinite; }
+.cup-matches { display: grid; align-content: space-around; gap: .8rem; }
+.cup-match { position: relative; display: grid; gap: 4px; padding: .45rem; border-radius: var(--radius-ui); background: var(--night-2); border: 2px solid var(--night-3); }
+.cup-match.playing { border-color: var(--magenta); box-shadow: 0 0 0 1px var(--magenta), 0 0 14px rgb(214 36 110 / .35); }
+.cup-vs { justify-self: center; margin: -3px 0; font: 400 .7rem/1 var(--display); color: var(--gold); -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; }
+.cup-team { display: grid; grid-template-columns: 1.4rem 30px minmax(0, 1fr) auto; align-items: center; gap: .45rem; padding: .3rem .4rem; border-radius: 6px; background: var(--night); }
+.cup-team.won { background: linear-gradient(90deg, rgb(244 197 66 / .22), var(--night)); box-shadow: inset 3px 0 0 var(--gold); }
+.cup-team.lost { opacity: .5; } .cup-team.lost .cup-name { text-decoration: line-through; }
+.cup-team.mine { box-shadow: inset 0 0 0 2px var(--sky); }
+.cup-team.tbd { grid-template-columns: 1.4rem minmax(0, 1fr); }
+.cup-seed { font: 400 .75rem var(--display); color: var(--muted); text-align: center; }
+.cup-banner { width: 30px; height: 30px; border-radius: 6px; overflow: hidden; border: 2px solid var(--ink); background: var(--night-3); }
+.cup-banner img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cup-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: .88rem; color: var(--text); text-decoration: none; }
+a.cup-name:hover { color: var(--gold); }
+.cup-score { font: 400 .9rem var(--display); color: var(--gold); }
+.cup-history { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.cup-history li { display: flex; gap: .8rem; padding: .35rem .5rem; border-radius: var(--radius-ui); background: var(--night); }
+.cup-history span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.gl-cups { font-size: .85rem; }
+@media (max-width: 680px) { .cup-hero { grid-template-columns: minmax(0, 1fr); } .cup-emblem { width: 56px; height: 56px; font-size: 1.7rem; } }
+
+.wts-blind { position: absolute; inset: 0; display: grid; place-content: center; padding: 1rem; text-align: center; color: var(--muted); font-weight: 700; font-size: .9rem; }

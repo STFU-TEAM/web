@@ -398,7 +398,7 @@ def win(user, day: str) -> dict:
     _expire(_key("ladder", day))
     user.fragments += REWARD["fragments"]
     user.xp += REWARD["xp"]
-    rewards.update(fragments=REWARD["fragments"], xp=REWARD["xp"], item=f"solved in {clock(took)}, #{rank(uid, day)} today")
+    rewards.update(fragments=REWARD["fragments"], xp=REWARD["xp"], item=f"Nice! Solved in {clock(took)}, #{rank(uid, day)} today")
     return rewards
 
 
@@ -475,7 +475,7 @@ def personal_win(user, pid: int) -> dict:
     r().hset(f"web:puzzle:best:{uid}", str(pid), took)
     r().zincrby("web:puzzle:solvers", 1, uid)
     _advance(uid, "solved")
-    note = f"puzzle #{pid} solved in {clock(took)}"
+    note = f"Nice! Puzzle #{pid} solved in {clock(took)}"
     if state["paid"] < PERSONAL_PAID:
         pipe = r().pipeline()
         pipe.hset(_me(uid), mapping={"paid_day": today(), "paid": state["paid"] + 1})

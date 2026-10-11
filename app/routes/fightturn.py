@@ -90,11 +90,11 @@ RESUME = {
     "puzzle": ("progress.pz_page", ("tab", "mode")), "training": ("progress.training_page", None),
     "rush": ("progress.rush_page", None), "tower": ("play.tower", None), "wormhole": ("play.mirror", None),
     "dungeon": ("play.dungeon", None), "coop": ("coop.index", None), "gang_war": ("gangs.fight_page", None),
-    "gang_raid": ("gangs.fight_page", None), "dummy": ("battles.index", None), "ranked": ("battles.index", None),
+    "gang_raid": ("gangs.fight_page", None), "gang_cup": ("gangs.fight_page", None), "dummy": ("battles.index", None), "ranked": ("battles.index", None),
     "friend": ("battles.index", None),
 }
 LABELS = {"wormhole": "Mirror World", "alt_universe": "Alternate Universe", "over_heaven": "Over Heaven",
-          "carry_me": "Carry Me", "gang_war": "gang war", "gang_raid": "gang raid", "coop": "co-op raid",
+          "carry_me": "Carry Me", "gang_war": "gang war", "gang_raid": "gang raid", "gang_cup": "Gang Cup", "coop": "co-op raid",
           "dummy": "practice", "friend": "duel"}
 
 

@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{#- each act takes the part of the JoJo Carry Me remembers (Joseph and Jotaro: 3 … Gappy: 8; the Encore: none) -#}
+{% set page_part = [3, 3, 4, 5, 6, 7, 8, none][stage.act] if stage else none %}
 {% from "macros.html" import menacing, back_to_fight %}
 {% block title %}Carry Me · Part 10 | STFU Requiem{% endblock %}
 {% block main %}

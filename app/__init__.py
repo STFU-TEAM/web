@@ -85,6 +85,7 @@ def create_app() -> Flask:
 
     @app.errorhandler(500)
     def server_error(_):
-        return render_template("error.html", code=500, message="Something broke on our side. Try again in a moment."), 500
+        return render_template("error.html", code=500, message="You thought this was a normal error page? Too bad! "
+                                                                "Something broke on our side. Try again in a moment."), 500
 
     return app

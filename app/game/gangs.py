@@ -265,6 +265,64 @@ def last_war(redis, gang_id: str) -> Optional[dict]:
     return best
 
 
+# ── Public pages: the gang ladder and a gang's public page ──────────────────
+
+LADDER_SORTS = {"elo": "War Elo", "members": "Members", "raid": "Raid this week"}
+_ladder_cache = {"at": 0.0, "rows": None}
+LADDER_TTL = 60  # seconds: every gang and every war record are read to build it
+
+
+def war_record_counts(redis) -> dict:
+    """{gang id: {"wins", "losses", "draws"}} from every settled war (shared with the bot)."""
+    out = {}
+    for raw in redis.hvals("war_records"):
+        try:
+            rec = pickle.loads(raw)
+        except Exception:
+            continue
+        for side, key in (("winner", "wins"), ("loser", "losses")):
+            gid = rec.get(side)
+            if gid:
+                row = out.setdefault(gid, {"wins": 0, "losses": 0, "draws": 0})
+                row["draws" if rec.get("draw") else key] += 1
+    return out
+
+
+def ladder(db, redis, by: str = "elo") -> list:
+    """Every gang, ranked (by war Elo, members or this week's raid damage). Built at most once a minute."""
+
+    if _ladder_cache["rows"] is None or time.time() - _ladder_cache["at"] > LADDER_TTL:
+        records = war_record_counts(redis)
+        raid_key = f"web:raid:{week_key()}"
+        from app.game import cup as CUP
+        cups = {}
+        for c in CUP.champions(200):
+            cups[c.get("gang")] = cups.get(c.get("gang"), 0) + 1
+        rows = []
+        for g in db.all_gangs():
+            gid = g.get("_id")
+            if not gid:
+                continue
+            rec = records.get(gid, {"wins": 0, "losses": 0, "draws": 0})
+            rows.append({"id": gid, "name": g.get("name", "?"), "motto": g.get("motto", ""), "image": g.get("image_url") or "",
+                         "members": len(members(g)), "elo": int(g.get("war_elo", 0)), **rec,
+                         "raid": int(redis.zscore(raid_key, gid) or 0), "cups": cups.get(gid, 0)})
+        _ladder_cache.update(at=time.time(), rows=rows)
+    key = {"elo": lambda x: (-x["elo"], -x["wins"], x["name"].lower()),
+           "members": lambda x: (-x["members"], -x["elo"], x["name"].lower()),
+           "raid": lambda x: (-x["raid"], -x["elo"], x["name"].lower())}[by if by in LADDER_SORTS else "elo"]
+    return [{**row, "rank": i + 1} for i, row in enumerate(sorted(_ladder_cache["rows"], key=key))]
+
+
+def public_view(db, redis, gang: dict) -> dict:
+    """What anyone may see of a gang: never its vault, stash, chat or message of the day."""
+    rows = ladder(db, redis, "elo")
+    me = next((row for row in rows if row["id"] == gang["_id"]), None)
+    return {"rank": me["rank"] if me else None, "of": len(rows), "record": war_record_counts(redis).get(gang["_id"], {"wins": 0, "losses": 0, "draws": 0}),
+            "raid": int(redis.zscore(f"web:raid:{week_key()}", gang["_id"]) or 0), "raid_level": int(gang.get("raid_level", 1)),
+            "last_war": last_war(redis, gang["_id"]), "cups": me["cups"] if me else 0}
+
+
 def war_damage(enemies) -> int:
     """Percentage of the enemy guardians knocked out (fighthandler gang_fight)."""
     return int(100 * sum(not c.is_alive() for c in enemies) / max(1, len(enemies)))

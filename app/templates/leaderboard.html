@@ -13,6 +13,7 @@
          hx-on::after-request="document.querySelectorAll('.tabs a').forEach(a=>a.removeAttribute('aria-current'));this.setAttribute('aria-current','true')">{{ label }}</a>
     {% endfor %}
   </nav>
+  <p class="ladder-switch"><a href="{{ url_for('gangs.ladder') }}">⚑ Gang ladder →</a></p>
   <div id="board">{% include "partials/leaderboard_rows.html" %}</div>
 </section>
 {% endblock %}

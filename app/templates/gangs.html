@@ -238,17 +238,18 @@
     <h2 class="h2">Gang standings</h2>
     <ol class="social-list gang-standings">
       {% for item in directory %}
-        <li><span class="rank">{{ loop.index }}</span><strong>{{ item.name }}</strong>
+        <li><span class="rank">{{ loop.index }}</span><strong><a href="{{ url_for('gangs.public', gang_id=item._id) }}">{{ item.name }}</a></strong>
           <span>{{ item.users|length }} members</span><b>{{ item.war_elo|default(0)|num }} elo</b></li>
       {% else %}<li class="notice">No gangs yet. Found the first one.</li>{% endfor %}
     </ol>
+    <p><a href="{{ url_for('gangs.ladder') }}">See the whole gang ladder →</a></p>
   </section>
 {% endif %}
   <section class="social-panel">
     <h2 class="h2">🐉 Raid leaderboard · {{ raid_villain.name }}</h2>
     {% if raid_board %}
       <ol class="social-list gang-standings">
-        {% for row in raid_board %}<li><span class="rank">{{ loop.index }}</span><strong>{{ row.name }}</strong><span></span><b>{{ row.damage|num }} dmg</b></li>{% endfor %}
+        {% for row in raid_board %}<li><span class="rank">{{ loop.index }}</span><strong><a href="{{ url_for('gangs.public', gang_id=row.id) }}">{{ row.name }}</a></strong><span></span><b>{{ row.damage|num }} dmg</b></li>{% endfor %}
       </ol>
     {% else %}<p class="muted">No gang has hit {{ raid_villain.name }} yet this week.</p>{% endif %}
   </section>

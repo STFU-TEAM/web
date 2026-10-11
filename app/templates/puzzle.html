@@ -109,14 +109,15 @@
               <li>🧩 Only {{ p.good }} of the 20 possible teams win most of the time</li>
               <li>☁ {{ p.rules|length }} Over Heaven rule{{ 's' if p.rules|length != 1 }} in play</li>
               <li>👥 {{ solvers }} solved so far</li>
+              <li>🎁 First solve: {{ P.REWARD.fragments|num }} Meteor Dust and {{ P.REWARD.xp }} player XP</li>
             </ul>
             <form method="post" action="{{ url_for('progress.pz_reveal') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="mode" value="daily">
               <button class="btn gold big">Reveal & start the clock ⏱</button></form>
           </article>
         {% else %}
-          <div class="pz-status">
+          <div class="pz-status{% if state.solved is not none %} solved{% endif %}">
             {% if state.solved is not none %}
-              <p class="pz-solved">🏆 Solved in <strong>{{ state.clock }}</strong> · {{ state.tries }} attempt{{ 's' if state.tries != 1 }} · <strong>#{{ state.rank }}</strong> today</p>
+              <i class="speedlines" aria-hidden="true"></i><p class="pz-solved">🏆 Nice! Solved in <strong>{{ state.clock }}</strong> · {{ state.tries }} attempt{{ 's' if state.tries != 1 }} · <strong>#{{ state.rank }}</strong> today</p>
             {% else %}
               <p class="pz-clock">⏱ <strong data-since="{{ state.started }}">…</strong> · attempt {{ state.tries + 1 }}</p>
             {% endif %}
@@ -137,7 +138,7 @@
             <ul class="pz-facts">
               <li>✔ Checked solvable: {{ p.good }} of 20 teams work</li>
               <li>☁ {{ p.rules|length }} Over Heaven rule{{ 's' if p.rules|length != 1 }}</li>
-              <li>🎁 {{ [P.PERSONAL_PAID - state.paid, 0]|max }} of today's {{ P.PERSONAL_PAID }} rewarded solves left</li>
+              <li>🎁 {{ [P.PERSONAL_PAID - state.paid, 0]|max }} of today's {{ P.PERSONAL_PAID }} rewarded solves left ({{ P.PERSONAL_REWARD.fragments|num }} dust and {{ P.PERSONAL_REWARD.xp }} player XP each)</li>
             </ul>
             <form method="post" action="{{ url_for('progress.pz_reveal') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="mode" value="personal">
               <button class="btn gold big">Reveal ⏱</button></form>

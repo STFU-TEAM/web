@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% from "macros.html" import owned_card, menacing %}
+{% block title %}{{ gang.name }} · Gang | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page">
+  {#- a gang as anyone sees it: never its vault, stash, chat or message of the day -#}
+  <header class="gang-hero">
+    <img class="gang-banner" src="{{ gang.image_url }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.hidden=true">
+    <div class="gang-hero-body">
+      <p class="kicker">Gang{% if pv.rank %} · #{{ pv.rank }} of {{ pv.of }} on the <a href="{{ url_for('gangs.ladder') }}">gang ladder</a>{% endif %}</p>
+      <h1 class="display sm">{% call menacing() %}{{ gang.name }}{% endcall %}</h1>
+      <p class="muted">{{ gang.motto or "No motto yet." }}</p>
+      <dl class="figures compact">
+        <div><dt>Members</dt><dd>{{ roster|length }}</dd></div>
+        <div><dt>War Elo</dt><dd>{{ gang.war_elo|default(0)|num }}</dd></div>
+        <div><dt>Wars</dt><dd>{{ pv.record.wins }}W · {{ pv.record.losses }}L{% if pv.record.draws %} · {{ pv.record.draws }}D{% endif %}</dd></div>
+        <div><dt>Raid this week</dt><dd>{{ pv.raid|num }} dmg</dd></div>
+        <div><dt>Raid level</dt><dd>{{ pv.raid_level }}</dd></div>
+        {% if pv.cups %}<div><dt>Gang Cups</dt><dd>🏆 × {{ pv.cups }}</dd></div>{% endif %}
+      </dl>
+      <p class="gang-public-actions">
+        {% if mine %}<a class="btn gold" href="{{ url_for('gangs.index') }}">⚑ Open your gang</a>
+        {% elif viewer and not viewer.gang_id %}<span class="muted small-print">Gangs are invite-only: message the boss to ask for an invite.</span>{% endif %}
+        {% set boss = roster|selectattr('rank', 'equalto', 0)|first %}
+        {% if boss and viewer and not mine and boss.id != viewer.id %}<a class="btn small ghost" href="{{ url_for('chat.dm', uid=boss.id) }}">✉ Message the boss</a>{% endif %}
+      </p>
+    </div>
+  </header>
+
+  {% if pv.last_war %}
+    <section class="social-panel">
+      <h2 class="h3">Last war</h2>
+      <p>{% if pv.last_war.draw %}A draw between <strong>{{ pv.last_war.winner_name }}</strong> and <strong>{{ pv.last_war.loser_name }}</strong>.
+         {% else %}<strong><a href="{{ url_for('gangs.public', gang_id=pv.last_war.winner) }}">{{ pv.last_war.winner_name }}</a></strong> beat
+         <strong><a href="{{ url_for('gangs.public', gang_id=pv.last_war.loser) }}">{{ pv.last_war.loser_name }}</a></strong>{% endif %}
+         <span class="muted">· {{ pv.last_war.winner_damage|int|num }} to {{ pv.last_war.loser_damage|int|num }} damage per member</span></p>
+    </section>
+  {% endif %}
+
+  <section class="social-panel">
+    <h2 class="h2">Guardians</h2>
+    <p class="muted">The stands that defend {{ gang.name }} in wars.</p>
+    {% if guardians %}
+      <div class="grid team-grid">{% for c in guardians %}<div class="slot">{{ owned_card(c, size='small') }}</div>{% endfor %}</div>
+    {% else %}<p class="muted">No guardians posted.</p>{% endif %}
+  </section>
+
+  <section class="social-panel">
+    <h2 class="h2">Members <span class="count">{{ roster|length }}</span></h2>
+    <ul class="gang-public-roster">
+      {% for m in roster %}
+        <li><a href="{{ url_for('main.profile', uid=m.id) }}">
+          {% if m.avatar %}<img class="avatar" src="{{ m.avatar }}" alt="" width="36" height="36" loading="lazy">{% else %}<span class="avatar-initial" aria-hidden="true">{{ m.name[:1]|upper }}</span>{% endif %}
+          <span class="gpr-name">{{ m.name }}</span>
+          <span class="gpr-rank rank-{{ m.rank }}">{{ R.RANK_NAMES[m.rank] }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </section>
+</section>
+{% endblock %}

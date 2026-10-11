@@ -19,7 +19,7 @@
       {% if pv.quote %}<p class="file-quote">「{{ pv.quote }}」</p>{% endif %}
       <dl class="file-facts">
         {% if best %}<div><dt>{{ 'Signature stand' if pv.stand else 'Best stand' }}</dt><dd>{{ best.name }}{% if best.awaken %} ★{{ best.awaken }}{% endif %} · Lv {{ best.level }}</dd></div>{% endif %}
-        {% if gang %}<div><dt>Gang</dt><dd>⚑ {{ gang.name }}</dd></div>{% endif %}
+        {% if gang %}<div><dt>Gang</dt><dd><a href="{{ url_for('gangs.public', gang_id=gang._id) }}">⚑ {{ gang.name }}</a></dd></div>{% endif %}
         <div><dt>Since</dt><dd>{{ u.join_date.strftime('%B %Y') }}</dd></div>
       </dl>
       <div class="profile-level" title="{{ level_pct }}% to the next level">

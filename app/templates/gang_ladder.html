@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}Gang ladder | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page narrow">
+  <p class="kicker">Every gang, ranked · tap one to peek</p>
+  <h1 class="display sm">{% call menacing() %}Gang ladder{% endcall %}</h1>
+  <nav class="tabs" aria-label="Rank by">
+    {% for key, label in sorts.items() %}<a href="?by={{ key }}" {% if by == key %}aria-current="true"{% endif %}>{{ label }}</a>{% endfor %}
+  </nav>
+  <p class="muted small-print">{% if by == 'raid' %}Damage dealt to this week's raid boss, {{ raid_villain.name }}.{% elif by == 'members' %}Biggest crews first.{% else %}War Elo goes up when a gang wins a war (more damage per member than its rival) and down when it loses.{% endif %}
+    <a href="{{ url_for('gangs.cup_page') }}">🏆 Gang Cup →</a> · <a href="{{ url_for('main.leaderboard') }}">Player ladder →</a></p>
+  {% if rows %}
+    <ol class="gang-ladder">
+      {% for g in rows %}
+        <li class="{{ 'mine' if g.id == me_gang }}{{ ' top' if g.rank <= 3 }}">
+          <span class="gl-rank">{{ ['🥇', '🥈', '🥉'][g.rank - 1] if g.rank <= 3 else '#' ~ g.rank }}</span>
+          <a class="gl-main" href="{{ url_for('gangs.public', gang_id=g.id) }}">
+            <span class="gl-banner">{% if g.image %}<img src="{{ g.image }}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">{% endif %}</span>
+            <span class="gl-text"><strong>{{ g.name }}{% if g.cups %} <span class="gl-cups" title="{{ g.cups }} Gang Cup{{ 's' if g.cups > 1 }} won">🏆{% if g.cups > 1 %}×{{ g.cups }}{% endif %}</span>{% endif %}</strong><small class="muted">{{ g.motto or ('Your gang' if g.id == me_gang else '') }}</small></span>
+          </a>
+          <span class="gl-stats">
+            <span title="Members">👥 {{ g.members }}</span>
+            <span title="Wars won and lost">⚔ {{ g.wins }}–{{ g.losses }}</span>
+            <b>{% if by == 'raid' %}{{ g.raid|num }} dmg{% elif by == 'members' %}{{ g.members }} members{% else %}{{ g.elo|num }} Elo{% endif %}</b>
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  {% else %}
+    <p class="notice">No gangs yet. <a href="{{ url_for('gangs.index') }}">Found the first one.</a></p>
+  {% endif %}
+</section>
+{% endblock %}
