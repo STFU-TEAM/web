@@ -195,7 +195,8 @@
          hx-target="#fight" hx-swap="outerHTML"></div>
   {% elif viewer %}
   {% elif fight.finished %}
-    <form id="fight-leave" hidden method="post" action="{{ fight_leave_action }}">
+    <form id="fight-leave" hidden method="post" action="{{ fight_leave_action }}"
+          {%- if fight.kind == 'dungeon' %} hx-post="{{ fight_leave_action }}" hx-target="#dungeon-page" hx-swap="innerHTML"{% endif %}>
       <input type="hidden" name="csrf" value="{{ csrf_token }}">
     </form>
     {% set nxt = next_step(fight, my_side) %}

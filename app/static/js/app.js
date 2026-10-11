@@ -1457,6 +1457,12 @@ document.addEventListener("keydown", (e) => {
   const btn = dir && document.querySelector(`.move-button[data-move="${dir}"]:not(:disabled)`);
   if (btn) { e.preventDefault(); btn.click(); }
 });
+// Dungeon actions swap the dungeon block in place (no reload): when a step runs into a fight, bring it into view.
+document.addEventListener("htmx:afterSwap", (e) => {
+  if (e.detail.target.id !== "dungeon-page") return;
+  const fight = e.detail.target.querySelector("#fight:not(.finished)");
+  if (fight) fight.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+});
 
 // Training ground: a pick list that stops at its max (data-pick-max on each checkbox).
 document.addEventListener("change", (e) => {

@@ -996,6 +996,18 @@ def tower_leave():
 @bp.get("/adventure/dungeon")
 @player_required
 def dungeon():
+    hx = bool(request.headers.get("HX-Request"))
+    return render_template("partials/dungeon_body.html" if hx else "dungeon.html", hx=hx, **_dungeon_ctx())
+
+
+def _dungeon_done():
+    """After a dungeon action: the fresh dungeon block over HTMX (no page reload), else the classic redirect."""
+    if request.headers.get("HX-Request"):
+        return render_template("partials/dungeon_body.html", hx=True, **_dungeon_ctx())
+    return redirect(url_for("play.dungeon"))
+
+
+def _dungeon_ctx() -> dict:
     uid = session["uid"]
     user = _user()
     if dungeon_logic.state(user).get("run") and not dungeon_logic.load_team(r(), uid):
@@ -1010,15 +1022,15 @@ def dungeon():
     other_fight = fight.kind if fight and fight.kind != "dungeon" and not fight.finished else None
     fight = fight if fight and fight.kind == "dungeon" else None
     plan = dungeon_logic.floor_plan(run["day"], run["depth"]) if run else None
-    return render_template("dungeon.html", u=user, s=s, run=run, fight=fight, other_fight=other_fight,
-                           team=dungeon_logic.load_team(r(), uid) if run else None,
-                           cells=dungeon_logic.cells(run) if run else [],
-                           moves=dungeon_logic.allowed_moves(run) if run else [],
-                           on_stairs=bool(run and tuple(run["pos"]) == plan["stairs"]),
-                           waiting=dungeon_logic.fight_tile(user), bag=dungeon_logic.bag_view(run["bag"]) if run else None,
-                           message=user.data.pop("web_dungeon_message", None), runs_left=dungeon_logic.runs_left(user),
-                           D=dungeon_logic, fight_action=url_for("play.dungeon_attack"),
-                           fight_leave_action=url_for("play.dungeon_leave"), fight_label="Dungeon")
+    return dict(u=user, s=s, run=run, fight=fight, other_fight=other_fight,
+                team=dungeon_logic.load_team(r(), uid) if run else None,
+                cells=dungeon_logic.cells(run) if run else [],
+                moves=dungeon_logic.allowed_moves(run) if run else [],
+                on_stairs=bool(run and tuple(run["pos"]) == plan["stairs"]),
+                waiting=dungeon_logic.fight_tile(user), bag=dungeon_logic.bag_view(run["bag"]) if run else None,
+                message=user.data.pop("web_dungeon_message", None), runs_left=dungeon_logic.runs_left(user),
+                D=dungeon_logic, fight_action=url_for("play.dungeon_attack"),
+                fight_leave_action=url_for("play.dungeon_leave"), fight_label="Dungeon")
 
 
 def _dungeon_fight(user, kind, enemies):
@@ -1044,21 +1056,21 @@ def _dungeon_busy():
 @player_required
 def dungeon_start():
     if _dungeon_busy():
-        return redirect(url_for("play.dungeon"))
+        return _dungeon_done()
 
     def start(user):
         dungeon_logic.start(user, r(), fighting_copy(user.main_characters))
 
     _, _, error = action(start)
     flash(error or "You step into the dark. Find the stairs.", "error" if error else "ok")
-    return redirect(url_for("play.dungeon"))
+    return _dungeon_done()
 
 
 @bp.post("/adventure/dungeon/move")
 @player_required
 def dungeon_move():
     if _dungeon_busy():
-        return redirect(url_for("play.dungeon"))
+        return _dungeon_done()
     direction = request.form.get("direction", "")
 
     def move(user):
@@ -1072,7 +1084,7 @@ def dungeon_move():
     _, _, error = action(move)
     if error:
         flash(error, "error")
-    return redirect(url_for("play.dungeon"))
+    return _dungeon_done()
 
 
 @bp.post("/adventure/dungeon/fight")
@@ -1080,7 +1092,7 @@ def dungeon_move():
 def dungeon_fight():
     """Fight the enemies on your tile again (after a reload, or a fight that expired)."""
     if _dungeon_busy():
-        return redirect(url_for("play.dungeon"))
+        return _dungeon_done()
 
     def fight(user):
         expired = dungeon_logic.close_if_stale(user, r())
@@ -1096,15 +1108,15 @@ def dungeon_fight():
     _, _, error = action(fight)
     if error:
         flash(error, "error")
-    return redirect(url_for("play.dungeon"))
+    return _dungeon_done()
 
 
 def _dungeon_step(fn, done_message):
     if _dungeon_busy():
-        return redirect(url_for("play.dungeon"))
+        return _dungeon_done()
     _, _, error = action(lambda user: fn(user, r()))
     flash(error or done_message, "error" if error else "ok")
-    return redirect(url_for("play.dungeon"))
+    return _dungeon_done()
 
 
 @bp.post("/adventure/dungeon/descend")
@@ -1142,4 +1154,4 @@ def dungeon_leave():
     fight = load_fight(session["uid"])
     if fight and fight.kind == "dungeon" and fight.finished:
         clear_fight(session["uid"])
-    return redirect(url_for("play.dungeon"))
+    return _dungeon_done()

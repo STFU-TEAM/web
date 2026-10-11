@@ -403,6 +403,40 @@ def test_dungeon_is_free_daily_and_blocks_walls(client):
     assert b"been down today" in client.get("/adventure/dungeon").data
 
 
+def test_dungeon_actions_swap_the_block_without_a_reload(client):
+    user = create_user("445")
+    user["main_characters"] = [char(1, xp=10000)]
+    put(client, user)
+    hx = {**login(client, "445"), "HX-Request": "true"}
+
+    page = client.get("/adventure/dungeon").data.decode()
+    assert 'id="dungeon-page"' in page and 'hx-target="#dungeon-page"' in page
+    r = client.post("/adventure/dungeon/start", headers=hx)
+    body = r.data.decode()
+    assert r.status_code == 200 and "<html" not in body and "Loot bag" in body  # just the block, no redirect
+    assert "data-float" in body and "You step into the dark" in body  # the flash rides along as a toast
+    assert doc(client, "445")["web_delve"]["run"]["depth"] == 1
+
+    from app.game import dungeon
+    run = doc(client, "445")["web_delve"]["run"]
+    plan = dungeon.floor_plan(run["day"], run["depth"])
+    fights = [t for t, k in plan["events"].items() if k in dungeon.FIGHTS]
+    assert any(_walk_to(client, hx, "445", t) == "fight" for t in fights)
+    body = client.get("/adventure/dungeon", headers=hx).data.decode()
+    assert 'id="fight"' in body and "<html" not in body
+    fight = dbmod.load_fight("445")
+    for c in fight.sides[1].chars:
+        c.current_hp = 0
+    dbmod.save_fight("445", fight)
+    done = client.post("/adventure/dungeon/attack", headers=hx).data.decode()
+    assert 'id="fight-leave"' in done and 'hx-target="#dungeon-page"' in done  # "Back to dungeon" swaps too
+    back = client.post("/adventure/dungeon/leave", headers=hx)
+    assert back.status_code == 200 and "Loot bag" in back.data.decode() and dbmod.load_fight("445") is None
+
+    r = client.post("/adventure/dungeon/giveup", headers=hx)
+    assert r.status_code == 200 and "Enter today" in r.data.decode() and doc(client, "445")["web_delve"]["run"] is None
+
+
 def test_dungeon_floor_plans_are_daily_and_reachable():
     from collections import deque
     from app.game import dungeon
