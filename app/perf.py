@@ -14,6 +14,7 @@ from functools import lru_cache
 from flask import request
 
 MIN_SIZE = 1024
+SLOW_SECONDS = 1.5  # a page slower than this is logged (admin Logs tab, WARNING) with how long it took
 COMPRESSIBLE = {"text/html", "text/css", "text/javascript", "application/javascript", "application/json",
                 "image/svg+xml", "application/manifest+json", "text/plain", "application/xml"}
 YEAR = 365 * 24 * 3600
@@ -38,6 +39,24 @@ def install(app):
             v = version(values["filename"])
             if v:
                 values["v"] = v
+
+    @app.before_request
+    def started():
+        from flask import g
+        import time
+        g._t0 = time.perf_counter()
+
+    @app.after_request
+    def slow_log(resp):
+        from flask import g
+        import time
+        t0 = getattr(g, "_t0", None)
+        if t0 is not None and request.endpoint != "static":
+            took = time.perf_counter() - t0
+            if took > SLOW_SECONDS:
+                app.logger.warning("slow request: %s %s took %.1fs (status %s)", request.method, request.path, took,
+                                   resp.status_code)
+        return resp
 
     @app.after_request
     def speed(resp):

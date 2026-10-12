@@ -216,3 +216,38 @@ def test_a_dead_climb_never_strands_the_player(client):
     d = doc(client, "314")
     assert d["web_tower"]["run"]["floor"] == 1 and d["fragments"] == 5000 - 500
     assert dbmod.load_fight("314").kind == "tower"
+
+
+def test_puzzles_are_rechecked_after_a_balance_change(client, monkeypatch):
+    import json
+    from app.game import puzzle
+    db = client.fake
+    with client.application.app_context():
+        spec = {"id": 1, "stands": [1, 4, 5, 6, 7, 9], "items": [1, 2, 4, 5], "enemies": [10, 30], "rules": {},
+                "mult": 1.0, "solution": {"picks": [0, 1, 2], "gear": {"0": 0}, "rate": 0.7}, "bv": "old"}
+        db.hset(puzzle.LIB, "1", json.dumps(spec))
+        db.rpush(puzzle.DAILY_Q, 1)
+        current = dict(spec, id=2, bv=puzzle.balance_version())
+        db.hset(puzzle.LIB, "2", json.dumps(current))
+        db.rpush(puzzle.PERSONAL_Q, 2)
+        rates = iter([0.30, 0.75])  # drifted under the new rules, then re-tuned back
+        monkeypatch.setattr(puzzle, "_rate", lambda *a, **k: next(rates))
+        monkeypatch.setattr(puzzle, "_tune", lambda s, *a, **k: s.__setitem__("mult", 0.8) or 0.8)
+        assert puzzle.recheck_some() == 1  # only the stale one; the current one is skipped
+        after = puzzle.from_library(1)
+        assert after["bv"] == puzzle.balance_version() and after["mult"] == 0.8 and after["solution"]["rate"] == 0.75
+        assert puzzle.recheck_some() == 0 and puzzle.recheck_progress()["complete"]
+        log = puzzle.read_log()
+        assert log[0]["kind"] == "recheck" and log[0]["outcome"] == "retuned"
+
+
+def test_a_puzzle_whose_answer_died_is_rebuilt_in_place(client, monkeypatch):
+    from app.game import puzzle
+    with client.application.app_context():
+        spec = {"id": 7, "stands": [1, 4, 5, 6, 7, 9], "items": [1, 2, 4, 5], "enemies": [10, 30], "rules": {},
+                "mult": 1.0, "solution": {"picks": [0, 1, 2], "gear": {}, "rate": 0.7}, "bv": "old"}
+        monkeypatch.setattr(puzzle, "_rate", lambda *a, **k: 0.1)  # unwinnable now, even re-tuned
+        monkeypatch.setattr(puzzle, "_tune", lambda s, *a, **k: 0.2)
+        monkeypatch.setattr(puzzle, "generate", lambda seed: {"stands": [2, 3], "mult": 1.3, "solution": {"rate": 0.7}})
+        assert puzzle.recheck(spec) == "rebuilt"
+        assert spec["id"] == 7 and spec["stands"] == [2, 3] and spec["bv"] == puzzle.balance_version()

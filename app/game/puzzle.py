@@ -230,7 +230,7 @@ def status() -> dict:
     """For the admin page: the stock, the task's heartbeat, whether a build is running right now."""
     beat = r().get(BEAT_KEY)
     beat = int(beat) if beat else None
-    return {**stock(), "beat": beat, "alive": bool(beat and time.time() - beat < GEN_EVERY * 2 + 60),
+    return {**stock(), "beat": beat, "alive": bool(beat and time.time() - beat < GEN_EVERY * 2 + 60), "recheck": recheck_progress(),
             "building": bool(r().exists("web:puzzle:gen:lock")), "every": GEN_EVERY,
             "daily_buffer": DAILY_BUFFER, "library_max": LIBRARY_MAX}
 
@@ -244,6 +244,106 @@ def stock() -> dict:
     return {"daily": r().llen(DAILY_Q), "personal": r().llen(PERSONAL_Q), "total": int(r().get(SEQ) or 0)}
 
 
+# ── Balance re-checks ────────────────────────────────────────────────────
+# A puzzle stores its crew's strength (mult) tuned under the rules of the day it was built; stats are rebuilt from
+# the code at every play. After a balance change, puzzles built before it are re-checked: the stored solution is
+# replayed, the strength re-tuned if its win rate drifted, and a puzzle whose answer can't win anymore is rebuilt in
+# place (same id, so nobody's place in the personal library moves). The day's puzzle already in play is never touched.
+FIGHT_FILES = ("character.py", "characterabilities.py", "fight.py", "effects.py", "itemabilities.py", "items.py",
+               "resonance.py", "overheaven.py", "gear.py", "planner.py", "data/characters.json", "data/items.json")
+RECHECK_RUNS = 40
+DRIFT_LOW, DRIFT_HIGH = 0.55, 0.88   # the stored answer's win rate inside this band: the puzzle still holds
+RECHECK_BATCH = 100                  # puzzles re-checked per round of the task (~0.06 s each: a few seconds of CPU)
+RECHECK_CURSOR = "web:puzzle:recheck:cursor"   # "<version>:<next personal index>"
+_version = {}
+
+
+def balance_version() -> str:
+    """A fingerprint of everything that decides a fight: any balance change gives a new one (computed once)."""
+    if "v" not in _version:
+        import hashlib
+        import os
+        here = os.path.dirname(__file__)
+        h = hashlib.sha1()
+        for name in FIGHT_FILES:
+            try:
+                with open(os.path.join(here, name), "rb") as fh:
+                    h.update(fh.read())
+            except OSError:
+                h.update(name.encode())
+        _version["v"] = h.hexdigest()[:10]
+    return _version["v"]
+
+
+def recheck(spec: dict) -> str:
+    """Re-check one puzzle under today's rules (in place). Returns "ok", "retuned" or "rebuilt"."""
+    sol = spec.get("solution") or {}
+    if sol.get("picks"):
+        picks = list(sol["picks"])
+        gear = {int(k): v for k, v in (sol.get("gear") or {}).items()}
+        rate = _rate(spec, picks, gear, RECHECK_RUNS)
+        if DRIFT_LOW <= rate <= DRIFT_HIGH:
+            sol["rate"] = round(rate, 2)
+            spec["bv"] = balance_version()
+            return "ok"
+        _tune(spec, picks, gear)
+        rate = _rate(spec, picks, gear, RECHECK_RUNS)
+        if rate >= MIN_BEST:
+            sol["rate"] = round(rate, 2)
+            spec["bv"] = balance_version()
+            return "retuned"
+    pid = spec.get("id")
+    fresh = generate(f"lib:{pid}:bv:{balance_version()}")  # the answer can't win anymore: a new puzzle, same id
+    spec.clear()
+    spec.update(fresh, id=pid, bv=balance_version())
+    return "rebuilt"
+
+
+def recheck_some(limit: int = RECHECK_BATCH) -> int:
+    """Re-check up to `limit` puzzles built under older rules: the daily queue first, then the personal library in
+    order. Returns how many were re-checked (0: everything is current)."""
+    bv = balance_version()
+    done = 0
+
+    def handle(pid) -> None:
+        nonlocal done
+        spec = from_library(pid)
+        if not spec or spec.get("bv") == bv:
+            return
+        before = spec.get("mult")
+        outcome = recheck(spec)
+        r().hset(LIB, str(pid), json.dumps(spec))
+        log("recheck", id=int(pid), outcome=outcome, mult_from=before, mult=spec.get("mult"),
+            best=(spec.get("solution") or {}).get("rate"))
+        done += 1
+
+    for pid in r().lrange(DAILY_Q, 0, -1):
+        if done >= limit:
+            return done
+        handle(pid.decode() if isinstance(pid, bytes) else pid)
+    raw = r().get(RECHECK_CURSOR)
+    cur = raw.decode() if isinstance(raw, bytes) else (raw or "")
+    ver, _, idx = cur.partition(":")
+    idx = int(idx) if ver == bv and idx.isdigit() else 0
+    total = r().llen(PERSONAL_Q)
+    while idx < total and done < limit:
+        pid = r().lindex(PERSONAL_Q, idx)
+        handle(pid.decode() if isinstance(pid, bytes) else pid)
+        idx += 1
+    r().set(RECHECK_CURSOR, f"{bv}:{idx}")
+    return done
+
+
+def recheck_progress() -> dict:
+    """For the admin page: how far the library's re-check under the current rules has got."""
+    raw = r().get(RECHECK_CURSOR)
+    cur = raw.decode() if isinstance(raw, bytes) else (raw or "")
+    ver, _, idx = cur.partition(":")
+    total = r().llen(PERSONAL_Q)
+    at = int(idx) if ver == balance_version() and idx.isdigit() else 0
+    return {"version": balance_version(), "done": min(at, total), "total": total, "complete": at >= total}
+
+
 def generate_one() -> Optional[str]:
     """One step of the task: build a puzzle where it's needed most. Returns the pool it went to, or None."""
     need = "daily" if r().llen(DAILY_Q) < DAILY_BUFFER else "personal" if r().llen(PERSONAL_Q) < LIBRARY_MAX else None
@@ -253,6 +353,7 @@ def generate_one() -> Optional[str]:
     started_at = time.time()
     spec = generate(f"lib:{pid}")
     spec["id"] = pid
+    spec["bv"] = balance_version()  # built under today's rules: re-checked after the next balance change
     sol = spec.get("solution") or {}
     log("built", id=pid, pool=need, seconds=round(time.time() - started_at, 1), attempt=spec.get("attempt"),
         best=sol.get("rate"), good=spec.get("good"), checked=spec.get("checked"), mult=spec.get("mult"),
@@ -278,6 +379,12 @@ def start_generator(app, every: int = GEN_EVERY):
             try:
                 r().set(BEAT_KEY, int(time.time()), ex=86400)
                 if r().set("web:puzzle:gen:lock", "1", nx=True, ex=every):
+                    with app.app_context():
+                        rechecked = recheck_some()  # puzzles built under older rules come first
+                    if rechecked:
+                        r().delete("web:puzzle:gen:lock")
+                        time.sleep(20)  # a short breath, then the next batch
+                        continue
                     with app.app_context():
                         went = generate_one()
                     if went is None and not r().exists("web:puzzle:log:full"):

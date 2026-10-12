@@ -7,6 +7,8 @@
   <div><span>Daily queue</span><strong>{{ st.daily }}</strong><small>of {{ st.daily_buffer }} kept ahead</small></div>
   <div><span>Personal library</span><strong>{{ st.personal|num }}</strong><small>of {{ st.library_max|num }}</small></div>
   <div><span>Built in all</span><strong>{{ st.total|num }}</strong><small>one every {{ st.every // 60 }} min</small></div>
+  <div><span>Balance re-check</span><strong>{{ '✔ current' if st.recheck.complete else (st.recheck.done ~ ' / ' ~ st.recheck.total) }}</strong>
+    <small>rules {{ st.recheck.version }} · after a balance change, older puzzles are replayed and re-tuned</small></div>
   <div><span>Today's daily</span><strong>{{ ('#' ~ today.id) if today and today.id else '—' }}</strong><small>{{ today.day if today else 'none picked yet' }}</small></div>
 </div>
 
@@ -23,10 +25,11 @@
           {% for row in rows %}
             <tr class="pz-log-{{ row.kind }}">
               <td><time data-ago="{{ row.at }}" datetime="{{ row.at }}"></time></td>
-              <td>{{ {'built': '🧩 Built', 'daily': '🌍 Daily picked', 'empty': '⚠ Queue empty', 'full': '✔ Library full', 'error': '❌ Error'}.get(row.kind, row.kind) }}</td>
+              <td>{{ {'built': '🧩 Built', 'daily': '🌍 Daily picked', 'empty': '⚠ Queue empty', 'full': '✔ Library full', 'error': '❌ Error', 'recheck': '⚖ Re-checked'}.get(row.kind, row.kind) }}</td>
               <td>
                 {% if row.kind == 'built' %}#{{ row.id }} → {{ row.pool }} · {{ row.seconds }} s · try {{ (row.attempt or 0) + 1 }} · best team {{ ((row.best or 0) * 100)|round|int }}% · {{ row.good }} of 20 teams work · ×{{ row.mult }} · {{ row.checked|num }} fights{% if row.rules %} · {{ row.rules|join(', ') }}{% endif %}
                 {% elif row.kind == 'daily' %}#{{ row.id }} for {{ row.day }} · {{ row.left }} left in the queue
+                {% elif row.kind == 'recheck' %}#{{ row.id }} · {{ {'ok': 'still holds', 'retuned': 'strength re-tuned', 'rebuilt': 'rebuilt (its answer stopped working)'}.get(row.outcome, row.outcome) }} · ×{{ row.mult_from }} → ×{{ row.mult }} · best team {{ ((row.best or 0) * 100)|round|int }}%
                 {% elif row.kind == 'error' %}<code>{{ row.error }}</code>
                 {% else %}{{ row.note or row.day or '' }}{% endif %}
               </td>
