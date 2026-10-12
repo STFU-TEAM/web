@@ -4952,3 +4952,12 @@ a.cup-name:hover { color: var(--gold); }
 .sticker-admin-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; }
 .sticker-admin-grid li { display: grid; justify-items: center; gap: .3rem; padding: .7rem; border-radius: var(--radius-ui); background: var(--night-2); border: 1px solid var(--night-3); }
 .sticker-admin-grid form { margin: 0; }
+
+/* Maintenance mode: the admin switch, and the banner admins see while it's on */
+.maint-card { margin-bottom: 1rem; }
+.maint-card.on { border-color: var(--magenta); background: rgb(214 36 110 / .12); }
+.maint-form { display: grid; gap: .5rem; max-width: 34rem; }
+.maint-form label { display: grid; gap: .2rem; font-weight: 700; font-size: .85rem; }
+.maint-banner { position: fixed; left: 50%; top: .5rem; z-index: 90; translate: -50% 0; padding: .35rem .9rem; border: 2px solid var(--ink);
+  border-radius: 999px; background: var(--magenta); color: var(--paper); font-size: .8rem; font-weight: 700; text-decoration: none;
+  box-shadow: 3px 3px 0 var(--ink); white-space: nowrap; max-width: calc(100vw - 1rem); overflow: hidden; text-overflow: ellipsis; }

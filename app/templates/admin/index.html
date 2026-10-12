@@ -8,6 +8,23 @@
   </section>
 {% endif %}
 
+<section class="admin-card maint-card{{ ' on' if maint }}" aria-labelledby="maint-h">
+  <h2 class="h3" id="maint-h">{{ '🛠 Maintenance is ON' if maint else '🛠 Maintenance mode' }}</h2>
+  {% if maint %}
+    <p>Players see the maintenance screen{% if maint.until %} (back around {{ maint.until }}){% endif %}; admins browse as usual. Turned on {{ maint.at|replace('T', ' ') }} UTC.</p>
+    {% if maint.message %}<p class="muted">“{{ maint.message }}”</p>{% endif %}
+    <form method="post" action="{{ url_for('admin.maintenance_switch') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="on" value="0">
+      <button class="btn gold">Turn maintenance off: open the site</button></form>
+  {% else %}
+    <form class="maint-form" method="post" action="{{ url_for('admin.maintenance_switch') }}" onsubmit="return confirm('Close the site to players?')">
+      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="on" value="1">
+      <label>Message for players <textarea name="message" rows="2" maxlength="500" placeholder="STFU Requiem is getting an update. Your save is safe: come back in a little while."></textarea></label>
+      <label>Back around (optional) <input name="until" maxlength="40" placeholder="18:00 UTC"></label>
+      <button class="btn">Turn maintenance on</button>
+    </form>
+  {% endif %}
+</section>
+
 <div class="stat-tiles">
   <div><span>Saves</span><strong>{{ counts.players|num }}</strong><small>{{ stats.totals.web_only|num }} web-only</small></div>
   <div><span>Supporters</span><strong>{{ stats.totals.supporters|num }}</strong></div>

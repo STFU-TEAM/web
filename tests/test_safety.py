@@ -88,3 +88,30 @@ def test_errors_alert_once_per_repeat_window(monkeypatch):
     h.emit(rec)
     h.emit(rec)
     assert len(sent) == 1 and "boom on page" in alerts._text(sent[0])
+
+
+def test_maintenance_closes_the_site_to_players_but_not_admins(client):
+    from app import maintenance
+    player(client, "700", main_characters=[char(1)])
+    player(client, "701", main_characters=[char(1)])
+    client.application.config["DISCORD_ADMIN_IDS"] = {"700"}
+    h = login(client, "700")
+    assert "Maintenance mode" in client.get("/admin", headers=h).data.decode()
+    client.post("/admin/maintenance", data={"on": "1", "message": "New Part coming!", "until": "18:00 UTC"}, headers=h)
+    maintenance._cache["db"] = None
+    page = client.get("/team", headers=h)
+    assert page.status_code == 200 and "Maintenance is ON" in page.data.decode()  # the admin browses, with a banner
+
+    login(client, "701")  # a player
+    maintenance._cache["db"] = None
+    blocked = client.get("/team")
+    body = blocked.data.decode()
+    assert blocked.status_code == 503 and "Under maintenance" in body and "New Part coming!" in body and "18:00 UTC" in body
+    assert client.get("/battles/queue-bar", headers={"HX-Request": "true"}).headers.get("HX-Refresh") == "true"
+    assert client.get("/healthz").status_code == 200 and client.get("/auth/login").status_code in (200, 302)
+
+    login(client, "700")
+    client.post("/admin/maintenance", data={"on": "0"}, headers=h)
+    maintenance._cache["db"] = None
+    login(client, "701")
+    assert client.get("/team").status_code == 200

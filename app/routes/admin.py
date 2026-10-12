@@ -171,10 +171,27 @@ def index():
     for key in ("rich", "newest"):
         stats[key] = [(value, uid, identity(uid)["name"]) for value, uid in stats[key]]
     signups = _signups(stats.get("joined") or {}, logic.now().date())
-    from app import wipe
+    from app import maintenance, wipe
     return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats, signups=signups,
+                           maint=maintenance.state(r()),
                            audit=_audit_rows(8), section="dashboard", deleted=wipe.deleted(), keep_days=wipe.KEEP_DAYS,
                            owner=is_owner(session["uid"]))
+
+
+@bp.post("/maintenance")
+@admin_required
+def maintenance_switch():
+    """Turn maintenance mode on (players get the maintenance screen, admins keep browsing) or off."""
+    from app import maintenance
+    if request.form.get("on") == "1":
+        maintenance.turn_on(r(), session["uid"], request.form.get("message", ""), request.form.get("until", ""))
+        audit("maintenance_on", message=request.form.get("message", "")[:100])
+        flash("Maintenance is ON: players see the maintenance screen. You (and other admins) can still browse.", "ok")
+    else:
+        maintenance.turn_off(r())
+        audit("maintenance_off")
+        flash("Maintenance is off: the site is open again.", "ok")
+    return redirect(url_for("admin.index"))
 
 
 # --------------------------------------------------------------------------- #

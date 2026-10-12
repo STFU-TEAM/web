@@ -385,6 +385,7 @@
   {% if duel_waiting %}<div hidden hx-get="{{ url_for('battles.ping') }}" hx-trigger="every 3s" hx-swap="none"></div>{% endif %}
 
   {% if me.id %}{% include "partials/tour.html" %}{% endif %}
+  {% if maintenance %}<a class="maint-banner" href="{{ url_for('admin.index') }}">🛠 Maintenance is ON: players can't get in. You see the site because you're an admin.</a>{% endif %}
 
   <aside class="install-hint" data-install hidden aria-label="Install the app">
     <img src="{{ url_for('static', filename='img/icon-192.png') }}" alt="" width="44" height="44">
