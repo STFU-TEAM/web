@@ -2027,7 +2027,7 @@
             "id": 120,
             "name": "Dirty Deeds Done Dirt Cheap (D4C)",
             "rarity": "LR",
-            "special_description": "Swaps in a fresh self from another world: clears its debuffs, heals `20%` of its max health and strikes its target for `160%` damage.",
+            "special_description": "Swaps in a fresh self from another world: clears its debuffs, heals `14%` of its max health and strikes its target for `160%` damage.",
             "special_url": "",
             "base_hp": 500,
             "base_damage": 85,

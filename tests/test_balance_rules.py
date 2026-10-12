@@ -125,3 +125,16 @@ def test_maxed_stats_and_single_hits_stay_well_under_10k():
     big = _stand(120, items=(41, 41, 41), awaken=5)
     assert big.start_hp < 5000 and big.start_damage < 1000
     assert soften(8000) < 5500 and soften(HIT_SOFT_CAP) == HIT_SOFT_CAP and soften(100) == 100
+
+
+def test_love_train_pairs_ticket_to_ride_and_d4c():
+    assert abilities.SYNERGIES["love_train"] == {119, 120}
+    assert "love_train" in abilities.CROSS_GROUPS
+    ttr, d4c, foe = _stand(119), _stand(120), _stand(1)
+    d4c.add_effect(Effect(EffectType.POISON, 3, 50, foe))
+    _, msg = abilities.ticket_to_ride(ttr, [ttr, d4c], [foe])
+    assert "Love Train" in msg and not any(e.type == EffectType.POISON for e in d4c.effects)
+    _, msg = abilities.dirty_deed_done_dirt_cheap(d4c, [ttr, d4c], [foe])
+    assert "Love Train" in msg
+    _, msg = abilities.dirty_deed_done_dirt_cheap(d4c, [d4c], [_stand(1)])
+    assert "Love Train" not in msg

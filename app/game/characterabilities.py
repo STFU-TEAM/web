@@ -169,6 +169,8 @@ SYNERGIES.update({
     "schott_keys": {151, 152},
     # Heavy Weather: Whitesnake gives Weather Report back the DISC of his memory, and the rainbow turns people to snails
     "heavy_weather": {94, 107},
+    # Love Train: the Saint's corpse rides with the President, and Ticket to Ride's holy light rides the train
+    "love_train": {119, 120},
 })
 # Members who were missing from their crew: Abbacchio and Coco Jumbo, Ermes and Emporio, Pesci and Risotto
 SYNERGIES["passione"] |= {62, 70}
@@ -188,7 +190,7 @@ SYNERGY_MIN = {key: 3 for key in PART_GROUPS}  # members needed on the team (2 f
 # were tuned without them, so computer-controlled enemies get neither their bonus nor their special changes.
 CROSS_GROUPS = {"dio_pucci", "boingo_hol_horse", "pesci_prosciutto", "enyaba_geil", "nijimura", "trussardi",
                 "first_love", "polpo_test", "fate", "fugo_narancia", "cellmates", "tide", "swarm", "disguise", "fire",
-                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys", "heavy_weather"}
+                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys", "heavy_weather", "love_train"}
 PLAYER_ONLY = set(PART_GROUPS) | CROSS_GROUPS
 
 
@@ -254,6 +256,7 @@ SYNERGY_INFO = {
     "soul": ("Souls & dreams", "👻"),
     "plague": ("The plague", "☣️"),
     "heavy_weather": ("Heavy Weather", "🐌"),
+    "love_train": ("Love Train", "🚂"),
     "mirrors": ("Through the looking glass", "🪞"),
     "morioh_2011": ("Morioh, 2011", "🏙️"),
     "schott_keys": ("Schott Keys", "🗝️"),
@@ -329,6 +332,7 @@ SYNERGY_BONUS = {
     "soul": [("damage_pct", 0.08), ("crit_flat", 8)],
     "plague": [("damage_pct", 0.10), ("hp_pct", 0.06)],
     "heavy_weather": [("damage_pct", 0.10), ("speed_pct", 0.08)],
+    "love_train": [("armor_pct", 0.08), ("damage_pct", 0.06)],
     "mirrors": [("crit_flat", 10), ("speed_pct", 0.08)],
     "morioh_2011": [("hp_pct", 0.08), ("damage_pct", 0.06)],
     "schott_keys": [("damage_pct", 0.12), ("speed_pct", 0.06)],
@@ -2256,6 +2260,15 @@ def cream_starter(character, allied_characters, enemy_characters) -> tuple:
 
 def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
+    if _has_synergy(character.id, allied_characters, "love_train"):
+        # Love Train: the holy light rides the train, and every misfortune on the team slides away
+        for ally in _alive(allied_characters):
+            _cleanse(ally)
+            _regen(ally, 2, ally.start_hp * 0.06, character)
+        for enemy in _alive(enemy_characters):
+            _debuff(enemy, "damage", 0.25, 2, character)
+        return payload, (f"｢{character.name}｣ rides the Love Train! Holy light washes every debuff off the team, allies "
+                         f"regenerate, enemies -25% damage! 🚂 Love Train!")
     for ally in _alive(allied_characters):
         _regen(ally, 2, ally.start_hp * 0.06, character)
     for enemy in _alive(enemy_characters):
@@ -2268,6 +2281,13 @@ def dirty_deed_done_dirt_cheap(character, allied_characters, enemy_characters) -
     _cleanse(character)
     healed = _heal(character, character.start_hp * 0.14)  # was 0.20: D4C outhealed everything in long fights
     target = _target(character, enemy_characters)
+    if _has_synergy(character.id, allied_characters, "love_train"):
+        # Love Train: misfortune is redirected somewhere else in the world: onto the enemy
+        damage = _hit(character, target, 2.0) if target else 0
+        for enemy in _alive(enemy_characters):
+            _debuff(enemy, "damage", 0.15, 2, character)
+        return payload, (f"｢{character.name}｣ boards the Love Train: heals {healed}, cleansed, and every misfortune is "
+                         f"redirected: {target.name if target else 'nothing'} takes {damage}, every enemy -15% damage! 🚂 Love Train!")
     damage = _hit(character, target, 1.6) if target else 0
     return payload, f"｢{character.name}｣ swaps in a fresh self from another world: heals {healed}, cleansed, and strikes for {damage}!"
 

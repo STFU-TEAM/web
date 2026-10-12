@@ -179,8 +179,12 @@ SYNERGY_EFFECTS = {
         69: "Its allies are carriers: the virus doesn't touch them.",
         81: "The mold takes −15% armor too.",
     },
+    "love_train": {
+        119: "Love Train: the holy light also washes every debuff off the team, and enemies lose 25% damage (from 20%).",
+        120: "Love Train: the strike hits for 2.0× (from 1.6×) and every enemy loses 15% damage for 2 turns.",
+    },
     "heavy_weather": {
-        94: "Heavy Weather: every enemy is poisoned for 3 turns (0.45× from 0.3×), −30% speed and −15% damage.",
+        94: "Heavy Weather: every enemy is poisoned for 3 turns (0.55×), −30% speed and −15% damage, and the lightning hits harder (1.4×).",
         107: "Steals 35% damage and speed (from 25%) and the stolen DISC poisons the target for 3 turns.",
     },
     "mirrors": {
