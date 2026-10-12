@@ -691,7 +691,7 @@ def _items_ctx(user):
     remember_craftable(user)
     return {"u": user, "groups": groups, "recipes": _recipes(user), "shop": DEFAULT_SHOP,
             "sell_price": logic.sell_price, "equip_opts": _equip_options(user, groups), "refinable": _refinable(user.items),
-            "forge": gear.forge_rows(user)}
+            "forge": gear.forge_rows(user), "storage_price": logic.storage_ext_price(user)}
 
 
 CRAFTABLE_KEY = "web:craftable:{}"
@@ -923,7 +923,7 @@ def mirror():
     fight = load_fight(session["uid"])
     other_fight = None
     if fight and fight.kind != "wormhole":
-        other_fight = fight.kind
+        other_fight = None if fight.finished else fight.kind  # a finished one is only its end screen
         fight = None
     team = user.main_characters
     return render_template("mirror.html", u=user, fight=fight, st=status(user), other_fight=other_fight,
@@ -938,7 +938,7 @@ def mirror():
 def mirror_start():
     uid = session["uid"]
     existing = load_fight(uid)
-    if existing and not (existing.kind == "wormhole" and existing.finished):  # a finished one: "Fight again"
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it  # a finished one: "Fight again"
         return redirect(url_for("play.mirror"))
 
     def start(u):
@@ -1020,6 +1020,12 @@ def tower_start():
 
     def start(user):
         s = tower_logic.state(user)
+        if s.get("run"):
+            team = tower_logic.load_team(r(), uid)
+            if not team or not any(c.is_alive() for c in team):
+                # a climb whose fighters are gone (expired, or all down) is over: close it here and start the new one
+                # this click asked for. Raising instead threw the close away (no save on an error) and stranded it.
+                tower_logic.abandon(user, r())
         if not s.get("run"):
             tower_logic.start_climb(user, r(), fighting_copy(user.main_characters), mode=request.form.get("mode", ""),
                                     oh=request.form.get("oh") == "1")
@@ -1027,8 +1033,7 @@ def tower_start():
             logic.check_achievements(user, "tower_attempt")
         team = tower_logic.load_team(r(), uid)
         if not team or not any(c.is_alive() for c in team):
-            tower_logic.abandon(user, r())
-            raise GameError("Your climb expired or your team is down. Start a new climb.")
+            raise GameError("Your team has no stand that can fight. Heal or change your team, then climb again.")
         run = s["run"]
         floor, mode = run["floor"], tower_logic.mode_of(run)
         meta = {"floor": floor, "mode": mode}

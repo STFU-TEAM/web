@@ -126,7 +126,7 @@ def steel_ball(
 def rokakaka_graft(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
-    healed = stand.heal(stand.start_hp * 0.12)
+    healed = stand.heal(stand.start_hp * 0.08)
     if not healed:
         return "None"
     return f"｢{stand.name}｣'s Rokakaka graft takes root: heals {healed}!"

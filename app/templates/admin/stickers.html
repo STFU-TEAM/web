@@ -1,0 +1,32 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Stickers{% endblock %}
+{% block admin %}
+<section class="social-panel">
+  <h2 class="h2">Chat emotes and stickers</h2>
+  <p class="muted small-print">Players use them in any chat as <code>:name:</code>, or pick them from the 😊 button. An <b>emote</b> is drawn small inside a sentence; a <b>sticker</b> is meant to be sent on its own, and shows big when it's the whole message (any of them does). PNG, GIF (animated is fine), WEBP or JPEG, up to {{ max_kb }} KB; {{ rows|length }} of {{ max_count }} used. Re-uploading a name replaces it.</p>
+  <form class="sticker-form" method="post" action="{{ url_for('admin.stickers_action', op='add') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label>Name <input name="name" required pattern="[a-z0-9_]{2,24}" placeholder="menacing" autocapitalize="none" spellcheck="false"></label>
+    <label>Kind <select name="kind"><option value="emote">Emote (small, in text)</option><option value="sticker">Sticker (big, on its own)</option></select></label>
+    <label>Image <input type="file" name="file" accept="image/png,image/gif,image/webp,image/jpeg" required></label>
+    <button class="btn gold">Upload</button>
+  </form>
+</section>
+
+<section class="social-panel">
+  {% if rows %}
+    <ul class="sticker-admin-grid">
+      {% for m in rows %}
+        <li>
+          <img src="{{ url(m) }}" alt="" loading="lazy" class="{{ 'chat-sticker' if m.kind == 'sticker' else 'chat-emote big' }}">
+          <code>:{{ m.name }}:</code>
+          <small class="muted">{{ m.kind }} · {{ (m.size / 1024)|round|int }} KB</small>
+          <form method="post" action="{{ url_for('admin.stickers_action', op='delete') }}" onsubmit="return confirm('Delete :{{ m.name }}:?')">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="name" value="{{ m.name }}">
+            <button class="btn small ghost">Delete</button></form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}<p class="muted">No emotes or stickers yet.</p>{% endif %}
+</section>
+{% endblock %}

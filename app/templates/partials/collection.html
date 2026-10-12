@@ -99,7 +99,7 @@
 <section class="shelf storage" id="storage">
   <header class="shelf-head">
     <h2 class="h2">Storage</h2>
-    <p class="{{ 'storage-full' if u.storage_characters|length >= 180 else 'muted' }}">{{ u.storage_characters|length }} / 200 stands{% if locked %} · {{ locked|length }} locked{% endif %}{% if u.storage_characters|length >= 180 %} · almost full{% endif %}</p>
+    {% set cap = u.storage_capacity %}<p class="{{ 'storage-full' if u.storage_characters|length >= cap - 20 else 'muted' }}">{{ u.storage_characters|length }} / {{ cap }} stands{% if locked %} · {{ locked|length }} locked{% endif %}{% if u.storage_characters|length >= cap - 20 %} · almost full: <a href="{{ url_for('play.items') }}#shop">extend it in the shop</a>{% endif %}</p>
     {% if fusable %}
       <button class="btn small gold autofuse" hx-post="{{ url_for('play.autofuse') }}" hx-target="#collection"
               hx-confirm="Fuse every unlocked R and SR duplicate into its best copy (your team copy first)? {{ fusable }} cards will be consumed."

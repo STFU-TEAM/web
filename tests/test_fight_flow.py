@@ -24,7 +24,8 @@ def test_crit_chance_past_100_stacks_crits(monkeypatch):
     from app.game import character
     monkeypatch.setattr(character.random, "random", lambda: 0.49)
     assert character.crit_tier(0) == 0 and character.crit_tier(49) == 0 and character.crit_tier(50) == 1
-    assert character.crit_tier(150) == 2 and character.crit_tier(250) == 3 and character.crit_tier(320) == 3
+    # past 100, chance counts half: 150 -> 125, 250 -> 175, 320 -> 210
+    assert character.crit_tier(150) == 1 and character.crit_tier(250) == 2 and character.crit_tier(320) == 2
     monkeypatch.setattr(character.random, "random", lambda: 0.99)
     assert character.crit_tier(150) == 1 and character.crit_tier(100) == 1
 
@@ -34,18 +35,18 @@ def test_each_extra_crit_adds_the_crit_bonus_again(monkeypatch):
     monkeypatch.setattr(character.random, "random", lambda: 0.99)
     monkeypatch.setattr(character.random, "randint", lambda a, b: b)  # never dodges
     hits = {}
-    for chance in (0, 100, 200, 300):
+    for chance in (0, 100, 300, 500):  # past 100 counts half: 300 is a sure double, 500 a sure triple
         attacker, target = _stand(1), _stand(2)
         attacker.current_speed = target.current_speed = 10
         attacker.current_critical = chance
         hits[chance] = attacker.attack(target)
-    assert [hits[c]["crit"] for c in (0, 100, 200, 300)] == [0, 1, 2, 3]
+    assert [hits[c]["crit"] for c in (0, 100, 300, 500)] == [0, 1, 2, 3]
     m = _stand(1).crit_multiplier
     base = hits[0]["damage"]
     from app.game.character import crit_stack
-    for tier, chance in ((1, 100), (2, 200), (3, 300)):  # each extra crit adds a smaller share (CRIT_STACK_DECAY)
+    for tier, chance in ((1, 100), (2, 300), (3, 500)):  # each extra crit adds a smaller share (CRIT_STACK_DECAY)
         assert abs(hits[chance]["damage"] - base * (1 + (m - 1) * crit_stack(tier))) <= 1
-    assert hits[300]["damage"] > hits[200]["damage"] > hits[100]["damage"]
+    assert hits[500]["damage"] > hits[300]["damage"] > hits[100]["damage"]
 
 
 def test_fight_log_records_the_crit_tier(monkeypatch):
@@ -53,7 +54,7 @@ def test_fight_log_records_the_crit_tier(monkeypatch):
     from app.game.fight import Fight, Side
     monkeypatch.setattr(character.random, "random", lambda: 0.0)
     me, foe = _stand(1), _stand(2)
-    me.current_critical = 250
+    me.current_critical = 500  # 100 + 400 at half: a sure triple
     fight = Fight(Side("Me", [me], True), Side("Foe", [foe], False), kind="dummy")
     for _ in range(30):
         if fight.finished:

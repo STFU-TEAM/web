@@ -177,7 +177,7 @@ def index():
 def dummy_start():
     uid = session["uid"]
     existing = load_fight(uid)
-    if existing and not (existing.kind == "dummy" and existing.finished):  # a finished one: "Practice again"
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it  # a finished one: "Practice again"
         return redirect(url_for("battles.index", mode="dummy"))
     user = get_db().get_user(uid)
     if not user or not user.main_characters:

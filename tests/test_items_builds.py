@@ -95,7 +95,9 @@ def test_the_wiki_lists_the_new_gear(client):
     assert "15% of the health the holder has lost" in page
 
 
-def test_wonder_of_u_calamity_grows_exponentially_with_its_wounds():
+def test_wonder_of_u_calamity_grows_exponentially_with_its_wounds(monkeypatch):
+    from app.game import character
+    monkeypatch.setattr(character, "HIT_SOFT_CAP", 10 ** 9)  # the formula, on a million-health dummy
     def calamity(lost_share, foe_hp=10 ** 6):
         wou = _stand(WONDER_OF_U, awaken=5)
         wou.current_hp = round(wou.start_hp * (1 - lost_share))

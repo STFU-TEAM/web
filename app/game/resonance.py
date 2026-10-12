@@ -35,7 +35,7 @@ DUOS = {name for name, ids in SYNERGIES.items() if len(ids) == 2}
 
 SECOND_WIND_HEAL, SECOND_WIND_DAMAGE, SECOND_WIND_TURNS = 0.20, 0.20, 2
 AMBUSH_SLOW, AMBUSH_BREAK, AMBUSH_TURNS = 0.25, 0.15, 3
-LIFESTEAL = 0.15
+LIFESTEAL = 0.10  # was 0.15: lifesteal plus self-heals made sustain teams unkillable
 HOME_FIELD_MULT = 1.5
 PIERCE = 0.30
 

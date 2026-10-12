@@ -86,3 +86,42 @@ def test_poison_ticks_eat_a_share_of_max_health():
     before = foe.current_hp
     foe.end_turn()
     assert before - foe.current_hp == int(10 + POISON_MAX_HP * foe.start_hp)
+
+
+def test_armor_and_crit_are_capped_harder():
+    import random as _r
+    from app.game.character import ARMOR_CAP, crit_tier
+    assert ARMOR_CAP == 250 and 200 / (100 + ARMOR_CAP) > 0.55  # armor never cuts a hit below ~57%
+    assert crit_tier(100) == 1
+    _r.seed(3)
+    doubles = sum(crit_tier(160) == 2 for _ in range(2000)) / 2000
+    assert 0.25 < doubles < 0.35  # 160 crit: the 60 past 100 counts half, a ~30% double
+
+
+def test_bites_the_dust_rewinds_debuffs_too():
+    kq, ally, foe = _stand(58), _stand(1), _stand(4)
+    ally.current_hp = ally.start_hp // 2
+    ally.add_effect(Effect(EffectType.POISON, 3, 50, foe))
+    ally.add_effect(Effect(EffectType.WEAKEN, 2, 5, foe))
+    before = ally.current_hp
+    abilities.killer_queen_bite_the_dust(kq, [kq, ally], [foe])
+    assert ally.effects == [] and ally.current_hp > before
+
+
+def test_a_climb_keeps_no_growth_between_floors():
+    from app.game import tower
+    s = _stand(1)
+    base = s.current_damage
+    s.grow("damage", 0.5)  # a Stone Mask-like special during floor 1
+    tower.settle_fighters([s])
+    assert s.current_damage == base
+    s.grow("damage", 1.0)
+    tower.settle_fighters([s])
+    assert s.current_damage == base  # floor 2 starts from the same stats, not stacked
+
+
+def test_maxed_stats_and_single_hits_stay_well_under_10k():
+    from app.game.character import HIT_SOFT_CAP, soften
+    big = _stand(120, items=(41, 41, 41), awaken=5)
+    assert big.start_hp < 5000 and big.start_damage < 1000
+    assert soften(8000) < 5500 and soften(HIT_SOFT_CAP) == HIT_SOFT_CAP and soften(100) == 100

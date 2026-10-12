@@ -873,6 +873,39 @@ def safety_download(name):
     return send_file(path, as_attachment=True, download_name=name, mimetype="application/gzip")
 
 
+# --------------------------------------------------------------------------- #
+# Chat emotes and stickers (app/stickers.py)
+# --------------------------------------------------------------------------- #
+@bp.get("/stickers")
+@admin_required
+def stickers_page():
+    from app import stickers
+    rows = sorted(stickers.all_stickers(r()).values(), key=lambda m: (m["kind"], m["name"]))
+    return render_template("admin/stickers.html", rows=rows, url=stickers.url, max_kb=stickers.MAX_BYTES // 1024,
+                           max_count=stickers.MAX_COUNT, section="stickers")
+
+
+@bp.post("/stickers/<op>")
+@admin_required
+def stickers_action(op):
+    from app import stickers
+    if op == "add":
+        f = request.files.get("file")
+        try:
+            meta = stickers.add(r(), request.form.get("name", ""), request.form.get("kind", "emote"),
+                                f.read(stickers.MAX_BYTES + 1) if f else b"", session["uid"])
+            audit("sticker_add", target=meta["name"], sticker=meta["kind"])
+            flash(f"Added :{meta['name']}: ({meta['kind']}).", "ok")
+        except stickers.StickerError as e:
+            flash(str(e), "error")
+    elif op == "delete":
+        name = request.form.get("name", "")
+        if stickers.delete(r(), name):
+            audit("sticker_delete", target=name)
+            flash(f"Deleted :{name}:.", "ok")
+    return redirect(url_for("admin.stickers_page"))
+
+
 @bp.get("/logs")
 @admin_required
 def logs_page():

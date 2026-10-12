@@ -52,7 +52,7 @@ def finish_draft(c, ignore_clock=True):
 # Engine fixes
 # --------------------------------------------------------------------------- #
 def test_crits_hit_harder_and_effects_revert_exactly():
-    assert CRITMULTIPLIER == 1.5
+    assert 1.3 <= CRITMULTIPLIER <= 1.5  # crits add damage, without deciding fights alone
     c = get_character_from_template(CHARACTER_FILE[0], ["ATTACK"], ["GOOD"])
     dmg, spd = c.current_damage, c.current_speed
     c.effects = [Effect(EffectType.WEAKEN, 1, 5), Effect(EffectType.SLOW, 1, 2), Effect(EffectType.DAMAGEUP, 1, 7)]

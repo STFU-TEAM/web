@@ -10,6 +10,7 @@ from app.game.items import Item, item_from_dict
 USRXPTOLEVEL = 100
 LVLSCALING = 0.09
 STORAGE_CAPACITY = 200
+STORAGE_STEP, STORAGE_MAX_EXTENSIONS = 25, 8  # storage extensions (the Items shop): +25 slots each, up to +200
 
 class User:
     """| Class used as an interface to data ,Any change made to the class is also made to the data"""
@@ -120,6 +121,12 @@ class User:
         """Update the user info in the database"""
         self._note_level_up()
         self.database.update_user(self.to_dict())
+        try:  # the Quests tab lights up when a reward is waiting (one small key, read by the nav)
+            from app.db import r
+            from app.game import quests
+            r().set(quests.READY_KEY.format(self.id), quests.ready_count(self), ex=2 * 86400)
+        except Exception:
+            pass
 
     def _note_level_up(self) -> None:
         """A level gained since the last save pops a LEVEL UP on the website (with what it opened). The first save
@@ -160,11 +167,16 @@ class User:
                     return c, char_list, i
         return None, None, None
 
+    @property
+    def storage_capacity(self) -> int:
+        """Storage slots: the base, plus every storage extension bought on the website."""
+        return STORAGE_CAPACITY + STORAGE_STEP * int((self.data or {}).get("web_storage_ext", 0))
+
     def add_to_available_storage(self, character: "Character", skip_main:bool=False):
         if len(self.main_characters) < 3 and not skip_main:
             self.main_characters.append(character)
             return "Main Characters Storage"
-        if len(self.storage_characters) >= STORAGE_CAPACITY:
+        if len(self.storage_characters) >= self.storage_capacity:
             return False
         self.storage_characters.append(character)
         return "Collection"

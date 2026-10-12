@@ -1871,3 +1871,133 @@ document.addEventListener("DOMContentLoaded", () => {
   if (target) target.classList.add("coach-glow");
   coach.scrollIntoView({ behavior: "auto", block: "start" });
 });
+
+// Name suggestions that work on phones too ([data-suggest] on an input with a <datalist>): most mobile browsers barely
+// show a datalist, so the page draws its own list (the datalist stays as the source and the no-JS fallback).
+const initSuggest = (root) => (root.querySelectorAll ? root : document).querySelectorAll("input[data-suggest][list]").forEach((input) => {
+  const names = [...(document.getElementById(input.getAttribute("list"))?.options || [])].map((o) => o.value);
+  if (!names.length) return;
+  input.removeAttribute("list");
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+  const list = document.createElement("ul");
+  list.className = "suggest-list";
+  list.setAttribute("role", "listbox");
+  list.hidden = true;
+  input.insertAdjacentElement("afterend", list);
+  input.parentElement.classList.add("suggest-host");
+  const pick = (name) => { input.value = name; list.hidden = true; input.focus(); };
+  input.addEventListener("input", () => {
+    const q = norm(input.value);
+    list.innerHTML = "";
+    if (!q) { list.hidden = true; return; }
+    const hits = names.filter((n) => norm(n).startsWith(q)).concat(names.filter((n) => !norm(n).startsWith(q) && norm(n).includes(q))).slice(0, 8);
+    hits.forEach((n) => {
+      const li = document.createElement("li");
+      li.setAttribute("role", "option");
+      li.textContent = n;
+      li.addEventListener("pointerdown", (e) => { e.preventDefault(); pick(n); });  // before the input loses focus
+      list.append(li);
+    });
+    list.hidden = !hits.length || (hits.length === 1 && hits[0] === input.value);
+  });
+  input.addEventListener("blur", () => setTimeout(() => { list.hidden = true; }, 150));
+  input.addEventListener("keydown", (e) => { if (e.key === "Escape") list.hidden = true; });
+});
+initSuggest(document);
+document.addEventListener("htmx:load", (e) => initSuggest(e.detail.elt));  // the guess form is swapped after each guess
+
+// The coach, after the very first pull: Team glows in the nav (so a newcomer learns where it lives), then the page moves
+// on to the team by itself, where the coach card sits right above the team selection.
+document.addEventListener("pull:revealed", () => {
+  const next = document.querySelector(".coach-next:not([hidden])");
+  if (!next) return;
+  document.querySelectorAll('[data-tour="team"]').forEach((a) => a.classList.add("coach-glow"));
+  setTimeout(() => { if (document.contains(next)) location.href = next.href; }, 2800);  // time to see the last cards
+});
+
+// Chat emoji and stickers: a 😊 button on every chat box. Emoji are inserted as text; admin emotes and stickers
+// (app/stickers.py, loaded once from /chat/stickers.json) as :name:, which the chat draws as the image.
+(() => {
+  const EMOJI = ("😀 😂 🤣 😊 😍 😎 🤔 😏 😭 😤 😡 🥶 😱 🤯 🥳 😴 🙄 😬 🤡 💀 👻 👀 🙏 👍 👎 👏 🙌 💪 🤝 ✌️ 👊 🫡 " +
+    "❤️ 💔 🔥 ✨ ⭐ 🌟 💫 💥 💢 💯 ⚡ 🌀 ☠️ 👑 🗡️ 🛡️ 🏹 🎯 🎲 🃏 🎉 🎁 🏆 🥇 🍀 🌈 🐸 🐍 🐞 🦋 🌹 🍓 🧀 🍝 ☕ " +
+    "⏳ 🕰️ 💎 🗿 🎭 📜 🧩 ⚔️ 🫧 ☁️ 🌙 ☀️ 🌊 🏜️ 🧊 🪞 ✋ 👆 ☝️ 🤌 🔪 💣").split(" ");
+  let stickers = null;
+  const loadStickers = async () => {
+    if (stickers) return stickers;
+    try { stickers = await (await fetch("/chat/stickers.json")).json(); } catch (_) { stickers = []; }
+    return stickers;
+  };
+  const insert = (ta, text) => {
+    const start = ta.selectionStart ?? ta.value.length, end = ta.selectionEnd ?? ta.value.length;
+    const pad = text.startsWith(":") && start > 0 && !/\s$/.test(ta.value.slice(0, start)) ? " " : "";
+    ta.value = ta.value.slice(0, start) + pad + text + ta.value.slice(end);
+    const at = start + pad.length + text.length;
+    ta.focus();
+    ta.setSelectionRange(at, at);
+  };
+  const build = (form) => {
+    if (form.querySelector(".emo-btn")) return;
+    const ta = form.querySelector("textarea[name=text]");
+    if (!ta) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "emo-btn";
+    btn.setAttribute("aria-label", "Emoji and stickers");
+    btn.setAttribute("aria-expanded", "false");
+    btn.textContent = "😊";
+    const pop = document.createElement("div");
+    pop.className = "emo-pop";
+    pop.hidden = true;
+    pop.innerHTML = '<div class="emo-tabs" role="tablist"><button type="button" class="on" data-emo-tab="emoji">Emoji</button>'
+      + '<button type="button" data-emo-tab="stickers">Stickers</button></div><div class="emo-grid" role="listbox"></div>';
+    const grid = pop.querySelector(".emo-grid");
+    const show = async (tab) => {
+      pop.querySelectorAll("[data-emo-tab]").forEach((b) => b.classList.toggle("on", b.dataset.emoTab === tab));
+      grid.innerHTML = "";
+      grid.classList.toggle("stickers", tab === "stickers");
+      if (tab === "emoji") {
+        EMOJI.forEach((e) => {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "emo"; b.textContent = e;
+          b.addEventListener("click", () => insert(ta, e));
+          grid.append(b);
+        });
+        return;
+      }
+      const list = await loadStickers();
+      if (!list.length) { grid.innerHTML = '<p class="muted emo-empty">No stickers yet: admins add them.</p>'; return; }
+      list.forEach((s) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = `emo sticker-${s.kind}`; b.title = `:${s.name}:`;
+        const img = document.createElement("img");
+        img.src = s.url; img.alt = `:${s.name}:`; img.loading = "lazy";
+        b.append(img);
+        b.addEventListener("click", () => {
+          if (s.kind === "sticker" && !ta.value.trim()) {  // a sticker on its own goes straight out
+            ta.value = `:${s.name}:`;
+            pop.hidden = true; btn.setAttribute("aria-expanded", "false");
+            form.requestSubmit();
+          } else insert(ta, `:${s.name}:`);
+        });
+        grid.append(b);
+      });
+    };
+    pop.addEventListener("click", (e) => { const t = e.target.closest("[data-emo-tab]"); if (t) show(t.dataset.emoTab); });
+    btn.addEventListener("click", () => {
+      pop.hidden = !pop.hidden;
+      btn.setAttribute("aria-expanded", String(!pop.hidden));
+      if (!pop.hidden && !grid.children.length) show("emoji");
+    });
+    form.classList.add("has-emo");
+    ta.insertAdjacentElement("afterend", btn);
+    form.append(pop);
+  };
+  const init = (root) => (root.querySelectorAll ? root : document).querySelectorAll("[data-chat-form]").forEach(build);
+  init(document);
+  document.addEventListener("htmx:load", (e) => init(e.detail.elt));
+  document.addEventListener("click", (e) => {  // a click outside closes any open picker
+    document.querySelectorAll(".emo-pop:not([hidden])").forEach((p) => {
+      if (!p.parentElement.contains(e.target)) { p.hidden = true; p.parentElement.querySelector(".emo-btn")?.setAttribute("aria-expanded", "false"); }
+    });
+  });
+})();

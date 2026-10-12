@@ -183,6 +183,21 @@ def track_quest_progress(user, action: str, count: int = 1) -> List[str]:
     return newly_completed
 
 
+READY_KEY = "web:quests:ready:{}"  # quests done but not claimed, cached at every save for the nav's badge
+
+
+def ready_count(user) -> int:
+    """Quests whose goal is met and whose reward is waiting."""
+    qd = getattr(user, "quests", None) or {}
+    n = 0
+    for bucket in ("active_daily", "active_weekly", "active_permanent"):
+        for entry in qd.get(bucket) or []:
+            q = QUEST_BY_ID.get(entry.get("quest_id"))
+            if q and not entry.get("claimed") and entry.get("progress", 0) >= q.get("target", 1):
+                n += 1
+    return n
+
+
 def claim_quest_reward(user, quest_id: int) -> Optional[dict]:
     """Claim a completed quest's reward. Returns reward info dict or None."""
     qd = user.quests

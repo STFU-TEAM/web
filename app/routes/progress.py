@@ -152,7 +152,7 @@ def story_dev():
 def story_fight():
     uid = session["uid"]
     existing = load_fight(uid)
-    if existing and not (existing.kind == "story" and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.story_page"))
     try:
         with user_lock(uid):
@@ -303,7 +303,7 @@ def au_fight():
     uid = session["uid"]
     key = request.form.get("chapter", "")
     existing = load_fight(uid)
-    if existing and not (existing.kind == AU_KIND and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.au_page", ch=key))
     try:
         with user_lock(uid):
@@ -405,7 +405,7 @@ def oh_fight():
     uid = session["uid"]
     key = request.form.get("track", "")
     existing = load_fight(uid)
-    if existing and not (existing.kind == OH_KIND and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.oh_page", t=key))
     try:
         with user_lock(uid):
@@ -497,7 +497,7 @@ def cm_fight():
     from app.game import carryme
     uid = session["uid"]
     existing = load_fight(uid)
-    if existing and not (existing.kind == CM_KIND and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.cm_page"))
     try:
         with user_lock(uid):
@@ -629,7 +629,7 @@ def pz_fight():
     uid = session["uid"]
     mode = "personal" if request.form.get("mode") == "personal" else "daily"
     existing = load_fight(uid)
-    if existing and not (existing.kind == PZ_KIND and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.pz_page", tab=mode))
     spec = puzzle.personal(uid) if mode == "personal" else puzzle.get()
     if not spec:
@@ -790,7 +790,7 @@ def rq_fight():
     uid = session["uid"]
     key = request.form.get("track", "")
     existing = load_fight(uid)
-    if existing and not (existing.kind == RQ_KIND and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         return redirect(url_for("progress.rq_page", t=key))
     try:
         with user_lock(uid):
@@ -950,7 +950,7 @@ def training_page():
 def training_fight():
     uid = session["uid"]
     existing = load_fight(uid)
-    if existing and not (existing.kind == "training" and existing.finished):
+    if existing and not existing.finished:  # a finished fight (any mode) is only its end screen: start over it
         flash("Finish your current fight first.", "busy")
         return redirect(url_for("progress.training_page"))
     drill = request.form.get("drill", "")

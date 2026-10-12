@@ -516,7 +516,7 @@ def _aoe(character, enemies, multiplier) -> int:
 
 # Poison stands fell behind once teams got their health up (★5, refined items): poison ticks harder than the other
 # damage over time. Tuned with scratch meta.py (level 100 ★5 teams), see scripts/balance.py.
-POISON_MULT = 1.25
+POISON_MULT = 1.5  # every poison special hits this much harder (was 1.25: poison teams still trailed the meta)
 
 
 def _dot(target, kind: EffectType, turns: int, value: float, sender) -> None:
@@ -1138,10 +1138,14 @@ def dummy(character, allied_characters, enemy_characters) -> tuple:
 
 def killer_queen_bite_the_dust(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = sum(_heal(a, (a.start_hp - a.current_hp) * 0.3) for a in _alive(allied_characters))
+    # the loop rewinds: wounds close, and every debuff and damage over time on the team never happened
+    for a in _alive(allied_characters):
+        _cleanse(a)
+    healed = sum(_heal(a, (a.start_hp - a.current_hp) * 0.45) for a in _alive(allied_characters))
     target = _target(character, enemy_characters)
-    damage = _hit(character, target, 1.5) if target else 0
-    return payload, f"｢{character.name}｣ Bites the Dust: rewinds {healed} health for the team and blows up {target.name if target else 'nothing'} for {damage}!"
+    damage = _hit(character, target, 2.2) if target else 0
+    return payload, (f"｢{character.name}｣ Bites the Dust: the time loop rewinds {healed} health and every debuff on the team, "
+                     f"and blows up {target.name if target else 'nothing'} for {damage}!")
 
 
 def bad_company(character, allied_characters, enemy_characters) -> tuple:
@@ -1552,19 +1556,21 @@ def weather_report(character, allied_characters, enemy_characters) -> tuple:
     if _has_synergy(character.id, allied_characters, "heavy_weather"):
         # Heavy Weather: the rainbow turns every enemy into a snail: a longer, stronger poison, slow and weak
         for enemy in _alive(enemy_characters):
-            _dot(enemy, EffectType.POISON, 3, 0.45 * character.current_damage, character)
+            _dot(enemy, EffectType.POISON, 3, 0.55 * character.current_damage, character)
             _debuff(enemy, "speed", 0.30, 2, character)
             _debuff(enemy, "damage", 0.15, 2, character)
         target = _target(character, enemy_characters)
-        damage = _hit(character, target, 1.0) if target else 0
+        damage = _hit(character, target, 1.4) if target else 0
         return payload, (f"｢{character.name}｣ remembers: HEAVY WEATHER! The rainbow turns every enemy into a snail "
                          f"(poisoned, -30% speed, -15% damage) and lightning strikes {target.name if target else 'nothing'} "
                          f"for {damage}! 🐌 Heavy Weather!")
     for enemy in _alive(enemy_characters):
-        _dot(enemy, EffectType.POISON, 2, 0.3 * character.current_damage, character)
+        _dot(enemy, EffectType.POISON, 3, 0.4 * character.current_damage, character)
+        _debuff(enemy, "speed", 0.15, 2, character)
     target = _target(character, enemy_characters)
-    damage = _hit(character, target, 1.0) if target else 0
-    return payload, f"｢{character.name}｣ makes poison frogs rain on everyone and strikes {target.name if target else 'nothing'} with lightning for {damage}!"
+    damage = _hit(character, target, 1.3) if target else 0
+    return payload, (f"｢{character.name}｣ makes poison frogs rain on everyone (poisoned, -15% speed) and strikes "
+                     f"{target.name if target else 'nothing'} with lightning for {damage}!")
 
 
 def jumpin_jack_flash(character, allied_characters, enemy_characters) -> tuple:
@@ -2260,7 +2266,7 @@ def ticket_to_ride(character, allied_characters, enemy_characters) -> tuple:
 def dirty_deed_done_dirt_cheap(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
     _cleanse(character)
-    healed = _heal(character, character.start_hp * 0.20)
+    healed = _heal(character, character.start_hp * 0.14)  # was 0.20: D4C outhealed everything in long fights
     target = _target(character, enemy_characters)
     damage = _hit(character, target, 1.6) if target else 0
     return payload, f"｢{character.name}｣ swaps in a fresh self from another world: heals {healed}, cleansed, and strikes for {damage}!"
@@ -2392,14 +2398,16 @@ def soft_and_wet(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ releases bubbles!"
     if _has_synergy(character.id, allied_characters, "wall_eyes"):
         # Go Beyond: an infinitely spinning bubble that doesn't exist, so nothing blocks or dodges it
-        damage = _take(target, character.current_damage * 1.8)
-        stolen = _debuff(target, "damage", 0.40, 2, character)
-        slowed = _debuff(target, "speed", 0.25, 2, character)
+        damage = _take(target, character.current_damage * 2.3)
+        stolen = _debuff(target, "damage", 0.45, 2, character)
+        slowed = _debuff(target, "speed", 0.30, 2, character)
         return payload, (f"｢{character.name}｣ GO BEYOND! A bubble that doesn't exist hits {target.name} for {damage} "
                          f"true damage, stealing {stolen} damage and {slowed} speed! 🫧 Wall Eyes duo!")
-    damage = _hit(character, target, 1.4)
-    stolen = _debuff(target, "damage", 0.30, 2, character)
-    return payload, f"｢{character.name}｣'s bubble pops on {target.name} for {damage} and steals its strength: -{stolen} damage!"
+    damage = _hit(character, target, 1.8)
+    stolen = _debuff(target, "damage", 0.35, 2, character)
+    slowed = _debuff(target, "speed", 0.15, 2, character)
+    return payload, (f"｢{character.name}｣'s bubble pops on {target.name} for {damage} and plunders it: -{stolen} damage, "
+                     f"-{slowed} speed!")
 
 
 def paisley_park(character, allied_characters, enemy_characters) -> tuple:

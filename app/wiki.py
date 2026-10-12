@@ -449,7 +449,7 @@ ITEM_ABILITY = {
     16: "In fights: if a poisoner hit the holder, it weakens them (-15% damage for a turn).",
     37: "In fights, every turn: the whole team heals 8% and gains +10% damage and armor for 2 turns.",
     41: "In fights, every 3 turns: a Golden Spin throw for 60% damage as true damage that slows the target.",
-    43: "In fights, every 3 turns: heals 12% of max health.",
+    43: "In fights, every 3 turns: heals 8% of max health.",
     45: "In fights, every 3 turns: heals 10% of max health and +20% damage for 2 turns.",
     46: "The holder taunts: enemies must hit it first with basic attacks, and it gains the taunt armor bonus.",
     54: "In fights, every 2 turns: an enemy takes 15% of the health the holder has lost, as true damage. Pairs with taunts and big health pools.",

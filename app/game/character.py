@@ -21,7 +21,7 @@ HPSCALING = 2
 DAMAGESCALING = 2
 SPEEDSCALING = 1
 CRITICALSCALING = 1
-CRITMULTIPLIER = 1.5  # bot's globals/variables.py value; character.py shadowed it with 1
+CRITMULTIPLIER = 1.4  # a crit's bonus (the bot's value was 1.5: crits were deciding too many fights)
 # Critical chance has no cap: every full 100 is a sure crit and the rest is the chance of one more on top
 # (150 = always a crit, half the time a double). Each crit past the first adds the crit bonus again.
 DODGENERF = 2  # two points of speed gap per percent of dodge: speed decides who moves first, it shouldn't also be armor
@@ -42,10 +42,11 @@ AWAKEN_SCALING_CAP = 5
 MIN_SPECIAL_TURNS = {"UR": 2, "LR": 2}
 # Giant Slayer (resonance): per rarity step a slayer deals more to higher-rarity stands and takes less from them
 SLAYER_STEP, SLAYER_GUARD, SLAYER_STEPS = 0.12, 0.08, 3
-ARMOR_CAP = 400  # damage taken never drops below 200 / (100 + 400) = 40%
+ARMOR_CAP = 250  # damage taken never drops below 200 / (100 + 250) = 57% (was 400 and 40%: tanks walled fights)
 GROWTH_CAP = 1.0
 TAUNT_HP = 0  # taunt already draws every basic attack; keep the extra bulk modest
-TAUNT_ARMOR = 20  # permanent self-buffs stop at +100% of the starting stat
+TAUNT_ARMOR = 10  # was 20: tanks walled PvE
+HEAL_FATIGUE, HEAL_FATIGUE_FLOOR, BIG_HEAL = 0.10, 0.5, 0.05  # each big heal (5%+ of max) on a stand weakens the next  # permanent self-buffs stop at +100% of the starting stat
 STXPTOLEVEL = 100
 MAX_LEVEL = 100
 LEVEL_TO_STAT_INCREASE = 1
@@ -65,12 +66,23 @@ character = TypeVar("character", bound="Character")
 
 # Poison stands lagged once teams stacked health (★5, refined items): each poison tick also takes this share of
 # the target's max health, so poison keeps up with tanky teams. Tuned against the Requiem benchmark team.
-POISON_MAX_HP = 0.025
+POISON_MAX_HP = 0.035  # each poison tick also eats this share of max health (was 0.025)
 # Health each star past ★3 adds (a ★5 stand: twice this). Tuned so fights between maxed, refined teams (the Requiem
 # benchmark against itself and other top teams) average about 5 rounds: scripts/balance.py length.
 LATE_STAR_HP = 0.2
+# Each star multiplies a stand's levelled stats by 1 + stars / STAR_DIVISOR: x2.11 at ★5 (it was / 3, x2.67, and maxed
+# teams traded hits close to 10,000). Health, damage and armor shrink together, so fights last as long as before.
+STAR_DIVISOR = 4.5
+# One hit's damage past HIT_SOFT_CAP counts HIT_SOFT_SHARE: stacked crits, buffs and multipliers no longer make spikes
+HIT_SOFT_CAP, HIT_SOFT_SHARE = 2500, 0.5
+
+
+def soften(damage: float) -> float:
+    """A single hit, past the soft cap, counts only HIT_SOFT_SHARE of the excess."""
+    return damage if damage <= HIT_SOFT_CAP else HIT_SOFT_CAP + (damage - HIT_SOFT_CAP) * HIT_SOFT_SHARE
 # Each crit tier past the first adds this share of the one before (1 = every tier a full crit, the old way)
-CRIT_STACK_DECAY = 0.4
+CRIT_STACK_DECAY = 0.25  # each crit past the first adds a quarter of the bonus again (was 0.4)
+CRIT_OVERFLOW = 0.5      # critical chance past 100 counts half toward double (and triple) crits
 
 
 class Character:
@@ -156,15 +168,15 @@ class Character:
 
         # Define the starting STATS and variables (stars past AWAKEN_SCALING_CAP are kept but add nothing)
         stars = min(max(self.awaken, 0), AWAKEN_SCALING_CAP)
-        self.current_hp = int(self.base_hp + bonus_hp * (1 + stars / 3))
+        self.current_hp = int(self.base_hp + bonus_hp * (1 + stars / STAR_DIVISOR))
         self.current_damage = int(
-            self.base_damage + bonus_damage * (1 + stars / 3)
+            self.base_damage + bonus_damage * (1 + stars / STAR_DIVISOR)
         )
-        self.current_speed = int(self.base_speed + bonus_speed * (1 + stars / 3))
+        self.current_speed = int(self.base_speed + bonus_speed * (1 + stars / STAR_DIVISOR))
         self.current_critical = self.base_critical + bonus_critical * (
-            1 + stars / 3
+            1 + stars / STAR_DIVISOR
         )
-        self.current_armor = int(self.base_armor + bonus_armor * (1 + stars / 3))
+        self.current_armor = int(self.base_armor + bonus_armor * (1 + stars / STAR_DIVISOR))
         # ★4 and ★5 add health on top (LATE_STAR_HP a star past ★3): fights between maxed teams last ~5 rounds
         self.current_hp = int(self.current_hp * (1 + LATE_STAR_HP * max(0, stars - 3)))
         
@@ -252,7 +264,7 @@ class Character:
             if random.randint(0, 100) < dodge_chance:
                 atck["dodged"] = True
                 return atck
-        damage = max(1, int(self.current_damage * multi)) if multi > 0 else 0
+        damage = max(1, int(soften(self.current_damage * multi))) if multi > 0 else 0
         ennemy_character.current_hp -= damage
         atck["damage"] = damage
         return atck
@@ -262,6 +274,10 @@ class Character:
         if not self.is_alive() or amount <= 0:
             return 0
         amount *= TERRAIN_HEAL_MULT.get(self.terrain, 1) * getattr(self, "_heal_mult", 1) * getattr(self, "_heal_cut", 1)
+        if amount >= BIG_HEAL * self.start_hp:  # heal fatigue: a stand can't heal through a whole fight forever
+            n = self.__dict__.get("_big_heals", 0)
+            amount *= max(HEAL_FATIGUE_FLOOR, 1 - HEAL_FATIGUE * n)
+            self._big_heals = n + 1
         gained = int(min(amount, self.start_hp - self.current_hp))
         if gained <= 0:
             return 0
@@ -270,7 +286,7 @@ class Character:
 
     def take(self, amount: float) -> int:
         """True damage: no armor, dodge or crit. Returns what was dealt."""
-        dealt = int(max(0, min(amount, self.current_hp)))
+        dealt = int(max(0, min(soften(amount), self.current_hp)))
         self.current_hp -= dealt
         return dealt
 
@@ -430,8 +446,11 @@ def crit_stack(tier: int) -> float:
 
 
 def crit_tier(chance: float) -> int:
-    """How many times a hit crits: 0 (normal), 1 (crit), 2 (double), 3+..."""
-    whole, rest = divmod(max(0.0, chance), 100)
+    """How many times a hit crits: 0 (normal), 1 (crit), 2 (double), 3+... Chance past 100 counts CRIT_OVERFLOW."""
+    chance = max(0.0, chance)
+    if chance > 100:
+        chance = 100 + (chance - 100) * CRIT_OVERFLOW
+    whole, rest = divmod(chance, 100)
     return int(whole) + (random.random() * 100 < rest)
 
 

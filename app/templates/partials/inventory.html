@@ -178,7 +178,7 @@
   </ul>
 </section>
 
-<section class="shelf">
+<section class="shelf" id="shop">
   <header class="shelf-head">
     <h2 class="h2">Shop</h2>
     <p class="muted">You have {{ u.fragments|num }} Meteor Dust.</p>
@@ -187,10 +187,11 @@
     {% for key, e in shop.items() %}
     <li class="item-tile">
       {% set heads_left = shop_heads_left(u) if e.type == 'currency' or e.summon else none %}
-      <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{{ e.price|dust }}{% if heads_left is not none %} · {{ heads_left }} summon{{ 's' if heads_left != 1 }} left this week{% endif %}</p></div>
+      {% set price = storage_price if e.type == 'storage' else e.price %}
+      <div class="item-info"><h3>{{ e.name }}</h3><p class="muted">{% if price is none %}Storage is as big as it gets ({{ u.storage_capacity }} slots){% else %}{{ price|dust }}{% endif %}{% if heads_left is not none %} · {{ heads_left }} summon{{ 's' if heads_left != 1 }} left this week{% endif %}{% if e.type == 'storage' and price is not none %} · you have {{ u.storage_capacity }} slots, each extension costs more{% endif %}</p></div>
       <div class="item-actions">
         <button class="btn small {% if key == 'super_fragment' %}gold{% endif %}" hx-post="{{ url_for('play.shop_buy') }}" hx-vals='{"key": "{{ key }}"}' hx-target="#use-result"
-                {% if u.fragments < e.price or (heads_left is not none and heads_left <= 0) %}disabled{% endif %}>Buy</button>
+                {% if price is none or u.fragments < price or (heads_left is not none and heads_left <= 0) %}disabled{% endif %}>Buy</button>
       </div>
     </li>
     {% endfor %}

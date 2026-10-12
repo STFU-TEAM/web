@@ -51,7 +51,16 @@ DEFAULT_SHOP = {
     "2": {"name": "Devil's Palm", "price": 5000, "type": "item", "id": 2, "summon": True},
     "3": {"name": "Requiem Arrow", "price": 10000, "type": "item", "id": 3},
     "4": {"name": "Giorno's ladybug", "price": 5000, "type": "item", "id": 4},
+    "storage": {"name": "Storage extension · +25 slots", "price": 25000, "type": "storage"},
 }
+STORAGE_EXT_PRICE = 25000  # the first extension; each one after costs this much more (25k, 50k, 75k... 200k)
+
+
+def storage_ext_price(user: User) -> Optional[int]:
+    """The next storage extension's price, or None once every one is bought."""
+    from app.game.user import STORAGE_MAX_EXTENSIONS
+    owned = int(user.data.get("web_storage_ext", 0))
+    return None if owned >= STORAGE_MAX_EXTENSIONS else STORAGE_EXT_PRICE * (owned + 1)
 
 # /item use
 GACHA_ITEMS = [12]  # Devil's Palms (2) are only spent on banners: 5 stands at SR or better
@@ -133,7 +142,7 @@ def take_stand(user: User, uuid: str) -> Character:
 
 
 def free_slots(user: User) -> int:
-    return max(0, STORAGE_CAPACITY - len(user.storage_characters))
+    return max(0, user.storage_capacity - len(user.storage_characters))
 
 
 def add_to_available_storage(user: User, character: Character, skip_main: bool = False):
@@ -141,7 +150,7 @@ def add_to_available_storage(user: User, character: Character, skip_main: bool =
     if len(user.main_characters) < 3 and not skip_main:
         user.main_characters.append(character)
         return "Team"
-    if len(user.storage_characters) >= STORAGE_CAPACITY:
+    if len(user.storage_characters) >= user.storage_capacity:
         return None
     user.storage_characters.append(character)
     return "Collection"
@@ -793,7 +802,7 @@ def use_team(user: User, uuids: List[str]) -> List[Character]:
         raise GameError("Pick one to three different stands.")
     chosen = [locate(user, u)[0] for u in uuids]
     leaving = [c for c in user.main_characters if c.uuid not in uuids]
-    if len(user.storage_characters) - sum(c in user.storage_characters for c in chosen) + len(leaving) > STORAGE_CAPACITY:
+    if len(user.storage_characters) - sum(c in user.storage_characters for c in chosen) + len(leaving) > user.storage_capacity:
         raise GameError("Storage is full. Release a few stands first.")
     for c in chosen:
         if c in user.storage_characters:
@@ -1101,6 +1110,15 @@ def shop_buy(user: User, key: str) -> str:
     entry = DEFAULT_SHOP.get(key)
     if not entry:
         raise GameError("That isn't sold here.")
+    if entry["type"] == "storage":
+        price = storage_ext_price(user)
+        if price is None:
+            raise GameError(f"Your storage is as big as it gets ({user.storage_capacity} slots).")
+        if user.fragments < price:
+            raise GameError(f"The next storage extension costs {price:,} Meteor Dust. You have {user.fragments:,}.")
+        user.fragments -= price
+        user.data["web_storage_ext"] = int(user.data.get("web_storage_ext", 0)) + 1
+        return f"{entry['name']} (storage now {user.storage_capacity})"
     if entry["type"] == "currency" or entry.get("summon"):
         left = shop_heads_left(user)
         if left <= 0:

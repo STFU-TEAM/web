@@ -43,7 +43,7 @@ DELVE_LEVEL_POWER, DELVE_AWAKEN, DELVE_OVERFLOW = 1.25, (15, 25, 35, 50, 60), 1.
 DELVE_EASE_FROM, DELVE_EASE = 25, 0.94  # from here dungeon enemies field UR/LR-era teams, eased
 BOSS_EVERY = 10
 HEAD_EVERY = 20        # every other boss floor pays an Arrowhead (economy.py)
-TRANSIENT = ("_focus", "_my_turn", "_heal_mult", "_skipped", "_stun_guard", "_active_terrain", "_terrain_bonus")
+TRANSIENT = ("_focus", "_my_turn", "_heal_mult", "_skipped", "_stun_guard", "_active_terrain", "_terrain_bonus", "_big_heals")
 POOLS = {r: [c["id"] for c in CHARACTER_FILE if c["rarity"] == r and c["universe"] != "Dummy" and c["id"] != 110]
          for r in ("R", "SR", "SSR", "UR", "LR")}
 
@@ -54,8 +54,11 @@ RQ, NORMAL = "requiem", "normal"
 RQ_COST = 2000
 RQ_BASE, RQ_GROWTH, RQ_BOSS = 0.75, 0.025, 1.08
 RQ_FLOOR_HEAL, RQ_REST_HEAL, RQ_REVIVE = 0.45, 0.60, 0.35
+RQ_OVERFLOW_FROM, RQ_OVERFLOW = 15, 1.06  # past floor 15 every floor also compounds +6%: a ceiling no team climbs past
 RQ_LOOT_FLOOR, RQ_LOOT = 40, 1.5
 RQ_HEAD_EVERY, RQ_ARROW_EVERY = 5, 10   # an Arrowhead every 5th floor, a Requiem Arrow every 10th (the boss floors)
+DUST_CAP_FLOOR = 40       # floor dust stops growing here in the Tower (~1k a floor)...
+RQ_DUST_CAP_FLOOR = 15    # ...and here in the Requiem Tower (~5k a floor): a long climb can't mint millions
 OH_LOOT = 1.3          # the Over Heaven toggle: +30% Meteor Dust on every floor
 
 
@@ -188,7 +191,8 @@ def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] 
 
 
 def rq_mult(floor: int) -> float:
-    return RQ_BASE * (1 + RQ_GROWTH * (floor - 1)) * (RQ_BOSS if is_boss(floor) else 1)
+    overflow = RQ_OVERFLOW ** max(0, floor - RQ_OVERFLOW_FROM)
+    return RQ_BASE * (1 + RQ_GROWTH * (floor - 1)) * overflow * (RQ_BOSS if is_boss(floor) else 1)
 
 
 def rq_ids(floor: int, week: Optional[str] = None) -> List[int]:
@@ -243,7 +247,8 @@ def reward_for(floor: int, mode: str = NORMAL, oh: bool = False) -> dict:
     """Paid the first time each week you clear a floor (of that climb)."""
     from app.game.economy import dust
     if mode == RQ:
-        reward = {"fragments": int(dust(80 * 1.08 ** (RQ_LOOT_FLOOR + floor)) * RQ_LOOT), "items": [], "super": 0}
+        reward = {"fragments": int(dust(80 * 1.08 ** (RQ_LOOT_FLOOR + min(floor, RQ_DUST_CAP_FLOOR))) * RQ_LOOT),
+                  "items": [], "super": 0}
         if floor % 5 == 0:
             reward["items"].append([40, 38, 39][(floor // 5) % 3])
         if is_boss(floor):
@@ -253,7 +258,7 @@ def reward_for(floor: int, mode: str = NORMAL, oh: bool = False) -> dict:
         if floor % RQ_HEAD_EVERY == 0:
             reward["super"] = 1
     else:
-        reward = {"fragments": dust(80 * 1.08 ** floor), "items": [], "super": 0}
+        reward = {"fragments": dust(80 * 1.08 ** min(floor, DUST_CAP_FLOOR)), "items": [], "super": 0}
         if floor % 5 == 0:
             reward["items"].append([40, 38, 39][(floor // 5) % 3])
         elif floor % 5 == 3:
@@ -298,14 +303,28 @@ def save_team(redis, uid, team: list):
     redis.set(team_key(uid), pickle.dumps(team), ex=60 * 60 * 24 * 9)
 
 
+FIGHT_STATS = ("current_damage", "current_speed", "current_armor", "current_critical")
+
+
 def settle_fighters(team: list) -> list:
-    """After a floor: undo effects and terrain, keep health and permanent growth."""
+    """After a floor (or a dungeon fight): undo effects, terrain and in-fight growth, keep health. Nothing a fight
+    builds up (Stone Mask, Ultimate Being, any "grows" special) carries into the next one: every fight starts from the
+    stats the team had after its first (synergy bonuses included, they're applied once per climb)."""
     remove_terrain_bonuses(team)
     for c in team:
         for e in c.effects:
             if e.type in STAT_EFFECTS and e.used:
                 attr, sign = STAT_EFFECTS[e.type]
                 setattr(c, attr, getattr(c, attr) - sign * e.value)
+        for stat, added in (c.__dict__.pop("_growth", None) or {}).items():  # permanent growth stays in its fight
+            if stat != "hp":
+                setattr(c, f"current_{stat}", getattr(c, f"current_{stat}") - added)
+        base = c.__dict__.get("_base_stats")
+        if base is None:
+            c._base_stats = {a: getattr(c, a) for a in FIGHT_STATS}
+        else:  # anything else that drifted during the fight goes back too
+            for a, v in base.items():
+                setattr(c, a, v)
         c.effects = []
         c.special_meter = 0
         c.current_hp = max(0, min(c.current_hp, c.start_hp))

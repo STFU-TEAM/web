@@ -230,6 +230,17 @@ def register(app):
         """The special's animation: a custom one from art/special if uploaded, else the original."""
         return art_url("special", stand_id) or asset(f"special/{stand_id}.gif")
 
+    @app.template_filter("chat_text")
+    def chat_text(text):
+        """A chat message: escaped, with admin emotes and stickers (:name:) drawn as images (app/stickers.py)."""
+        from app import stickers
+        from app.db import r as redis
+        try:
+            known = stickers.all_stickers(redis())
+        except Exception:
+            known = {}
+        return stickers.render(text, known)
+
     @app.template_filter("asset")
     def asset(path):
         return current_app.config["IMAGE_BASE_URL"] + "/" + path.lstrip("/")
@@ -372,7 +383,7 @@ def register(app):
         from app import push
         from app.auth import is_admin
         from app.game import progression
-        nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
+        nav_unlocked, nav_new, craft_ready, quests_ready = progression.opened(0), [], 0, 0
         progress_part = None
         # An HTMX fragment (a fight turn, a poll, a panel swap) never draws the nav, so it skips the ~15 Redis reads
         # the nav needs: the polls are the requests that multiply with players. A boosted swap is a whole page.
@@ -397,6 +408,8 @@ def register(app):
                 craft_ready = remember_craftable(user) if user else 0
             else:
                 craft_ready = int(cached)
+            from app.game.quests import READY_KEY
+            quests_ready = int(r().get(READY_KEY.format(uid)) or 0)  # quest rewards waiting (Quests badge)
             from app import social
             from app.routes.community import pending_count
             story_hot = not r().exists(f"web:story_done:{uid}")
@@ -414,7 +427,7 @@ def register(app):
             "live_event": None if fragment else events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "progress_part": progress_part,
-            "craft_ready": craft_ready,
+            "craft_ready": craft_ready, "quests_ready": quests_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread, "chat_dots": chat_dots_now,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
             "fight_fx": session.get("fight_fx", True),

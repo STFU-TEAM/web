@@ -9,7 +9,7 @@
           <p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a>
             {% if titles.get(m.uid) %}<span class="chat-title">✦ {{ titles[m.uid] }}</span>{% endif %}
             <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
-          <p class="chat-text">{{ m.text }}</p>
+          <p class="chat-text">{{ m.text|chat_text }}</p>
           <span class="chat-acts">
             {% if mine or chat_admin %}
               <button type="button" class="chat-del" aria-label="Delete this message" title="Delete"

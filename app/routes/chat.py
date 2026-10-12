@@ -214,3 +214,27 @@ def settings():
     flash("Only friends can start a conversation with you now." if request.form.get("friends_only") == "1"
           else "Anyone can start a conversation with you now.", "ok")
     return redirect(url_for("chat.index", tab="messages"))
+
+
+# --------------------------------------------------------------------------- #
+# Emotes and stickers (app/stickers.py): served from Redis, listed for the picker
+# --------------------------------------------------------------------------- #
+@bp.get("/stickers/<name>")
+def sticker(name):
+    from app import stickers
+    found = stickers.image(r(), name)
+    if not found:
+        return Response(status=404)
+    data, mime = found
+    resp = Response(data, mimetype=mime)
+    resp.headers["Cache-Control"] = "public, max-age=604800"  # the URL carries ?v=, so a replaced image is a new URL
+    return resp
+
+
+@bp.get("/stickers.json")
+def stickers_list():
+    from flask import jsonify
+    from app import stickers
+    rows = sorted(stickers.all_stickers(r()).values(), key=lambda m: (m["kind"], m["name"]))
+    return jsonify([{"name": m["name"], "kind": m["kind"], "url": stickers.url(m)} for m in rows])
+

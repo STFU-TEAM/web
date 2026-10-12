@@ -158,3 +158,61 @@ def test_the_daily_routine_pays_real_xp():
     assert min(q["rewards"]["xp"] for q in daily if q["rewards"].get("xp")) >= 200
     assert logic.STREAK_XP >= 500 and puzzle.REWARD["xp"] >= 1500 and whos.XP_BASE >= 1000
     assert dungeon.RUN_XP_PER_FLOOR * 3 >= 1000
+
+
+def test_the_quests_tab_lights_up_when_a_reward_waits(client):
+    from app.game import quests
+    player(client, "311", main_characters=[char(1)])
+    h = login(client, "311")
+    client.get("/quests", headers=h)  # assigns the day's quests
+    d = doc(client, "311")
+    entry = d["quests"]["active_daily"][0]
+    entry["progress"] = quests.QUEST_BY_ID[entry["quest_id"]]["target"]
+    put(client, d)
+    client.post("/daily", headers=h)  # any save refreshes the count
+    page = client.get("/team", headers=h).data.decode()
+    assert " to claim</em>" in page  # 1 or more: claiming the daily can finish a daily quest too
+
+
+def test_a_finished_fight_never_blocks_starting_another_mode(client):
+    import app.db as dbmod
+    from app.game.character import character_from_dict
+    from app.game.fight import Fight, Side
+    player(client, "312", main_characters=[char(1, xp=3000)], web_story={"cleared": 1}, energy=10)
+    h = login(client, "312")
+    done = Fight(Side("A", [character_from_dict(char(1))], True), Side("B", [character_from_dict(char(4))], False), kind="story")
+    done.finished, done.winner = True, 0
+    dbmod.save_fight("312", done)
+    assert "still on" not in client.get("/mirror-world", headers=h).data.decode()
+    client.post("/mirror-world/start", headers=h)
+    assert dbmod.load_fight("312").kind == "wormhole"  # the story's end screen didn't block it
+
+
+def test_storage_extensions_grow_storage_and_cost_more_each_time(client):
+    from app.game import logic
+    from app.game.user import STORAGE_CAPACITY, STORAGE_STEP
+    player(client, "313", main_characters=[char(1)], fragments=100_000)
+    h = {**login(client, "313"), "HX-Request": "true"}
+    assert "Storage extension" in client.get("/items", headers=h).data.decode()
+    client.post("/shop/buy", data={"key": "storage"}, headers=h)
+    d = doc(client, "313")
+    assert d["web_storage_ext"] == 1 and d["fragments"] == 100_000 - logic.STORAGE_EXT_PRICE
+    client.post("/shop/buy", data={"key": "storage"}, headers=h)
+    d = doc(client, "313")
+    assert d["web_storage_ext"] == 2 and d["fragments"] == 100_000 - 3 * logic.STORAGE_EXT_PRICE
+    assert f"/ {STORAGE_CAPACITY + 2 * STORAGE_STEP} stands" in client.get("/team", headers=h).data.decode()
+
+
+def test_a_dead_climb_never_strands_the_player(client):
+    """A climb whose saved team expired: Begin closes it and starts a fresh one in the same click."""
+    import app.db as dbmod
+    player(client, "314", main_characters=[char(1, xp=3000)], web_story={"cleared": 4}, fragments=5000)
+    h = login(client, "314")
+    d = doc(client, "314")
+    from app.game.gangs import week_key
+    d["web_tower"] = {"week": week_key(), "best": 3, "paid": 3, "run": {"floor": 4}, "rq": {"best": 0, "paid": 0}}
+    put(client, d)  # a run, but no fighters saved for it (they expired)
+    client.post("/tower/start", headers=h)
+    d = doc(client, "314")
+    assert d["web_tower"]["run"]["floor"] == 1 and d["fragments"] == 5000 - 500
+    assert dbmod.load_fight("314").kind == "tower"
