@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 {% from "macros.html" import owned_card, menacing %}
 {% block title %}{{ gang.name }} · Gang | STFU Requiem{% endblock %}
+{% block description %}{{ gang.name }}, a gang on STFU Requiem. {{ gang.motto or 'Join a gang, raid together and climb the gang ladder.' }}{% endblock %}
 {% block main %}
 <section class="page">
   {#- a gang as anyone sees it: never its vault, stash, chat or message of the day -#}

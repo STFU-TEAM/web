@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}{{ card.title }} | STFU Requiem{% endblock %}
+{% block description %}{{ card.text }}{% endblock %}
+{% block og_title %}{{ card.title }}{% endblock %}
+{% block og_image %}{{ card.image or ('randomAsset/avatar.png'|asset) }}{% endblock %}
+{% block og_image_alt %}{{ card.title }}{% endblock %}
+{% block main %}
+<section class="page narrow share-page">
+  <article class="share-card kind-{{ card.kind }}">
+    <div class="share-art">
+      {% if card.image %}<img src="{{ card.image }}" alt="" width="360" height="360" onerror="this.onerror=null;this.src='{{ 'randomAsset/avatar.png'|asset }}'">
+      {% else %}<img src="{{ 'randomAsset/avatar.png'|asset }}" alt="" width="360" height="360">{% endif %}
+      {% if card.badge %}<span class="share-badge">{{ card.badge }}</span>{% endif %}
+      <span class="share-menace" aria-hidden="true">ゴゴゴ</span>
+    </div>
+    <div class="share-body">
+      <p class="kicker">Shared from STFU Requiem</p>
+      <h1 class="display sm">{% call menacing() %}{{ card.title }}{% endcall %}</h1>
+      <p class="share-text">{{ card.text }}</p>
+      <div class="share-cta">
+        {% if me.id %}
+          <a class="btn gold big" href="{{ url_for('play.banners') }}">Pull your own →</a>
+        {% else %}
+          <a class="btn gold big" href="{{ url_for('auth.register') }}">Play free →</a>
+          <a class="btn ghost" href="{{ url_for('auth.discord_login') }}">Sign in with Discord</a>
+        {% endif %}
+        {% if card.url %}<a class="btn ghost" href="{{ card.url }}">{{ 'See the stand' if card.kind == 'stand' else 'See their profile' }}</a>{% endif %}
+      </div>
+      <p class="muted small-print">STFU Requiem is a free JoJo stand gacha in your browser and on Discord: pull stands, build a team of three, fight through the story, the towers and the Requiem.</p>
+    </div>
+  </article>
+</section>
+{% endblock %}

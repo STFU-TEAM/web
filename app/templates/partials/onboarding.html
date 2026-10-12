@@ -1,0 +1,53 @@
+{#- A new player's first week (app/game/onboarding.py): the Welcome week calendar and the Beginner's path.
+    Claim buttons swap this block in place. -#}
+<div id="onboarding" class="onboarding">
+  {% if message %}<p data-float class="toast ok">{{ message }}</p>{% endif %}
+  {% if error %}<p data-float class="toast error">{{ error }}</p>{% endif %}
+  {% if welcome %}
+    <section class="welcome-week" aria-labelledby="ww-h">
+      <header class="ob-head">
+        <div><p class="kicker">New Stand user · {{ welcome.left }} day{{ 's' if welcome.left != 1 }} left to collect</p>
+          <h2 class="h2" id="ww-h">🎁 Welcome week</h2></div>
+        {% if welcome.can %}
+          <button class="btn gold" hx-post="{{ url_for('play.welcome_claim') }}" hx-target="#onboarding" hx-swap="outerHTML" hx-disabled-elt="this">Open day {{ welcome.claimed + 1 }} →</button>
+        {% else %}<span class="ob-wait">Next gift tomorrow</span>{% endif %}
+      </header>
+      <ol class="ww-days">
+        {% for d in welcome.days %}
+          <li class="ww-day {{ d.state }}{{ ' big' if d.big }}">
+            <b>Day {{ d.day }}</b>
+            <span>{{ d.reward|join(' · ') }}</span>
+            {% if d.state == 'claimed' %}<i aria-label="claimed">✓</i>{% elif d.state == 'today' %}<i aria-label="ready">!</i>{% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+    </section>
+  {% endif %}
+  {% if path %}
+    <section class="b-path" aria-labelledby="bp-h">
+      <header class="ob-head">
+        <div><p class="kicker">Beginner's path · {{ path.claimed }} / {{ path.total }}</p>
+          <h2 class="h2" id="bp-h">{% if path.next %}Next: {{ path.next.title }}{% else %}Path complete!{% endif %}</h2></div>
+        {% if path.next %}<a class="btn gold" href="{{ url_for(path.next.endpoint, **path.next.kwargs) }}">Go →</a>{% endif %}
+      </header>
+      {% if path.next %}<p class="muted">{{ path.next.how }} Reward: {{ path.next.reward|join(', ') }}.</p>{% endif %}
+      <div class="meter bp-meter"><i style="width: {{ (100 * path.claimed / path.total)|round }}%"></i></div>
+      <ol class="bp-steps">
+        {% for s in path.steps %}
+          <li class="bp-step{{ ' done' if s.done }}{{ ' claimed' if s.claimed }}">
+            <span class="bp-mark" aria-hidden="true">{{ '✓' if s.claimed else ('!' if s.done else loop.index) }}</span>
+            <span class="bp-text"><strong>{{ s.title }}</strong><small>{{ s.reward|join(', ') }}</small></span>
+            {% if s.done and not s.claimed %}
+              <button class="btn small gold" hx-post="{{ url_for('play.path_claim') }}" hx-vals='{"step": "{{ s.key }}"}' hx-target="#onboarding" hx-swap="outerHTML" hx-disabled-elt="this">Claim</button>
+            {% elif not s.done %}
+              <a class="btn small ghost" href="{{ url_for(s.endpoint, **s.kwargs) }}">Go</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ol>
+      {% if path.finished %}
+        <p class="bp-final">Every step done. <button class="btn gold" hx-post="{{ url_for('play.path_claim') }}" hx-vals='{"step": "done"}' hx-target="#onboarding" hx-swap="outerHTML" hx-disabled-elt="this">Claim {{ path.final|join(' and ') }}</button></p>
+      {% endif %}
+    </section>
+  {% endif %}
+</div>

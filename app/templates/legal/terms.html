@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Terms of use | STFU Requiem{% endblock %}
+{% block description %}The rules for playing STFU Requiem: a free, unofficial JoJo's Bizarre Adventure fan game.{% endblock %}
+{% block main %}
+<article class="page narrow legal">
+  <p class="kicker">Last updated {{ updated }}</p>
+  <h1 class="display sm">Terms of use</h1>
+  <p>By playing STFU Requiem, on this website or through the Discord bot, you agree to these terms. They're short on purpose.</p>
+
+  <h2 class="h3">A fan game</h2>
+  <p>STFU Requiem is an unofficial, non-commercial fan game. JoJo's Bizarre Adventure, its characters and stands belong to Hirohiko Araki, Shueisha and their licensees. This game isn't made, endorsed or sponsored by them. If you hold rights to something shown here and want it changed or removed, contact us on the <a href="https://discord.gg/stfurequiem">Discord server</a> and we'll act on it.</p>
+
+  <h2 class="h3">The game is free</h2>
+  <p>Everything in the game is earned by playing. Nothing in the game can be bought with real money. You can support the server costs on <a href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">Ko-fi</a>; supporters get a thank-you: a gold profile theme and a shorter wait between daily rewards. Support is a gift: it isn't a purchase and isn't refundable through us.</p>
+
+  <h2 class="h3">Play fair</h2>
+  <ul>
+    <li>One account per person. Making extra accounts to farm rewards, feed your main through gifts, trades, the auction or gang donations, or to pad ladders isn't allowed.</li>
+    <li>No bots, scripts, macros or automated play, and no exploiting bugs. If you find one, report it: we fix it and may thank you in-game.</li>
+    <li>No selling or buying accounts, items or currencies for real money.</li>
+    <li>Be decent in chat, names and profiles: no harassment, hate, threats, sexual content involving minors, spam or sharing other people's personal information.</li>
+  </ul>
+  <p>Breaking these rules can get your messages removed, your chat muted, unfairly gained rewards taken back, your account reset or banned. Admin actions are logged.</p>
+
+  <h2 class="h3">Your account and save</h2>
+  <p>Keep your password to yourself. The game is still growing: balance changes, resets of seasonal ladders and fixes to saves that hit a bug are part of keeping it fair, and in-game items and currencies have no real-world value. We back the game up daily and do our best not to lose anything, but the game is provided as it is, without guarantees, and may change, pause or end.</p>
+
+  <h2 class="h3">What you post</h2>
+  <p>You keep what you write. By posting it in the game (chat, names, mottos, profile text) you let us show it to other players for as long as it's up, and remove it if it breaks these rules.</p>
+
+  <h2 class="h3">Privacy</h2>
+  <p>What we store and why is in the <a href="{{ url_for('main.privacy') }}">privacy policy</a>.</p>
+
+  <h2 class="h3">Changes</h2>
+  <p>If these terms change, the date at the top changes too, and big changes are announced in the news. Questions go to the <a href="https://discord.gg/stfurequiem">Discord server</a>.</p>
+</article>
+{% endblock %}

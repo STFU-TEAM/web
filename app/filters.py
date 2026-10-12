@@ -119,8 +119,10 @@ def register(app):
     app.jinja_env.globals.update(icon=branding.icon, DUST=branding.DUST, HEAD=branding.HEAD, HEADS=branding.HEADS,
                                  PALM=branding.PALM, PALMS=branding.PALMS)
     from app.game import logic
+    from app.game import onboarding
+    _coach_of = lambda u: onboarding.coach(u) if u else None  # noqa: E731  (the first-session coach's step)
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
-                                 FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form,
+                                 FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form, coach_of=_coach_of,
                                  MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
@@ -372,7 +374,10 @@ def register(app):
         from app.game import progression
         nav_unlocked, nav_new, craft_ready = progression.opened(0), [], 0
         progress_part = None
-        if uid and request.endpoint != "static":
+        # An HTMX fragment (a fight turn, a poll, a panel swap) never draws the nav, so it skips the ~15 Redis reads
+        # the nav needs: the polls are the requests that multiply with players. A boosted swap is a whole page.
+        fragment = bool(request.headers.get("HX-Request")) and not request.headers.get("HX-Boosted")
+        if uid and request.endpoint != "static" and not fragment:
             if "avatar_checked" not in session:  # sessions from before a web-only picture was set (or another device)
                 from app.db import identity
                 session["avatar"] = identity(uid).get("avatar") or session.get("avatar")
@@ -406,19 +411,19 @@ def register(app):
                 toasts = social.take_toasts(uid)
         from app.game import events
         return {
-            "live_event": events.cached(),
+            "live_event": None if fragment else events.cached(),
             "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "progress_part": progress_part,
             "craft_ready": craft_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread, "chat_dots": chat_dots_now,
             "fight_cosmetics": session.get("fight_cosmetics", True),  # fighters drawn with their shiny / full art
             "fight_fx": session.get("fight_fx", True),
-            "latest_post": _latest_post(),  # battle cries, heavy-hit sound effects, the eyecatch (app.js)
+            "latest_post": None if fragment else _latest_post(),
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
-                   "admin": bool(uid) and request.endpoint != "static" and is_admin(uid)},
+                   "admin": bool(uid) and request.endpoint != "static" and not fragment and is_admin(uid)},
             "csrf_token": session["csrf"],
             # app.js renews this browser's push subscription if it was made with an older VAPID key
-            "push_key_meta": (push.keys() or {}).get("public") if uid else None,
+            "push_key_meta": (push.keys() or {}).get("public") if uid and not fragment else None,
             "STAND_COUNT": len(PLAYABLE),
             "PITY_LIMIT": PITY_LIMIT, "PITY_ODDS": PITY_ODDS, "BANNER_ODDS": BANNER_ODDS, "ARROW_ODDS": ARROW_ODDS, "SHINY_ODDS": round(1 / SHINY_CHANCE),
         }

@@ -14,6 +14,8 @@
   </header>
 
   {% set h = gang_hub %}
+  {% set coach_step = coach_of(u) %}
+  {% if coach_step == 'team' %}{% with step = 'team' %}{% include "partials/coach.html" %}{% endwith %}{% endif %}
   <section class="gang-hub{% if not h.gang %} recruit{% endif %}" aria-label="Your gang">
     {% if h.gang %}
       <img class="gang-hub-crest" src="{{ h.gang.image_url }}" alt="" loading="lazy" onerror="this.hidden=true">

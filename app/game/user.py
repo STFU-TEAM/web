@@ -118,7 +118,28 @@ class User:
     
     def update(self) -> None:
         """Update the user info in the database"""
+        self._note_level_up()
         self.database.update_user(self.to_dict())
+
+    def _note_level_up(self) -> None:
+        """A level gained since the last save pops a LEVEL UP on the website (with what it opened). The first save
+        after this existed only records the level: no fanfare for levels reached long ago."""
+        level = min(USRXPTOLEVEL, int(LVLSCALING * sqrt(self.xp)))
+        seen = self.data.get("web_level")
+        if seen is not None and level <= seen:
+            return
+        self.data["web_level"] = level
+        self.level = level
+        if seen is None:
+            return
+        try:
+            from app.game import gates
+            from app.social import notify
+            opened = gates.opened_between(seen, level)
+            text = f"Level up! You reached level {level}." + (f" Now open: {', '.join(opened)}." if opened else "")
+            notify(str(self.id), "levelup", text, "/", push=False)
+        except Exception:
+            pass  # outside the website (scripts, the bot's process): just keep the level
 
     def is_donator(self):
         status = self.early_supporter

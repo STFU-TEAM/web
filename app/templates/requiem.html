@@ -26,6 +26,13 @@
     {% endfor %}
   </nav>
   {% if error %}<p class="toast error" role="alert">{{ error }} {% from "macros.html" import back_to_fight %}{{ back_to_fight() }}</p>{% endif %}
+  {% if not fight %}
+    {% if cleared >= total %}
+      <p class="notice">☁☠ Requiem conquered. Heaven noticed: <a href="{{ url_for('progress.oh_page', t='requiem') }}">Requiem · Over Heaven</a> is open, Requiem's finales at full strength with heaven's rules on top.</p>
+    {% else %}
+      <p class="muted">Clear all {{ total }} Requiem stages to open <strong>Requiem · Over Heaven</strong>: the hardest fights in the game.</p>
+    {% endif %}
+  {% endif %}
 
   {% if fight %}
     {% include "partials/fight.html" %}
@@ -63,6 +70,7 @@
     </article>
   {% else %}
     <article class="story-stage done"><h2 class="h2">☠ {{ track.title }}: Requiem cleared</h2>
+      <p><button type="button" class="btn gold small share-btn" data-share="requiem" data-ref="{{ track.key }}">📣 Share this clear</button></p>
       <p class="story-text">Every stage beaten at its hardest. Pick another track above, or replay a stage below for stand XP.</p></article>
   {% endif %}
 

@@ -167,12 +167,30 @@ It uses the existing `DISCORD_CLIENT_ID` and requests the `bot` and
 Admin access mirrors the bot's `give_character` permission IDs by default. Set
 `DISCORD_ADMIN_IDS` to a comma-separated Discord ID list to override them.
 
+### Safety and scale (optional env vars)
+- `BACKUP_WEBHOOK_URL`: a Discord channel webhook; each daily database backup small enough for Discord is posted
+  there as the off-site copy. Backups land on the `backups` volume either way (14 kept); see the admin **Safety**
+  tab to take one now, download one, or check whether Redis itself persists to disk. Restore with
+  `python scripts/backup.py restore <file>` (bot and site stopped).
+- `ALERT_WEBHOOK_URL`: a Discord channel webhook that gets every server error as it happens (the full traceback
+  is in the admin **Logs** tab).
+- `IP_SALT`: salts the IP hashes used to flag possible alt accounts (defaults to `SECRET_KEY`).
+- `WEB_WORKERS` (default 3) and `WEB_THREADS` (default 8): gunicorn capacity, see `gunicorn.conf.py`.
+
+Make sure the bot's Redis saves to disk (`appendonly yes`, or RDB snapshots): the Safety tab shows it.
+
+`python scripts/economy.py` prints how fast players earn Dust, Arrowheads and XP, from the live reward tables.
+
 ## Local testing
 `pip install -r requirements-dev.txt && python scripts/dev.py`, then log in at
 http://127.0.0.1:5000/auth/login with `admin` / `admin`. That account is an admin (`/admin`)
 and starts with a team, storage, fragments and items. Data lives in an in-memory Redis
 that is wiped when the server stops; pass `--redis redis://localhost:6379/0` to keep it.
 The script ignores `REDIS_URL`, so it never touches the bot's Redis by accident.
+
+Dev mode (the local server runs with debug on) adds two tools, never present in production: **New test player**
+in the footer (a brand-new account with an empty save, at the welcome screen, to play the first session as a
+newcomer) and **Unlock everything / Reset story** on the story page.
 
 ## Tests
 `pip install -r requirements-dev.txt && pytest -q`

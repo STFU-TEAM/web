@@ -68,6 +68,10 @@
         <select name="hours" aria-label="For how long"><option value="1">1 hour</option><option value="24" selected>1 day</option><option value="168">1 week</option></select>
         <input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
     </div>
+    {% if same_ip %}
+      <p class="notice">🕵 Seen on the same address as: {% for o, n in same_ip %}<a href="{{ url_for('admin.player', uid=o) }}">{{ n }}</a>{{ ', ' if not loop.last }}{% endfor %}.
+        <a href="{{ url_for('admin.safety') }}">Alt flags</a></p>
+    {% endif %}
     <h3 class="h3" id="profile-mod">Profile customization</h3>
     {% set pc = profile_view.custom %}
     <p class="muted">{% if pc.quote %}Catchphrase: 「{{ pc.quote }}」 · {% endif %}Theme: {{ profile_theme(pc.theme).label }}{% if pc.image %} · banner image: <a href="{{ pc.image }}" target="_blank" rel="noopener noreferrer">see it</a>{% endif %}{% if pc.stand %} · signature stand set{% endif %}{% if pc.showcase %} · {{ pc.showcase|length }} showcased{% endif %}{% if pc.pins %} · {{ pc.pins|length }} pinned{% endif %}.

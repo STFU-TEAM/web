@@ -16,6 +16,8 @@ def create_app() -> Flask:
     perf.install(app)  # registered first so its compression runs after every other after_request hook
     from app import logs
     logs.install(app, r())  # errors and warnings land in the admin Logs tab
+    from app import alerts
+    alerts.install(r())  # and errors are posted to ALERT_WEBHOOK_URL (a Discord channel) as they happen
     from app.game import events
     events._cache.update(at=0.0, event=None)  # a fresh app never trusts another app's Redis
 
@@ -63,6 +65,8 @@ def create_app() -> Flask:
         from app.game import events
         try:
             events.current(r())
+            from app import alts
+            alts.touch(r(), session, request.remote_addr)  # once a day per session: the alt-account flags
             dev = request.cookies.get("pdev", "")
             social.tick(seen=session.get("uid") if not request.path.startswith("/push/") else None,
                         device=dev if len(dev) == 40 and dev.isalnum() else None)

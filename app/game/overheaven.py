@@ -46,6 +46,23 @@ def rule_lines(rules: dict) -> List[str]:
     return [RULE_TEXT[k](v) for k, v in rules.items() if k in RULE_TEXT and v]
 
 
+# Heaven's rules drawn at random (the deep dungeon's Over Heaven floors, the tower's Over Heaven toggle): the milder
+# single rules, none that needs a locked terrain or a part to answer it.
+RANDOM_RULES = [{"enrage": 0.05}, {"regen": 0.04}, {"reflect": 0.2}, {"enemy_first": True}, {"heal_cut": 0.5},
+                {"stun_immune": True}, {"pressure": 0.015}, {"purge": True}, {"ward": 0.3}]
+
+
+def random_rules(seed: str, n: int = 1) -> dict:
+    """n distinct random rules, the same for everyone with the same seed. One shuffled order per seed, so n=2 keeps
+    n=1's rule and adds one (a floor's boss fights under the floor's rule and another)."""
+    import random
+    order = random.Random(seed).sample(range(len(RANDOM_RULES)), len(RANDOM_RULES))
+    rules = {}
+    for i in order[:n]:
+        rules.update(RANDOM_RULES[i])
+    return rules
+
+
 # ── The tracks ──────────────────────────────────────────────────────────
 # Every enemy is level 100, ★5. A stand entry is (id, types, qualities, item ids, extra) where extra may hold
 # "speed"/"armor"/"critical" (points added) for the stand. `power` multiplies the enemies' health and damage:
@@ -362,7 +379,47 @@ TRIALS = {
     ],
 }
 TRACKS.insert(0, TRIALS)
-BY_KEY = {t["key"]: t for t in TRACKS}
+
+# Requiem · Over Heaven: opens once every Requiem mode track is cleared. Requiem's finale crews at Requiem strength
+# (requiem.crew: level 100, ★5, Universal, refined items) with Over Heaven's rules on top. Calibrated with the team
+# simulator against requiem.BENCH (the real top team) from about 45% on the first fight down to about 15% on the last.
+# It sits outside TOTAL, so the "Over Heaven" title keeps meaning the original tracks; it has its own title.
+_RQ = lambda *ids: [(cid, ["BALANCE"], [U], [1, 1, 1], {}) for cid in ids]  # noqa: E731  (the knives are refined +3)
+REQUIEM_TRACK = {
+    "key": "requiem", "mode": "Requiem", "title": "Requiem · Over Heaven", "color": "#D6246E", "build": "requiem",
+    "opens": "Clear every Requiem mode track to open it.",
+    "intro": "Requiem mode was the hardest the Arrow could make the story. Then heaven added its rules.",
+    "fights": [
+        {"title": "Encore of Calamity", "power": 1.69, "difficulty": 5, "enemies": _RQ(161, 154, 149),
+         "rules": {"enemy_first": True, "ward": 0.3}, "reward": {"fragments": 12000, "super": 1, "items": [38, 39]},
+         "text": "Wonder of U returns at Requiem strength, and this time it strikes before you can blink.",
+         "hint": "They move first and shrug off stands outside a synergy: a synergy team that survives the opening."},
+        {"title": "Bites the Dust, Forever", "power": 1.8, "difficulty": 5, "enemies": _RQ(58, 49, 32),
+         "rules": {"regen": 0.05, "stun_immune": True}, "reward": {"fragments": 13000, "super": 1, "items": [40, 2]},
+         "text": "Every wound rewinds, and no stun ever lands.",
+         "hint": "They heal 5% a turn and can't be stunned: poison and burns stacked early, or the Bites the Dust Switch."},
+        {"title": "The Stolen Requiem", "power": 1.79, "difficulty": 5, "enemies": _RQ(84, 75, 83),
+         "rules": {"reflect": 0.25}, "reward": {"fragments": 14000, "super": 1, "items": [38, 39, 40]},
+         "text": "Requiem returns every action to zero, and every blow to you.",
+         "hint": "A quarter of each basic hit comes back: let specials, items and damage over time carry the fight."},
+        {"title": "The New World", "power": 1.72, "difficulty": 5, "enemies": _RQ(109, 107, 94),
+         "rules": {"enrage": 0.06, "heal_cut": 0.5}, "reward": {"fragments": 15000, "super": 2, "items": [2]},
+         "text": "Time accelerates; Pucci's guard grows stronger every turn while your healing dries up.",
+         "hint": "They grow 6% a turn and your healing is halved: burst them down before the acceleration wins."},
+        {"title": "Love Train", "power": 1.65, "difficulty": 5, "enemies": _RQ(120, 126, 134),
+         "rules": {"pressure": 0.02, "purge": True}, "reward": {"fragments": 16000, "super": 2, "items": [38, 39, 40]},
+         "text": "Misfortune slides off the President onto you, every single turn.",
+         "hint": "You lose 2% a turn and they cleanse every debuff: raw damage and fast specials, not attrition."},
+        {"title": "The Arrow's Will · Over Heaven", "power": 1.6, "difficulty": 5, "enemies": _RQ(84, 110, 161),
+         "rules": {"heaven_tax": 0.3, "enemy_first": True, "regen": 0.04},
+         "reward": {"fragments": 25000, "super": 3, "items": [3, 3]},
+         "text": "Three Requiems the Arrow chose, in heaven itself. Your borrowed power is taxed at the door.",
+         "hint": "Your UR and LR lose 30%, they move first and heal 4% a turn: a synergy team of SSR and below, built to burst."},
+    ],
+}
+EXTRA = [REQUIEM_TRACK]
+REQUIEM_TITLE = "Requiem Over Heaven"
+BY_KEY = {t["key"]: t for t in TRACKS + EXTRA}
 LEVEL, AWAKEN = 100, 5
 TOTAL = sum(len(t["fights"]) for t in TRACKS)
 TITLE = "Over Heaven"  # every track cleared
@@ -382,6 +439,9 @@ HARDER = 1.1  # every track but Trials (the way in), on top of each fight's powe
 
 def enemy_team(key: str, j: int) -> list:
     fight = BY_KEY[key]["fights"][j]
+    if BY_KEY[key].get("build") == "requiem":
+        from app.game import requiem
+        return requiem.crew([e[0] for e in fight["enemies"]], fight["power"])
     power = fight["power"] * (1 if key == "trials" else HARDER)
     team = []
     for cid, types, quals, items, extra in fight["enemies"]:
@@ -448,6 +508,17 @@ def unlocked(user) -> bool:
     return story.cleared(user) >= story.TOTAL or is_forced(user, "overheaven")
 
 
+def requiem_open(user) -> bool:
+    """Requiem · Over Heaven opens once every Requiem mode track is cleared (or an admin forced it)."""
+    from app.game import requiem
+    from app.game.progression import is_forced
+    return requiem.total_cleared(user) >= requiem.TOTAL or is_forced(user, "oh_requiem")
+
+
+def track_open(user, key: str) -> bool:
+    return key != REQUIEM_TRACK["key"] or requiem_open(user)
+
+
 def difficulty(fight: dict) -> int:
     """1-5 stars: the fight's own rating, or one read from how far its enemies are pushed."""
     if fight.get("difficulty"):
@@ -480,7 +551,7 @@ def stand_view(entry) -> dict:
 
 def tracks(user) -> list:
     out = []
-    for t in TRACKS:
+    for t in TRACKS + EXTRA:
         done = cleared(user, t["key"])
         fights = [{"index": j, "title": f["title"], "text": f["text"], "hint": f["hint"],
                    "rules": rule_lines(f["rules"]), "enemies": [stand_view(e) for e in f["enemies"]],
@@ -488,7 +559,8 @@ def tracks(user) -> list:
                    "state": "cleared" if j < done else "current" if j == done else "locked"}
                   for j, f in enumerate(t["fights"])]
         out.append({**{k: t[k] for k in ("key", "mode", "title", "color", "intro")}, "fights": fights,
-                    "cleared": done, "total": len(t["fights"])})
+                    "cleared": done, "total": len(t["fights"]), "locked": not track_open(user, t["key"]),
+                    "opens": t.get("opens"), "extra": t in EXTRA})
     return out
 
 
@@ -498,6 +570,8 @@ def check_can_fight(user, key: str, j: int):
         raise GameError("Over Heaven opens once you finish the story.")
     if key not in BY_KEY or not 0 <= j < len(BY_KEY[key]["fights"]):
         raise GameError("That fight doesn't exist.")
+    if not track_open(user, key):
+        raise GameError(BY_KEY[key]["opens"])
     if not user.main_characters:
         raise GameError("Put stands in your team first.")
     if j > cleared(user, key):
@@ -530,6 +604,8 @@ def win(user, key: str, j: int) -> dict:
     names = [i.name for i in items] + ([f"{r['super']} Arrowhead{'s' if r['super'] > 1 else ''}"] if r["super"] else [])
     if total_cleared(user) >= TOTAL and titles.grant(user, TITLE):
         names.append(f"the title “{TITLE}”")
+    if key == REQUIEM_TRACK["key"] and j + 1 >= len(REQUIEM_TRACK["fights"]) and titles.grant(user, REQUIEM_TITLE):
+        names.append(f"the title “{REQUIEM_TITLE}”")
     rewards.update(fragments=r["fragments"], item=", ".join(names))
     return rewards
 

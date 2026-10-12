@@ -1,11 +1,15 @@
 """The Delve: a free daily dungeon. No energy: one run a day.
 
 Each day brings a new dungeon, the same for everyone (seeded by the date): DEPTHS floors of
-corridors under a fog, each hiding fights, an elite, chests, traps and a campfire. The team
+corridors under a fog, each hiding fights, an elite, chests, traps and a campfire. B1-B3 are the delve, matched to
+your team; below them the dungeon stops matching you: B4-B6 are the Over Heaven depths (Requiem-strength enemies
+rising to Over Heaven's level, one of heaven's rules per floor) and B7-B9 the Requiem depths (rising to Requiem
+mode's strength). A boss guards the stairs of B3, B6 and B9: beat it, then take the bag home or go deeper. Loot and
+XP grow with every floor. The team
 walks in at full health and keeps its wounds from fight to fight (campfires heal, traps hurt).
 Fights and chests fill a loot bag that is only paid out when the run ends:
   - standing on a stairway, take the bag home or go deeper (harder fights, bigger loot);
-  - the last floor's stairway is guarded by a boss: beating it pays the bag plus a bonus;
+  - B3, B6 and B9's stairways are guarded by a boss; beating the last one pays the bag plus a bonus;
   - if the team falls (or gives up), only half the bag comes home.
 Enemies are scaled to the team you bring in (its average level), so the dungeon stays a
 challenge at every stage of the game.
@@ -27,12 +31,24 @@ from app.game.logic import GameError, check_achievements, now, track_quest_progr
 
 W, H = 11, 9            # tiles; rooms sit on even coordinates, the odd tiles between them are walls or doors
 START = (0, 0)
-DEPTHS = 3
+DEPTHS = 9
+BOSS_DEPTHS = (3, 6, 9)
+HEAVEN_FROM, REQUIEM_FROM = 4, 7  # the Over Heaven depths (B4-B6) and the Requiem depths (B7-B9)
 RUNS_PER_DAY = 1
 LOOPS = 0.15            # share of inner walls knocked down, so the maze has more than one way round
 EVENTS = (("fight", 4), ("elite", 1), ("chest", 3), ("trap", 2), ("camp", 1))
 POWER_SHARE = 0.8       # enemies sit a little under a tower floor of the team's own level...
-DEPTH_STEP = (-1, 2, 5)  # ...and climb with each depth
+DEPTH_STEP = (-1, 2, 5)  # ...and climb with each depth (B1-B3)
+# Below B3 enemies are absolute: requiem.crew (level 100, ★5, Universal, refined items) times these. Calibrated with the
+# simulator against requiem.BENCH: a fresh top team wins a B4 fight every time and a B9 boss about half the time,
+# and wounds carry from fight to fight.
+DEEP_MULT = {4: 1.20, 5: 1.35, 6: 1.45, 7: 1.50, 8: 1.58, 9: 1.65}
+DEEP_KIND = {"fight": 1.0, "elite": 1.05, "boss": 1.1}
+LOOT_MULT = (1, 1, 1, 1.6, 1.9, 2.3, 2.8, 3.3, 4.0)  # by depth: the bag's dust (B4 and below)
+XP_GROWTH = 0.15        # stand and player XP grow 15% per floor on top of the depth itself
+RUN_XP_PER_FLOOR = 400  # player XP for bringing a run home (left or cleared), per floor reached
+DEEP_BOSS_PALM = 6      # the B6 boss always adds a Devil's Palm...
+REQUIEM_ARROW_CHANCE = 0.35  # ...and the B9 boss may add a Requiem Arrow
 ELITE_STEP, BOSS_STEP = 3, 6
 TRAP_HIT = 0.15         # share of max health a trap takes (never a killing blow)
 CAMP_HEAL, CAMP_REVIVE = 0.40, 0.25
@@ -116,7 +132,7 @@ def floor_plan(day: str, depth: int) -> dict:
             pool = [r for r in (dead_ends if kind == "chest" else []) + spots if r not in events]
             if pool:
                 events[pool[0]] = kind
-    events[stairs] = "boss" if depth == DEPTHS else "stairs"
+    events[stairs] = "boss" if depth in BOSS_DEPTHS else "stairs"
     return {"open": frozenset(open_tiles), "stairs": stairs, "events": events}
 
 
@@ -130,14 +146,53 @@ def power_for(team) -> int:
     return max(1, round(POWER_SHARE * max(0.0, avg - 1) ** 0.8))
 
 
+def band(depth: int) -> str:
+    """"delve" (B1-B3, matched to the team), "heaven" (B4-B6) or "requiem" (B7-B9)."""
+    return "requiem" if depth >= REQUIEM_FROM else "heaven" if depth >= HEAVEN_FROM else "delve"
+
+
+BAND_NAMES = {"delve": "The delve", "heaven": "Over Heaven depths", "requiem": "Requiem depths"}
+
+
 def enemy_floor(run, kind: str) -> int:
-    step = DEPTH_STEP[run["depth"] - 1] + (ELITE_STEP if kind == "elite" else BOSS_STEP if kind == "boss" else 0)
+    """The tower-floor strength of a B1-B3 enemy (deeper floors use it, at B3, for their loot)."""
+    step = DEPTH_STEP[min(run["depth"], len(DEPTH_STEP)) - 1] + (ELITE_STEP if kind == "elite" else BOSS_STEP if kind == "boss" else 0)
     return max(1, run["power"] + step)
 
 
+def floor_rules(day: str, depth: int, kind: str = "fight") -> dict:
+    """Heaven's rule on an Over Heaven floor (the same for everyone that day), plus a second one for its boss."""
+    if band(depth) != "heaven":
+        return {}
+    from app.game import overheaven
+    return overheaven.random_rules(f"delve:{day}:{depth}", 2 if kind == "boss" else 1)
+
+
+def warning(depth: int) -> Optional[str]:
+    """What waits on floor `depth`, shown before going down to it (None for the gentle floors)."""
+    if depth < HEAVEN_FROM:
+        return None
+    strength = round(DEEP_MULT[depth] * 100)
+    boss = " Its stairs are guarded by a boss." if depth in BOSS_DEPTHS else ""
+    if band(depth) == "heaven":
+        first = "You leave the delve behind: these are the Over Heaven depths. " if depth == HEAVEN_FROM else ""
+        return (f"{first}B{depth}: every enemy is level 100 ★5 at {strength}% strength with refined items, and one of "
+                f"heaven's rules holds the whole floor.{boss} Loot ×{LOOT_MULT[depth - 1]:g}.")
+    first = "The Requiem depths: Requiem mode's strength, no more mercy. " if depth == REQUIEM_FROM else ""
+    return (f"{first}B{depth}: level 100 ★5 enemies at {strength}% strength with refined items.{boss} "
+            f"Loot ×{LOOT_MULT[depth - 1]:g}. If your team falls, half the bag is lost.")
+
+
 def enemies(run, tile, kind: str) -> list:
-    floor = enemy_floor(run, kind)
     rng = random.Random(f"delve:{run['day']}:{run['depth']}:{key(tile)}")
+    if run["depth"] >= HEAVEN_FROM:  # the deep floors: absolute strength, UR and LR crews
+        from app.game import requiem
+        rarities = {"fight": ["SSR", "UR", "UR"], "elite": ["UR", "UR", "UR"], "boss": ["LR", "UR", "UR"]}[kind]
+        ids = []
+        for rarity in rarities:
+            ids.append(rng.choice([i for i in tower.POOLS[rarity] if i not in ids]))
+        return requiem.crew(ids, DEEP_MULT[run["depth"]] * DEEP_KIND[kind])
+    floor = enemy_floor(run, kind)
     rarities = tower._rarities(floor)
     if kind == "boss":
         rarities = ["LR" if floor >= 25 else "UR"] + rarities[:2]  # the boss leads
@@ -245,7 +300,7 @@ def move(user, redis, direction: str) -> dict:
     run["done"].append(key(target))
     rng = random.Random(f"delve:{run['day']}:{run['depth']}:{key(target)}:loot:{user.id}")
     if kind == "chest":
-        dust = dust_for(run["power"] + 2 * run["depth"]) // 2
+        dust = int(dust_for(run["power"] + 2 * min(run["depth"], 3)) // 2 * LOOT_MULT[run["depth"] - 1])
         item = _roll(rng, CHEST_ITEMS)
         run["bag"]["fragments"] += dust
         if item:
@@ -289,31 +344,55 @@ def finish_fight(user, fight, redis) -> dict:
     run["done"].append(key(tile))
     team = tower.settle_fighters(fight.sides[0].chars)
     save_team(redis, user.id, team)
-    dust = dust_for(floor) * (2 if kind == "elite" else 3 if kind == "boss" else 1)
+    depth = run["depth"]
+    dust = int(dust_for(floor) * (2 if kind == "elite" else 3 if kind == "boss" else 1) * LOOT_MULT[depth - 1])
     run["bag"]["fragments"] += dust
     found = []
-    rng = random.Random(f"delve:{run['day']}:{run['depth']}:{key(tile)}:loot:{user.id}")
+    rng = random.Random(f"delve:{run['day']}:{depth}:{key(tile)}:loot:{user.id}")
     if kind == "elite":
         found = [i for i in [_roll(rng, CHEST_ITEMS)] if i]
     elif kind == "boss":
-        found = [rng.choice(BOSS_ITEMS)] + ([2] if rng.random() < BOSS_PALM else [])
+        found = [rng.choice(BOSS_ITEMS)]
+        if depth >= DEEP_BOSS_PALM or rng.random() < BOSS_PALM:
+            found.append(2)
+        if depth == DEPTHS and rng.random() < REQUIEM_ARROW_CHANCE:
+            found.append(3)
     run["bag"]["items"].extend(found)
-    from app.game.economy import stand_xp as paced
-    stand_xp = paced((6 + 3 * run["depth"]) * (2 if kind != "fight" else 1))
+    stand_xp, player_xp = xp_for(depth, kind)
     for c in user.main_characters:
         train(c, stand_xp)
-    user.xp += 40 * run["depth"]
-    rewards.update(xp=40 * run["depth"], stand_xp=stand_xp,
+    user.xp += player_xp
+    rewards.update(xp=player_xp, stand_xp=stand_xp,
                    item=f"+{dust:,} Meteor Dust" + "".join(f", {item_name(i)}" for i in found) + " into your loot bag")
     if kind == "boss":
-        rewards["delve"] = end(user, redis, 1.0, "cleared")
+        if depth == BOSS_DEPTHS[0]:  # down to the first boss (the Deep Delver title)
+            user.data["web_dungeon_clears"] = int(user.data.get("web_dungeon_clears", 0)) + 1
+        if depth >= DEPTHS:
+            rewards["delve"] = end(user, redis, 1.0, "cleared")
+        else:
+            rewards["delve_boss"] = {"depth": depth, "next": warning(depth + 1)}
     return rewards
+
+
+def xp_for(depth: int, kind: str = "fight") -> tuple:
+    """(each team stand's XP, player XP) for a fight won on floor `depth`: both grow with every floor."""
+    from app.game.economy import stand_xp as paced
+    grow = 1 + XP_GROWTH * (depth - 1)
+    return paced((6 + 3 * depth) * (2 if kind != "fight" else 1) * grow), round(40 * depth * grow)
+
+
+def _boss_waiting(run) -> bool:
+    """The floor's stairs are guarded by a boss that's still standing."""
+    stairs = _plan(run)["stairs"]
+    return _plan(run)["events"].get(stairs) == "boss" and key(stairs) not in run["done"]
 
 
 def descend(user, redis):
     run, team = _run(user, redis)
     if tuple(run["pos"]) != _plan(run)["stairs"] or run["depth"] >= DEPTHS:
         raise GameError("Find the stairs first.")
+    if _boss_waiting(run):
+        raise GameError("Beat the boss guarding the stairs first.")
     run.update(depth=run["depth"] + 1, pos=list(START), seen=[key(START)], done=[])
     s = state(user)
     s["best"] = max(s.get("best", 0), run["depth"])
@@ -324,7 +403,9 @@ def cash_out(user, redis) -> dict:
     run, _ = _run(user, redis)
     if tuple(run["pos"]) != _plan(run)["stairs"]:
         raise GameError("Only the stairs lead out. Find them, or give up and keep half the bag.")
-    return end(user, redis, 1.0, "left")
+    if _boss_waiting(run):
+        raise GameError("Beat the boss guarding the stairs first.")
+    return end(user, redis, 1.0, "cleared" if _plan(run)["events"].get(_plan(run)["stairs"]) == "boss" else "left")
 
 
 def give_up(user, redis) -> dict:
@@ -349,9 +430,10 @@ def end(user, redis, keep: float, how: str) -> dict:
     s["best"] = max(s.get("best", 0), run["depth"])
     s["last"] = {"how": how, "depth": run["depth"], "fragments": dust, "items": [item_name(i) for i in items],
                  "lost": bag["fragments"] - dust, "lost_items": len(bag["items"]) - len(items)}
-    if how == "cleared":  # down to the boss (the Deep Delver title)
-        user.data["web_dungeon_clears"] = int(user.data.get("web_dungeon_clears", 0)) + 1
     if how != "lost":
+        bonus = RUN_XP_PER_FLOOR * run["depth"]
+        user.xp += bonus
+        s["last"]["xp"] = bonus
         user.data["web_dungeon_completions"] = int(user.data.get("web_dungeon_completions", 0)) + 1
         track_quest_progress(user, "dungeon_complete")
         check_achievements(user, "dungeon_complete")

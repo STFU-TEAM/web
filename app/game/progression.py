@@ -16,11 +16,12 @@ def done_at(part: int) -> int:
 
 
 # mode -> story stages cleared to open it (in the order they're announced)
+# The first story wins open one mode each, so a new player meets them one at a time instead of four at once.
 GATES = {
     "wormhole": 1,
-    "tower": 1,
-    "dungeon": 1,
-    "puzzle": 1,
+    "dungeon": 2,
+    "puzzle": 3,
+    "tower": 4,
     "ranked": done_at(3),
     "altverse": min(done_at(c["after"]) for c in altverse.CHAPTERS),
     "overheaven": story.TOTAL,
@@ -45,7 +46,8 @@ NEW_TTL = 30 * 86400
 # Admin debug: a player can be given any mode regardless of progress (the admin checklist's tick boxes). Stored
 # apart from the save (web:debug_unlock:<uid>, a set of keys), so it's reversible and the bot never sees it.
 DEBUG_KEYS = {**{k: LABELS[k] for k in GATES}, "coop_heaven": "Co-op raids · Over Heaven", "training": "Training ground",
-              "levels": "Skip the player-level gates", "requiem": "Requiem mode (every track)", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
+              "levels": "Skip the player-level gates", "requiem": "Requiem mode (every track)",
+              "oh_requiem": "Over Heaven · Requiem track", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
                                                            for c in altverse.CHAPTERS}}
 
 
@@ -143,7 +145,10 @@ def requirement_at(n: int) -> str:
         return "Win your first story fight"
     if n >= story.TOTAL:
         return "Finish the story"
-    return f"Finish {story.STAGES[n - 1]['part_title']} in the story"
+    last = story.STAGES[n - 1]
+    if last.get("boss") or story.STAGES[n]["part"] != last["part"]:  # the gate is a part's end
+        return f"Finish {last['part_title']} in the story"
+    return f"Win {n} story fights (up to “{last['title']}”)"
 
 
 def next_unlock(cleared: int, skip=()) -> Optional[Tuple[int, List[str]]]:

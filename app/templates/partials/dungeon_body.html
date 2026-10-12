@@ -2,18 +2,19 @@
     swaps just this block over HTMX instead of reloading the page. -#}
 {% from "macros.html" import menacing, back_to_fight %}
 {% macro floors(depth) -%}
-  {#- B1 > B2 > B3 (boss): where the run is -#}
+  {#- B1 > ... > B9: where the run is, the delve / Over Heaven / Requiem depths, a crown on every boss floor -#}
   <ol class="delve-floors" aria-label="Floors">
     {% for d in range(1, D.DEPTHS + 1) %}
-      <li class="{{ 'here' if d == depth }}{{ ' past' if depth and d < depth }}"{% if d == depth %} aria-current="step"{% endif %}>
-        <b>B{{ d }}</b>{% if d == D.DEPTHS %}<span aria-hidden="true">♛</span><span class="sr">boss</span>{% endif %}</li>
+      <li class="band-{{ D.band(d) }}{{ ' here' if d == depth }}{{ ' past' if depth and d < depth }}"{% if d == depth %} aria-current="step"{% endif %}
+          title="{{ D.BAND_NAMES[D.band(d)] }}{{ ' · boss' if d in D.BOSS_DEPTHS }}">
+        <b>B{{ d }}</b>{% if d in D.BOSS_DEPTHS %}<span aria-hidden="true">♛</span><span class="sr">boss</span>{% endif %}</li>
     {% endfor %}
   </ol>
 {%- endmacro %}
 {% if hx %}{% for cat, m in get_flashed_messages(with_categories=true) %}<p hidden data-float class="{{ 'error' if cat in ('error', 'busy') }}">{{ m }}</p>{% endfor %}{% endif %}
   <header class="player-bar dungeon-head">
     <div><p class="kicker">Daily delve · free · a new dungeon every midnight</p><h1 class="display sm">{% call menacing() %}Dungeon{% endcall %}</h1>
-      <p class="muted">Three floors under a fog. Fights and chests fill a loot bag that's only paid when you get out: take it home on the stairs, or go deeper for more. If your team falls, half the bag is lost.</p></div>
+      <p class="muted">{{ D.DEPTHS }} floors under a fog. B1–B3 are matched to your team; B4–B6 are the <strong class="band-heaven-text">Over Heaven depths</strong> and B7–B9 the <strong class="band-requiem-text">Requiem depths</strong>, with a boss on B3, B6 and B9. Fights and chests fill a loot bag that's only paid when you get out: take it home on the stairs, or go deeper for more loot and XP. If your team falls, half the bag is lost.</p></div>
     <div class="delve-status">
       {{ floors(run.depth if run else 0) }}
       <small class="muted">{% if run %}Floor {{ run.depth }} of {{ D.DEPTHS }}{% else %}{{ runs_left }} run{{ 's' if runs_left != 1 }} left today{% endif %} · deepest today B{{ s.best or 0 }}</small>
@@ -30,6 +31,15 @@
     <p class="notice">Your {{ other_fight }} fight is still on. Finish it first. {{ back_to_fight() }}</p>
   {% elif run and not (fight and not fight.finished) %}
     {% set leader = (team|selectattr('current_hp', 'gt', 0)|first) if team else none %}
+    {% if deep.band != 'delve' %}
+      <section class="delve-band band-{{ deep.band }}" aria-label="This floor">
+        <p class="delve-band-name">{{ '☁' if deep.band == 'heaven' else '☠' }} B{{ run.depth }} · {{ D.BAND_NAMES[deep.band] }}</p>
+        {% if deep.rules %}<ul class="delve-band-rules">{% for line in deep.rules %}<li>Heaven's rule: {{ line }}</li>{% endfor %}
+          {% for line in deep.boss_rules if line not in deep.rules %}<li>The boss adds: {{ line }}</li>{% endfor %}</ul>
+        {% else %}<p class="muted">Level 100 ★5 enemies at Requiem mode's strength. No rules, no mercy.</p>{% endif %}
+        <p class="delve-band-pay">Loot ×{{ '%g'|format(deep.loot) }} · each win: +{{ deep.xp[0] }} stand XP, +{{ deep.xp[1] }} XP</p>
+      </section>
+    {% endif %}
     <div class="dungeon-layout">
       <div class="delve-map-wrap">
         <section class="dungeon-map" aria-label="Dungeon map, floor {{ run.depth }}" style="--cols: {{ D.W }}; --rows: {{ D.H }}">
@@ -76,8 +86,11 @@
           <section class="delve-card delve-stairs">
             <h2 class="delve-card-title">⇩ The stairs</h2>
             {% if run.depth < D.DEPTHS %}
-              <form method="post" action="{{ url_for('play.dungeon_descend') }}" hx-post="{{ url_for('play.dungeon_descend') }}" hx-target="#dungeon-page" hx-swap="innerHTML" hx-sync="#dungeon-page:drop" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-                <button class="delve-choice deeper"><strong>Go deeper</strong><small>Floor B{{ run.depth + 1 }}: harder fights, bigger loot{{ ', and the boss' if run.depth + 1 == D.DEPTHS }}</small></button></form>
+              {% set next_band = D.band(run.depth + 1) %}
+              {% if deep.next %}<p class="delve-warn band-{{ next_band }}" role="note"><strong>⚠ Below:</strong> {{ deep.next }}</p>{% endif %}
+              <form method="post" action="{{ url_for('play.dungeon_descend') }}" hx-post="{{ url_for('play.dungeon_descend') }}" hx-target="#dungeon-page" hx-swap="innerHTML" hx-sync="#dungeon-page:drop" hx-disabled-elt="find button"
+                    {% if deep.next %}hx-confirm="{{ deep.next }} Go down to B{{ run.depth + 1 }}?"{% endif %}><input type="hidden" name="csrf" value="{{ csrf_token }}">
+                <button class="delve-choice deeper band-{{ next_band }}"><strong>Go deeper · B{{ run.depth + 1 }}</strong><small>{% if next_band == 'delve' %}Harder fights, bigger loot{{ ', and a boss' if run.depth + 1 in D.BOSS_DEPTHS }}{% else %}{{ D.BAND_NAMES[next_band] }}: loot ×{{ '%g'|format(D.LOOT_MULT[run.depth]) }}, more XP{{ ', and a boss' if run.depth + 1 in D.BOSS_DEPTHS }}{% endif %}</small></button></form>
             {% endif %}
             <form method="post" action="{{ url_for('play.dungeon_cashout') }}" hx-post="{{ url_for('play.dungeon_cashout') }}" hx-target="#dungeon-page" hx-swap="innerHTML" hx-sync="#dungeon-page:drop" hx-disabled-elt="find button"><input type="hidden" name="csrf" value="{{ csrf_token }}">
               <button class="delve-choice home"><strong>Take the bag home</strong><small>Keep all of it: {{ bag.fragments|dust }}{% if bag['items'] %} and {{ bag['items']|length }} item{{ 's' if bag['items']|length != 1 }}{% endif %}</small></button></form>
@@ -118,7 +131,7 @@
         <p class="delve-last-mark" aria-hidden="true">{{ {'cleared': '♛', 'left': '⇧', 'lost': '再起不能'}[s.last.how] }}</p>
         <div>
           <h2 class="h3">{{ {'cleared': 'Dungeon cleared!', 'left': 'You got out safely', 'lost': 'The expedition fell'}[s.last.how] }}</h2>
-          <p>Reached B{{ s.last.depth }}. Brought home <strong>{{ s.last.fragments|dust }}</strong>{% if s.last['items'] %} and {{ s.last['items']|join(', ') }}{% endif %}.
+          <p>Reached B{{ s.last.depth }}. Brought home <strong>{{ s.last.fragments|dust }}</strong>{% if s.last['items'] %} and {{ s.last['items']|join(', ') }}{% endif %}{% if s.last.xp %}, plus <strong>{{ s.last.xp|num }} XP</strong> for getting out{% endif %}.
             {% if s.last.lost or s.last.lost_items %}<span class="muted">Left behind: {{ s.last.lost|dust }}{% if s.last.lost_items %} and {{ s.last.lost_items }} item{{ 's' if s.last.lost_items != 1 }}{% endif %}.</span>{% endif %}</p>
         </div>
       </section>

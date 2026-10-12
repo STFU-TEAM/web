@@ -19,7 +19,7 @@ def opponents(heaven: bool = True) -> List[dict]:
               for f in range(1, 61)]
     from app.game import overheaven
     heaven_options = [{"value": f"oh:{t['key']}:{j}", "label": f"{t['mode']} · {f['title']}"}
-              for t in overheaven.TRACKS for j, f in enumerate(t["fights"])]
+              for t in overheaven.TRACKS + overheaven.EXTRA for j, f in enumerate(t["fights"])]
     groups = [{"group": "Story", "options": stages}, {"group": "Tower (this week)", "options": floors}]
     return groups + ([{"group": "Over Heaven", "options": heaven_options}] if heaven else [])
 

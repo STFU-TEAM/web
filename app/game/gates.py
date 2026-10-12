@@ -53,6 +53,25 @@ def carry_me(user, k: int) -> Optional[dict]:
     return _gate(user, CARRY_ME[stage["act"]], stage["act_title"])
 
 
+def opened_between(old: int, new: int) -> list:
+    """What a level-up from `old` to `new` opens: story parts, Alternate Universe chapters, Carry Me acts."""
+    from app.game import altverse, carryme
+    from app.game import story as s
+    out = []
+    for part, need in STORY.items():
+        if old < need <= new:
+            title = next((st["part_title"] for st in s.STAGES if st["part"] == part), f"Part {part}")
+            out.append(title)
+    for c in altverse.CHAPTERS:
+        if old < AU.get(c["after"], 0) <= new:
+            out.append(f"Alternate Universe · {c['title']}")
+    for act, need in enumerate(CARRY_ME):
+        if old < need <= new:
+            title = next((st["act_title"] for st in carryme.STAGES if st["act"] == act), f"Carry Me act {act + 1}")
+            out.append(title)
+    return out
+
+
 def check(gate: Optional[dict]):
     from app.game.logic import GameError
     if gate:

@@ -8,7 +8,7 @@
   {% if res.streak and res.streak.shielded %}<p class="muted">🛡 Your shield covered the missed day.</p>{% endif %}
   {{ streak_strip(st) }}
   <p class="loot">+{{ res.fragments }} Meteor Dust{% if res.item %}, {{ res.item.name }}{% endif %}{% if res.super %}, and an Arrowhead{% endif %}.</p>
-  {% if res.streak %}<p class="loot">Day {{ res.streak.day }} streak bonus: {% if res.streak.super %}an Arrowhead{% elif res.streak.fragments %}+{{ res.streak.fragments }} Meteor Dust{% else %}{{ res.streak['items']|join(', ') }}{% endif %}.</p>{% else %}<p class="muted">Today's streak bonus is already claimed. Come back tomorrow.</p>{% endif %}
+  {% if res.streak %}<p class="loot">Day {{ res.streak.day }} streak bonus: {% if res.streak.super %}an Arrowhead{% elif res.streak.fragments %}+{{ res.streak.fragments }} Meteor Dust{% else %}{{ res.streak['items']|join(', ') }}{% endif %}{% if res.streak.xp %} and <b>+{{ res.streak.xp|num }} XP</b>{% endif %}.</p>{% else %}<p class="muted">Today's streak bonus is already claimed. Come back tomorrow.</p>{% endif %}
   <p class="muted">Back in {{ st.daily|delta }}.</p>
 {% endif %}
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

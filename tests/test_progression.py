@@ -28,13 +28,16 @@ def _inbox(c):
 
 
 def test_gates_follow_the_story():
-    assert progression.GATES["wormhole"] == progression.GATES["tower"] == progression.GATES["dungeon"] == 1
+    # the first story wins open one mode each, so a new player meets them one at a time
+    assert [progression.GATES[k] for k in ("wormhole", "dungeon", "puzzle", "tower")] == [1, 2, 3, 4]
     assert progression.GATES["ranked"] == progression.done_at(3) == progression.GATES["altverse"]
     assert story.STAGES[progression.GATES["ranked"] - 1]["boss"] and story.STAGES[progression.GATES["ranked"]]["part"] == 4
-    assert progression.requirement("tower") == "Win your first story fight"
+    assert progression.requirement("wormhole") == "Win your first story fight"
+    assert progression.requirement("tower").startswith("Win 4 story fights")
     assert progression.requirement("ranked") == "Finish Part 3 · Stardust Crusaders in the story"
-    assert progression.next_unlock(0) == (1, ["Mirror World", "Tower", "Dungeon", "Daily puzzle"])
-    assert progression.next_unlock(1, skip=("dungeon",)) == (progression.done_at(3) - 1, ["Ranked", "Alternate Universe"])
+    assert progression.next_unlock(0) == (1, ["Mirror World"])
+    assert progression.next_unlock(1) == (1, ["Dungeon"])
+    assert progression.next_unlock(4) == (progression.done_at(3) - 4, ["Ranked", "Alternate Universe"])
     assert progression.next_unlock(story.TOTAL) is None
 
 
@@ -52,11 +55,16 @@ def test_side_modes_open_after_the_first_story_fight(gated):
     assert "This fight opens" in c.get("/story").data.decode()
 
     _win_story_fight(c, h)
+    assert set(progression.new("111")) == {"wormhole"}  # one mode per early win
+    assert any("Unlocked: Mirror World" in t for t in _inbox(c))
+    page = c.get("/story").data.decode()
+    assert "Just unlocked" in page and 'data-tour="wormhole"' in page and 'data-tour="tower"' not in page
+    for _ in range(3):
+        _win_story_fight(c, h)
     opened = {"wormhole", "tower", "puzzle"} | ({"dungeon"} if c.application.config.get("DUNGEON_ENABLED") else set())
     assert set(progression.new("111")) == opened
-    assert any("Unlocked: Mirror World, Tower" in t for t in _inbox(c))
     page = c.get("/story").data.decode()
-    assert "Just unlocked" in page and 'data-tour="tower"' in page and 'data-tour="ranked"' not in page
+    assert 'data-tour="tower"' in page and 'data-tour="ranked"' not in page
     assert page.count('class="nav-badge new"') >= len(opened)
 
     assert c.get("/tower").status_code == 200  # opening a mode clears its New tag

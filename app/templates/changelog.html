@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing %}
+{% block title %}What's new | STFU Requiem{% endblock %}
+{% block description %}Every STFU Requiem update: new modes, stands, balance changes and fixes, newest first.{% endblock %}
+{% block main %}
+<section class="page narrow changelog">
+  <header class="player-bar">
+    <div>
+      <p class="kicker">Changelog</p>
+      <h1 class="display sm">{% call menacing() %}What's new{% endcall %}</h1>
+      <p class="muted">Every update, newest first. Smaller fixes and event news are in the <a href="{{ url_for('main.news_list') }}">news</a>.</p>
+    </div>
+  </header>
+  <ol class="cl-list">
+    {% for e in entries %}
+      <li class="cl-entry{{ ' latest' if loop.first }}" id="v{{ e.version }}">
+        <div class="cl-badge"><b>{{ e.version }}</b><small><time datetime="{{ e.date }}">{{ e.date }}</time></small></div>
+        <div class="cl-body">
+          <h2 class="h2">{{ e.title }}</h2>
+          {% for heading, lines in e.sections %}
+            <h3 class="cl-head">{{ heading }}</h3>
+            <ul>{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>
+          {% endfor %}
+        </div>
+      </li>
+    {% endfor %}
+  </ol>
+</section>
+{% endblock %}

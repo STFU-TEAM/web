@@ -75,7 +75,7 @@ def progression_gate():
         return None
     opened = unlocks(uid)
     if gate and not opened[gate]:
-        flash(f"{progression.LABELS[gate]} opens as you progress: {progression.requirement(gate).lower()}.", "error")
+        flash(f"{progression.LABELS[gate]} opens as you progress: {progression.requirement(gate)[:1].lower() + progression.requirement(gate)[1:]}.", "error")
         return redirect(url_for("progress.story_page"))
     if page and opened[page] and request.method == "GET":
         progression.seen(uid, page)
@@ -185,6 +185,8 @@ def _story_settle(user, fight):
     logic.track_quest_progress(user, "story_win")
     before = story.cleared(user)
     rewards = story.win(user, int(fight.meta["stage"]))
+    from app.game import onboarding
+    onboarding.coach_to(user, "done")  # the first story win ends the first-session coach
     remember_cleared(user.id, story.cleared(user))  # may open new modes in the nav
     progression.announce(user.id, before, story.cleared(user), _skip())
     logic.track_quest_progress(user, "reach_story", story.cleared(user))

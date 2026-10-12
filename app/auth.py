@@ -99,6 +99,11 @@ def _start_session(uid: str, name: str, avatar, method: str):
         session["ref"] = ref
     session["uid"], session["name"], session["avatar"], session["auth"] = uid, name, avatar, method
     session["since"] = int(time.time())  # a session older than its account's removal is logged out (wipe.py)
+    try:  # alt-account flags (app/alts.py): a salted hash of the address, never the address itself
+        from app import alts
+        alts.touch(r(), session, request.remote_addr)  # records, and marks today's address as seen
+    except Exception:
+        pass
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -142,6 +147,21 @@ def register():
         _start_session(account["uid"], account["name"], None, "password")
         return redirect(url_for("auth.welcome"))
     return render_template("register.html", next=nxt, username="")
+
+
+@bp.post("/dev/fresh")
+def dev_fresh():
+    """Dev mode only (the local server, app.debug): a brand-new account with no save, signed in, at the welcome
+    screen, to play the first-player experience from the very start. 404 anywhere else."""
+    import secrets
+    from flask import abort
+    if not current_app.debug:
+        abort(404)
+    name = f"test{secrets.randbelow(10 ** 6):06d}"
+    account = accounts.create_account(name, secrets.token_urlsafe(12))
+    _start_session(account["uid"], account["name"], None, "password")
+    flash(f"Dev: signed in as {name}, a brand-new player with nothing.", "ok")
+    return redirect(url_for("auth.welcome"))
 
 
 @bp.get("/discord")
@@ -278,7 +298,7 @@ def welcome():
                 user = db.add_user(session["uid"])
                 begin(user)
                 user.update()
-                r().set(f"web:tour:{session['uid']}", 1)  # show the new-player tour once
+                # no auto-tour: the coach (onboarding.coach) walks the first session, and offers the tour at its end
                 from app import social
                 social.record_referral(session["uid"], session.pop("ref", None))
         except Busy:

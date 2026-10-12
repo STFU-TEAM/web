@@ -181,7 +181,7 @@ a:hover { color: #fff; }
 .tour-count { margin: 0 0 .2rem; font-size: .75rem; }
 .tour-actions { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
 .tour-nav { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: flex-end; }
-.tour-nav [hidden] { display: none; }
+.tour-nav [hidden], .tour-actions [hidden] { display: none !important; }  /* a .btn display rule must never show a hidden step button */
 body.touring .nav-drop[open] > .nav-menu { display: none; }
 
 .account { display: flex; align-items: center; gap: .8rem; margin-left: auto; flex: none; }
@@ -2079,6 +2079,7 @@ input[type=text] { font: inherit; color: var(--ink); background: var(--paper); b
     min-height: 44px;
   }
   .btn.small, .filter-chip, .tabs a, .stand-chips a, .timers a, .bonus-rows a { display: inline-flex; align-items: center; justify-content: center; }
+  .btn.small[hidden], .filter-chip[hidden], .tabs a[hidden], .stand-chips a[hidden], .timers a[hidden], .bonus-rows a[hidden] { display: none; }  /* hidden wins on phones too */
   .wiki-nav a { display: flex; align-items: center; }
   details > summary { min-height: 44px; display: flex; align-items: center; }
   .chips span { min-height: 44px; display: inline-flex; align-items: center; }
@@ -4688,3 +4689,223 @@ a.cup-name:hover { color: var(--gold); }
   border: 2px dashed #39D0C0; border-radius: var(--radius-ui); background: rgb(57 208 192 / .08); }
 .dev-strip form { margin: 0; }
 .dev-tag { font-family: var(--display); font-size: .8rem; letter-spacing: .06em; color: #39D0C0; }
+
+/* The deep dungeon: nine floors in three bands (the delve, the Over Heaven depths, the Requiem depths) */
+:root { --heaven: #3AB4F2; --requiem: #D6246E; }
+.delve-floors { flex-wrap: wrap; gap: .25rem; justify-content: flex-end; max-width: 30rem; }
+.delve-floors li { padding: .15rem .45rem; font-size: .75rem; }
+.delve-floors li b { font-size: .85rem; }
+.delve-floors li + li::before { content: none; }
+.delve-floors li.band-heaven { border-color: color-mix(in srgb, var(--heaven) 55%, var(--night-3)); }
+.delve-floors li.band-requiem { border-color: color-mix(in srgb, var(--requiem) 55%, var(--night-3)); }
+.delve-floors li.band-heaven.past { border-color: var(--heaven); }
+.delve-floors li.band-requiem.past { border-color: var(--requiem); }
+@media (max-width: 760px) { .delve-floors { justify-content: flex-start; } }
+.band-heaven-text { color: var(--heaven); }
+.band-requiem-text { color: #FF5EAE; }
+.delve-band { display: grid; gap: .3rem; margin: 0 0 1rem; padding: .7rem .9rem; border-radius: var(--radius-ui); border: 2px solid var(--c);
+  border-left-width: 6px; background: color-mix(in srgb, var(--c) 10%, var(--night-2)); }
+.delve-band.band-heaven { --c: var(--heaven); }
+.delve-band.band-requiem { --c: var(--requiem); }
+.delve-band p { margin: 0; }
+.delve-band-name { font: 400 1.05rem var(--display); color: var(--c); letter-spacing: .03em; }
+.delve-band-rules { margin: 0; padding-left: 1.1rem; font-size: var(--step--1); }
+.delve-band-pay { font-size: .8rem; font-weight: 700; color: var(--gold); }
+.delve-warn { margin: 0 0 .5rem; padding: .5rem .65rem; border-radius: var(--radius-ui); font-size: .82rem; line-height: 1.4;
+  border: 2px dashed var(--c, var(--gold)); background: color-mix(in srgb, var(--c, var(--gold)) 12%, transparent); }
+.delve-warn.band-heaven { --c: var(--heaven); }
+.delve-warn.band-requiem { --c: var(--requiem); }
+.delve-choice.deeper.band-heaven { background: var(--heaven); }
+.delve-choice.deeper.band-requiem { background: var(--requiem); color: var(--paper); }
+
+/* The Requiem Tower: the way in sits on the Tower page itself, big and red; the Over Heaven toggle on both climbs */
+.rq-tower-cta { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .4rem 1rem; margin: 0 0 1.4rem;
+  padding: .9rem 1.1rem; border: 3px solid var(--ink); border-radius: var(--radius-card); text-decoration: none; color: var(--paper);
+  background: linear-gradient(120deg, #3A0B22, #7A1046 55%, #D6246E); box-shadow: 5px 5px 0 var(--ink); transition: transform .1s, box-shadow .1s; }
+.rq-tower-cta:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--ink); }
+.rq-tower-cta:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--ink); }
+.rq-tower-cta-mark { display: grid; place-items: center; width: 3.4rem; height: 3.4rem; border-radius: 50%; border: 3px solid var(--ink);
+  background: var(--paper); color: #7A1046; font-size: 1.9rem; rotate: -8deg; box-shadow: 3px 3px 0 var(--ink); }
+.rq-tower-cta-text { display: grid; gap: .15rem; min-width: 0; }
+.rq-tower-cta-text small { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #FFC2DC; }
+.rq-tower-cta-text strong { font: 400 clamp(1.25rem, 3.5vw, 1.8rem)/1.1 var(--display); text-shadow: 2px 2px 0 var(--ink); }
+.rq-tower-cta-text span { font-size: var(--step--1); color: #FFE3EF; }
+.rq-tower-cta-go { font: 400 2rem/1 var(--display); color: var(--gold); text-shadow: 2px 2px 0 var(--ink); }
+@media (max-width: 600px) { .rq-tower-cta { grid-template-columns: auto minmax(0, 1fr); } .rq-tower-cta-go { display: none; } .rq-tower-cta-mark { width: 2.8rem; height: 2.8rem; font-size: 1.5rem; } }
+.rq-tower .tower-panel, .rq-tower .tower-floor.current { border-color: #D6246E; }
+.btn.rq-go { background: #D6246E; color: var(--paper); border-color: var(--ink); }
+.oh-toggle { display: flex; align-items: flex-start; gap: .55rem; margin: .2rem 0 .8rem; padding: .55rem .7rem; cursor: pointer;
+  border: 2px dashed var(--heaven, #3AB4F2); border-radius: var(--radius-ui); background: rgb(58 180 242 / .08); }
+.oh-toggle input { margin-top: .2rem; accent-color: #3AB4F2; width: 1.1rem; height: 1.1rem; flex: none; }
+.oh-toggle span { display: grid; gap: .1rem; }
+.oh-toggle small { color: var(--muted); font-size: .78rem; }
+.oh-toggle:has(input:checked) { border-style: solid; background: rgb(58 180 242 / .16); }
+.oh-on { color: #3AB4F2; }
+.tower-rules { list-style: none; margin: .2rem 0; padding: 0; font-size: .75rem; color: #9EDCFF; }
+
+/* The ranked queue bar: top of the desktop sidebar, top of the phone menu; it refreshes itself every 20s */
+.queue-bar { display: flex; align-items: center; gap: .5rem; margin: .2rem .6rem .5rem; padding: .4rem .6rem; border-radius: var(--radius-ui);
+  border: 2px solid var(--night-3); background: var(--night); color: var(--muted); text-decoration: none; font-size: .8rem; }
+.queue-bar:hover { border-color: var(--gold); color: var(--paper); }
+.queue-bar strong { color: var(--paper); font-variant-numeric: tabular-nums; }
+.queue-pulse { flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--night-3); }
+.queue-bar.live .queue-pulse { background: #7CE38B; box-shadow: 0 0 0 0 rgb(124 227 139 / .6); animation: queue-pulse 1.8s ease-out infinite; }
+.queue-bar.live { border-color: rgb(124 227 139 / .45); }
+.queue-bar.mine { border-color: var(--gold); background: rgb(244 197 66 / .1); }
+.queue-cta { margin-left: auto; font-weight: 700; color: var(--gold); white-space: nowrap; }
+@keyframes queue-pulse { to { box-shadow: 0 0 0 7px rgb(124 227 139 / 0); } }
+.queue-bar.sheet { margin: .2rem 0 .8rem; padding: .6rem .8rem; font-size: .9rem; }
+.side-mini .queue-bar.side { justify-content: center; margin-inline: .4rem; padding-inline: 0; }
+.side-mini .queue-bar.side .queue-text, .side-mini .queue-bar.side .queue-cta { display: none; }
+@media (prefers-reduced-motion: reduce) { .queue-bar.live .queue-pulse { animation: none; } }
+
+/* Legal pages and the changelog */
+.legal h2 { margin-top: 1.6rem; }
+.legal ul { padding-left: 1.2rem; display: grid; gap: .4rem; }
+.footer-links { font-size: var(--step--1); }
+.cl-list { list-style: none; margin: 1.2rem 0 0; padding: 0; display: grid; gap: 1.4rem; }
+.cl-entry { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); gap: 1rem; }
+.cl-badge { display: grid; align-content: start; justify-items: center; gap: .2rem; padding-top: .2rem; }
+.cl-badge b { display: grid; place-items: center; width: 4.4rem; height: 4.4rem; border: 3px solid var(--ink); border-radius: 50%;
+  background: var(--night-3); color: var(--paper); font: 400 1.4rem/1 var(--display); box-shadow: 3px 3px 0 var(--ink); rotate: -6deg; }
+.cl-entry.latest .cl-badge b { background: var(--gold); color: var(--ink); }
+.cl-badge small { color: var(--muted); font-size: .75rem; }
+.cl-body { padding: .9rem 1.1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3); min-width: 0; }
+.cl-entry.latest .cl-body { border-color: var(--gold); }
+.cl-body .h2 { margin: 0 0 .3rem; }
+.cl-head { margin: .8rem 0 .3rem; font: 400 .9rem var(--display); color: var(--gold); letter-spacing: .04em; }
+.cl-body ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .3rem; }
+@media (max-width: 600px) { .cl-entry { grid-template-columns: 1fr; gap: .5rem; } .cl-badge { grid-auto-flow: column; justify-content: start; align-items: center; gap: .6rem; } .cl-badge b { width: 3.4rem; height: 3.4rem; font-size: 1.1rem; } }
+
+/* Share cards (/s/<id>) and share buttons */
+.share-card { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1rem;
+  padding: 1.2rem; border: 3px solid var(--ink); border-radius: var(--radius-card); background: var(--night-2); box-shadow: 6px 6px 0 var(--ink); }
+.share-art { position: relative; aspect-ratio: 1; border: 3px solid var(--ink); border-radius: var(--radius-ui); overflow: hidden; background: var(--night-3); }
+.share-art img { width: 100%; height: 100%; object-fit: cover; object-position: center top; display: block; }
+.share-badge { position: absolute; left: .6rem; top: .6rem; padding: .2rem .6rem; border: 2px solid var(--ink); border-radius: 6px; background: var(--gold);
+  color: var(--ink); font: 400 .95rem var(--display); box-shadow: 2px 2px 0 var(--ink); rotate: -4deg; }
+.share-menace { position: absolute; right: .4rem; bottom: .2rem; font: 400 1.6rem var(--display); color: var(--magenta); text-shadow: 2px 2px 0 var(--ink); }
+.share-body .display { margin: .2rem 0 .5rem; }
+.share-text { font-size: 1.05rem; }
+.share-cta { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1rem 0 .6rem; }
+.kind-requiem .share-badge { background: #D6246E; color: var(--paper); }
+@media (max-width: 640px) { .share-card { grid-template-columns: 1fr; } .share-art { max-width: 280px; } }
+.share-btn { gap: .35rem; }
+
+/* Landing page (logged out): the proof strip, the feature grid, the closing call to action */
+.landing-proof { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; margin-top: 1.2rem; }
+.landing-proof div { display: grid; justify-items: center; gap: .1rem; padding: .8rem .6rem; text-align: center; border-radius: var(--radius-ui);
+  background: var(--night-2); border: 2px solid var(--night-3); }
+.landing-proof strong { font: 400 1.5rem/1.1 var(--display); color: var(--gold); }
+.landing-proof span { font-size: .8rem; color: var(--muted); }
+.landing-features { margin-top: 2rem; }
+.feature-grid { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.feature-grid li { position: relative; padding: 1rem 1.1rem 1.1rem; border: 2px solid var(--ink); border-radius: var(--radius-card); background: var(--night-2);
+  box-shadow: 4px 4px 0 var(--ink); }
+.feature-grid li:nth-child(3n + 1) { border-top: 5px solid var(--gold); }
+.feature-grid li:nth-child(3n + 2) { border-top: 5px solid var(--magenta); }
+.feature-grid li:nth-child(3n) { border-top: 5px solid var(--teal); }
+.feature-grid h3 { margin: .3rem 0; font: 400 1.1rem var(--display); }
+.feature-grid p { margin: 0; font-size: var(--step--1); color: var(--muted); }
+.feature-icon { font-size: 1.8rem; }
+.landing-final { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; margin: 1.4rem 0 .4rem; }
+
+/* A new player's first week: the Welcome week calendar and the Beginner's path */
+.onboarding { display: grid; gap: 1rem; margin: 1.2rem 0; }
+.welcome-week, .b-path { padding: 1rem 1.1rem; border-radius: var(--radius-card); border: 2px solid var(--ink); box-shadow: 4px 4px 0 var(--ink); background: var(--night-2); }
+.welcome-week { border-color: var(--gold); background: linear-gradient(150deg, rgb(244 197 66 / .14), var(--night-2) 60%); }
+.ob-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.ob-head .h2 { margin: 0; }
+.ob-head .kicker { margin: 0; }
+.ob-wait { font-size: .85rem; font-weight: 700; color: var(--muted); }
+.ww-days { list-style: none; margin: .8rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .45rem; }
+.ww-day { position: relative; display: grid; align-content: start; gap: .25rem; min-width: 0; padding: .5rem .45rem; border-radius: var(--radius-ui);
+  background: var(--night); border: 2px solid var(--night-3); font-size: .72rem; line-height: 1.3; color: var(--muted); }
+.ww-day b { font: 400 .85rem var(--display); color: var(--paper); }
+.ww-day.big { border-color: rgb(244 197 66 / .5); }
+.ww-day.today { border-color: var(--gold); background: rgb(244 197 66 / .14); color: var(--paper); animation: ww-pulse 1.6s ease-in-out infinite; }
+.ww-day.claimed { opacity: .55; }
+.ww-day i { position: absolute; top: -.5rem; right: -.4rem; display: grid; place-items: center; width: 1.3rem; height: 1.3rem; border-radius: 50%;
+  font-style: normal; font-size: .75rem; font-weight: 700; border: 2px solid var(--ink); background: var(--gold); color: var(--ink); }
+.ww-day.claimed i { background: var(--teal); }
+@keyframes ww-pulse { 50% { box-shadow: 0 0 0 4px rgb(244 197 66 / .25); } }
+@media (max-width: 760px) { .ww-days { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .ww-day.today { animation: none; } }
+.b-path > p { margin: .5rem 0; }
+.bp-meter { margin: .4rem 0 .8rem; }
+.bp-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .4rem; }
+.bp-step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .55rem; padding: .45rem .6rem;
+  border-radius: var(--radius-ui); background: var(--night); border: 1px solid var(--night-3); }
+.bp-mark { display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--night-3); font-weight: 700; font-size: .8rem; }
+.bp-step.done:not(.claimed) { border-color: var(--gold); }
+.bp-step.done:not(.claimed) .bp-mark { background: var(--gold); color: var(--ink); }
+.bp-step.claimed { opacity: .6; }
+.bp-step.claimed .bp-mark { background: var(--teal); color: var(--ink); }
+.bp-text { display: grid; min-width: 0; }
+.bp-text small { color: var(--muted); font-size: .72rem; }
+.bp-final { margin: .8rem 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; font-weight: 700; }
+.dev-foot { justify-content: center; margin: .8rem auto 0; max-width: 34rem; }
+
+/* A new save's first screen (banners?welcome=1): one clear thing to do */
+.first-pull { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .4rem .9rem; margin: 0 0 1rem; padding: .8rem 1rem;
+  border: 3px solid var(--ink); border-radius: var(--radius-card); background: var(--gold); color: var(--ink); text-decoration: none;
+  box-shadow: 4px 4px 0 var(--magenta); animation: jj-jitter .6s steps(2) 3; }
+.first-pull strong { display: block; font: 400 1.15rem/1.15 var(--display); }
+.first-pull small { display: block; font-size: .85rem; }
+.first-pull-mark { font-size: 2rem; }
+.first-pull-go { font: 400 1.8rem/1 var(--display); animation: first-pull-bob 1.2s ease-in-out infinite; }
+@keyframes first-pull-bob { 50% { transform: translateY(5px); } }
+@media (prefers-reduced-motion: reduce) { .first-pull, .first-pull-go { animation: none; } }
+
+/* 360-400px phones: the summon header and the welcome-week calendar fit the screen */
+@media (max-width: 420px) {
+  .summon-emblem { width: 56px; height: 56px; } .summon-arrow { width: 38px; height: 38px; }
+  .summon-title .kicker { white-space: normal; font-size: .78rem; }
+  .summon-rotate { max-width: 100%; box-sizing: border-box; font-size: .78rem; }
+  .ww-days { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ww-day { overflow-wrap: anywhere; }
+  .first-pull { grid-template-columns: auto minmax(0, 1fr); } .first-pull-go { display: none; }
+}
+
+/* Phones: the install prompt's buttons clear the chat bubble that sits over its corner; Requiem's header stacks */
+@media (max-width: 1023px) { .install-actions { padding-right: 3.6rem; } }
+@media (max-width: 480px) {
+  .rq-hero { grid-template-columns: auto minmax(0, 1fr); }
+  .rq-hero > div:not(.story-progress) { grid-column: 1 / -1; }
+  .rq-emblem { width: 52px; height: 52px; font-size: 1.6rem; }
+}
+.hero-copy .lede { max-width: 31rem; }  /* the intro stays clear of the fanned cards on wide screens */
+
+/* LEVEL UP: a slam card of its own (app.js levelUp), the level stamped huge over a burst of rays */
+.lvl-card { overflow: hidden; isolation: isolate; padding: 1.1rem 1.8rem 1rem; background: var(--gold); }
+.lvl-rays { position: absolute; inset: -60%; z-index: -1; background: repeating-conic-gradient(from 0deg, rgb(255 255 255 / .55) 0 9deg, transparent 9deg 22deg);
+  animation: lvl-spin 6s linear infinite; }
+.lvl-num { display: block; font: 400 2.6rem/1 var(--display) !important; color: var(--magenta) !important; text-shadow: 3px 3px 0 var(--ink);
+  animation: lvl-pop .7s cubic-bezier(.2, 1.8, .4, 1) .15s both; }
+.lvl-open { display: block; max-width: 18rem; margin-top: .3rem; font-size: .8rem; font-weight: 700; color: var(--ink); }
+@keyframes lvl-spin { to { transform: rotate(360deg); } }
+@keyframes lvl-pop { from { transform: scale(.2) rotate(-20deg); opacity: 0; } 60% { transform: scale(1.25) rotate(4deg); opacity: 1; } to { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .lvl-rays, .lvl-num { animation: none !important; } }
+
+/* The first-session coach: a card with the mascot, a few points, and the way on; the thing it's about glows */
+.coach { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem 1rem; align-items: start; margin: 0 0 1.2rem; padding: 1rem 1.1rem;
+  border: 3px solid var(--ink); border-radius: var(--radius-card); background: linear-gradient(140deg, rgb(58 180 242 / .2), var(--night-2) 55%);
+  box-shadow: 5px 5px 0 #3AB4F2; scroll-margin-top: 80px; }
+.coach-mascot img { width: 64px; height: 64px; border-radius: 50%; border: 3px solid #3AB4F2; display: block; }
+.coach-body .h2 { margin: .1rem 0 .4rem; }
+.coach-body .kicker { margin: 0; color: #9EDCFF; }
+.coach-points { margin: 0 0 .8rem; padding-left: 1.1rem; display: grid; gap: .4rem; }
+.coach-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.coach-actions form { margin: 0; }
+@media (max-width: 520px) { .coach { grid-template-columns: 1fr; } .coach-mascot img { width: 48px; height: 48px; } }
+.coach-glow { position: relative; border-radius: var(--radius-card); animation: coach-glow 1.6s ease-in-out infinite; }
+@keyframes coach-glow { 0%, 100% { box-shadow: 0 0 0 3px #3AB4F2, 0 0 0 0 rgb(58 180 242 / .5); } 50% { box-shadow: 0 0 0 3px #3AB4F2, 0 0 0 10px rgb(58 180 242 / 0); } }
+@media (prefers-reduced-motion: reduce) { .coach-glow { animation: none; box-shadow: 0 0 0 3px #3AB4F2; } }
+.coach-next { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: .4rem .9rem; margin: .8rem 0; padding: .9rem 1rem;
+  border: 3px solid var(--ink); border-radius: var(--radius-card); background: var(--gold); color: var(--ink); text-decoration: none; box-shadow: 4px 4px 0 var(--magenta); }
+.coach-next[hidden] { display: none; }
+.coach-next strong { display: block; font: 400 1.15rem/1.15 var(--display); }
+.coach-next small { display: block; font-size: .85rem; }
+.coach-next-mark { font-size: 2rem; }
+.coach-next-go { font-weight: 700; white-space: nowrap; padding: .4rem .8rem; border: 2px solid var(--ink); border-radius: var(--radius-ui); background: var(--paper); }
+@media (max-width: 520px) { .coach-next { grid-template-columns: auto minmax(0, 1fr); } .coach-next-go { grid-column: 1 / -1; text-align: center; } }

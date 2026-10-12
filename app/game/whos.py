@@ -32,7 +32,7 @@ BLOCKS = [5, 7, 10, 14, 20, 30, 44, 64]   # mosaic tiles across, by misses so fa
 CLUE_SPECIAL, CLUE_LETTER = 3, 5          # misses before each clue shows
 RARITY_ORDER = ["R", "SR", "SSR", "UR", "LR"]
 REWARD_BASE, REWARD_PER_SPARE = 300, 60   # Meteor Dust: base, plus this per unused guess
-XP_BASE, XP_PER_SPARE = 400, 50           # player XP, the same way
+XP_BASE, XP_PER_SPARE = 1000, 120        # player XP, the same way
 POOL = [c["id"] for c in CHARACTER_FILE if c["universe"] != "Dummy" and c["id"] != 110 and c["rarity"] in RARITY_ORDER]
 
 

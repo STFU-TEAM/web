@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 # art_helper downloads (upload them to the image server, they don't belong in git)
 art/
+# local Redis backups (app/backup.py)
+backups/

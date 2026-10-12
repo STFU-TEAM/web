@@ -20,12 +20,24 @@ services:
       - ART_PATH=${ART_PATH:-}
       - KOFI_URL=${KOFI_URL:-https://ko-fi.com/eirblast}
       - DUNGEON_ENABLED=${DUNGEON_ENABLED:-1}
+      # daily Redis backups (app/backup.py) land on the backups volume; a Discord webhook gets an off-site copy
+      - BACKUP_DIR=/data/backups
+      - BACKUP_WEBHOOK_URL=${BACKUP_WEBHOOK_URL:-}
+      # errors are posted to this Discord webhook as they happen (app/alerts.py)
+      - ALERT_WEBHOOK_URL=${ALERT_WEBHOOK_URL:-}
+      # hashes IP addresses for the alt-account flags (app/alts.py); defaults to SECRET_KEY
+      - IP_SALT=${IP_SALT:-}
       # web push: without these the container never sees the keys and push stays off
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_SUBJECT=${VAPID_SUBJECT:-mailto:admin@stfurequiem.com}
+    volumes:
+      - backups:/data/backups
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+volumes:
+  backups:

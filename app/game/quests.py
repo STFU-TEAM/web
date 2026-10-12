@@ -25,11 +25,16 @@ def _paced(quests):
             paced["super_fragments"] = 1 if weekly_heads % 2 == 0 else 0
         elif recurring and rewards.get("super_fragments"):
             paced["super_fragments"] = heads(rewards["super_fragments"])
+        if recurring:  # the daily routine is where player XP comes from (Mirror World alone made levelling a grind)
+            paced["xp"] = int(round((paced.get("xp") or 0) * QUEST_XP_MULT[q["category"]]))
         q["rewards"] = paced
     return quests
 
 
+QUEST_XP_MULT = {"daily": 4, "weekly": 3}
 ALL_QUESTS = _paced(ALL_QUESTS)
+
+
 
 QUEST_BY_ID = {q["id"]: q for q in ALL_QUESTS}
 

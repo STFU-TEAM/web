@@ -26,6 +26,7 @@
         <button class="btn small ghost" title="Back to stage 1 and remove the forced unlocks">Reset story</button></form>
     </div>
   {% endif %}
+  {% if not fight and coach_of(u) == 'story' %}{% with step = 'story' %}{% include "partials/coach.html" %}{% endwith %}{% endif %}
   {% include "partials/unlocked.html" %}
 
   {% if fight %}

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ post.title }} | STFU Requiem{% endblock %}
+{% block description %}{{ (post.body or '')|striptags|truncate(180) }}{% endblock %}
 {% block main %}
 <article class="page narrow news-article">
   <p class="kicker"><a href="{{ url_for('main.news_list') }}">{{ {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.get(post.kind or 'news') }}</a> · <time datetime="{{ post.created }}">{{ post.created[:10] }}</time></p>

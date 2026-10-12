@@ -19,12 +19,21 @@
 
   <nav class="tabs scroll-tabs" aria-label="Tracks">
     {% for t in tracks %}
-      <a href="{{ url_for('progress.oh_page', t=t.key) }}" class="tab{% if t.key == track.key %} active{% endif %}"{% if t.key == track.key %} aria-current="page"{% endif %}>{{ t.mode }} <small>{{ t.cleared }}/{{ t.total }}</small></a>
+      <a href="{{ url_for('progress.oh_page', t=t.key) }}" class="tab{% if t.key == track.key %} active{% endif %}{% if t.extra %} oh-extra-tab{% endif %}"{% if t.key == track.key %} aria-current="page"{% endif %}>{% if t.extra %}{{ '🔒' if t.locked else '☠' }} {% endif %}{{ t.mode }} <small>{{ t.cleared }}/{{ t.total }}</small></a>
     {% endfor %}
   </nav>
 
   {% if fight %}
     {% include "partials/fight.html" %}
+  {% elif track.locked %}
+    <article class="story-stage boss oh-locked" style="--part: {{ track.color }}">
+      <div class="story-stage-text">
+        <p class="kicker">☠ {{ track.title }} · {{ track.total }} fights</p>
+        <h2 class="h2">🔒 Sealed until Requiem falls</h2>
+        <p class="story-text">{{ track.intro }} Requiem mode's finale crews at Requiem strength, with Over Heaven's rules on top: the hardest fights in the game.</p>
+        <p class="notice">{{ track.opens }} <a href="{{ url_for('progress.rq_page') }}">Open Requiem mode</a></p>
+      </div>
+    </article>
   {% else %}
     {% set current = track.fights|selectattr('state', 'equalto', 'current')|first %}
     {% if current %}

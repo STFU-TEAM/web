@@ -453,17 +453,26 @@ def test_story_gets_exponentially_harder():
     assert all(b >= 0.9 * a for a, b in zip(means, means[1:])) and means[-1] > 2 * means[0]
 
 
-def test_new_save_gets_the_tour_once(client):
+def test_a_new_save_is_coached_through_its_first_session(client):
     from app.game.logic import BANNER_ODDS, PITY_LIMIT
     assert abs(sum(BANNER_ODDS.values()) - 1) < 1e-9 and BANNER_ODDS["SSR"] >= 0.1 and PITY_LIMIT <= 50
     h = login(client, "999")
     client.post("/auth/welcome", headers=h)
-    assert client.fake.exists("web:tour:999")
+    assert not client.fake.exists("web:tour:999") and doc(client, "999")["web_coach"] == "pull"  # the coach, not the tour
     page = client.get("/team").data.decode()
-    assert 'data-autostart="1"' in page and "Start the story" in page and "nav-dot" in page
-    client.post("/tour/done", headers=h)
-    assert not client.fake.exists("web:tour:999")
-    assert 'data-autostart="0"' in client.get("/team").data.decode()
+    assert 'data-autostart="0"' in page and "Start the story" in page  # the tour is still there, on demand
+    assert "These three fight for you" not in page  # the team card waits for the first pull
+    banner = next(b for b in logic.BANNERS if logic.banner_enabled(b))
+    r = client.post(f"/banners/{banner['id']}/pull", headers={**h, "HX-Request": "true"})
+    assert "Your first stands are in!" in r.data.decode() and doc(client, "999")["web_coach"] == "team"
+    page = client.get("/team").data.decode()
+    assert "These three fight for you" in page and 'data-coach-glow="#team-shelf"' in page and 'id="team-shelf"' in page
+    r = client.post("/coach", data={"to": "story"}, headers=h)
+    assert r.headers["Location"].endswith("/story") and doc(client, "999")["web_coach"] == "story"
+    page = client.get("/story").data.decode()
+    assert "Win your first fight" in page and "Show me around" in page
+    client.post("/coach", data={"to": "done"}, headers=h)
+    assert "Win your first fight" not in client.get("/story").data.decode()
 
 
 # --------------------------------------------------------------------------- #

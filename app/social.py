@@ -38,8 +38,8 @@ def _ids(raw) -> List[str]:
 
 # ── Notifications ────────────────────────────────────────────────────────────
 
-def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: bool = True):
-    """Add to uid's inbox feed (and pop up a toast on their next page)."""
+def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: bool = True, push: bool = True):
+    """Add to uid's inbox feed (and pop up a toast on their next page; push: also to their phone)."""
     import secrets
     entry = json.dumps({"id": secrets.token_hex(4), "kind": kind, "text": text, "url": url, "at": int(time.time())})
     pipe = r().pipeline()
@@ -50,8 +50,9 @@ def notify(uid: str, kind: str, text: str, url: Optional[str] = None, toast: boo
         pipe.ltrim(f"web:toast:{uid}", -8, -1)
         pipe.expire(f"web:toast:{uid}", 7 * 86400)
     pipe.execute()
-    from app import push
-    push.send(uid, kind, text, url)
+    if push:
+        from app import push as push_mod
+        push_mod.send(uid, kind, text, url)
 
 
 def notify_later(uid: str, ref: str, when: float, kind: str, text: str, url: Optional[str] = None,

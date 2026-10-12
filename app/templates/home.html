@@ -4,14 +4,15 @@
 <section class="hero">
   <div class="hero-copy">
     <h1 class="display">{% call menacing() %}Your stand awakens here.{% endcall %}</h1>
-    <p class="lede">STFU Requiem is a JoJo stand gacha you play in the browser. Pull stands, build a team of three and follow the Joestars from Part 3 to Part 8. You start with an Arrowhead, enough for your first 10-pull.</p>
+    <p class="lede">{% if registered and welcome and welcome.claimed == 0 %}Welcome, Stand user! Your first week starts right below: open today's gift, then follow your path.{% elif registered %}Welcome back, Stand user. Your team is waiting.{% else %}A free JoJo stand gacha in your browser. Pull {{ STAND_COUNT }} stands, build a team of three and fight from Part 3 to an original Part 10, then take on the Requiem. Your first 10-pull is on us, and so is a gift every day of your first week.{% endif %}</p>
     <p class="cta">
       {% if registered %}
         <a class="btn gold" href="{{ url_for('play.team') }}">Open my team</a>
       {% elif me.id %}
         <a class="btn gold" href="{{ url_for('auth.welcome') }}">Begin my adventure</a>
       {% else %}
-        <a class="btn gold" href="{{ url_for('auth.register') }}">Start playing</a>
+        <a class="btn gold big" href="{{ url_for('auth.register') }}">Play free →</a>
+        <a class="btn ghost" href="{{ url_for('auth.discord_login') }}">Continue with Discord</a>
         <a class="btn ghost" href="{{ url_for('auth.login') }}">Log in</a>
       {% endif %}
       <a class="btn ghost" href="{{ url_for('main.stands') }}">Browse all {{ STAND_COUNT }} stands</a>
@@ -27,6 +28,26 @@
     {% endfor %}
   </div>
 </section>
+{% if registered and (path or welcome) %}<div class="page">{% include "partials/onboarding.html" %}</div>{% endif %}
+{% if not me.id %}
+<section class="page landing-proof" aria-label="At a glance">
+  {% if players >= 50 %}<div><strong>{{ players|num }}</strong><span>Stand users</span></div>{% endif %}
+  <div><strong>{{ STAND_COUNT }}</strong><span>stands to pull</span></div>
+  <div><strong>Parts 3–8</strong><span>and an original Part 10</span></div>
+  <div><strong>Free</strong><span>in your browser, no download</span></div>
+</section>
+<section class="page landing-features" aria-labelledby="features-h">
+  <h2 class="h2" id="features-h">{% call menacing() %}What waits for you{% endcall %}</h2>
+  <ul class="feature-grid">
+    <li><span class="feature-icon" aria-hidden="true">🏹</span><h3>Pull and awaken</h3><p>Weekly banners for every part, pity on every banner, shinies and full-art stands. Fuse copies, refine gear and awaken your favourites to ★5.</p></li>
+    <li><span class="feature-icon" aria-hidden="true">📜</span><h3>A story to fight through</h3><p>The Joestars' journey from Cairo to Morioh and beyond, alternate universes where the villains won, and Carry Me: Joyce Joestar's original Part 10.</p></li>
+    <li><span class="feature-icon" aria-hidden="true">🧠</span><h3>Fights that need a plan</h3><p>Pick every target. Synergies, terrain, poison, stuns and specials decide fights, not just rarity. Test any team in the simulator first.</p></li>
+    <li><span class="feature-icon" aria-hidden="true">☠</span><h3>An endgame that bites back</h3><p>Over Heaven's rules, Requiem mode, the Requiem Tower and a nine-floor daily dungeon, tuned against real maxed teams.</p></li>
+    <li><span class="feature-icon" aria-hidden="true">⚔</span><h3>Gangs and ranked</h3><p>Draft-and-ban ranked duels, gang raids, the Gang Cup and weekly ladders. Co-op raids with friends.</p></li>
+    <li><span class="feature-icon" aria-hidden="true">🧩</span><h3>Something new every day</h3><p>A daily puzzle with a speed ladder, Who's that Stand?, quests, events and a gift every day of your first week.</p></li>
+  </ul>
+</section>
+{% endif %}
 {% if posts or patch %}
 <section class="page home-news" aria-labelledby="news-h">
   <header class="shelf-head"><h2 class="h2" id="news-h">What's new</h2><a href="{{ url_for('main.news_list') }}">All news →</a></header>
@@ -67,7 +88,7 @@
 </section>
 {% endif %}
 
-
+{% if not registered %}
 <section class="steps page">
   <h2 class="h2">How it works</h2>
   <ol>
@@ -75,6 +96,11 @@
     <li><h3>Pull a banner</h3><p>An Arrowhead buys ten stands from one JoJo part. Each comes with its own types and qualities, every 10-pull holds an SR or better, and pity guarantees a UR or better within {{ PITY_LIMIT }} pulls.</p></li>
     <li><h3>Step into the Mirror World</h3><p>Pick targets turn by turn against a reflection of your own team. Winning pays Meteor Dust, experience and sometimes an item.</p></li>
   </ol>
+  {% if not me.id %}
+    <p class="landing-final"><a class="btn gold big" href="{{ url_for('auth.register') }}">Pull your first stands →</a>
+      <a class="btn ghost" href="https://discord.gg/stfurequiem">Join the Discord</a></p>
+  {% endif %}
   <p class="kofi-cta">STFU Requiem is free and made by one fan. If you enjoy it, <a class="btn small" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ buy me a coffee on Ko-fi</a></p>
 </section>
+{% endif %}
 {% endblock %}

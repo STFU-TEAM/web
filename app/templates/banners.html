@@ -5,6 +5,14 @@
 {% macro pct(v) %}{{ ('%.1f'|format(v * 100)).rstrip('0').rstrip('.') }}%{% endmacro %}
 {% block main %}
 <section class="page">
+  {% if welcome %}
+    {#- a new save's first screen: one clear thing to do -#}
+    <a class="first-pull" href="#banners" role="status">
+      <span class="first-pull-mark" aria-hidden="true">🏹</span>
+      <span><strong>Your first 10-pull is ready</strong><small>Your Arrowhead buys ten stands from any banner below. Pick the part you like and press <b>Pull 10</b>.</small></span>
+      <span class="first-pull-go" aria-hidden="true">↓</span>
+    </a>
+  {% endif %}
   {#- the hero: the Arrow, the wallet, and the two gauges a summoner watches (pity, sparks) -#}
   <header class="summon-hero">
     <div class="summon-emblem" aria-hidden="true"><svg class="summon-arrow" viewBox="0 0 64 64" aria-hidden="true">
@@ -35,7 +43,6 @@
       </div>
     </div>
   </header>
-  {% if welcome %}<p class="toast ok" role="status">Your save is ready. Spend your Arrowhead on any banner below.</p>{% endif %}
 
   {% if me.admin %}
     <form class="admin-force" method="post" action="{{ url_for('play.force_rarity') }}">
@@ -57,7 +64,7 @@
 
   <div id="pull-result" class="use-result" aria-live="polite"></div>
 
-  <div class="banners">
+  <div class="banners" id="banners">
     {% for b in banners %}
     {% set counts_all = b|banner_stands %}
     <article class="banner{{ ' themed' if b.theme }}{{ ' has-lr' if counts_all|selectattr('rarity', 'equalto', 'LR')|list }}" id="banner-{{ b.id }}">

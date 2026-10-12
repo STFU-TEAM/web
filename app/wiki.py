@@ -384,7 +384,7 @@ def guide_rows() -> dict:
                 for c in altverse.CHAPTERS]
     acts = [{"title": a["title"], "jojo": a["jojo"], "level": gates.CARRY_ME[i], "stages": len(a["stages"]),
              "encore": a.get("encore", False)} for i, a in enumerate(carryme.ACTS)]
-    tracks = [{"title": t["title"], "mode": t["mode"], "fights": len(t["fights"])} for t in overheaven.TRACKS]
+    tracks = [{"title": t["title"], "mode": t["mode"], "fights": len(t["fights"])} for t in overheaven.TRACKS + overheaven.EXTRA]
     raids = [{"label": t["label"], "xp": t["xp"]} for t in coop.TIERS.values()]
     return {"parts": parts, "from_start": opens.get(0, []), "chapters": chapters, "acts": acts, "tracks": tracks, "raids": raids,
             "xp_per_fight": logic.PLAYER_XPGAINS, "regen": logic.ENERGY_REGEN_MINUTES,

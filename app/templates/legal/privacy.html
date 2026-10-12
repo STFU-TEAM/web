@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Privacy policy | STFU Requiem{% endblock %}
+{% block description %}What STFU Requiem stores about you, why, for how long, and how to have it deleted.{% endblock %}
+{% block main %}
+<article class="page narrow legal">
+  <p class="kicker">Last updated {{ updated }}</p>
+  <h1 class="display sm">Privacy policy</h1>
+  <p>STFU Requiem is a free fan game run by one person. It stores only what the game needs to work. Nothing is sold, and there are no ads or third-party trackers on this site.</p>
+
+  <h2 class="h3">What we store</h2>
+  <ul>
+    <li><strong>Your account.</strong> If you sign in with Discord: your Discord user ID, display name and avatar, as Discord shares them when you allow it (we never see your Discord password or email). If you make a website account: your username and a salted hash of your password (never the password itself).</li>
+    <li><strong>Your game save.</strong> Your stands, items, progress, currencies, titles, profile customization and fight history. The save is shared with the STFU Requiem Discord bot, so the same game works in both places.</li>
+    <li><strong>What you write.</strong> Chat messages (global, gang, raid and private), gang names and mottos, your profile text, and reports you send. Private messages are visible to the two players in them and, when a message is reported, to the admins.</li>
+    <li><strong>Notifications.</strong> If you turn on push notifications, your browser's push subscription (an address your browser gives us to deliver them). Turning them off deletes it.</li>
+    <li><strong>A salted hash of your IP address.</strong> Used only to spot one person running many accounts. We never keep the address itself, and the hash expires after 90 days.</li>
+    <li><strong>Error logs.</strong> When a page breaks, we keep the page address and your player ID with the error so it can be fixed. Logs roll over after a few thousand lines.</li>
+  </ul>
+
+  <h2 class="h3">Cookies</h2>
+  <p>One session cookie keeps you signed in (it lasts 30 days), and one more remembers this device's push subscription if you turned notifications on. A few display preferences (the collapsed sidebar, filters, the tour) are kept in your browser's local storage and never sent to us. There are no analytics or advertising cookies.</p>
+
+  <h2 class="h3">Who sees it</h2>
+  <p>Other players see what the game shows publicly: your name, avatar, profile, stands, gang and ladder records. Admins can see saves to fix problems, handle reports and stop cheating; every admin action is logged. The site and the bot run on a private server; Discord handles sign-in with Discord and delivers the bot's messages; your browser's own push service delivers notifications. Nobody else receives your data.</p>
+
+  <h2 class="h3">How long we keep it</h2>
+  <p>Your save and account stay until you ask for them to be deleted. Daily backups of the game database are kept for 14 days, so deleted data disappears from them within two weeks. Chat keeps only the most recent few hundred messages per channel.</p>
+
+  <h2 class="h3">Deleting your data</h2>
+  <p>Ask an admin on the <a href="https://discord.gg/stfurequiem">Discord server</a> (or send a report from your profile) to delete your account. We remove your save, your account, your chat history, friendships, listings and every other piece of data tied to you. A copy of the save is kept for {{ keep_days }} days in case the deletion was a mistake, then it's gone.</p>
+
+  <h2 class="h3">Children</h2>
+  <p>The game is meant for players aged 13 and over, the same as Discord. If you're under the age where your country requires a parent's consent, please get it before playing.</p>
+
+  <h2 class="h3">Questions</h2>
+  <p>Ask on the <a href="https://discord.gg/stfurequiem">Discord server</a>. If this policy changes, the date at the top changes too, and big changes are announced in the news.</p>
+  <p class="muted"><a href="{{ url_for('main.terms') }}">Terms of use</a></p>
+</article>
+{% endblock %}

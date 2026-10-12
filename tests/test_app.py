@@ -452,7 +452,7 @@ def test_dungeon_floor_plans_are_daily_and_reachable():
                         seen.add(n)
                         queue.append(n)
             assert set(plan["events"]) <= seen and plan["stairs"] in seen
-            assert plan["events"][plan["stairs"]] == ("boss" if depth == dungeon.DEPTHS else "stairs")
+            assert plan["events"][plan["stairs"]] == ("boss" if depth in dungeon.BOSS_DEPTHS else "stairs")
             assert sum(k == "chest" for k in plan["events"].values()) == 3
     assert dungeon.floor_plan("2026-10-05", 1) != dungeon.floor_plan("2026-10-06", 1)
 
@@ -513,10 +513,13 @@ def test_dungeon_loss_keeps_half_the_bag(client):
                   if k in dungeon.FIGHTS and _walk_to(client, headers, "556", t, avoid_fights=True))
     assert dbmod.load_fight("556").kind == "dungeon"
     before = doc(client, "556")["fragments"]
+    bag = doc(client, "556")["web_delve"]["run"]["bag"]["fragments"]  # 1000, plus any chest on today's way
+    bag_items = doc(client, "556")["web_delve"]["run"]["bag"]["items"]
     client.post("/adventure/dungeon/attack", data={"forfeit": "1"}, headers=headers)
     saved = doc(client, "556")
-    assert saved["web_delve"]["run"] is None and saved["fragments"] == before + 500
-    assert [i["id"] for i in saved["items"]][-1:] == [38]
+    assert saved["web_delve"]["run"] is None and saved["fragments"] == before + bag // 2
+    kept = bag_items[:-(-len(bag_items) // 2)]  # half the items, rounded up
+    assert [i["id"] for i in saved["items"]][-len(kept):] == kept
 
 
 def test_battle_modes_dummy_friend_and_ranked_share_fight_state(client):

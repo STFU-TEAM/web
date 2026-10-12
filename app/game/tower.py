@@ -8,10 +8,16 @@ and gets fallen stands back up at 25%). Enemies grow fast: level 100 by floor 27
 floors of a week are generated from the week's seed, so everyone climbs the same
 tower and the weekly leaderboard is fair. A loss ends the climb.
 
+The Requiem Tower is the same climb for maxed teams: it starts at Requiem strength (requiem.crew: level 100, ★5,
+Universal, refined items) and grows from there, costs more to enter and pays far better, with its own best floor,
+paid floors and weekly leaderboard. Either climb can be started with the Over Heaven toggle: every floor then holds
+one of heaven's rules (bosses two) and pays more Meteor Dust.
+
 Save: data["web_tower"] = {"week", "best", "paid" (highest floor rewarded this week),
-                           "run": {"floor"} or None}
+                           "rq": {"best", "paid"} (the Requiem Tower's),
+                           "run": {"floor", "mode": "normal"|"requiem", "oh": bool} or None}
 Redis: web:tower:team:<uid>  pickled fighters of the climb in progress
-       ZSET web:tower:<week>  uid -> best floor (names in web:tower:<week>:names)
+       ZSET web:tower:<week> / web:tower_rq:<week>  uid -> best floor (names in <key>:names)
 """
 import pickle
 import random
@@ -41,6 +47,17 @@ TRANSIENT = ("_focus", "_my_turn", "_heal_mult", "_skipped", "_stun_guard", "_ac
 POOLS = {r: [c["id"] for c in CHARACTER_FILE if c["rarity"] == r and c["universe"] != "Dummy" and c["id"] != 110]
          for r in ("R", "SR", "SSR", "UR", "LR")}
 
+# The Requiem Tower: level 100 ★5 Universal crews with refined items from floor 1 (about the Tower's floor 40),
+# growing every floor, with more healing between floors since every fight is a hard one. Simulated climbs of a real
+# top team (requiem.BENCH) reach floor 8-12 (median 11). Loot pays like tower floor RQ_LOOT_FLOOR + floor, × RQ_LOOT.
+RQ, NORMAL = "requiem", "normal"
+RQ_COST = 2000
+RQ_BASE, RQ_GROWTH, RQ_BOSS = 0.75, 0.025, 1.08
+RQ_FLOOR_HEAL, RQ_REST_HEAL, RQ_REVIVE = 0.45, 0.60, 0.35
+RQ_LOOT_FLOOR, RQ_LOOT = 40, 1.5
+RQ_HEAD_EVERY, RQ_ARROW_EVERY = 5, 10   # an Arrowhead every 5th floor, a Requiem Arrow every 10th (the boss floors)
+OH_LOOT = 1.3          # the Over Heaven toggle: +30% Meteor Dust on every floor
+
 
 def team_key(uid) -> str:
     return f"web:tower:team:{uid}"
@@ -51,7 +68,17 @@ def state(user) -> dict:
     if not s or s.get("week") != week_key():
         s = {"week": week_key(), "best": 0, "paid": 0, "run": None}
         user.data["web_tower"] = s
+    s.setdefault("rq", {"best": 0, "paid": 0})
     return s
+
+
+def mode_of(run) -> str:
+    return (run or {}).get("mode") or NORMAL
+
+
+def record(s, mode: str) -> dict:
+    """The week's best and paid floors of one climb: the tower's (on the state itself) or the Requiem Tower's."""
+    return s if mode == NORMAL else s["rq"]
 
 
 # ── Floors ───────────────────────────────────────────────────────────────
@@ -160,47 +187,100 @@ def floor_team(floor: int, week: Optional[str] = None, ids: Optional[List[int]] 
     return team
 
 
-def preview(floor: int) -> dict:
-    return {"floor": floor, "ids": floor_ids(floor), "level": level_for(floor), "awaken": awaken_for(floor),
-            "mult": round(power_for(floor), 2), "boss": is_boss(floor), "rest": is_rest(floor),
-            "stands": [CHARACTER_FILE[i - 1] for i in floor_ids(floor)], "reward": reward_view(floor)}
+def rq_mult(floor: int) -> float:
+    return RQ_BASE * (1 + RQ_GROWTH * (floor - 1)) * (RQ_BOSS if is_boss(floor) else 1)
+
+
+def rq_ids(floor: int, week: Optional[str] = None) -> List[int]:
+    rng = random.Random(f"{week or week_key()}:rq:{floor}")
+    rarities = ["LR", "UR", "UR"] if is_boss(floor) else ["SSR", "UR", "UR"] if floor < 5 else ["UR", "UR", "UR"]
+    ids = []
+    for rarity in rarities:
+        ids.append(rng.choice([i for i in POOLS[rarity] if i not in ids]))
+    return ids
+
+
+def team_for(floor: int, mode: str = NORMAL, week: Optional[str] = None) -> list:
+    """A floor's enemies in either climb."""
+    if mode == RQ:
+        from app.game import requiem
+        return requiem.crew(rq_ids(floor, week), rq_mult(floor))
+    return floor_team(floor, week)
+
+
+def heaven_rules(floor: int, mode: str = NORMAL, week: Optional[str] = None) -> dict:
+    """The Over Heaven toggle's rule for a floor (bosses two), the same for everyone that week."""
+    from app.game import overheaven
+    return overheaven.random_rules(f"{week or week_key()}:{mode}:{floor}", 2 if is_boss(floor) else 1)
+
+
+def preview(floor: int, mode: str = NORMAL, oh: bool = False) -> dict:
+    if mode == RQ:
+        ids = rq_ids(floor)
+        out = {"floor": floor, "ids": ids, "level": 100, "awaken": 5, "mult": round(rq_mult(floor), 2)}
+    else:
+        ids = floor_ids(floor)
+        out = {"floor": floor, "ids": ids, "level": level_for(floor), "awaken": awaken_for(floor), "mult": round(power_for(floor), 2)}
+    rules = []
+    if oh:
+        from app.game import overheaven
+        rules = overheaven.rule_lines(heaven_rules(floor, mode))
+    return {**out, "boss": is_boss(floor), "rest": is_rest(floor), "stands": [CHARACTER_FILE[i - 1] for i in ids],
+            "reward": reward_view(floor, mode, oh), "rules": rules}
 
 
 # ── Rewards ─────────────────────────────────────────────────────────────
 
-def stand_xp_for(floor: int) -> int:
-    """Each team stand's XP for a floor's first clear of the week: flat, so the tower doesn't outpace the rest."""
+def stand_xp_for(floor: int, mode: str = NORMAL) -> int:
+    """Each team stand's XP for a floor's first clear of the week: flat, so the tower doesn't outpace the rest.
+    The Requiem Tower pays double, from where the tower ends."""
+    if mode == RQ:
+        return 2 * stand_xp(10 + (RQ_LOOT_FLOOR + floor) // 2)
     return stand_xp(10 + floor // 2)
 
 
-def reward_for(floor: int) -> dict:
-    """Paid the first time each week you clear a floor."""
+def reward_for(floor: int, mode: str = NORMAL, oh: bool = False) -> dict:
+    """Paid the first time each week you clear a floor (of that climb)."""
     from app.game.economy import dust
-    reward = {"fragments": dust(80 * 1.08 ** floor), "items": [], "super": 0}
-    if floor % 5 == 0:
-        reward["items"].append([40, 38, 39][(floor // 5) % 3])
-    elif floor % 5 == 3:
-        reward["items"].append(47)  # a Can of Energy keeps the climb going
-    if floor % HEAD_EVERY == 0:
-        reward["super"] = 1
+    if mode == RQ:
+        reward = {"fragments": int(dust(80 * 1.08 ** (RQ_LOOT_FLOOR + floor)) * RQ_LOOT), "items": [], "super": 0}
+        if floor % 5 == 0:
+            reward["items"].append([40, 38, 39][(floor // 5) % 3])
+        if is_boss(floor):
+            reward["items"].append(2)  # a Devil's Palm
+        if floor % RQ_ARROW_EVERY == 0:
+            reward["items"].append(3)  # a Requiem Arrow
+        if floor % RQ_HEAD_EVERY == 0:
+            reward["super"] = 1
+    else:
+        reward = {"fragments": dust(80 * 1.08 ** floor), "items": [], "super": 0}
+        if floor % 5 == 0:
+            reward["items"].append([40, 38, 39][(floor // 5) % 3])
+        elif floor % 5 == 3:
+            reward["items"].append(47)  # a Can of Energy keeps the climb going
+        if floor % HEAD_EVERY == 0:
+            reward["super"] = 1
+    if oh:
+        reward["fragments"] = int(reward["fragments"] * OH_LOOT)
     return reward
 
 
-def reward_view(floor: int) -> dict:
+def reward_view(floor: int, mode: str = NORMAL, oh: bool = False) -> dict:
     """A floor's first-clear reward, ready to draw: dust, each team stand's XP, items and Arrowheads."""
-    r = reward_for(floor)
-    return {"fragments": r["fragments"], "stand_xp": stand_xp_for(floor), "super": r["super"],
+    r = reward_for(floor, mode, oh)
+    return {"fragments": r["fragments"], "stand_xp": stand_xp_for(floor, mode), "super": r["super"],
             "items": [{"name": item_file[i - 1]["name"], "emoji": item_file[i - 1]["emoji"]} for i in r["items"]]}
 
 
-def milestones(after: int, count: int = 4) -> list:
-    """The next floors past `after` that pay more than dust: items every 5th floor, an Arrowhead every 20th."""
+def milestones(after: int, count: int = 4, mode: str = NORMAL, oh: bool = False) -> list:
+    """The next floors past `after` that pay more than dust: items every 5th floor, Arrowheads (and in the Requiem
+    Tower, Requiem Arrows)."""
     first = (after // REST_EVERY + 1) * REST_EVERY
-    return [{"floor": f, **reward_view(f)} for f in range(first, first + REST_EVERY * count, REST_EVERY)]
+    return [{"floor": f, **reward_view(f, mode, oh)} for f in range(first, first + REST_EVERY * count, REST_EVERY)]
 
 
-def reward_text(floor: int) -> str:
-    r = reward_for(floor)
+def reward_text(floor: int, mode: str = NORMAL, oh: bool = False) -> str:
+    r = reward_for(floor, mode, oh)
     parts = [f"{r['fragments']:,} Meteor Dust"] + [item_file[i - 1]["name"] for i in r["items"]]
     if r["super"]:
         parts.append("1 Arrowhead")
@@ -237,27 +317,36 @@ def settle_fighters(team: list) -> list:
 REVIVE = 0.25          # rest stops also bring fallen stands back at this share
 
 
-def patch_up(team: list, floor: int):
-    """Heal the survivors between floors; rest stops also revive the fallen."""
+def patch_up(team: list, floor: int, mode: str = NORMAL):
+    """Heal the survivors between floors; rest stops also revive the fallen. The Requiem Tower heals more."""
     rest = is_rest(floor)
-    share = REST_HEAL if rest else FLOOR_HEAL
+    if mode == RQ:
+        share, revive = (RQ_REST_HEAL if rest else RQ_FLOOR_HEAL), RQ_REVIVE
+    else:
+        share, revive = (REST_HEAL if rest else FLOOR_HEAL), REVIVE
     for c in team:
         if c.current_hp > 0:
             c.current_hp = min(c.start_hp, int(c.current_hp + c.start_hp * share))
         elif rest:
-            c.current_hp = int(c.start_hp * REVIVE)
+            c.current_hp = int(c.start_hp * revive)
 
 
-def start_climb(user, redis, fighters: list):
+def cost_of(mode: str) -> int:
+    return RQ_COST if mode == RQ else CLIMB_COST
+
+
+def start_climb(user, redis, fighters: list, mode: str = NORMAL, oh: bool = False):
     s = state(user)
     if s.get("run"):
         raise GameError("You're already climbing.")
     if not user.main_characters:
         raise GameError("Put stands in your team before you climb.")
-    if user.fragments < CLIMB_COST:
-        raise GameError(f"A climb costs {CLIMB_COST} Meteor Dust.")
-    user.fragments -= CLIMB_COST
-    s["run"] = {"floor": 1}
+    mode = RQ if mode == RQ else NORMAL
+    cost = cost_of(mode)
+    if user.fragments < cost:
+        raise GameError(f"{'The Requiem Tower' if mode == RQ else 'A climb'} costs {cost:,} Meteor Dust.")
+    user.fragments -= cost
+    s["run"] = {"floor": 1, "mode": mode, "oh": bool(oh)}
     save_team(redis, user.id, fighters)
 
 
@@ -272,45 +361,51 @@ def finish_floor(user, fight, redis, name: str) -> dict:
     rewards = {"won": fight.winner == 0, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
     if not run:
         return rewards
-    floor = run["floor"]
+    floor, mode, oh = run["floor"], mode_of(run), bool(run.get("oh"))
+    rec = record(s, mode)
     if fight.winner != 0:
         abandon(user, redis)
-        rewards["tower"] = {"floor": floor, "over": True}
+        rewards["tower"] = {"floor": floor, "over": True, "mode": mode}
         return rewards
     team = settle_fighters(fight.sides[0].chars)
-    patch_up(team, floor)
+    patch_up(team, floor, mode)
     save_team(redis, user.id, team)
     run["floor"] = floor + 1
-    if floor > s["paid"]:
-        reward = reward_for(floor)
+    if floor > rec["paid"]:
+        reward = reward_for(floor, mode, oh)
         user.fragments += reward["fragments"]
         user.super_fragments += reward["super"]
         items = [item_from_dict({"id": i}) for i in reward["items"]]
         user.items.extend(items)
         for c in user.main_characters:
-            train(c, stand_xp_for(floor))
-        s["paid"] = floor
+            train(c, stand_xp_for(floor, mode))
+        rec["paid"] = floor
         names = [i.name for i in items] + (["1 Arrowhead"] if reward["super"] else [])
         if is_boss(floor):  # boss floors also drop a stand chip, most often for one of the climbers' synergies
             from app.game import chips
-            chip = chips.grant(user, prefer=team)
+            chip = chips.grant(user, prefer=team, tier="epic" if mode == RQ else None)
             if chip:
                 names.append(f"a {chips.view(chip)['label']} chip")
-        rewards.update(fragments=reward["fragments"], stand_xp=stand_xp_for(floor), item=", ".join(names) or None)
-    if floor > s["best"]:
-        s["best"] = floor
-        user.tower_level = max(user.tower_level, floor)  # all-time best, shown on the ladder and profile
-        key = f"web:tower:{s['week']}"
+        rewards.update(fragments=reward["fragments"], stand_xp=stand_xp_for(floor, mode), item=", ".join(names) or None)
+    if floor > rec["best"]:
+        rec["best"] = floor
+        if mode == NORMAL:
+            user.tower_level = max(user.tower_level, floor)  # all-time best, shown on the ladder and profile
+        key = board_key(s["week"], mode)
         redis.zadd(key, {str(user.id): floor})
         redis.hset(f"{key}:names", str(user.id), name)
         redis.expire(key, 60 * 60 * 24 * 21)
         redis.expire(f"{key}:names", 60 * 60 * 24 * 21)
-    rewards["tower"] = {"floor": floor, "over": False, "rest": is_rest(floor)}
+    rewards["tower"] = {"floor": floor, "over": False, "rest": is_rest(floor), "mode": mode}
     return rewards
 
 
-def leaderboard(redis, limit: int = 10) -> list:
-    key = f"web:tower:{week_key()}"
+def board_key(week: str, mode: str = NORMAL) -> str:
+    return f"web:tower_rq:{week}" if mode == RQ else f"web:tower:{week}"
+
+
+def leaderboard(redis, limit: int = 10, mode: str = NORMAL) -> list:
+    key = board_key(week_key(), mode)
     out = []
     for uid, floor in redis.zrevrange(key, 0, limit - 1, withscores=True):
         uid = uid.decode() if isinstance(uid, bytes) else uid

@@ -130,6 +130,7 @@ def create(by: str, title: str, text: str, rewards: dict, audience: str, players
         pipe.sadd(f"{KEY}:to:{mail_id}", *ordered[i:i + 5000])
     pipe.hset(KEY, mail_id, json.dumps(mail))
     pipe.execute()
+    _cache["rows"] = None
     prune()
     return mail
 
@@ -142,14 +143,24 @@ def get(mail_id: str) -> Optional[dict]:
         return None
 
 
+_cache = {"at": 0.0, "db": None, "rows": None}
+CACHE_SECONDS = 15  # every page's bell badge reads this: a worker keeps it a few seconds (writes here reset it)
+
+
 def all_mails() -> List[dict]:
+    import time
+    db = r()
+    if _cache["rows"] is not None and _cache["db"] is db and time.time() - _cache["at"] < CACHE_SECONDS:
+        return _cache["rows"]
     out = []
-    for raw in r().hvals(KEY):
+    for raw in db.hvals(KEY):
         try:
             out.append(json.loads(raw))
         except ValueError:
             continue
-    return sorted(out, key=lambda m: m.get("at", 0), reverse=True)
+    rows = sorted(out, key=lambda m: m.get("at", 0), reverse=True)
+    _cache.update(at=time.time(), db=db, rows=rows)
+    return rows
 
 
 def is_live(mail: dict, today: Optional[datetime.date] = None) -> bool:
@@ -159,6 +170,7 @@ def is_live(mail: dict, today: Optional[datetime.date] = None) -> bool:
 def delete(mail_id: str):
     r().delete(KEY + ":to:" + mail_id, KEY + ":claimed:" + mail_id)
     r().hdel(KEY, mail_id)
+    _cache["rows"] = None
 
 
 def end_now(mail_id: str):
@@ -166,6 +178,7 @@ def end_now(mail_id: str):
     if mail:
         mail["until"] = _today().isoformat()
         r().hset(KEY, mail_id, json.dumps(mail))
+        _cache["rows"] = None
 
 
 def prune():

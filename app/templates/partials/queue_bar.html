@@ -1,0 +1,9 @@
+{#- Players in the ranked queue: the sidebar's (desktop) and the phone menu's bar. It refreshes itself every 20s, only
+    while it's on screen (the closed phone menu and the hidden sidebar don't poll). q = ranked_queue(uid); where = side|sheet. -#}
+<a class="queue-bar {{ where }}{{ ' live' if q.n }}{{ ' mine' if q.mine }}" href="{{ url_for('battles.index', mode='ranked') }}"
+   hx-get="{{ url_for('battles.queue_bar', w=where) }}" hx-trigger="every 20s [document.visibilityState === 'visible' && this.offsetParent !== null]" hx-swap="outerHTML"
+   aria-label="{{ q.n }} player{{ 's' if q.n != 1 }} in the ranked queue{{ ', including you' if q.mine }}" title="Ranked queue">
+  <span class="queue-pulse" aria-hidden="true"></span>
+  <span class="queue-text"><strong>{{ q.n }}</strong> in queue</span>
+  <small class="queue-cta">{% if q.mine %}You're in{% elif q.n %}Join ⚔{% else %}Be first ⚔{% endif %}</small>
+</a>

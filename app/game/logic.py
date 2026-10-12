@@ -389,6 +389,10 @@ def _record_pull(user: User, banner: dict, drawn: list, mode: str):
 def begin(user: User):
     user.super_fragments += 1
     check_achievements(user, "register")
+    from app.game import onboarding
+    onboarding.start_welcome(user)  # a gift a day for the first week (app/game/onboarding.py)
+    user.data["web_level"] = 0  # every level from here on gets its LEVEL UP (User._note_level_up)
+    onboarding.coach_to(user, "pull")  # the coach walks the first session: pull -> team -> story
 
 
 # Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over. Every full week kept
@@ -399,6 +403,7 @@ STREAK_REWARDS = [
     {"items": [2]}, {"fragments": 280}, {"super": 1},
 ]
 STREAK_WEEK_BONUS, STREAK_MAX_MULT = 0.2, 2.0
+STREAK_XP, STREAK_XP_STEP = 600, 100  # player XP for the day's claim: 600 on day 1 of the ladder up to 1,200 on day 7
 STREAK_SHIELD_DAYS = 7
 STREAK_MILESTONES = {14: {"super": 1}, 30: {"super": 2, "title": "Golden Spirit"},
                      100: {"super": 3, "title": "Unbreakable Diamond"}}
@@ -446,10 +451,12 @@ def _claim_streak(user: User) -> Optional[dict]:
     bonus = STREAK_REWARDS[day - 1]
     dust = int(round(bonus.get("fragments", 0) * _streak_mult(count)))
     user.fragments += dust
+    xp = int(round((STREAK_XP + STREAK_XP_STEP * (day - 1)) * _streak_mult(count)))
+    user.xp += xp
     user.super_fragments += bonus.get("super", 0)
     items = [item_from_dict({"id": i}) for i in bonus.get("items", [])]
     user.items.extend(items)
-    res = {"count": count, "day": day, "fragments": dust, "super": bonus.get("super", 0),
+    res = {"count": count, "day": day, "fragments": dust, "super": bonus.get("super", 0), "xp": xp,
            "items": [i.name for i in items], "shielded": s["saved"], "milestone": None}
     milestone = STREAK_MILESTONES.get(count)
     if milestone:

@@ -4,7 +4,20 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>{% block title %}STFU Requiem{% endblock %}</title>
-  <meta name="description" content="Pull JoJo stands from banners, build a team of three and fight through the story, the tower and the weekly boss rush.">
+  {%- set default_description = "Pull JoJo stands from banners, build a team of three and fight through the story, the tower and the weekly boss rush. Free, in your browser." -%}
+  <meta name="description" content="{% block description %}{{ default_description }}{% endblock %}">
+  {#- link previews (Discord, X, Reddit, iMessage...): a page can set its own title, text and picture -#}
+  <meta property="og:site_name" content="STFU Requiem">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+  <meta property="og:description" content="{{ self.description() }}">
+  <meta property="og:url" content="{{ request.base_url }}">
+  <meta property="og:image" content="{% block og_image %}{{ 'randomAsset/avatar.png'|asset }}{% endblock %}">
+  <meta property="og:image:alt" content="{% block og_image_alt %}STFU Requiem, a JoJo stand gacha{% endblock %}">
+  <meta name="twitter:card" content="{% block twitter_card %}summary{% endblock %}">
+  <meta name="twitter:title" content="{{ self.og_title() }}">
+  <meta name="twitter:description" content="{{ self.description() }}">
+  <meta name="twitter:image" content="{{ self.og_image() }}">
   <meta name="theme-color" content="#2B1747">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -157,6 +170,7 @@
       <span class="mascot" aria-hidden="true"><img src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="46" height="46"></span>
       <span class="wordmark-text"><span class="wm-stfu">STFU</span><span class="wm-req">REQUIEM</span><span class="wm-go" aria-hidden="true">ゴゴ</span></span>
     </a>
+    {% with q = ranked_queue(me.id), where = 'side' %}{% include "partials/queue_bar.html" %}{% endwith %}
     <nav class="side-scroll" aria-label="Pages">
       <div class="side-links side-pinned">{% for k in side_pinned %}{{ side_link(k) }}{% endfor %}</div>
       {% for title, key, keys, default_open in side_groups %}
@@ -281,6 +295,7 @@
       {% endif %}
       <button type="button" class="sheet-close" data-sheet-close aria-label="Close menu">✕</button>
     </div>
+    {% if me.id %}{% with q = ranked_queue(me.id), where = 'sheet' %}{% include "partials/queue_bar.html" %}{% endwith %}{% endif %}
     {% for title, keys in sheet if keys %}
       <p class="sheet-group">{{ title }}</p>
       <div class="sheet-grid">
@@ -402,6 +417,11 @@
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
     <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a></p>
+    <p class="footer-links"><a href="{{ url_for('main.changelog') }}">What's new</a> · <a href="{{ url_for('main.privacy') }}">Privacy</a> · <a href="{{ url_for('main.terms') }}">Terms</a></p>
+    {% if config.DEBUG %}
+      <form class="dev-strip dev-foot" method="post" action="{{ url_for('auth.dev_fresh') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <span class="dev-tag">🛠 Dev mode</span><button class="btn small gold" title="Signs you in as a brand-new player with an empty save, at the welcome screen">New test player (empty save)</button></form>
+    {% endif %}
   </footer>
 </body>
 </html>

@@ -203,8 +203,17 @@ def player(uid):
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),
                            history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
                            section="players", owner=is_owner(session["uid"]), profile_view=_profile_view(target),
-                           chat_mute=_chat_mute(uid),
+                           chat_mute=_chat_mute(uid), same_ip=_same_ip(uid),
                            open_reports=[e for e in _reports_about(uid)])
+
+
+def _same_ip(uid) -> list:
+    """Other accounts seen on an address this one used (app/alts.py): [(uid, name)]."""
+    from app import alts
+    try:
+        return [(o, identity(o)["name"]) for o in alts.neighbours(r(), uid)]
+    except Exception:
+        return []
 
 
 @bp.get("/player/<uid>/raw")
@@ -812,6 +821,56 @@ def puzzles_build():
     audit("puzzle_build")
     flash("Building one puzzle: it shows up in the log in about 10 seconds.", "ok")
     return redirect(url_for("admin.puzzles_admin"))
+
+
+# --------------------------------------------------------------------------- #
+# Safety: database backups (app/backup.py), error alerts (app/alerts.py), alt-account flags (app/alts.py)
+# --------------------------------------------------------------------------- #
+@bp.get("/safety")
+@admin_required
+def safety():
+    import os
+    from app import alts, backup
+    flagged = alts.flags(r())
+    names = {uid: identity(uid)["name"] for f in flagged for uid in f["uids"]}
+    return render_template("admin/safety.html", files=backup.files(), log=backup.read_log(r()), folder=backup.folder(),
+                           persistence=backup.persistence(r()), keep=backup.KEEP,
+                           offsite=bool(os.environ.get("BACKUP_WEBHOOK_URL")), alerts=bool(os.environ.get("ALERT_WEBHOOK_URL")),
+                           flags=flagged, names=names, flag_after=alts.FLAG_AFTER, section="safety")
+
+
+@bp.post("/safety/<op>")
+@admin_required
+def safety_action(op):
+    import threading
+    from app import alts, backup
+    if op == "backup":
+        if not r().set("web:backup:manual", "1", nx=True, ex=120):
+            flash("A backup is already running. Give it a minute.", "error")
+        else:
+            redis = r()
+            threading.Thread(target=lambda: (backup.run_once(redis), redis.delete("web:backup:manual")),
+                             daemon=True, name="backup-now").start()
+            audit("backup_now")
+            flash("Backing up: the file shows up below when it's written (reload in a few seconds).", "ok")
+    elif op == "dismiss":
+        h = request.form.get("hash", "")
+        alts.dismiss(r(), h)
+        audit("alt_dismiss", target=h)
+        flash("Flag dismissed. It comes back if another account joins that address.", "ok")
+    return redirect(url_for("admin.safety"))
+
+
+@bp.get("/safety/download/<name>")
+@admin_required
+def safety_download(name):
+    from flask import abort, send_file
+    from app import backup
+    path = backup.path_of(name)
+    if not path:
+        abort(404)
+    audit("backup_download", target=name)
+    return send_file(path, as_attachment=True, download_name=name, mimetype="application/gzip")
 
 
 @bp.get("/logs")

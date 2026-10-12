@@ -118,11 +118,11 @@ def target(i: int, n: int, stage: dict) -> float:
     return t - (BOSS_DROP if stage.get("boss") else 0)
 
 
-def enemy_team(key: str, i: int, m: Optional[float] = None) -> list:
-    stage = BY_KEY[key]["stages"][i]
-    m = mult(key, i) if m is None else m
+def crew(ids, m: float) -> list:
+    """Stands at Requiem strength: level 100, ★5, Universal, refined items, health and damage times m.
+    The deep dungeon, the Requiem Tower and Over Heaven's Requiem track build their enemies with it too."""
     team = []
-    for cid in stage["enemies"]:
+    for cid in ids:
         c = character_from_dict({"id": cid, "xp": LEVEL * 100, "awaken": AWAKEN, "types": ["BALANCE"], "qualities": [QUALITY],
                                  "items": ENEMY_ITEMS, **({"sealed": True} if cid == altverse.OVER_HEAVEN_ID else {})})
         for stat in ("hp", "damage"):
@@ -131,6 +131,10 @@ def enemy_team(key: str, i: int, m: Optional[float] = None) -> list:
             setattr(c, f"current_{stat}", value)
         team.append(c)
     return team
+
+
+def enemy_team(key: str, i: int, m: Optional[float] = None) -> list:
+    return crew(BY_KEY[key]["stages"][i]["enemies"], mult(key, i) if m is None else m)
 
 
 def guest(key: str, i: int):

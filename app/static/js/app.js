@@ -743,7 +743,30 @@ document.addEventListener("htmx:load", (e) => {
   const box = () => document.getElementById("toasts");
   // Achievements and titles stamp in at the top of the screen as a card (実績解除 / 称号獲得) instead of a plain toast.
   const SLAM = { achievement: ["実績解除", "Achievement unlocked", /^.*?unlocked:\s*/i], title: ["称号獲得", "New title", /^New title:\s*/i] };
+  // A level-up gets its own card: the new level huge, a burst of rays, and what that level just opened.
+  const levelUp = (el) => {
+    const text = el.querySelector("span")?.textContent || "";
+    const level = (text.match(/level (\d+)/i) || [])[1] || "?";
+    const opened = (text.match(/Now open:\s*(.+?)\.?$/) || [])[1];
+    const card = document.createElement("span");
+    card.className = "slam-card lvl-card";
+    card.innerHTML = '<span class="lvl-rays" aria-hidden="true"></span><span class="slam-jp" aria-hidden="true">レベルアップ</span>'
+      + '<span class="slam-en">Level up</span><strong class="lvl-num"></strong><small class="lvl-open"></small>';
+    card.querySelector(".lvl-num").textContent = `Lv ${level}`;
+    const open = card.querySelector(".lvl-open");
+    if (opened) open.textContent = `Now open: ${opened}`; else open.remove();
+    el.querySelector("span")?.replaceWith(card);
+    el.classList.add("slam");
+    return true;
+  };
   const slamify = (el) => {
+    if (el.classList.contains("levelup")) {
+      levelUp(el);
+      let host = document.getElementById("slams");
+      if (!host) { host = document.createElement("div"); host.id = "slams"; host.className = "slams"; host.setAttribute("aria-live", "polite"); document.body.append(host); }
+      host.append(el);
+      return;
+    }
     const kind = Object.keys(SLAM).find((k) => el.classList.contains(k));
     if (!kind) return;
     const [jp, en, strip] = SLAM[kind];
@@ -1420,8 +1443,27 @@ document.addEventListener("change", (e) => {
 (() => {
   const follow = new Map();
   const toBottom = (box) => { const l = box?.querySelector("[data-chat-list]"); if (l) l.scrollTop = l.scrollHeight; };
-  document.querySelectorAll("[data-chat]").forEach(toBottom);
-  document.addEventListener("htmx:load", (e) => { if (e.detail.elt?.matches?.("[data-chat]")) toBottom(e.detail.elt); });  // a chat that just loaded (the bubble)
+  // every chat inside `root` (the root itself too): a bubble tab loads its chat inside a wrapper, not as the chat
+  const allIn = (root) => [...(root?.matches?.("[data-chat]") ? [root] : []), ...(root?.querySelectorAll?.("[data-chat]") || [])];
+  const settle = (root) => {  // now, after layout, and again as late avatars and images grow the list
+    const boxes = allIn(root).filter((box) => follow.get(box.id) !== false);  // a refresh while you read up stays put
+    boxes.forEach(toBottom);
+    requestAnimationFrame(() => boxes.forEach(toBottom));
+    boxes.forEach((box) => box.querySelectorAll("[data-chat-list] img").forEach((img) => {
+      if (!img.complete) img.addEventListener("load", () => {
+        const l = box.querySelector("[data-chat-list]");
+        if (l && l.scrollHeight - l.scrollTop - l.clientHeight < 200) toBottom(box);  // unless you scrolled up to read
+      }, { once: true });
+    }));
+  };
+  settle(document);
+  // a chat opened afresh (a bubble tab, the bubble reopened) starts at its newest message, whatever you read before
+  const fresh = (root) => { allIn(root).forEach((box) => follow.delete(box.id)); settle(root); };
+  document.addEventListener("htmx:load", (e) => {  // a chat refreshed in place keeps your place; one inside a new panel is fresh
+    if (e.detail.elt?.matches?.("[data-chat]")) settle(e.detail.elt); else fresh(e.detail.elt);
+  });
+  // a chat inside the closed bubble has no height yet, so it can't scroll: do it when the bubble opens
+  document.addEventListener("toggle", (e) => { if (e.target.matches?.("[data-chat-bubble]") && e.target.open) fresh(e.target); }, true);
   document.addEventListener("htmx:beforeSwap", (e) => {
     const box = e.detail.target;
     if (!box?.matches?.("[data-chat]")) return;
@@ -1790,3 +1832,42 @@ document.addEventListener("click", (e) => {
   document.addEventListener("htmx:load", (e) => init(e.detail.elt));
   window.stfuPicker = { set: (sp, vals) => commit(sp, vals) };  // e.g. the planner's suggestions
 })();
+
+// Share buttons ([data-share]="stand" | "requiem" | "tower" | "profile", data-ref): the server builds a share card
+// from the player's own save and returns its public link; the phone's share sheet opens, or the link is copied.
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest?.("[data-share]");
+  if (!btn || btn.disabled) return;
+  e.preventDefault();
+  const toast = (text, kind = "flash-ok") => document.body.dispatchEvent(new CustomEvent("toast", { detail: [{ text, kind }] }));
+  let token = "";
+  try { token = JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || ""; } catch (_) {}
+  btn.disabled = true;
+  try {
+    const res = await fetch("/share", {
+      method: "POST", headers: { "X-CSRF-Token": token },
+      body: new URLSearchParams({ kind: btn.dataset.share, ref: btn.dataset.ref || "" }),
+    });
+    const data = await res.json();
+    if (!res.ok) return toast(data.error || "Couldn't make the share link.", "flash-error");
+    if (navigator.share) {
+      try { await navigator.share({ title: data.title, text: data.title, url: data.url }); return; }
+      catch (err) { if (err && err.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(data.url); toast("Link copied: paste it anywhere to show it off."); }
+    catch (_) { window.prompt("Copy this link:", data.url); }
+  } catch (_) {
+    toast("Couldn't make the share link.", "flash-error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// The first-session coach: its card points at part of the page ([data-coach-glow] = a selector) with a pulsing ring.
+document.addEventListener("DOMContentLoaded", () => {
+  const coach = document.querySelector("[data-coach-glow]");
+  if (!coach) return;
+  const target = document.querySelector(coach.dataset.coachGlow);
+  if (target) target.classList.add("coach-glow");
+  coach.scrollIntoView({ behavior: "auto", block: "start" });
+});

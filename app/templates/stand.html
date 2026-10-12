@@ -2,6 +2,9 @@
 {% set page_part = stand_part(s.id) %}
 {% from "macros.html" import template_card, special_scaling, param_chart %}
 {% block title %}{{ s.name }} | STFU Requiem{% endblock %}
+{% block description %}{{ s.name }}, {{ 'a' if s.rarity == 'UR' else 'an' }} {{ s.rarity }} stand from {{ s.universe }}: stats, special, synergies and where to pull it in STFU Requiem, the free JoJo stand gacha.{% endblock %}
+{% block og_image %}{{ s.id|stand_img }}{% endblock %}
+{% block og_image_alt %}{{ s.name }}{% endblock %}
 {% block main %}
 <section class="page stand-detail">
   <div class="stage">{{ template_card(s, size='big', link=False, params=True) }}</div>

@@ -1,0 +1,52 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Safety{% endblock %}
+{% block admin %}
+{% set saving = persistence.rdb or persistence.aof %}
+<div class="stat-tiles">
+  <div><span>Last backup</span><strong>{% if files %}{{ files[0].name[12:20] }}{% else %}none yet{% endif %}</strong>
+    <small>{% if log and log[0].error %}❌ {{ log[0].error }}{% elif log %}{{ log[0]['keys']|num }} keys · {{ (log[0].bytes / 1e6)|round(1) }} MB{% else %}the first one runs a minute after start{% endif %}</small></div>
+  <div><span>Files kept</span><strong>{{ files|length }} / {{ keep }}</strong><small>daily, in {{ folder }}</small></div>
+  <div><span>Off-site copy</span><strong>{{ '🟢 on' if offsite else '🔴 off' }}</strong><small>{{ 'posted to the backup webhook' if offsite else 'set BACKUP_WEBHOOK_URL, or download below' }}</small></div>
+  <div><span>Redis on disk</span><strong>{% if persistence.rdb is none %}❔ unknown{% elif saving %}🟢 {{ 'AOF' if persistence.aof else 'RDB' }}{% else %}🔴 off{% endif %}</strong>
+    <small>{% if persistence.rdb is none %}CONFIG isn't allowed: check it on the Redis host{% elif saving %}a restart keeps the data{% else %}a restart loses everything since the last file{% endif %}</small></div>
+  <div><span>Error alerts</span><strong>{{ '🟢 on' if alerts else '🔴 off' }}</strong><small>{{ 'errors post to the alert webhook' if alerts else 'set ALERT_WEBHOOK_URL (a Discord webhook)' }}</small></div>
+</div>
+
+<section class="social-panel">
+  <div class="social-heading"><h2 class="h2">Database backups</h2>
+    <form method="post" action="{{ url_for('admin.safety_action', op='backup') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+      <button class="btn small gold">🗄️ Back up now</button></form></div>
+  <p class="muted small-print">The whole Redis database (the bot's and the site's), every key with its expiry, taken once a day. Download one now and then for a copy off this server.
+    To restore: stop the bot and the site, then <code>python scripts/backup.py restore &lt;file&gt;</code> with <code>REDIS_URL</code> set.</p>
+  {% if files %}
+    <div class="wiki-table-wrap"><table class="wiki-table">
+      <thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col"></th></tr></thead>
+      <tbody>{% for f in files %}<tr><td><code>{{ f.name }}</code></td><td>{{ (f.bytes / 1e6)|round(2) }} MB</td>
+        <td><a class="btn small ghost" href="{{ url_for('admin.safety_download', name=f.name) }}">⬇ Download</a></td></tr>{% endfor %}</tbody>
+    </table></div>
+  {% else %}<p class="notice">No backup file yet.</p>{% endif %}
+  {% if log %}
+    <details><summary>Backup log</summary>
+      <ul class="small-print">{% for row in log %}<li>{{ row.at }} · {% if row.error %}❌ {{ row.error }}{% else %}{{ row['keys']|num }} keys, {{ (row.bytes / 1e6)|round(2) }} MB in {{ row.seconds }} s{{ ' · sent off-site' if row.sent }}{% endif %}</li>{% endfor %}</ul>
+    </details>
+  {% endif %}
+</section>
+
+<section class="social-panel">
+  <h2 class="h2">Possible alt accounts</h2>
+  <p class="muted small-print">Addresses shared by more than {{ flag_after }} accounts in the last 90 days. Only a salted hash of each address is kept. Families, schools and phone carriers share addresses too: a flag is a lead to check (same names, items flowing one way through the auction, gifts, gang donations), not proof. Dismiss a group once checked; it comes back if another account joins it.</p>
+  {% if flags %}
+    <ul class="report-list">
+      {% for f in flags %}
+        <li class="report-item open">
+          <div class="report-head"><strong>{{ f.uids|length }} accounts on one address</strong>
+            <small class="muted">first seen {{ f.first[:10] }} · last {{ f.last[:10] }}</small></div>
+          <p>{% for uid in f.uids %}<a href="{{ url_for('admin.player', uid=uid) }}">{{ names.get(uid, uid) }}</a>{{ ', ' if not loop.last }}{% endfor %}</p>
+          <form method="post" action="{{ url_for('admin.safety_action', op='dismiss') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="hash" value="{{ f.hash }}"><button class="btn small ghost">Checked: dismiss</button></form>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}<p class="muted">No address is shared by more than {{ flag_after }} accounts.</p>{% endif %}
+</section>
+{% endblock %}

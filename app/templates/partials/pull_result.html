@@ -60,7 +60,23 @@
       {% set fresh = res.cards|selectattr('new')|list|length %}{% if fresh %}· {{ fresh }} new stand{{ 's' if fresh > 1 }}{% endif %}
       {% set shinies = res.cards|selectattr('stand.shiny')|list|length %}{% if shinies %}· <span class="shiny-tag">✨ {{ shinies }} shiny!</span>{% endif %}
     </p>
-    <p><a class="btn ghost" href="{{ url_for('play.team') }}#storage">Go to my storage</a></p>
+    {#- the pull's best card (rarity, then shiny): the one worth showing off -#}
+    {% set ranked = [] %}{% for e in res.cards %}{% set _ = ranked.append((order[e.stand.rarity] * 2 + (1 if e.stand.shiny else 0), loop.index0)) %}{% endfor %}
+    {% set top = res.cards[(ranked|max)[1]] if ranked else none %}
+    {% if coach_next %}
+      {#- the coach: the first pull is done, the team is next -#}
+      <a class="coach-next" href="{{ url_for('play.team') }}" hidden data-after-reveal>
+        <span class="coach-next-mark" aria-hidden="true">🎉</span>
+        <span><strong>Your first stands are in!</strong><small>Next: meet your team and see how to build it.</small></span>
+        <span class="coach-next-go">Build my team →</span>
+      </a>
+    {% endif %}
+    <p class="pull-share">
+      <a class="btn ghost" href="{{ url_for('play.team') }}#storage">Go to my storage</a>
+      {% if top and (order[top.stand.rarity] >= 2 or top.stand.shiny) %}
+        <button type="button" class="btn gold share-btn" hidden data-after-reveal data-share="stand" data-ref="{{ top.stand.uuid }}">📣 Show off your {{ top.stand.name }}</button>
+      {% endif %}
+    </p>
   </section>
 {% endif %}
 {% with oob=True %}{% include "partials/wallet.html" %}{% endwith %}

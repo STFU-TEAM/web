@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "macros.html" import menacing, back_to_fight %}
-{% block title %}Tower | STFU Requiem{% endblock %}
+{% block title %}{{ 'Requiem Tower' if rq else 'Tower' }} | STFU Requiem{% endblock %}
 {% macro reward_chips(rw) -%}
   <span class="tower-chip dust" title="Meteor Dust">{{ rw.fragments|dust }}</span>
   <span class="tower-chip stand-xp" title="XP for each team stand">+{{ rw.stand_xp }} stand XP</span>
@@ -8,16 +8,35 @@
   {% if rw.super %}<span class="tower-chip arrow" title="An Arrowhead">{{ rw.super|heads }}</span>{% endif %}
 {%- endmacro %}
 {% block main %}
-<section class="page tower-page">
+<section class="page tower-page{{ ' rq-tower' if rq }}">
   <header class="player-bar">
     <div>
-      <p class="kicker">Endless climb · resets in {{ ends_in|delta }}</p>
-      <h1 class="display sm">{% call menacing() %}The Tower{% endcall %}</h1>
-      <p class="muted">Floors never end. Enemies reach level 100 by floor 27, gain an awakening every 8 floors from floor 10, get a little tougher every floor, and past ★5 that growth compounds. Your team's health and growth carry from floor to floor:
-        a {{ floor_heal }}% patch-up after each one, and every 5th floor is a rest stop ({{ rest_heal }}% heal, fallen stands back at {{ revive }}%).</p>
+      {% if rq %}
+        <p class="kicker">☠ Requiem Tower · for maxed teams · resets in {{ ends_in|delta }}</p>
+        <h1 class="display sm">{% call menacing() %}The Requiem Tower{% endcall %}</h1>
+        <p class="muted">It starts where the Tower gives up: every enemy is level 100 ★5, Universal, with refined items, at {{ (T.RQ_BASE * 100)|round|int }}% of Requiem mode's full strength on floor 1 and {{ (T.RQ_GROWTH * 100)|round(1) }}% more every floor after; boss floors are led by an LR. Health carries over, with more healing than the Tower: {{ (T.RQ_FLOOR_HEAL * 100)|round|int }}% after each floor, {{ (T.RQ_REST_HEAL * 100)|round|int }}% at rest stops. The loot is far better: every floor pays like the Tower past floor {{ T.RQ_LOOT_FLOOR }}, ×{{ T.RQ_LOOT }}, an Arrowhead every {{ T.RQ_HEAD_EVERY }}th floor and a Requiem Arrow every {{ T.RQ_ARROW_EVERY }}th.</p>
+        {% if not s.run %}<p><a class="btn small ghost" href="{{ url_for('play.tower') }}">← Back to the Tower</a></p>{% endif %}
+      {% else %}
+        <p class="kicker">Endless climb · resets in {{ ends_in|delta }}</p>
+        <h1 class="display sm">{% call menacing() %}The Tower{% endcall %}</h1>
+        <p class="muted">Floors never end. Enemies reach level 100 by floor 27, gain an awakening every 8 floors from floor 10, get a little tougher every floor, and past ★5 that growth compounds. Your team's health and growth carry from floor to floor:
+          a {{ floor_heal }}% patch-up after each one, and every 5th floor is a rest stop ({{ rest_heal }}% heal, fallen stands back at {{ revive }}%).</p>
+      {% endif %}
     </div>
-    <div class="rush-best"><small>Best this week</small><strong>{{ s.best }}</strong><span class="muted">all-time {{ u.tower_level }}</span></div>
+    <div class="rush-best"><small>Best this week</small><strong>{{ rec.best }}</strong><span class="muted">{{ 'Requiem Tower' if rq else 'all-time ' ~ u.tower_level }}</span>
+      {% if rec.best %}<button type="button" class="btn small ghost share-btn" data-share="tower" data-ref="{{ mode }}">📣 Share</button>{% endif %}</div>
   </header>
+
+  {% if not rq and not fight %}
+    {#- the way in to the Requiem Tower: on the page, big, not in the nav -#}
+    <a class="rq-tower-cta" href="{{ url_for('play.tower', t='requiem') }}">
+      <span class="rq-tower-cta-mark" aria-hidden="true">☠</span>
+      <span class="rq-tower-cta-text"><small>For maxed teams · harder from floor 1 · far better loot</small>
+        <strong>Climb the Requiem Tower</strong>
+        <span>Level 100 ★5 Requiem enemies from the first floor, an Arrowhead every {{ T.RQ_HEAD_EVERY }} floors, a Requiem Arrow every {{ T.RQ_ARROW_EVERY }}, its own weekly board.{% if s.run %} Finish or end your current climb to enter.{% endif %}</span></span>
+      <span class="rq-tower-cta-go" aria-hidden="true">→</span>
+    </a>
+  {% endif %}
 
   {% if fight %}
     {% include "partials/fight.html" %}
@@ -34,9 +53,10 @@
           <ul class="tower-foes" aria-label="Enemies on floor {{ f.floor }}">
             {% for c in f.stands %}<li class="rar-{{ c.rarity|rarity }}" title="{{ c.name }} ({{ c.rarity }})"><img src="{{ c.id|stand_img }}" alt="{{ c.name }}" loading="lazy" onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'"></li>{% endfor %}
           </ul>
+          {% if f.rules %}<ul class="tower-rules">{% for line in f.rules %}<li>☁ {{ line }}</li>{% endfor %}</ul>{% endif %}
           <div class="tower-floor-meta">Lv {{ f.level }}{% if f.awaken %} ★{{ f.awaken }}{% endif %}{% if f.mult > 1 %} · ×{{ f.mult }} stats{% endif %}
             {% if state == 'cleared' %}<span class="tower-tag done">✓ cleared</span>{% elif state == 'current' %}<span class="tower-tag here">{{ 'You are here' if s.run else 'Start here' }}</span>{% endif %}</div>
-          {% set paid = f.floor <= s.paid %}
+          {% set paid = f.floor <= rec.paid %}
           <div class="tower-reward{% if paid %} paid{% endif %}" aria-label="First-clear reward for floor {{ f.floor }}">
             <span class="tower-reward-label">{{ '✓ paid this week' if paid else '🎁 First clear' }}</span>{{ reward_chips(f.reward) }}
           </div>
@@ -57,35 +77,44 @@
       {% elif not fight or fight.finished %}
         <div class="tower-panel">
           {% if s.run and team %}
-            <p class="kicker">Climb in progress</p>
+            <p class="kicker">{{ '☠ Requiem Tower' if rq else 'Climb in progress' }}{% if oh %} · <span class="oh-on">☁ Over Heaven</span>{% endif %}</p>
             <h2 class="h2">Floor {{ floor }}</h2>
+            {% set here = floors|selectattr('floor', 'equalto', floor)|first %}
+            {% if here and here.rules %}<ul class="tower-rules">{% for line in here.rules %}<li>☁ {{ line }}</li>{% endfor %}</ul>{% endif %}
             <ul class="rush-team tower-team">
               {% for c in team %}
                 <li class="{{ 'down' if c.current_hp <= 0 }}"><img src="{{ c.id|stand_img }}" alt="" loading="lazy"><span>{{ c.name }}</span>
                   <div class="hp"><i style="width: {{ ([100 * c.current_hp / c.start_hp, 100]|min)|round }}%"></i></div><small>{{ c.current_hp|int }}/{{ c.start_hp|int }}</small></li>
               {% endfor %}
             </ul>
-            <p class="story-reward">🎁 {% if floor > s.paid %}First clear this week: {{ reward }}{% else %}Already paid this week{% endif %}</p>
+            <p class="story-reward">🎁 {% if floor > rec.paid %}First clear this week: {{ reward }}{% else %}Already paid this week{% endif %}</p>
             <form method="post" action="{{ url_for('play.tower_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
               <button class="btn gold big">Fight floor {{ floor }} →</button></form>
             <form method="post" action="{{ url_for('play.tower_abandon') }}" onsubmit="return confirm('End this climb? You keep your best floor.')"><input type="hidden" name="csrf" value="{{ csrf_token }}">
               <button class="btn small ghost">End the climb</button></form>
           {% else %}
-            <p class="kicker">New climb</p>
+            <p class="kicker">{{ '☠ Requiem Tower' if rq else 'New climb' }}</p>
             <h2 class="h2">Start from floor 1</h2>
-            <p class="muted">A climb costs {{ cost|num }} Meteor Dust. Floors pay out the first time you clear them each week; every 20th floor adds an Arrowhead. Bring a levelled team: the tower is harder than the story.</p>
+            {% if rq %}
+              <p class="muted">The Requiem Tower costs {{ cost|num }} Meteor Dust. Floors pay the first time you clear them each week. Bring your best maxed team: floor 1 already hits like the Tower's floor 40.</p>
+            {% else %}
+              <p class="muted">A climb costs {{ cost|num }} Meteor Dust. Floors pay out the first time you clear them each week; every 20th floor adds an Arrowhead. Bring a levelled team: the tower is harder than the story.</p>
+            {% endif %}
             {% if not u.main_characters %}<p class="notice">Put stands in your team first. <a href="{{ url_for('play.team') }}">Open your team</a></p>
             {% elif u.fragments < cost %}<p class="notice">You need {{ cost|num }} Meteor Dust to climb.</p>
             {% else %}
               <form method="post" action="{{ url_for('play.tower_start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
-                <button class="btn gold big">Begin the climb · {{ cost|num }}</button></form>
+                <input type="hidden" name="mode" value="{{ mode }}">
+                <label class="oh-toggle"><input type="checkbox" name="oh" value="1">
+                  <span><strong>☁ Over Heaven modifiers</strong><small>Every floor holds one of heaven's rules (bosses two) for the whole climb · +{{ ((T.OH_LOOT - 1) * 100)|round|int }}% Meteor Dust</small></span></label>
+                <button class="btn {{ 'rq-go' if rq else 'gold' }} big">{{ 'Enter the Requiem Tower' if rq else 'Begin the climb' }} · {{ cost|num }}</button></form>
             {% endif %}
           {% endif %}
         </div>
       {% endif %}
       <section class="tower-panel">
         <h2 class="h3">Rewards ahead</h2>
-        <p class="muted">Every floor pays Meteor Dust and stand XP the first time you clear it each week. Every 5th floor adds a crafting material and every 20th an Arrowhead.</p>
+        <p class="muted">{% if rq %}Every floor pays Meteor Dust and double stand XP the first time you clear it each week. Every 5th floor adds a crafting material and an Arrowhead, and every boss floor (each 10th) a Devil's Palm, an epic chip and a Requiem Arrow.{% else %}Every floor pays Meteor Dust and stand XP the first time you clear it each week. Every 5th floor adds a crafting material and every 20th an Arrowhead.{% endif %}</p>
         <ul class="tower-milestones">
           {% for m in milestones %}
             <li class="{{ 'boss' if m.super }}"><strong>Floor {{ m.floor }}</strong><span>{{ reward_chips(m) }}</span></li>
@@ -93,7 +122,7 @@
         </ul>
       </section>
       <section class="tower-panel">
-        <h2 class="h3">This week's highest climbers</h2>
+        <h2 class="h3">{{ "This week's Requiem climbers" if rq else "This week's highest climbers" }}</h2>
         {% if board %}
           <ol class="social-list gang-standings">
             {% for row in board %}<li class="{{ 'me' if row.uid == me.id }}"><span class="rank">{{ loop.index }}</span><strong>{{ row.name }}</strong><span></span><b>Floor {{ row.floor }}</b></li>{% endfor %}

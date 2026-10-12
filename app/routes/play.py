@@ -599,7 +599,17 @@ def force_rarity():
 def pull(banner_id: int, mode: str):
     fn = logic.banner_pull if mode == "pull" else logic.arrow_pull
     force = _forced_rarity()
-    user, res, err = action(lambda u: fn(u, banner_id, force))
+    from app.game import onboarding
+    coached = {}
+
+    def do(u):
+        res = fn(u, banner_id, force)
+        if onboarding.coach(u) == "pull":  # the first pull: the coach's next stop is the team
+            onboarding.coach_to(u, "team")
+            coached["next"] = True
+        return res
+
+    user, res, err = action(do)
     arrows = sum(1 for i in user.items if i.id == 2)
     rarity_score = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
     top_rarity = max((char.rarity for char, _ in res["drawn"]), key=rarity_score.get) if res else "R"
@@ -610,8 +620,24 @@ def pull(banner_id: int, mode: str):
     fusable = sum(len(f) for _, f in logic.auto_fuse_plan(user))
     return render_template("partials/pull_result.html", u=user, res=res, error=err, arrows=arrows,
                            mode=mode, top_rarity=top_rarity, opening_id=opening_id, banner=banner,
-                           fusable=fusable, free=logic.free_slots(user),
+                           fusable=fusable, free=logic.free_slots(user), coach_next=coached.get("next"),
                            banner_ids=[b["id"] for b in BANNERS if logic.banner_enabled(b)])
+
+
+@bp.post("/coach")
+@player_required
+def coach_step():
+    """The first-session coach (app/game/onboarding.py): to = "story" (on to the first fight) or "done" (skip / over)."""
+    from app.game import onboarding
+    to = request.form.get("to", "done")
+    _, _, err = action(lambda u: onboarding.coach_to(u, to if to in ("story", "done") else "done"))
+    if err:
+        flash(err, "error")
+    if to == "story":
+        return redirect(url_for("progress.story_page"))
+    if request.form.get("tour"):
+        return redirect(url_for("progress.story_page", tour=1))
+    return redirect(request.referrer or url_for("main.home"))
 
 
 # --------------------------------------------------------------------------- #
@@ -828,6 +854,31 @@ def _quests_ctx(user, **extra):
             "invite_url": url_for("community.join", ref=user.id, _external=True), **extra}
 
 
+# --------------------------------------------------------------------------- #
+# A new player's first week (app/game/onboarding.py): the Beginner's path and the Welcome week
+# --------------------------------------------------------------------------- #
+def _onboarding(user, message=None, error=None):
+    from app.game import onboarding
+    return render_template("partials/onboarding.html", u=user, path=onboarding.path(user), welcome=onboarding.welcome(user),
+                           message=message, error=error)
+
+
+@bp.post("/path/claim")
+@player_required
+def path_claim():
+    from app.game import onboarding
+    user, got, err = action(lambda u: onboarding.claim_step(u, request.form.get("step", "")))
+    return _onboarding(user, f"🎁 {', '.join(got)}" if got else None, err)
+
+
+@bp.post("/welcome-week/claim")
+@player_required
+def welcome_claim():
+    from app.game import onboarding
+    user, got, err = action(onboarding.claim_welcome)
+    return _onboarding(user, f"🎁 Welcome gift: {', '.join(got)}" if got else None, err)
+
+
 @bp.get("/quests")
 @player_required
 def quests():
@@ -892,6 +943,8 @@ def mirror_start():
 
     def start(u):
         name, enemies, multi, difficulty = logic.wormhole_start(u)
+        from app.game import onboarding
+        onboarding.mark(u, "mirror")  # a step of the Beginner's path
         foes = Side(f"{name} · {difficulty}", enemies, False)
         foes.ai = "easy" if difficulty == "Faded" or u.level < 5 else "smart"
         fight = Fight(Side(session.get("name", "You"), fighting_copy(u.main_characters), True, session.get("avatar")),
@@ -937,13 +990,19 @@ def tower():
     other_fight = fight.kind if fight and fight.kind != "tower" and not fight.finished else None
     fight = fight if fight and fight.kind == "tower" else None
     s = tower_logic.state(user)
-    floor = s["run"]["floor"] if s.get("run") else 1
-    team = tower_logic.load_team(r(), uid) if s.get("run") else None
+    run = s.get("run")
+    # the climb on show: the one in progress, else the tower or (?t=requiem) the Requiem Tower
+    mode = tower_logic.mode_of(run) if run else (tower_logic.RQ if request.args.get("t") == tower_logic.RQ else tower_logic.NORMAL)
+    oh = bool(run and run.get("oh"))
+    rec = tower_logic.record(s, mode)
+    floor = run["floor"] if run else 1
+    team = tower_logic.load_team(r(), uid) if run else None
     shown = range(max(1, floor - 2), floor + 5)
     return render_template("tower.html", u=user, s=s, floor=floor, team=team, fight=fight, other_fight=other_fight,
-                           floors=[tower_logic.preview(f) for f in reversed(shown)], cost=TOWER_COST,
-                           reward=tower_logic.reward_text(floor), board=tower_logic.leaderboard(r()),
-                           milestones=tower_logic.milestones(max(floor - 1, s["paid"])),
+                           mode=mode, oh=oh, rec=rec, rq=mode == tower_logic.RQ, T=tower_logic,
+                           floors=[tower_logic.preview(f, mode, oh) for f in reversed(shown)], cost=tower_logic.cost_of(mode),
+                           reward=tower_logic.reward_text(floor, mode, oh), board=tower_logic.leaderboard(r(), mode=mode),
+                           milestones=tower_logic.milestones(max(floor - 1, rec["paid"]), mode=mode, oh=oh),
                            ends_in=tower_logic.ends_in(), rest_heal=round(tower_logic.REST_HEAL * 100),
                            floor_heal=round(tower_logic.FLOOR_HEAL * 100), revive=round(tower_logic.REVIVE * 100),
                            fight_action=url_for("play.tower_attack"),
@@ -962,17 +1021,22 @@ def tower_start():
     def start(user):
         s = tower_logic.state(user)
         if not s.get("run"):
-            tower_logic.start_climb(user, r(), fighting_copy(user.main_characters))
+            tower_logic.start_climb(user, r(), fighting_copy(user.main_characters), mode=request.form.get("mode", ""),
+                                    oh=request.form.get("oh") == "1")
             logic.track_quest_progress(user, "tower_attempt")
             logic.check_achievements(user, "tower_attempt")
         team = tower_logic.load_team(r(), uid)
         if not team or not any(c.is_alive() for c in team):
             tower_logic.abandon(user, r())
             raise GameError("Your climb expired or your team is down. Start a new climb.")
-        floor = s["run"]["floor"]
+        run = s["run"]
+        floor, mode = run["floor"], tower_logic.mode_of(run)
+        meta = {"floor": floor, "mode": mode}
+        if run.get("oh"):  # the Over Heaven toggle: heaven's rule on every floor
+            meta["rules"] = tower_logic.heaven_rules(floor, mode)
         fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
-                      Side(f"Floor {floor}", tower_logic.floor_team(floor), False), kind="tower",
-                      meta={"floor": floor})
+                      Side(f"{'Requiem Tower · ' if mode == tower_logic.RQ else ''}Floor {floor}", tower_logic.team_for(floor, mode), False),
+                      kind="tower", meta=meta)
         fight.advance()
         save_fight(uid, fight)
 
@@ -988,14 +1052,15 @@ def tower_abandon():
     if load_fight(session["uid"]) and not load_fight(session["uid"]).finished:
         flash("Finish the floor you're on first.", "error")
         return redirect(url_for("play.tower"))
+    mode = tower_logic.mode_of(tower_logic.state(_user()).get("run"))
     action(lambda u: tower_logic.abandon(u, r()))
     flash("Climb ended. Your best floor this week still counts.", "ok")
-    return redirect(url_for("play.tower"))
+    return redirect(url_for("play.tower", t=mode) if mode == tower_logic.RQ else url_for("play.tower"))
 
 
 def _tower_settle(user, fight):
     rewards = tower_logic.finish_floor(user, fight, r(), session.get("name", "?"))
-    if rewards["won"]:
+    if rewards["won"] and rewards.get("tower", {}).get("mode", tower_logic.NORMAL) == tower_logic.NORMAL:
         logic.track_quest_progress(user, "tower_floor")
         logic.track_quest_progress(user, "reach_tower", rewards.get("tower", {}).get("floor", 0))
     return rewards
@@ -1011,9 +1076,10 @@ def tower_attack():
 @player_required
 def tower_leave():
     fight = load_fight(session["uid"])
+    mode = (fight.meta or {}).get("mode") if fight and fight.kind == "tower" else None
     if fight and fight.kind == "tower" and fight.finished:
         clear_fight(session["uid"])
-    return redirect(url_for("play.tower"))
+    return redirect(url_for("play.tower", t=mode) if mode == tower_logic.RQ else url_for("play.tower"))
 
 
 # --------------------------------------------------------------------------- #
@@ -1048,7 +1114,16 @@ def _dungeon_ctx() -> dict:
     other_fight = fight.kind if fight and fight.kind != "dungeon" and not fight.finished else None
     fight = fight if fight and fight.kind == "dungeon" else None
     plan = dungeon_logic.floor_plan(run["day"], run["depth"]) if run else None
-    return dict(u=user, s=s, run=run, fight=fight, other_fight=other_fight,
+    from app.game import overheaven
+    rules = dungeon_logic.floor_rules(run["day"], run["depth"]) if run else {}
+    deep = {"band": dungeon_logic.band(run["depth"]) if run else None,
+            "rules": overheaven.rule_lines(rules),
+            "boss_rules": overheaven.rule_lines(dungeon_logic.floor_rules(run["day"], run["depth"], "boss"))
+                          if run and run["depth"] in dungeon_logic.BOSS_DEPTHS else [],
+            "next": dungeon_logic.warning(run["depth"] + 1) if run and run["depth"] < dungeon_logic.DEPTHS else None,
+            "xp": dungeon_logic.xp_for(run["depth"]) if run else None,
+            "loot": dungeon_logic.LOOT_MULT[run["depth"] - 1] if run else 1}
+    return dict(u=user, s=s, run=run, fight=fight, other_fight=other_fight, deep=deep,
                 team=dungeon_logic.load_team(r(), uid) if run else None,
                 cells=dungeon_logic.cells(run) if run else [],
                 moves=dungeon_logic.allowed_moves(run) if run else [],
@@ -1064,8 +1139,13 @@ def _dungeon_fight(user, kind, enemies):
     if not team:
         raise GameError(dungeon_logic.EXPIRED)
     names = {"fight": "Dungeon monsters", "elite": "Dungeon elite", "boss": "Dungeon boss"}
+    run = dungeon_logic.state(user)["run"]
+    meta = {"event": kind, "depth": run["depth"]}
+    rules = dungeon_logic.floor_rules(run["day"], run["depth"], kind)
+    if rules:  # the Over Heaven depths: heaven's rule holds the floor (and its boss adds one)
+        meta["rules"] = rules
     fight = Fight(Side(session.get("name", "You"), team, True, session.get("avatar")),
-                  Side(names[kind], enemies, False), kind="dungeon", meta={"event": kind})
+                  Side(f"B{run['depth']} · {names[kind]}", enemies, False), kind="dungeon", meta=meta)
     fight.advance()
     save_fight(session["uid"], fight)
 

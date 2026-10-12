@@ -405,6 +405,26 @@ def draft_view(uid):
             "bans": draft_mod.BANS, "team_size": draft_mod.TEAM_SIZE}
 
 
+QUEUE_WINDOW = 120  # seconds: a queued player refreshes its spot while it waits; matchmaking looks this far back
+
+
+@bp.app_template_global("ranked_queue")
+def queue_info(uid=None) -> dict:
+    """Players waiting in the ranked queue right now, and whether uid is one of them (the nav's queue bar)."""
+    try:
+        n = r().zcount(RANKED_QUEUE, time.time() - QUEUE_WINDOW, "+inf")
+        mine = bool(uid) and r().zscore(RANKED_QUEUE, str(uid)) is not None
+    except Exception:  # no Redis: an empty queue rather than a broken page
+        n, mine = 0, False
+    return {"n": int(n), "mine": mine}
+
+
+@bp.get("/queue-bar")
+def queue_bar():
+    """The queue bar alone, polled by the sidebar and the phone menu."""
+    return render_template("partials/queue_bar.html", q=queue_info(session.get("uid")), where=request.args.get("w", "side"))
+
+
 def _try_match(uid, elo):
     """Queue uid (refreshing its spot) and pair it with the closest Elo in range, if anyone is there."""
     now = time.time()

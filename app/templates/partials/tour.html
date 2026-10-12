@@ -4,14 +4,14 @@
   {"title": "The Arrow chose you", "text": "Thirty seconds to see where everything lives. You can replay this from your account menu anytime."},
   {"target": ["team"], "title": "Team", "text": "Your three fighters and every stand you own. Put your best three in the team, lock favourites, and auto-fuse R and SR duplicates to make them stronger."},
   {"target": ["banners"], "title": "Summon", "text": "Arrowheads buy ten stands from a banner. You start with one, so pull now. Pity guarantees a UR or better within " ~ PITY_LIMIT ~ " pulls."},
-  {"target": ["adventure", "battle"], "title": "Battle · start with the Story", "text": "The Story sends you through Parts 3 to 8 beside each JoJo, with Devil's Palms and Arrowheads on the way. It also opens the rest: Mirror World, Tower and Dungeon after your first fight, Ranked after Part 3. New modes show up here with a New tag."},
+  {"target": ["adventure", "battle"], "title": "Battle · start with the Story", "text": "The Story sends you through Parts 3 to 8 beside each JoJo, with Devil's Palms and Arrowheads on the way. It also opens the rest, one win at a time: Mirror World after your first fight, then the Dungeon, the daily puzzle and the Tower, and Ranked after Part 3. New modes show up here with a New tag."},
   {"target": ["daily", "battle", "menu"], "title": "Daily", "text": "Your daily loop in one place: quests (your steadiest Meteor Dust), the daily puzzle, the dungeon, Mirror World and a Crusaders' Journey. Achievements and the Stand Dex, for the long run, are under Progress."},
   {"target": ["community", "menu"], "title": "Community", "text": "Join a gang for wars and raids, trade stands with friends, and buy from player shops."},
   {"target": ["explore", "menu"], "title": "Explore", "text": "The wiki explains fights: terrains, synergies and status effects. Every stand's stats and special are in the encyclopedia."},
   {"target": ["explore", "menu"], "title": "Your roadmap", "text": "Lost on what to do next? The progression guide in the wiki lays out the whole path: the story parts, the Alternate Universe, Joyce's story and Over Heaven, what player level each one asks, and the fastest ways to level up.", "cta": [url_for('main.wiki', topic='guide'), "Open the guide ↗"]},
-  {"title": "Ready?", "text": "Pull your first stands, then begin the journey in Part 3 alongside Jotaro.", "cta": [url_for('play.banners'), "Summon"], "cta2": [url_for('progress.story_page'), "Start the story"]},
+  {"title": "Ready?", "text": "Your Beginner's path on the home page always shows the next goal, with a reward for each, and your Welcome week has a gift for every day of your first week. Next up: the story, in Part 3 alongside Jotaro.", "cta": [url_for('main.home'), "My path"], "cta2": [url_for('progress.story_page'), "Start the story"]},
 ]|tojson }}</script>
-<div class="tour" id="tour" hidden data-autostart="{{ 1 if tour_pending else 0 }}" data-done="{{ url_for('progress.tour_done') }}">
+<div class="tour" id="tour" hidden data-autostart="{{ 1 if tour_pending and not (request.endpoint == 'play.banners' and request.args.get('welcome')) else 0 }}" data-done="{{ url_for('progress.tour_done') }}">
   <div class="tour-spot" aria-hidden="true"></div>
   <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
     <img class="tour-mascot" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="52" height="52" loading="lazy">

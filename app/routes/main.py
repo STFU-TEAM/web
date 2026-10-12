@@ -29,15 +29,24 @@ def home():
     )
     random.shuffle(hand)
     registered = bool(session.get("uid")) and get_db().user_exists(session["uid"])
-    today_rows = None
+    today_rows = path = welcome = None
+    players = 0
     if registered:  # the Today card: every timer and allowance in one place
-        from app.game import logic, today
+        from app.game import logic, onboarding, today
         user = get_db().get_user(session["uid"])
         if logic.refill_energy(user):
             user.update()
         today_rows = today.rows(user, dungeon_on=current_app.config.get("DUNGEON_ENABLED"))
+        path, welcome = onboarding.path(user), onboarding.welcome(user)
+    elif not session.get("uid"):  # the landing page's "N Stand users"
+        from app.db import r
+        try:
+            players = r().hlen("users")
+        except Exception:
+            players = 0
     return render_template("home.html", hand=hand, registered=registered, posts=news.list_posts(4), today=today_rows,
-                           patch=news.latest_of("patch"))
+                           patch=news.latest_of("patch"), path=path, welcome=welcome, players=players,
+                           u=user if registered else None)
 
 
 @bp.get("/news")
@@ -64,6 +73,81 @@ def news_cover(post_id):
     resp.headers["Cache-Control"] = "public, max-age=86400"
     resp.headers["X-Content-Type-Options"] = "nosniff"
     return resp
+
+
+LEGAL_UPDATED = "2026-10-12"
+
+
+@bp.get("/privacy")
+def privacy():
+    from app import wipe
+    return render_template("legal/privacy.html", updated=LEGAL_UPDATED, keep_days=wipe.KEEP_DAYS)
+
+
+@bp.get("/terms")
+def terms():
+    return render_template("legal/terms.html", updated=LEGAL_UPDATED)
+
+
+@bp.post("/share")
+def share_create():
+    """Make a share card from the player's own save (app/share.py) and return its public link."""
+    from app import share
+    from app.db import r
+    from app.game.logic import GameError
+    uid = session.get("uid")
+    user = get_db().get_user(uid) if uid else None
+    if not user:
+        return jsonify(error="Sign in to share."), 401
+    img = current_app.jinja_env.filters["stand_img"]
+    try:
+        card_id = share.create(r(), user, session.get("name") or "A Stand user", request.form.get("kind", ""),
+                               request.form.get("ref", ""), img)
+    except GameError as e:
+        return jsonify(error=str(e)), 400
+    card = share.get(r(), card_id)
+    return jsonify(url=url_for("main.share_card", card_id=card_id, _external=True), title=card["title"], text=card["text"])
+
+
+@bp.get("/s/<card_id>")
+def share_card(card_id):
+    """A shared moment, public: the card, and the way into the game."""
+    from app import share
+    from app.db import r
+    card = share.get(r(), card_id)
+    if not card:
+        abort(404)
+    return render_template("share.html", card=card)
+
+
+@bp.get("/changelog")
+def changelog():
+    from app import changelog as cl
+    return render_template("changelog.html", entries=cl.ENTRIES)
+
+
+@bp.get("/robots.txt")
+def robots():
+    """Search engines: the public pages yes, the player-only and admin pages no."""
+    lines = ["User-agent: *", "Disallow: /admin", "Disallow: /auth/", "Disallow: /battles/", "Disallow: /team",
+             "Disallow: /items", "Disallow: /chat", "Allow: /", f"Sitemap: {url_for('main.sitemap', _external=True)}"]
+    return Response("\n".join(lines) + "\n", mimetype="text/plain")
+
+
+@bp.get("/sitemap.xml")
+def sitemap():
+    """The public pages: home, stands (each one), wiki topics, news, ladders, legal."""
+    from app.wiki import TOPICS
+    urls = [url_for("main.home", _external=True), url_for("main.stands", _external=True),
+            url_for("main.wiki", _external=True), url_for("main.news_list", _external=True),
+            url_for("main.changelog", _external=True), url_for("main.privacy", _external=True),
+            url_for("main.terms", _external=True)]
+    urls += [url_for("main.wiki", topic=t[0], _external=True) for t in TOPICS]
+    urls += [url_for("main.stand", stand_id=c["id"], _external=True) for c in PLAYABLE]
+    urls += [url_for("main.news_post", post_id=p["id"], _external=True) for p in news.list_posts(50)]
+    body = "".join(f"<url><loc>{u}</loc></url>" for u in urls)
+    return Response('<?xml version="1.0" encoding="UTF-8"?>'
+                    f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{body}</urlset>', mimetype="application/xml")
 
 
 @bp.get("/manifest.webmanifest")
