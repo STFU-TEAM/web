@@ -130,26 +130,112 @@ def claim_step(user, key: str) -> List[str]:
     return _pay(user, step[4])
 
 
-# ── The coach: the first session, one step at a time ────────────────────
-# A new save walks: the first pull -> the team (what it is, how to build it) -> the first story fight (and where to
-# look when lost). Each step is a card on the page it's about; data["web_coach"] holds the step ("done" once over).
-COACH_STEPS = ("pull", "team", "story", "done")
+# ── The guide: the first session, one action at a time ──────────────
+# A new save is walked through its first session by coachmarks (app.js, partials/guide.html): each one lights up the
+# real button or block on the page, scrolls it into view and waits for the player to use it. data["web_coach"] holds
+# the stage ("done" once over), mirrored to Redis (GUIDE_KEY) so every page can draw the guide without loading the save.
+#   pull   the first summon                         -> team   (the pull route)
+#   team   the team, a stand, storage, then Battle  -> story  (the last mark, or /coach)
+#   story  the first fight: Fight, attack, turns    -> mirror (the first story win)
+#   mirror the Mirror World                          -> home   (the first Mirror World fight)
+#   home   claim the path and welcome gifts, where to look when lost -> done
+COACH_STEPS = ("pull", "team", "story", "mirror", "home", "done")
+GUIDE_KEY = "web:coach:{}"
+
+# Each mark: stage, page (endpoint), target (CSS selector; "nav:a,b" = the first visible nav entry with data-tour a or
+# b; None = a card in the middle), title, text, do ("click": done when the target is used; "next": a Next button;
+# "go": a button to `go` (endpoint) that also moves the stage to `advance`; "finish": ends the guide).
+# optional: skipped when its page or target isn't there. when / unless: a selector that must (not) match.
+# repeat: a click mark that stays until its target is gone (every card waiting to be tapped, one after the other).
+# pill: the words on the pill that leads to the mark's page from elsewhere (else its title).
+GUIDE = [
+    {"stage": "pull", "page": "play.banners", "target": ".banner .pull-10", "do": "click",
+     "title": "Your first summon", "text": "You start with an Arrowhead: tap Pull 10 to summon ten stands."},
+    {"stage": "team", "page": "play.banners", "target": "[data-reveal-all]", "do": "click", "optional": True,
+     "title": "Flip them over", "text": "Tap the cards one by one, or Reveal all. Your team is next."},
+    {"stage": "team", "page": "play.banners", "target": ".pull-grid [data-flip].must-tap:not(.flipped)", "do": "click",
+     "optional": True, "repeat": True, "title": "Your best pull", "text": "SSR and better are yours to turn over: tap it."},
+    {"stage": "team", "page": "play.team", "target": "#team-shelf", "do": "next", "pill": "Meet your team",
+     "title": "Your team", "text": "These three fight for you in every mode. Your best pulls went in on their own."},
+    {"stage": "team", "page": "play.team", "target": "#team-shelf .team-grid > *", "do": "click",
+     "title": "Look at a stand", "text": "Tap a stand to see its stats, its special and its items. Close the panel to go on."},
+    {"stage": "team", "page": "play.team", "target": "#storage", "do": "next",
+     "title": "Your storage", "text": "Every other stand waits here. Tap one, then Add to team to swap it in. "
+                                     "Copies of a stand fuse into levels."},
+    {"stage": "team", "page": "play.team", "target": "nav:adventure,battle,story", "do": "go", "go": "progress.story_page",
+     "advance": "story", "label": "To the story →",
+     "title": "Time to fight", "text": "Every fight mode lives here (Battle on phones, Adventure on a computer). Start with the Story: it opens everything else."},
+    {"stage": "story", "page": "progress.story_page", "target": ".story-stage form .btn.gold", "do": "click",
+     "unless": "#fight", "pill": "Your first story fight", "title": "Your first fight", "text": "Stage 1, The Arrow's Test. Tap Fight."},
+    {"stage": "story", "page": "progress.story_page", "target": "#fight:not(.finished) .side.foe .fighter-hit:not([disabled])",
+     "do": "click", "when": "#fight:not(.finished)",
+     "title": "Attack!", "text": "Your move: tap an enemy to hit it. The number is roughly the damage you'll deal."},
+    {"stage": "story", "page": "progress.story_page", "target": "#fight:not(.finished) .side.you", "do": "next",
+     "when": "#fight:not(.finished)", "title": "Your stands",
+     "text": "They act in speed order. The countdown under a stand is its special: it fires on its own. "
+             "Knock out every enemy to win."},
+    {"stage": "story", "page": "progress.story_page", "target": "#fight.finished .result.win", "do": "go",
+     "go": "play.mirror", "advance": "mirror", "label": "The Mirror World →", "when": "#fight.finished .result.win",
+     "title": "Victory!", "text": "Every win pays Meteor Dust and XP, and each one opens something new. "
+                                  "The first: the Mirror World."},
+    {"stage": "mirror", "page": "play.mirror", "target": "form[action$='/mirror-world/start'] button", "do": "click",
+     "title": "The Mirror World", "pill": "Step into the Mirror World", "text": "Your team against its own reflection: the best XP for your energy. Step through."},
+    {"stage": "home", "page": "main.home", "target": "#onboarding .bp-step .btn.gold", "do": "click", "optional": True,
+     "title": "Claim your rewards", "text": "Your Beginner's path: every goal you reach pays once. Claim it here."},
+    {"stage": "home", "page": "main.home", "target": "#onboarding [hx-post$='/welcome-week/claim']", "do": "click",
+     "optional": True, "title": "A gift a day", "text": "Your first week has a gift for every day. Open today's."},
+    {"stage": "home", "page": "main.home", "target": "nav:menu,account", "do": "finish", "pill": "Claim your rewards at Home",
+     "title": "You're on your own now", "text": "Home always shows your next goal. Lost? Show me around (in the menu) "
+                                                "replays the tour, and the wiki's guide maps the whole game. Have fun!"},
+]
+STAGE_PAGE = {"pull": "play.banners", "team": "play.team", "story": "progress.story_page", "mirror": "play.mirror",
+              "home": "main.home"}
+
+
+def guide_marks() -> dict:
+    """GUIDE with its links (template global: partials/guide.html)."""
+    from flask import url_for
+    marks = []
+    for m in GUIDE:
+        m = dict(m, href=url_for(m["page"]))
+        if m.get("go"):
+            m["go"] = url_for(m["go"])
+        marks.append(m)
+    return {"marks": marks}
 
 
 def coach(user) -> Optional[str]:
-    """The coach's step for this save, or None (older saves, or the guide is over)."""
+    """The guide's stage for this save, or None (older saves, or the guide is over)."""
     step = user.data.get("web_coach")
     return step if step in COACH_STEPS[:-1] else None
 
 
 def coach_to(user, step: str):
-    """Move the coach forward (never back)."""
+    """Move the guide forward (never back)."""
     if step not in COACH_STEPS:
         raise GameError("Unknown step.")
     now_at = user.data.get("web_coach")
     if now_at in COACH_STEPS and COACH_STEPS.index(step) <= COACH_STEPS.index(now_at):
         return
+    if now_at is None and step != "pull":
+        return  # a save from before the guide: never start it half-way
     user.data["web_coach"] = step
+    try:
+        from app.db import r
+        if step == "done":
+            r().delete(GUIDE_KEY.format(user.id))
+        else:
+            r().set(GUIDE_KEY.format(user.id), step, ex=30 * 86400)
+    except Exception:
+        pass
+
+
+def guide_stage(uid) -> Optional[str]:
+    """The stage every page reads (one Redis GET), None when there's no guide."""
+    from app.db import r
+    raw = r().get(GUIDE_KEY.format(uid))
+    step = raw.decode() if isinstance(raw, bytes) else raw
+    return step if step in COACH_STEPS[:-1] else None
 
 
 # ── The Welcome week ────────────────────────────────────────────────────

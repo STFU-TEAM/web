@@ -97,3 +97,16 @@ def neighbours(redis, uid) -> List[str]:
             if m != str(uid):
                 others.add(m)
     return sorted(others)
+
+
+GUESTS_PER_DAY = 5  # new guest saves one address can make in a day
+
+
+def too_many_guests(redis, ip: Optional[str]) -> bool:
+    """Counts a new guest save against its address; True (and no save) once the day's GUESTS_PER_DAY are used."""
+    if not ip or ip == "?":
+        return False
+    key = f"web:alts:guests:{ip_hash(ip)}:{datetime.date.today().isoformat()}"
+    n = redis.incr(key)
+    redis.expire(key, 2 * 86400)
+    return n > GUESTS_PER_DAY

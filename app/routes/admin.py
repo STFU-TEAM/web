@@ -488,8 +488,29 @@ def reports():
     people = {u for e in rows for u in (e["target"], e["reporter"], e.get("closed_by")) if u}
     names = {u: identity(u)["name"] for u in people}
     locked = {e["target"]: P.locked(e["target"]) for e in rows}
+    from app.game import automod
     return render_template("admin/reports.html", rows=rows, status=status, names=names, reasons={**P.REASONS, **P.CHAT_REASON},
-                           locked=locked, section="reports")
+                           locked=locked, automod_words=automod.admin_words(), section="reports")
+
+
+@bp.post("/automod/<op>")
+@admin_required
+def automod_words(op):
+    from app.game import automod
+    from app.game.logic import GameError
+    word = request.form.get("word", "")
+    try:
+        if op == "add":
+            w = automod.add_word(word)
+            audit("automod_word", target=w, op="add")
+            flash(f"“{w}” is blocked in every chat.", "ok")
+        elif op == "remove":
+            automod.remove_word(word)
+            audit("automod_word", target=word, op="remove")
+            flash(f"“{word}” is allowed again.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    return redirect(url_for("admin.reports") + "#automod")
 
 
 @bp.post("/reports/<rid>/<op>")
@@ -853,6 +874,7 @@ def safety():
     return render_template("admin/safety.html", files=backup.files(), log=backup.read_log(r()), folder=backup.folder(),
                            persistence=backup.persistence(r()), keep=backup.KEEP,
                            offsite=bool(os.environ.get("BACKUP_WEBHOOK_URL")), alerts=bool(os.environ.get("ALERT_WEBHOOK_URL")),
+                           webhooks=[(k, var, what, bool(os.environ.get(var))) for k, (var, what) in WEBHOOKS.items()],
                            flags=flagged, names=names, flag_after=alts.FLAG_AFTER, section="safety")
 
 
@@ -870,12 +892,48 @@ def safety_action(op):
                              daemon=True, name="backup-now").start()
             audit("backup_now")
             flash("Backing up: the file shows up below when it's written (reload in a few seconds).", "ok")
+    elif op == "webhook":
+        _test_webhook(request.form.get("which", ""))
     elif op == "dismiss":
         h = request.form.get("hash", "")
         alts.dismiss(r(), h)
         audit("alt_dismiss", target=h)
         flash("Flag dismissed. It comes back if another account joins that address.", "ok")
     return redirect(url_for("admin.safety"))
+
+
+WEBHOOKS = {"alert": ("ALERT_WEBHOOK_URL", "error alerts"), "backup": ("BACKUP_WEBHOOK_URL", "off-site backups")}
+
+
+def _test_webhook(which: str):
+    """Post a test message to one of the configured Discord webhooks and say what Discord answered."""
+    import datetime
+    import os
+    import requests
+    if which not in WEBHOOKS:
+        flash("Unknown webhook.", "error")
+        return
+    var, what = WEBHOOKS[which]
+    url = os.environ.get(var, "")
+    if not url:
+        flash(f"{var} isn't set: nothing to test.", "error")
+        return
+    if not r().set(f"web:webhook_test:{which}", 1, nx=True, ex=10):
+        flash("Just sent one: wait a few seconds.", "error")
+        return
+    me = identity(session["uid"]).get("name") or session["uid"]
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    try:
+        resp = requests.post(url, json={"content": f"✅ Test from the STFU Requiem admin panel ({what}), sent by {me} at {stamp}. "
+                                                   f"This webhook works.", "allowed_mentions": {"parse": []}}, timeout=8)
+    except requests.RequestException as e:
+        flash(f"{var}: couldn't reach Discord ({type(e).__name__}).", "error")
+        return
+    audit("webhook_test", target=which, status=resp.status_code)
+    if resp.ok:
+        flash(f"{var}: test message sent. Check the channel.", "ok")
+    else:
+        flash(f"{var}: Discord answered {resp.status_code} ({resp.text[:120] or 'no details'}). Check the URL.", "error")
 
 
 @bp.get("/safety/download/<name>")

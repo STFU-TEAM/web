@@ -120,12 +120,13 @@ def register(app):
                                  PALM=branding.PALM, PALMS=branding.PALMS)
     from app.game import logic
     from app.game import onboarding
-    _coach_of = lambda u: onboarding.coach(u) if u else None  # noqa: E731  (the first-session coach's step)
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
-                                 FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form, coach_of=_coach_of,
+                                 FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form, guide_marks=onboarding.guide_marks,
                                  MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
+    from app.game.automod import SCAM_WARNING
+    app.jinja_env.globals.update(SCAM_WARNING=SCAM_WARNING)
     from app.game import simulate
     from app.routes.fightturn import next_step
     app.jinja_env.globals.update(next_step=next_step, sim_runs=simulate.RUNS)
@@ -378,6 +379,7 @@ def register(app):
             session["csrf"] = secrets.token_urlsafe(24)
         uid = session.get("uid")
         story_hot = tour_pending = False
+        guide = None
         inbox_count, toasts, duel_waiting, chat_unread = 0, [], False, 0
         chat_dots_now = {"dm": 0, "gang": 0}
         from app import push
@@ -414,6 +416,8 @@ def register(app):
             from app.routes.community import pending_count
             story_hot = not r().exists(f"web:story_done:{uid}")
             tour_pending = bool(r().exists(f"web:tour:{uid}"))
+            from app.game import onboarding
+            guide = onboarding.guide_stage(uid)  # the first-session guide's stage (partials/guide.html)
             inbox_count = pending_count(uid)
             from app.routes.chat import dots as chat_dots
             chat_dots_now = chat_dots(uid)
@@ -425,7 +429,7 @@ def register(app):
         from app.game import events
         return {
             "live_event": None if fragment else events.cached(),
-            "story_hot": story_hot, "tour_pending": tour_pending, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
+            "story_hot": story_hot, "tour_pending": tour_pending, "guide_stage": guide, "nav_unlocked": nav_unlocked, "nav_new": nav_new,
             "progress_part": progress_part,
             "craft_ready": craft_ready, "quests_ready": quests_ready,
             "inbox_count": inbox_count, "toasts": toasts, "duel_waiting": duel_waiting, "chat_unread": chat_unread, "chat_dots": chat_dots_now,

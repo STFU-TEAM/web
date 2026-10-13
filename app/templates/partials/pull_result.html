@@ -23,7 +23,8 @@
   {% set order = {'R': 0, 'SR': 1, 'SSR': 2, 'UR': 3, 'LR': 4} %}
   <section class="pull-batch" data-pull data-cine-wait>
     <div class="pull-showcase{% if top_rarity in ('UR', 'LR') %} big-pull{% endif %}">
-      {% if top_rarity in ('UR', 'LR') %}<i class="speedlines" aria-hidden="true"></i>{% endif %}
+      {#- the UR / LR speed lines wait for the last card: before that they'd give the pull away -#}
+      {% if top_rarity in ('UR', 'LR') %}<i class="speedlines" aria-hidden="true" hidden data-after-reveal></i>{% endif %}
       <img class="pull-avatar" src="{{ 'randomAsset/avatar.png'|asset }}" alt="STFU Requiem" width="220" height="220" loading="eager">
       <div class="pull-announcement">
         <p class="menace small" aria-hidden="true">ドドドド</p>
@@ -34,10 +35,11 @@
     </div>
     <div class="pull-controls">
       <button type="button" class="btn gold" data-cinematic title="One card at a time, with a show for every SSR, UR and LR">🎬 Cinematic</button>
-      <button type="button" class="btn" data-reveal-all>Reveal all</button>
+      <button type="button" class="btn" data-reveal-all title="Turns the R and SR cards: SSR and better are yours to turn">Reveal all</button>
       <label class="cine-auto"><input type="checkbox" data-cinematic-auto checked> Open cinematic automatically</label>
       <span class="muted" hidden data-after-reveal>Pity is now {{ u.pity }}/{{ PITY_LIMIT }}</span>
     </div>
+    <p class="pull-tap-hint" hidden data-tap-hint role="status">✨ SSR or better is waiting face down: tap each glowing card to turn it over.</p>
     {{ pull_again(banner) }}
     <div class="grid pull-grid">
       {% for e in res.cards %}

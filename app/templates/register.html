@@ -16,6 +16,7 @@
       <button class="btn gold big block">Create account</button>
     </form>
     <p class="auth-switch">Already playing? <a href="{{ url_for('auth.login', next=next) }}">Log in</a>{% if config.DISCORD_CLIENT_ID %} or <a href="{{ url_for('auth.discord_login', next=next) }}">continue with Discord</a>{% endif %}</p>
+    {% include "partials/guest_start.html" %}
   </div>
 </section>
 {% endblock %}

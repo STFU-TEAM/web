@@ -516,7 +516,10 @@ def chat_post(redis, gang: dict, uid: str, text: str) -> dict:
         raise GameError("You're not in this gang.")
     if not redis.set(f"web:gang:chat:slow:{uid}", "1", nx=True, ex=CHAT_COOLDOWN):
         raise GameError("Slow down a little.")
+    from types import SimpleNamespace
+    from app.game import automod
     gid = gang["_id"]
+    text, _ = automod.check(SimpleNamespace(kind="gang", key=f"gang:{gid}"), str(uid), text)
     msg = {"id": int(redis.incr(f"web:gang:chat:seq:{gid}")), "uid": str(uid), "text": text, "at": int(time.time())}
     pipe = redis.pipeline()
     pipe.rpush(f"web:gang:chat:{gid}", json.dumps(msg))

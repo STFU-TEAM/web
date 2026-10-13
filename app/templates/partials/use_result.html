@@ -27,6 +27,8 @@
   <p data-float class="toast ok" role="status">Sold {{ res.count }} × {{ res.name }} for {{ res.fragments|num }} Meteor Dust.</p>
 {% elif res.kind == 'equipped' %}
   <p data-float class="toast ok" role="status">{{ res.item.label }} equipped on {{ res.stand.name }}.</p>
+{% elif res.kind == 'stripped' %}
+  <p data-float class="toast ok" role="status">{{ res.count }} item{{ 's' if res.count != 1 }} back in your bag from storage.</p>
 {% elif res.kind == 'unequipped' %}
   <p data-float class="toast ok" role="status">{{ res.item.label }} removed from {{ res.stand.name }}.</p>
 {% endif %}

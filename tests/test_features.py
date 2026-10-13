@@ -461,18 +461,46 @@ def test_a_new_save_is_coached_through_its_first_session(client):
     assert not client.fake.exists("web:tour:999") and doc(client, "999")["web_coach"] == "pull"  # the coach, not the tour
     page = client.get("/team").data.decode()
     assert 'data-autostart="0"' in page and "Start the story" in page  # the tour is still there, on demand
-    assert "These three fight for you" not in page  # the team card waits for the first pull
+    assert 'id="guide-marks"' in page and '"stage": "pull"' in page  # the guide starts at the first pull
     banner = next(b for b in logic.BANNERS if logic.banner_enabled(b))
     r = client.post(f"/banners/{banner['id']}/pull", headers={**h, "HX-Request": "true"})
     assert "Your first stands are in!" in r.data.decode() and doc(client, "999")["web_coach"] == "team"
     page = client.get("/team").data.decode()
-    assert "These three fight for you" in page and 'data-coach-glow="#team-shelf"' in page and 'id="team-shelf"' in page
-    r = client.post("/coach", data={"to": "story"}, headers=h)
-    assert r.headers["Location"].endswith("/story") and doc(client, "999")["web_coach"] == "story"
+    assert '"stage": "team"' in page and 'id="team-shelf"' in page and 'id="storage"' in page
+    r = client.post("/coach", data={"to": "story"}, headers={**h, "X-Guide": "1"})  # the guide's own button
+    assert r.status_code == 204 and doc(client, "999")["web_coach"] == "story"
+    client.post("/coach", data={"to": "team"}, headers={**h, "X-Guide": "1"})
+    assert doc(client, "999")["web_coach"] == "story"  # never back
     page = client.get("/story").data.decode()
-    assert "Win your first fight" in page and "Show me around" in page
+    assert '"stage": "story"' in page and "story-stage" in page
     client.post("/coach", data={"to": "done"}, headers=h)
-    assert "Win your first fight" not in client.get("/story").data.decode()
+    assert 'id="guide-marks"' not in client.get("/story").data.decode()
+    assert not client.fake.exists("web:coach:999")
+
+
+def test_every_guide_mark_points_at_something_real():
+    """Each mark's selector names a class or id its page's templates (or app.js, for classes it adds) really draw."""
+    import re
+    from pathlib import Path
+    from app.game import onboarding
+    tpl = "\n".join(p.read_text(encoding="utf-8") for p in [*Path("app/templates").rglob("*.html"), Path("app/static/js/app.js")])
+    for m in onboarding.GUIDE:
+        assert m["do"] in ("click", "next", "go", "finish") and m["stage"] in onboarding.COACH_STEPS
+        if not m["target"] or m["target"].startswith("nav:"):
+            continue
+        for name in re.findall(r"[.#]([a-z][\w-]*)", m["target"]):
+            assert name in tpl, (m["title"], name)
+
+
+def test_the_guide_follows_the_first_story_win_and_mirror_world(client):
+    from app.game import onboarding
+    user = User(create_user("998"))
+    user.data["web_coach"] = "story"
+    onboarding.coach_to(user, "mirror")
+    assert user.data["web_coach"] == "mirror"
+    old = User(create_user("997"))  # a save from before the guide never starts it half-way
+    onboarding.coach_to(old, "mirror")
+    assert "web_coach" not in old.data
 
 
 # --------------------------------------------------------------------------- #

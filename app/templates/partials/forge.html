@@ -12,8 +12,8 @@
 </section>
 {%- endmacro %}
 
-{% macro row(icon, name, sub='', level=none, level_max=none, state='') -%}
-<li class="bench-row {{ state }}">
+{% macro row(icon, name, sub='', level=none, level_max=none, state='', id='') -%}
+<li class="bench-row {{ state }}"{% if id %} id="{{ id }}"{% endif %}>
   <span class="bench-icon" aria-hidden="true">{{ icon }}</span>
   <div class="bench-main">
     <p class="bench-name"><strong>{{ name }}</strong>{% if sub %} <small class="muted">{{ sub }}</small>{% endif %}</p>

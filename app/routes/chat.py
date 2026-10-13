@@ -2,7 +2,7 @@
 private, co-op raid). The rules live in app/game/chat.py."""
 from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 
-from app.auth import is_admin, player_required
+from app.auth import account_required, is_admin, player_required
 from app.db import get_db, identities, identity, r
 from app.game import chat as C
 from app.game.logic import GameError
@@ -140,7 +140,7 @@ def feed(token):
 
 
 @bp.post("/c/<token>")
-@player_required
+@account_required
 def post(token):
     error = None
     try:

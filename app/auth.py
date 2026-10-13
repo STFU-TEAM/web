@@ -128,7 +128,7 @@ def login():
         return redirect(nxt)
     if session.get("uid"):
         return redirect(nxt)
-    return render_template("login.html", next=nxt, username="")
+    return render_template("login.html", next=nxt, username="", guest_name=guest_resume_name())
 
 
 @bp.route("/register", methods=["GET", "POST"])
@@ -146,7 +146,67 @@ def register():
             return render_template("register.html", next=nxt, username=username), 400
         _start_session(account["uid"], account["name"], None, "password")
         return redirect(url_for("auth.welcome"))
-    return render_template("register.html", next=nxt, username="")
+    return render_template("register.html", next=nxt, username="", guest_name=guest_resume_name())
+
+
+def _set_guest_cookie(resp, token: str):
+    resp.set_cookie(accounts.GUEST_COOKIE, token, max_age=accounts.GUEST_DAYS * 86400, httponly=True,
+                    secure=current_app.config.get("SESSION_COOKIE_SECURE", False), samesite="Lax")
+    return resp
+
+
+def guest_resume_name():
+    """The guest save this browser's cookie points at (its name), for a "Continue as ..." button."""
+    uid = accounts.guest_of(request.cookies.get(accounts.GUEST_COOKIE))
+    return identity(uid).get("name") if uid else None
+
+
+@bp.post("/guest")
+def guest():
+    """Play without an account: a guest save kept by a cookie on this browser (the player agreed to it), or the one
+    this browser already has."""
+    uid = accounts.guest_of(request.cookies.get(accounts.GUEST_COOKIE))
+    if uid:
+        if r().sismember("web:banned", uid):
+            flash("This guest save is banned from the website.", "error")
+            return redirect(url_for("auth.login"))
+        _start_session(uid, identity(uid).get("name") or "Guest", None, "guest")
+        return redirect(url_for("play.team") if get_db().user_exists(uid) else url_for("auth.welcome"))
+    if not request.form.get("agree"):
+        flash("Tick the box first: a guest save lives in a cookie on this browser.", "error")
+        return redirect(request.referrer or url_for("auth.register"))
+    from app import alts
+    if alts.too_many_guests(r(), request.remote_addr):
+        flash("Too many guest saves from this network today. Create an account instead.", "error")
+        return redirect(url_for("auth.register"))
+    g = accounts.create_guest()
+    _start_session(g["uid"], g["name"], None, "guest")
+    return _set_guest_cookie(redirect(url_for("auth.welcome")), g["token"])
+
+
+def guest_blocked():
+    """None, or the message a guest gets when trying what needs a real account (chat, trades, the auction house)."""
+    uid = session.get("uid")
+    if uid and accounts.is_guest(uid):
+        return "Guests can't do that yet: save your progress with a username first (Account, in your menu)."
+    return None
+
+
+def account_required(view):
+    """Logged in, registered, and not a guest (chat, DMs, trades, the auction house: anti-spam and anti-alt)."""
+    @wraps(view)
+    @player_required
+    def wrapper(*args, **kwargs):
+        msg = guest_blocked()
+        if msg:
+            if request.headers.get("HX-Request"):
+                resp = current_app.response_class(status=204)
+                resp.headers["HX-Trigger"] = json.dumps({"toast": [{"text": msg, "kind": "flash-error"}]})
+                return resp
+            flash(msg, "error")
+            return redirect(request.referrer or url_for("auth.account"))
+        return view(*args, **kwargs)
+    return wrapper
 
 
 @bp.post("/dev/fresh")
@@ -271,15 +331,26 @@ def account():
             if form.get("password") != form.get("confirm"):
                 raise AccountError("The two passwords don't match.")
             if form.get("action") == "add":
-                accounts.create_account(form.get("username", "").strip(), form.get("password", ""), uid=uid)
-                flash("Username saved. You can now log in without Discord.", "ok")
+                was_guest = accounts.is_guest(uid)
+                account = accounts.create_account(form.get("username", "").strip(), form.get("password", ""), uid=uid)
+                if was_guest:
+                    accounts.end_guest(uid)
+                    session["name"], session["auth"] = account["name"], "password"
+                    flash(f"Progress saved! Log in anywhere as {account['name']}.", "ok")
+                else:
+                    flash("Username saved. You can now log in without Discord.", "ok")
+            elif form.get("action") == "rename":
+                session["name"] = accounts.rename(uid, form.get("username", "").strip())
+                flash(f"You're now {session['name']}. Log in with that name from now on.", "ok")
             elif form.get("action") == "change":
                 accounts.set_password(uid, form.get("current", ""), form.get("password", ""))
                 flash("Password changed.", "ok")
         except AccountError as e:
             flash(str(e), "error")
         return redirect(url_for("auth.account"))
+    left = r().ttl(f"web:rename:{uid}") if accounts.is_local(uid) else 0
     return render_template("account.html", username=accounts.username_of(uid), local=accounts.is_local(uid),
+                           guest=accounts.is_guest(uid), rename_days=max(1, round(left / 86400)) if left and left > 0 else 0,
                            discord_ready=bool(current_app.config["DISCORD_CLIENT_ID"]))
 
 

@@ -17,6 +17,7 @@
       <button class="btn gold big block">Log in</button>
     </form>
     <p class="auth-switch">New here? <a href="{{ url_for('auth.register', next=next) }}">Create an account</a></p>
+    {% include "partials/guest_start.html" %}
   </div>
 </section>
 {% endblock %}

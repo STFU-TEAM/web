@@ -10,6 +10,12 @@ Redis (web-only keys):
 A Discord player can add a username + password to the same save, and a
 password-only player can later link Discord, which moves the save to their
 Discord id so the bot sees it.
+
+Guests play with no login at all: a web id like any password-only one, reached through a long-lived cookie on their
+browser (GUEST_COOKIE holds a random token). Adding a username + password turns the guest into a normal account.
+    web:guest:<token>       uid       (refreshed on every visit)
+    web:guest_uid:<uid>     token     (exists while the save is a guest's)
+    web:rename:<uid>        set for RENAME_COOLDOWN after a web-only player renames
 """
 import datetime
 import json
@@ -80,6 +86,84 @@ def create_account(username: str, password: str, uid: Optional[str] = None) -> d
     if is_local(account["uid"]):
         remember_identity(account["uid"], username, None, ttl=None)
     return account
+
+
+GUEST_COOKIE = "stfu_guest"
+GUEST_DAYS = 400  # the cookie's life, and the token's: renewed on every visit
+RENAME_COOLDOWN = 7 * 24 * 3600
+
+
+def create_guest() -> dict:
+    """A new guest: {uid, name, token}. The token goes in the guest's cookie."""
+    uid, token = f"acc{secrets.token_hex(8)}", secrets.token_urlsafe(32)
+    name = f"Guest-{secrets.token_hex(2).upper()}"
+    ttl = GUEST_DAYS * 86400
+    r().set(f"web:guest:{token}", uid, ex=ttl)
+    r().set(f"web:guest_uid:{uid}", token, ex=ttl)
+    remember_identity(uid, name, None, ttl=None)
+    return {"uid": uid, "name": name, "token": token}
+
+
+def guest_of(token: Optional[str]) -> Optional[str]:
+    """The guest save behind a cookie token (and the token's life starts over), or None."""
+    if not token or len(token) > 100:
+        return None
+    raw = r().get(f"web:guest:{token}")
+    if not raw:
+        return None
+    uid = raw.decode() if isinstance(raw, bytes) else raw
+    if not r().exists(f"web:guest_uid:{uid}"):  # upgraded to a real account: the cookie no longer logs in
+        return None
+    ttl = GUEST_DAYS * 86400
+    r().expire(f"web:guest:{token}", ttl)
+    r().expire(f"web:guest_uid:{uid}", ttl)
+    return uid
+
+
+def is_guest(uid) -> bool:
+    return bool(uid) and is_local(uid) and bool(r().exists(f"web:guest_uid:{uid}"))
+
+
+def end_guest(uid: str):
+    """A guest saved their progress with a username: the cookie stops logging in."""
+    token = r().get(f"web:guest_uid:{uid}")
+    if token:
+        r().delete(f"web:guest:{token.decode() if isinstance(token, bytes) else token}")
+    r().delete(f"web:guest_uid:{uid}")
+
+
+def rename(uid: str, new: str) -> str:
+    """A web-only player's new username (it is also their display name and their login). Once a week."""
+    if not is_local(uid):
+        raise AccountError("Discord players take their name from Discord.")
+    old = r().get(f"web:account_uid:{uid}")
+    if not old:
+        raise AccountError("Save your account with a username first.")
+    old = old.decode() if isinstance(old, bytes) else old
+    if not USERNAME_RE.match(new or ""):
+        raise AccountError("Usernames are 3-24 characters: letters, numbers, dot, dash or underscore.")
+    if new.lower() == old and new == (get_account(old) or {}).get("name"):
+        raise AccountError("That's already your name.")
+    left = r().ttl(f"web:rename:{uid}")
+    if left and left > 0:
+        days = max(1, round(left / 86400))
+        raise AccountError(f"You can rename again in {days} day{'s' if days != 1 else ''}.")
+    account = get_account(old)
+    if not account:
+        raise AccountError("This account can't be renamed.")
+    account["name"] = new
+    if new.lower() != old:
+        if not r().set(_key(new), json.dumps(account), nx=True):
+            raise AccountError("That username is taken.")
+        r().delete(_key(old))
+        r().set(f"web:account_uid:{uid}", new.lower())
+    else:  # only the capitals change
+        r().set(_key(new), json.dumps(account))
+    r().set(f"web:rename:{uid}", old, ex=RENAME_COOLDOWN)
+    from app.db import identity, index_name
+    remember_identity(uid, new, identity(uid).get("avatar"), ttl=None)
+    index_name(uid, username=new)
+    return new
 
 
 def set_password(uid: str, current: str, new: str):

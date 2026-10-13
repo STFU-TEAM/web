@@ -202,6 +202,18 @@ document.addEventListener("input", (e) => {
 });
 document.addEventListener("htmx:oobAfterSwap", (e) => { if (e.detail.target.id === "inventory") applyItems(); });
 
+// "⚒ Refine" on an item card: glide to that item's forge row (under the sticky header) and flash it.
+document.addEventListener("click", (e) => {
+  const link = e.target.closest("a[data-jump]");
+  const row = link && document.getElementById(link.getAttribute("href").slice(1));
+  if (!row) return;
+  e.preventDefault();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  row.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "center" });
+  row.classList.remove("flash"); void row.offsetWidth; row.classList.add("flash");
+  row.querySelector(".bench-go:not([disabled])")?.focus({ preventScroll: true });
+});
+
 // Big stand cards turn over to their parameter chart (macros.card params=True).
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-params-flip]");
@@ -247,6 +259,7 @@ function flip(card) {
   if (batch && !batch.querySelector("[data-flip]:not(.flipped)")) {
     batch.querySelector("[data-pull-summary]").hidden = false;
     batch.querySelector("[data-reveal-all]").hidden = true;
+    batch.querySelector("[data-tap-hint]")?.setAttribute("hidden", "");
     batch.querySelectorAll("[data-after-reveal]").forEach((x) => { x.hidden = false; });
     batch.querySelector("[data-cinematic]")?.setAttribute("hidden", "");
     document.dispatchEvent(new CustomEvent("pull:revealed"));
@@ -262,15 +275,24 @@ function burst(slot) {
   slot.prepend(el);
   setTimeout(() => el.remove(), 2600);
 }
+// SSR and better are always the player's to turn over: "Reveal all" (and the cinematic's Skip) turn the rest and leave
+// those face down, pulsing gold (the same for SSR, UR and LR), with a line saying so.
+function revealRest(batch, stagger) {
+  const fast = !stagger || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const left = [...batch.querySelectorAll("[data-flip]:not(.flipped)")];
+  const keep = left.filter((c) => +c.dataset.rank >= 2);
+  left.filter((c) => +c.dataset.rank < 2).forEach((c, i) => (fast ? flip(c) : setTimeout(() => flip(c), i * 220)));
+  keep.forEach((c) => c.classList.add("must-tap"));
+  if (keep.length) {
+    batch.querySelector("[data-reveal-all]").hidden = true;
+    batch.querySelector("[data-tap-hint]")?.removeAttribute("hidden");
+  }
+}
 document.addEventListener("click", (e) => {
   const card = e.target.closest("[data-flip]");
   if (card) return flip(card);
   const all = e.target.closest("[data-reveal-all]");
-  if (all) {
-    const fast = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    [...all.closest("[data-pull]").querySelectorAll("[data-flip]:not(.flipped)")]
-      .forEach((c, i) => setTimeout(() => flip(c), fast ? 0 : i * 220 + (+c.dataset.rank >= 2 ? 400 : 0)));
-  }
+  if (all) revealRest(all.closest("[data-pull]"), true);
 });
 document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.matches?.("[data-flip]")) flip(e.target); });
 
@@ -280,10 +302,61 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
   const PREF = "pull-cinematic";
   const pref = () => { try { return localStorage.getItem(PREF) !== "0"; } catch (e) { return true; } };
   const setPref = (on) => { try { localStorage.setItem(PREF, on ? "1" : "0"); } catch (e) { /* storage blocked */ } };
-  const BEAT = { R: 700, SR: 900, SSR: 1900, UR: 2800, LR: 4200 };  // ms before the card turns
+  const BEAT = { R: 700, SR: 900, SSR: 1900 };  // ms before the card turns (a UR or an LR waits like an SSR)
   const TITLE = { SSR: "SSR!", UR: "ULTRA RARE!!", LR: "LEGENDARY" };
   const MENACE = { SSR: "ゴゴゴ", UR: "ゴゴゴゴゴ", LR: "ドドドドドド" };
   let state = null;
+
+  // UR and LR never announce themselves before the card turns: they build up exactly like an SSR (look), plus one
+  // (UR) or two (LR) faint tells picked at random, at a random moment and place. Only a UR or an LR ever shows a
+  // tell, so a sharp eye learns them while everyone else just sees an SSR coming; the big show waits for the flip.
+  const look = (r) => (r === "UR" || r === "LR" ? "SSR" : r);
+  const TRUE_HUE = { UR: "#FF4DA0", LR: "#5FF2E4" };
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  const aside = () => (Math.random() < 0.5 ? 5 + Math.random() * 20 : 72 + Math.random() * 18);  // never over the centre
+  function tell(host, cls, text = "") {
+    const t = document.createElement("b");
+    t.className = `tell ${cls}`;
+    t.setAttribute("aria-hidden", "true");
+    t.textContent = text;
+    host.append(t);
+    return t;
+  }
+  const TELLS = {
+    menace(host) {  // a lone ゴ, faint, off to a side
+      const t = tell(host, "tell-menace", pick(["ゴ", "ゴゴ", "ド", "ドド"]));
+      Object.assign(t.style, { left: `${aside()}%`, top: `${14 + Math.random() * 60}%` });
+    },
+    confetti(host) {  // a few specks drifting down
+      const box = tell(host, "tell-confetti");
+      for (let k = 0; k < 7; k++) {
+        const bit = document.createElement("i");
+        Object.assign(bit.style, { left: `${6 + Math.random() * 88}%`, animationDelay: `${Math.random() * 0.9}s`,
+                                   background: pick(["#FF4DA0", "#F4C542", "#5FF2E4"]) });
+        box.append(bit);
+      }
+    },
+    ring: (host) => tell(host, "tell-ring"),  // one thin ring in its true colour
+    star(host) {  // the Joestar birthmark, twinkling once
+      const t = tell(host, "tell-star", "★");
+      Object.assign(t.style, { left: `${aside()}%`, top: `${14 + Math.random() * 60}%` });
+    },
+    ladybug: (host) => tell(host, "tell-ladybug", "🐞"),  // Gold Experience's, crawling along the bottom
+    tbc: (host) => tell(host, "tell-tbc", "To Be Continued"),
+    bolt(host) {  // one distant flicker of lightning
+      tell(host, "tell-bolt").style.left = `${aside()}%`;
+    },
+    timestop: (host) => host.classList.add("tell-timestop"),  // the colours drain for a blink
+    requiem: (host) => host.classList.add("tell-requiem"),  // the summon's Arrow turns out to be the Requiem Arrow
+    glint: (host) => host.classList.add("tell-glint"),  // the cinematic card's ？ flickers its true colour
+  };
+  const SUMMON_TELLS = ["menace", "confetti", "ring", "star", "ladybug", "tbc", "bolt", "timestop", "requiem"];
+  const CINE_TELLS = ["menace", "confetti", "ring", "star", "ladybug", "tbc", "bolt", "timestop", "glint"];
+  function tellsFor(r, pool) {
+    const bag = [...pool], out = [];
+    while (out.length < ({ UR: 1, LR: 2 }[r] || 0) && bag.length) out.push(bag.splice(Math.floor(Math.random() * bag.length), 1)[0]);
+    return out;
+  }
 
   function overlay() {
     const el = document.createElement("div");
@@ -341,12 +414,14 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     const src = state.cards[state.i];
     const r = src.dataset.rarity;
     const el = state.el;
-    el.className = `cine show r-${r}`;
+    el.className = `cine show r-${look(r)}`;  // a UR or an LR wears an SSR's colours until it turns
+    el.querySelectorAll(".tell").forEach((t) => t.remove());
+    el.style.setProperty("--h", TRUE_HUE[r] || "transparent");
     el.querySelector(".cine-count").textContent = `${state.i + 1} / ${state.cards.length}`;
     el.querySelector(".cine-caption").innerHTML = "";
     el.querySelector(".cine-gif")?.remove();
     el.querySelector(".cine-title").textContent = "";
-    el.querySelector(".cine-menace").textContent = MENACE[r] || "";
+    el.querySelector(".cine-menace").textContent = MENACE[look(r)] || "";
     const face = el.querySelector(".cine-face");
     face.innerHTML = src.querySelector(".flip-front").innerHTML;
     face.querySelectorAll("a, button").forEach((x) => x.setAttribute("tabindex", "-1"));
@@ -355,15 +430,26 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     card.className = "cine-card";
     void card.offsetWidth;  // restart the entrance animation
     card.classList.add("enter");
-    if (BEAT[r] > 1000) later(() => el.classList.add("charge"), 350);  // the build-up for SSR and above
+    if (BEAT[look(r)] > 1000) later(() => el.classList.add("charge"), 350);  // the build-up for SSR and above
+    tellsFor(r, CINE_TELLS).forEach((name) => later(() => TELLS[name](el), 500 + Math.random() * 1100));
     state.pending = [src, r];
-    later(() => reveal(src, r), BEAT[r] || 700);
+    const hint = el.querySelector(".cine-hint");
+    hint.textContent = "Tap or press Space";
+    if (look(r) === "SSR") {  // SSR and up are the player's to turn: after the build-up, the card waits for a tap
+      later(() => { el.classList.add("ready"); hint.textContent = "Tap to reveal"; }, BEAT.SSR);
+    } else {
+      later(() => reveal(src, r), BEAT[r] || 700);
+    }
   }
 
   function reveal(src, r) {
     state.pending = null;
     const el = state.el;
+    el.classList.replace(`r-${look(r)}`, `r-${r}`);  // its true colours, only now
+    el.classList.remove("ready");
     el.classList.add("revealed");
+    el.querySelector(".cine-hint").textContent = "Tap or press Space";
+    if (look(r) !== r) el.querySelector(".cine-menace").textContent = MENACE[r];
     el.querySelector(".cine-card").classList.add("turned");
     const shiny = src.dataset.shiny === "1";  // 1 in 1000: it gets its own title
     el.classList.toggle("is-shiny", shiny);
@@ -387,7 +473,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
   function close() {
     if (!state) return;
     state.timers.forEach(clearTimeout);
-    state.cards.forEach((c) => flip(c));
+    revealRest(state.batch, false);  // skipped: the rest turn over, except SSR and up (still the player's to tap)
     state.el.remove();
     document.body.classList.remove("cine-open");
     const batch = state.batch;
@@ -418,12 +504,12 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
   }
 
   // Summon: a slow build before any card. Light gathers, a silver Arrow descends and hovers; for SSR and
-  // above the core beats like a heart and each beat upgrades its colour (gold, then magenta, then cyan), the
-  // tease; then the Arrow strikes and a soft portal opens. Everything stays dim: the hype is in the waiting.
+  // above the core beats like a heart and turns gold, the tease; then the Arrow strikes and a soft portal opens.
+  // Everything stays dim: the hype is in the waiting. A UR or an LR summons exactly like an SSR, plus its tells.
   const RANK = { R: 0, SR: 1, SSR: 2, UR: 3, LR: 4 };
-  const BEATS = { SSR: ["t1"], UR: ["t1", "t2"], LR: ["t1", "t2", "t3"] };  // colour upgrades before the strike
-  const GATHER_MS = 1600, BEAT_MS = 850, AFTER_MS = { R: 1000, SR: 1200, SSR: 1600, UR: 1800, LR: 2300 };
-  const SPARKS = { SR: [10, "mote"], SSR: [16, ""], UR: [20, ""], LR: [28, ""] };
+  const BEATS = { SSR: ["t1"] };  // the colour upgrade before the strike
+  const GATHER_MS = 1600, BEAT_MS = 850, AFTER_MS = { R: 1000, SR: 1200, SSR: 1600 };
+  const SPARKS = { SR: [10, "mote"], SSR: [16, ""] };
   let summoning = null;
   const topOf = (batch) => [...batch.querySelectorAll("[data-flip]")].map((c) => c.dataset.rarity)
     .sort((a, b) => (RANK[b] ?? 0) - (RANK[a] ?? 0))[0] || "R";
@@ -443,9 +529,9 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
 
   function summon(batch, done) {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return done();
-    const top = topOf(batch);
+    const top = topOf(batch), seen = look(top);
     const el = document.createElement("div");
-    el.className = `summon s-${top}`;
+    el.className = `summon s-${seen}`;
     if (batch.querySelector('[data-flip][data-shiny="1"]')) el.classList.add("has-shiny");  // a faint prismatic hint
     el.setAttribute("role", "dialog");
     el.setAttribute("aria-modal", "true");
@@ -453,10 +539,9 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     el.innerHTML = `
       <div class="sum-bg"></div><div class="sum-rays"></div>
       <div class="sum-portal"><i></i><i></i><i></i></div>
-      <div class="sum-bolts" aria-hidden="true"><i></i><i></i><i></i></div>
       <div class="sum-gather" aria-hidden="true"></div><div class="sum-sparks" aria-hidden="true"></div>
       <div class="sum-arrow" aria-hidden="true"></div>
-      <p class="sum-word" aria-hidden="true">${MENACE[top] || ""}</p>
+      <p class="sum-word" aria-hidden="true">${MENACE[seen] || ""}</p>
       <p class="sum-hint">Tap to skip</p>`;
     document.body.append(el);
     document.body.classList.add("cine-open");
@@ -472,7 +557,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     };
     summoning = { el, finish };
     let t = GATHER_MS;
-    (BEATS[top] || []).forEach((beat) => {  // each heartbeat upgrades the colour: the tease
+    (BEATS[seen] || []).forEach((beat) => {  // the heartbeat upgrades the colour: the tease
       timers.push(setTimeout(() => {
         el.classList.add(beat, "beat");
         el.classList.remove("pulse");
@@ -481,12 +566,19 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
       }, t));
       t += BEAT_MS;
     });
+    if (TRUE_HUE[top]) {
+      el.style.setProperty("--h", TRUE_HUE[top]);
+      tellsFor(top, SUMMON_TELLS).forEach((name) => {  // the Requiem Arrow has to show before the Arrow strikes
+        const at = name === "requiem" ? 900 + Math.random() * 900 : 700 + Math.random() * (t - 400);
+        timers.push(setTimeout(() => TELLS[name](el), at));
+      });
+    }
     timers.push(setTimeout(() => {
       el.classList.add("impact");
-      if (SPARKS[top]) sparks(el, ...SPARKS[top]);
+      if (SPARKS[seen]) sparks(el, ...SPARKS[seen]);
     }, t));
     timers.push(setTimeout(() => el.classList.add("burst"), t + 350));
-    timers.push(setTimeout(finish, t + (AFTER_MS[top] || 1000)));
+    timers.push(setTimeout(finish, t + (AFTER_MS[seen] || 1000)));
   }
   document.addEventListener("click", (e) => { if (summoning && e.target.closest(".summon")) summoning.finish(); });
   document.addEventListener("keydown", (e) => {
@@ -608,46 +700,77 @@ document.addEventListener("click", (e) => {
 if ("serviceWorker" in navigator) {
   addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
+// The cookie note: once per browser, until OK.
+(() => {
+  const note = document.querySelector("[data-cookie-note]");
+  if (!note) return;
+  let ok = false;
+  try { ok = localStorage.getItem("cookie-ok") === "1"; } catch (e) { ok = true; /* storage blocked: don't nag every page */ }
+  if (ok) return;
+  note.hidden = false;
+  note.querySelector("[data-cookie-ok]").addEventListener("click", () => {
+    note.hidden = true;
+    try { localStorage.setItem("cookie-ok", "1"); } catch (e) { /* storage blocked */ }
+  });
+})();
+
+// Installable web app, the phone banner: once a session from the second page on, never over a fight, the tour or the coach.
+// Chrome / Edge / Samsung hand us a real prompt (often a few seconds after load: the text switches when it arrives);
+// iOS gets the Share-menu steps; in-app browsers (Discord, Instagram...) can't install, so they're told to open the
+// site in the real browser. "Not now" snoozes it for two weeks, and after three of those it stops asking.
+const installPrompt = { deferred: null };
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt.deferred = e; installPrompt.ready?.(); });
 (() => {
   const box = document.querySelector("[data-install]");
   if (!box) return;
+  const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* storage blocked */ } return null; };
+  const session = (k, v) => { try { if (v === undefined) return sessionStorage.getItem(k); sessionStorage.setItem(k, v); } catch (e) { /* storage blocked */ } return null; };
+  const ua = navigator.userAgent;
   const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   const phone = matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 820;
-  let snoozed = false;
-  try { snoozed = Number(localStorage.getItem("install-snooze") || 0) > Date.now(); } catch (e) { /* storage blocked */ }
-  if (standalone || !phone || snoozed) return;
+  const snoozed = Number(store("install-snooze") || 0) > Date.now() || Number(store("install-nope") || 0) >= 3;
+  const views = Number(session("install-views") || 0) + 1;
+  session("install-views", String(views));
+  if (standalone || !phone || snoozed || session("install-shown")) return;
+  const busy = () => document.body.classList.contains("touring") || document.getElementById("guide-marks")
+    || document.querySelector("#fight, .summon, .cine-open, .cookie-note:not([hidden])");
   const text = box.querySelector("[data-install-text]");
   const go = box.querySelector("[data-install-go]");
-  let deferred = null;
-  const show = () => { if (!document.body.classList.contains("touring")) box.hidden = false; };
-  // Chrome / Edge / Samsung Internet hand us a real install prompt.
-  addEventListener("beforeinstallprompt", (e) => {
-    e.preventDefault();
-    deferred = e;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inApp = /discord|instagram|fban|fbav|fb_iab|twitter|line\/|snapchat|tiktok|musical_ly|; wv\)/i.test(ua);
+  const close = () => { box.hidden = true; document.body.classList.remove("install-open"); };
+  const show = () => {
+    if (busy() || !box.hidden) return;
+    box.hidden = false;
+    document.body.classList.add("install-open");
+    session("install-shown", "1");
+  };
+  const prompted = () => {
+    text.textContent = "Install STFU Requiem on your home screen: full screen, one tap away.";
     go.hidden = false;
-    show();
-  });
-  // iOS Safari has no prompt: explain the Share menu instead.
-  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  setTimeout(() => {
-    if (deferred || !box.hidden) return;
-    text.textContent = ios
-      ? "Tap the Share button, then “Add to Home Screen”, to play full screen from your home screen."
-      : "Open your browser menu and choose “Install app” or “Add to Home screen”.";
-    show();
-  }, 4000);
+  };
+  installPrompt.ready = () => { prompted(); if (views >= 2) show(); };
+  if (installPrompt.deferred) prompted();
+  else if (inApp) text.textContent = "This in-app browser can't install apps. Open the site in Chrome or Safari, then add it to your home screen.";
+  else if (ios) text.textContent = "Tap the Share button, then “Add to Home Screen”, to play full screen from your home screen.";
+  else text.textContent = "Open your browser menu and choose “Install app” or “Add to Home screen”.";
+  if (views < 2) return;  // the first page is for the game, not for us
+  setTimeout(show, installPrompt.deferred ? 1500 : 6000);
   go.addEventListener("click", async () => {
-    if (!deferred) return;
-    deferred.prompt();
-    await deferred.userChoice.catch(() => null);
-    deferred = null;
-    box.hidden = true;
+    const prompt = installPrompt.deferred;
+    if (!prompt) return;
+    installPrompt.deferred = null;
+    prompt.prompt();
+    const choice = await prompt.userChoice.catch(() => null);
+    if (choice?.outcome !== "accepted") store("install-snooze", String(Date.now() + 14 * 24 * 3600 * 1000));
+    close();
   });
   box.querySelector("[data-install-later]").addEventListener("click", () => {
-    box.hidden = true;
-    try { localStorage.setItem("install-snooze", String(Date.now() + 14 * 24 * 3600 * 1000)); } catch (e) { /* storage blocked */ }
+    close();
+    store("install-snooze", String(Date.now() + 14 * 24 * 3600 * 1000));
+    store("install-nope", String(Number(store("install-nope") || 0) + 1));
   });
-  addEventListener("appinstalled", () => { box.hidden = true; });
+  addEventListener("appinstalled", close);
 })();
 
 // The Forge: stand search, lock toggles with a live price, and slot reels when a new roll lands.
@@ -1863,14 +1986,166 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// The first-session coach: its card points at part of the page ([data-coach-glow] = a selector) with a pulsing ring.
-document.addEventListener("DOMContentLoaded", () => {
-  const coach = document.querySelector("[data-coach-glow]");
-  if (!coach) return;
-  const target = document.querySelector(coach.dataset.coachGlow);
-  if (target) target.classList.add("coach-glow");
-  coach.scrollIntoView({ behavior: "auto", block: "start" });
-});
+// The first-session guide (partials/guide.html, onboarding.GUIDE): one mark at a time. The mark's target is scrolled
+// into view once, ringed by a spotlight that follows it, with a card beside it; the page underneath stays usable.
+// "click" marks finish when the player uses the target, "next" ones with the card's button, "go" ones lead to the
+// next page (and move the save's stage on), "finish" ends the guide. A mark for another page shows as a pill that
+// links there. The guide waits (hidden) through a summon, a dialog, the tour, or a fight replaying a turn, and checks
+// the page again twice a second, so HTMX swaps (a fight turn, a pull) need no hooks of their own.
+(() => {
+  const data = document.getElementById("guide-marks");
+  const guide = document.getElementById("guide");
+  if (!data || !guide) return;
+  const G = JSON.parse(data.textContent);
+  const marks = G.marks;
+  const key = `guide:${G.uid}`;
+  const pill = document.getElementById("guide-pill");
+  const spot = guide.querySelector(".guide-spot");
+  const card = guide.querySelector(".guide-card");
+  const nextBtn = guide.querySelector("[data-guide-next]");
+  const token = () => JSON.parse(document.body.getAttribute("hx-headers") || "{}")["X-CSRF-Token"] || "";
+  let at = G.start;
+  try {  // this browser may be further along inside the same stage (a Next pressed, a stand opened)
+    const saved = JSON.parse(localStorage.getItem(key) || "null");
+    if (saved && saved.stage === G.stage && saved.at > at) at = saved.at;
+  } catch (e) { /* storage blocked */ }
+  const save = () => { try { localStorage.setItem(key, JSON.stringify({ stage: G.stage, at })); } catch (e) { /* storage blocked */ } };
+  const advance = (to) => fetch(G.advance, {
+    method: "POST", keepalive: true, headers: { "X-CSRF-Token": token(), "X-Guide": "1" }, body: new URLSearchParams({ to }),
+  }).catch(() => {});
+
+  const visible = (el) => el && el.getClientRects().length && getComputedStyle(el).visibility !== "hidden";
+  const find = (target) => {
+    const sels = target.startsWith("nav:") ? target.slice(4).split(",").map((k) => `[data-tour="${k}"]`) : [target];
+    for (const sel of sels) {
+      const el = [...document.querySelectorAll(sel)].find(visible);
+      if (el) return el;
+    }
+    return null;
+  };
+  const busy = () => document.body.classList.contains("touring") || document.querySelector(
+    ".summon, .cine-open, dialog[open], #fight.playing, .levelup-slam");
+
+  let shown = null, el = null, scrolled = null, timer = 0;
+  const hide = () => {
+    guide.hidden = true; pill.hidden = true; shown = null; el = null;
+    document.body.classList.remove("guiding", "guide-pill-on");
+  };
+  const stop = () => { advance("done"); data.remove(); hide(); clearInterval(timer); try { localStorage.removeItem(key); } catch (e) { /* storage blocked */ } };
+  const place = () => {
+    if (!shown) return;
+    const r = el && el.getBoundingClientRect();
+    if (!r) {  // nothing to point at: the card in the middle, the page dimmed
+      spot.classList.add("is-off");
+      Object.assign(spot.style, { left: "50%", top: "50%", width: "0px", height: "0px" });
+      Object.assign(card.style, { left: "50%", top: "50%", transform: "translate(-50%, -50%)" });
+      return;
+    }
+    spot.classList.remove("is-off");
+    const pad = 6;
+    Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + 2 * pad}px`, height: `${r.height + 2 * pad}px` });
+    const w = card.offsetWidth, h = card.offsetHeight;
+    const below = r.bottom + pad + 12, above = r.top - pad - 12 - h;
+    // below the target when it fits, else above it, else pinned to whichever edge leaves the target in sight
+    let y = below + h <= innerHeight - 80 ? below : above >= 70 ? above : (r.top > innerHeight / 2 ? 70 : innerHeight - h - 80);
+    let x = r.left + r.width / 2 - w / 2;
+    x = Math.max(12, Math.min(innerWidth - w - 12, x));
+    y = Math.max(12, Math.min(innerHeight - h - 12, y));
+    Object.assign(card.style, { left: `${x}px`, top: `${y}px`, transform: "none" });
+  };
+  const counted = marks.filter((x) => !x.optional).length;
+  const show = (m, target, idx) => {
+    pill.hidden = true;
+    document.body.classList.remove("guide-pill-on");
+    if (shown !== m) {
+      guide.querySelector(".guide-count").textContent = `Guide · ${marks.slice(0, idx + 1).filter((x) => !x.optional).length || 1} / ${counted}`;
+      guide.querySelector(".guide-title").textContent = m.title;
+      guide.querySelector(".guide-text").textContent = m.text;
+      nextBtn.hidden = m.do === "click";
+      nextBtn.textContent = m.do === "go" ? (m.label || "Next →") : m.do === "finish" ? "Done" : "Next";
+    }
+    shown = m; el = target;
+    guide.hidden = false;
+    document.body.classList.add("guiding");
+    if (target && scrolled !== target) {  // once per target: never fight the player's own scrolling
+      scrolled = target;
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (getComputedStyle(target).position !== "fixed" && !target.closest(".dock, .sidenav, .topbar")) {
+        target.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: target.offsetHeight > innerHeight * 0.55 ? "start" : "center" });
+      }
+    }
+    place();
+  };
+  const showPill = (m) => {
+    guide.hidden = true; shown = null; el = null;
+    document.body.classList.remove("guiding");
+    pill.href = m.href;
+    pill.querySelector("[data-guide-pill-text]").textContent = `Guide: ${m.pill || m.title}`;
+    pill.hidden = false;
+    document.body.classList.add("guide-pill-on");
+  };
+  const done = (idx) => {
+    const m = marks[idx];
+    at = idx + 1;
+    save();
+    if (m.advance) advance(m.advance);
+    if (m.do === "finish" || at >= marks.length) { stop(); return; }
+    hide();
+    setTimeout(tick, 350);
+  };
+
+  function tick() {
+    if (busy()) { if (!guide.hidden || !pill.hidden) hide(); return; }
+    for (let k = at; k < marks.length; k++) {
+      const m = marks[k];
+      if (m.page !== G.page) {
+        if (m.optional) continue;
+        if (document.querySelector("#fight:not(.finished)")) { hide(); return; }  // never pull a player out of a fight
+        showPill(m); return;
+      }
+      if (m.unless && document.querySelector(m.unless)) continue;
+      if (m.when && !document.querySelector(m.when)) { if (m.optional) continue; hide(); return; }
+      const target = m.target ? find(m.target) : null;
+      if (m.target && !target) {
+        if (m.optional) continue;
+        if (m.target.startsWith("nav:")) { show(m, null, k); return; }  // the nav is folded away: a card in the middle
+        hide(); return;
+      }
+      show(m, target, k);
+      return;
+    }
+    hide();
+  }
+
+  // a "click" mark is done as soon as its target is used (capture: before the page reacts and maybe navigates);
+  // a "go" mark's target (a nav tab) used directly counts as its button
+  document.addEventListener("click", (e) => {
+    if (!shown || !el || !el.contains(e.target)) return;
+    if (shown.do === "click" && shown.repeat) { hide(); setTimeout(tick, 700); }  // the next one, until none is left
+    else if (shown.do === "click") done(marks.indexOf(shown));
+    else if (shown.do === "go") { at = marks.indexOf(shown) + 1; save(); if (shown.advance) advance(shown.advance); }
+  }, true);
+  nextBtn.addEventListener("click", () => {
+    const m = shown;
+    if (!m) return;
+    const idx = marks.indexOf(m);
+    if (m.do === "go") {
+      at = idx + 1; save();
+      Promise.race([advance(m.advance || "done"), new Promise((ok) => setTimeout(ok, 800))]).then(() => { location.href = m.go; });
+      return;
+    }
+    done(idx);
+  });
+  guide.querySelector("[data-guide-skip]").addEventListener("click", () => {
+    if (confirm("Skip the guide? Home still shows your Beginner's path, and Show me around (in the menu) replays the tour.")) stop();
+  });
+  pill.addEventListener("click", hide);
+
+  addEventListener("resize", place);
+  addEventListener("scroll", () => requestAnimationFrame(place), { capture: true, passive: true });
+  timer = setInterval(tick, 500);
+  setTimeout(tick, 300);
+})();
 
 // Name suggestions that work on phones too ([data-suggest] on an input with a <datalist>): most mobile browsers barely
 // show a datalist, so the page draws its own list (the datalist stays as the source and the no-JS fallback).

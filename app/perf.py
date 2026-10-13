@@ -25,11 +25,15 @@ def install(app):
     static_dir = app.static_folder
 
     @lru_cache(maxsize=512)
+    def hashed(path: str, mtime: float) -> str:
+        with open(path, "rb") as fh:
+            return hashlib.md5(fh.read()).hexdigest()[:10]
+
     def version(filename: str) -> str:
+        """The file's content hash, recomputed when the file changes (an edit on the dev server, a hot patch)."""
         path = os.path.join(static_dir, filename)
         try:
-            with open(path, "rb") as fh:
-                return hashlib.md5(fh.read()).hexdigest()[:10]
+            return hashed(path, os.stat(path).st_mtime)
         except OSError:
             return ""
 

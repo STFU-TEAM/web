@@ -334,6 +334,8 @@ def _banner_draw(banner: dict, user: User, floor: Optional[str] = None, exclude=
         rarity = random.choices(list(BANNER_ODDS), weights=list(BANNER_ODDS.values()), k=1)[0]
     if floor == "SR" and rarity == "R":
         rarity = "SR"
+    elif floor == "SSR" and rarity in ("R", "SR"):
+        rarity = "SSR"
     template = _template_of(banner, rarity, exclude)
     user.pity = 0 if template["rarity"] in PITY_RESETS else user.pity + 1
     return roll_shiny(get_character_from_template(template, types, qualities))
@@ -401,7 +403,7 @@ def begin(user: User):
     from app.game import onboarding
     onboarding.start_welcome(user)  # a gift a day for the first week (app/game/onboarding.py)
     user.data["web_level"] = 0  # every level from here on gets its LEVEL UP (User._note_level_up)
-    onboarding.coach_to(user, "pull")  # the coach walks the first session: pull -> team -> story
+    onboarding.coach_to(user, "pull")  # the guide walks the first session (onboarding.GUIDE)
 
 
 # Claiming the daily reward on consecutive days climbs this 7-day ladder, then starts over. Every full week kept
@@ -511,11 +513,16 @@ def banner_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dic
         raise GameError(f"A 10-pull costs {banner['cost']} Arrowhead. You have {user.super_fragments}.")
     if free_slots(user) < 10:
         raise GameError("You need 10 free storage slots. Auto-fuse your R and SR duplicates or release a few stands first.")
+    first = not user.main_characters and not user.storage_characters  # a new player's very first pull
     user.super_fragments -= banner["cost"]
     drawn = []
     for i in range(10):
-        # 10-pull floor: the last stand is at least SR if the first nine were all R
-        floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
+        # 10-pull floor: the last stand is at least SR if the first nine were all R; on the very first pull, at least
+        # SSR if none of the first nine was
+        if first and i == 9 and all(c.rarity in ("R", "SR") for c, _ in drawn):
+            floor = "SSR"
+        else:
+            floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
         c = _banner_draw(banner, user, floor, forced=_forced_at(force, i, 10))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
@@ -950,6 +957,18 @@ def unequip(user: User, uuid: str, slot: int):
     item = char.items.pop(slot)
     user.items.append(item)
     return char, item
+
+
+def unequip_storage(user: User) -> int:
+    """Every item the stands in storage hold goes back to the bag. Returns how many."""
+    n = 0
+    for char in user.storage_characters:
+        n += len(char.items)
+        user.items.extend(char.items)
+        char.items = []
+    if not n:
+        raise GameError("Your stands in storage hold nothing.")
+    return n
 
 
 def requiem_form(char: Character) -> Optional[dict]:

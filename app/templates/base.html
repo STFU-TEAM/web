@@ -370,6 +370,9 @@
       })();
     </script>
   {% endif %}
+  {% if me.id and session.get('auth') == 'guest' and not ep.startswith('auth.') %}
+    <a class="guest-strip" href="{{ url_for('auth.account') }}#save">👤 You're playing as a guest: this save lives on this browser only. <b>Save my progress →</b></a>
+  {% endif %}
   <main id="main">{% block main %}{% endblock %}</main>
   <script>  /* back where you were after a form posts and the page reloads (app.js saves the spot on submit) */
     try {
@@ -385,7 +388,13 @@
   {% if duel_waiting %}<div hidden hx-get="{{ url_for('battles.ping') }}" hx-trigger="every 3s" hx-swap="none"></div>{% endif %}
 
   {% if me.id %}{% include "partials/tour.html" %}{% endif %}
+  {% if me.id and guide_stage %}{% include "partials/guide.html" %}{% endif %}
   {% if maintenance %}<a class="maint-banner" href="{{ url_for('admin.index') }}">🛠 Maintenance is ON: players can't get in. You see the site because you're an admin.</a>{% endif %}
+
+  <aside class="cookie-note" data-cookie-note hidden aria-label="Cookies">
+    <p>🍪 We only use the cookies the game needs: one keeps you signed in, and a guest's keeps their save. No ads, no trackers. <a href="{{ url_for('main.privacy') }}">Privacy</a></p>
+    <button type="button" class="btn small gold" data-cookie-ok>OK</button>
+  </aside>
 
   <aside class="install-hint" data-install hidden aria-label="Install the app">
     <img src="{{ url_for('static', filename='img/icon-192.png') }}" alt="" width="44" height="44">

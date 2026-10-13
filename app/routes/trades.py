@@ -2,7 +2,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.accounts import resolve_player
-from app.auth import player_required
+from app.auth import account_required, player_required
 from app.db import Busy, get_db, identity, r, users_lock
 from app.game import trades as T
 from app.game.logic import GameError
@@ -63,7 +63,7 @@ def new():
 
 
 @bp.post("/new")
-@player_required
+@account_required
 def create():
     other_id = resolve_player(request.form.get("with", ""))
     if not other_id:
@@ -83,7 +83,7 @@ def create():
 
 
 @bp.post("/<offer_id>/<verb>")
-@player_required
+@account_required
 def respond(offer_id, verb):
     uid = session["uid"]
     offer = T.get(r(), offer_id)

@@ -3,9 +3,10 @@ import time
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.auth import player_required
+from app.auth import account_required, player_required
 from app.db import Busy, get_db, identity, r, user_lock, users_lock
 from app.game import auction as A
+from app.game import wanted as W
 from app.game.logic import GameError
 from app.routes.trades import RARITY_RANK, sorted_stands
 
@@ -59,6 +60,39 @@ def _sweep(db):
             continue
 
 
+def _sweep_wanted(db):
+    """Requests past their time: the held offer goes back to the buyer (busy buyers are retried next visit)."""
+    for post in W.all_posts(r()):
+        if not W.expired(post):
+            continue
+        try:
+            with user_lock(post["buyer"]):
+                fresh = W.get(r(), post["id"])
+                buyer = db.get_user(post["buyer"])
+                if not fresh:
+                    continue
+                if buyer is None:
+                    W._close(r(), fresh)
+                    continue
+                W.refund(r(), buyer, fresh)
+                buyer.update()
+                _notify(buyer.id, f"Nobody filled your request for {W.STANDS[fresh['stand']]['name']}. Your offer is "
+                                  "back in your wallet.", toast=False)
+        except Busy:
+            continue
+
+
+def _wanted_rows(me):
+    rows = []
+    for post in sorted(W.all_posts(r()), key=lambda p: -p["at"]):
+        tpl = W.STANDS.get(post["stand"])
+        if not tpl:
+            continue
+        rows.append({**post, "name": tpl["name"], "rarity": tpl["rarity"], "buyer_name": identity(post["buyer"])["name"],
+                     "mine": post["buyer"] == me.id, "have": [] if post["buyer"] == me.id else W.candidates(me, post)})
+    return rows
+
+
 def _row(listing, me_id):
     return {**listing, "char": A.stand_of(listing), "seller_name": identity(listing["seller"])["name"],
             "bid_mode": A.is_bid(listing), "min_bid": A.min_bid(listing) if A.is_bid(listing) else 0,
@@ -78,7 +112,10 @@ def _price_key(x, field):
 def index():
     db = get_db()
     _sweep(db)
+    _sweep_wanted(db)
     me = db.get_user(session["uid"])
+    if request.args.get("tab") == "wanted":
+        return _wanted_page(me)
     rows = [_row(x, me.id) for x in A.all_listings(r())]
     mine = [x for x in rows if x["seller"] == me.id]
     market = [x for x in rows if x["seller"] != me.id]
@@ -112,6 +149,17 @@ def index():
                            snipe_min=A.SNIPE_GUARD // 60, now=time.time())
 
 
+def _wanted_page(me):
+    rows = _wanted_rows(me)
+    q = request.args.get("q", "").strip().lower()
+    board = [x for x in rows if not x["mine"] and (not q or q in x["name"].lower())]
+    board.sort(key=lambda x: (not x["have"], -x["at"]))  # requests you can fill first
+    return render_template("auction.html", tab="wanted", u=me, board=board, my_wanted=[x for x in rows if x["mine"]],
+                           q=request.args.get("q", ""), names=sorted(c["name"] for c in W.STANDS.values()),
+                           max_wanted=W.MAX_WANTED, wanted_days=W.WANTED_DAYS, fee=round(A.FEE * 100),
+                           fillable=sum(1 for x in board if x["have"]), now=time.time())
+
+
 def _int(name):
     try:
         return max(0, int(request.form.get(name) or 0))
@@ -120,7 +168,7 @@ def _int(name):
 
 
 @bp.post("/sell")
-@player_required
+@account_required
 def sell():
     mode = "bid" if request.form.get("mode") == "bid" else "fixed"
     if mode == "bid":
@@ -150,6 +198,79 @@ def sell():
     return redirect(url_for("auction.index"))
 
 
+@bp.post("/wanted")
+@account_required
+def wanted_post():
+    stand_id = W.stand_id_of(request.form.get("stand", ""))
+    try:
+        if stand_id is None:
+            raise GameError("No stand has that name. Pick one from the list.")
+        with user_lock(session["uid"]):
+            me = get_db().get_user(session["uid"])
+            post = W.create(r(), me, stand_id, _int("level"), _int("stars"), _int("dust"), _int("heads"))
+            me.update()
+            flash(f"You're looking for {W.STANDS[post['stand']]['name']} for {W.WANTED_DAYS} days. Your offer is held "
+                  "until someone fills it.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("auction.index", tab="wanted"))
+
+
+@bp.post("/wanted/<post_id>/cancel")
+@player_required
+def wanted_cancel(post_id):
+    uid = session["uid"]
+    try:
+        with user_lock(uid):
+            post = W.get(r(), post_id)
+            if not post or post["buyer"] != uid:
+                raise GameError("That request is gone.")
+            me = get_db().get_user(uid)
+            W.refund(r(), me, post)
+            me.update()
+            flash("Request cancelled. Your offer is back in your wallet.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("auction.index", tab="wanted"))
+
+
+@bp.post("/wanted/<post_id>/fill")
+@account_required
+def wanted_fill(post_id):
+    uid = session["uid"]
+    post = W.get(r(), post_id)
+    if not post:
+        flash("Someone filled that request first, or it was cancelled.", "error")
+        return redirect(url_for("auction.index", tab="wanted"))
+    try:
+        with users_lock(uid, post["buyer"]):
+            post = W.get(r(), post_id)  # re-read under the locks
+            if not post:
+                raise GameError("Someone filled that request first, or it was cancelled.")
+            db = get_db()
+            seller, buyer = db.get_user(uid), db.get_user(post["buyer"])
+            if buyer is None:
+                raise GameError("The buyer's account is gone.")
+            sale = W.fill(r(), seller, buyer, post, request.form.get("uuid", ""))
+            seller.update()
+            buyer.update()
+            got = " and ".join(p for p in (f"{sale['paid_dust']:,} Meteor Dust" if sale["paid_dust"] else "",
+                                           f"{sale['paid_heads']} Arrowhead{'s' if sale['paid_heads'] != 1 else ''}"
+                                           if sale["paid_heads"] else "") if p)
+            _notify(buyer.id, f"{identity(uid)['name']} filled your request: {sale['stand'].name} (Lv {sale['stand'].level}) "
+                              "is in your storage.")
+            flash(f"Sold {sale['stand'].name} for {got}.", "ok")
+    except GameError as e:
+        flash(str(e), "error")
+    except Busy:
+        flash("The buyer or you are busy with another action. Try again.", "error")
+    return redirect(url_for("auction.index", tab="wanted"))
+
+
 @bp.post("/<listing_id>/cancel")
 @player_required
 def cancel(listing_id):
@@ -171,7 +292,7 @@ def cancel(listing_id):
 
 
 @bp.post("/<listing_id>/bid")
-@player_required
+@account_required
 def bid(listing_id):
     uid = session["uid"]
     listing = A.get(r(), listing_id)
@@ -208,7 +329,7 @@ def bid(listing_id):
 
 
 @bp.post("/<listing_id>/buy")
-@player_required
+@account_required
 def buy(listing_id):
     uid = session["uid"]
     listing = A.get(r(), listing_id)

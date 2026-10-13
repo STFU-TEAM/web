@@ -132,7 +132,11 @@ def post(ch: Channel, uid: str, text: str) -> dict:
             raise GameError(why)
     if not r().set(f"web:chat:slow:{uid}", "1", nx=True, ex=COOLDOWN):
         raise GameError("Slow down a little.")
+    from app.game import automod
+    text, flag = automod.check(ch, uid, text)  # refuses slurs, spam and scams; flags a private scam for its reader
     msg = {"id": int(r().incr(f"web:chat:seq:{ch.key}")), "uid": uid, "text": text, "at": int(time.time())}
+    if flag:
+        msg["flag"] = flag
     pipe = r().pipeline()
     pipe.rpush(ch.store, json.dumps(msg))
     pipe.ltrim(ch.store, -KEEP[ch.kind], -1)

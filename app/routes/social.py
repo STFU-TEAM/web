@@ -4,7 +4,7 @@ import uuid
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.auth import player_required
+from app.auth import account_required, player_required
 from app.db import Busy, get_db, identity, user_lock, users_lock
 from app.game.items import Item, item_file, spare
 from app.game.user import User
@@ -52,7 +52,7 @@ def shop_view(shop_id):
 
 
 @bp.post("/shops/create")
-@player_required
+@account_required
 def shop_create():
     name = request.form.get("name", "").strip()
     description = request.form.get("description", "").strip()
@@ -83,7 +83,7 @@ def shop_create():
 
 
 @bp.post("/shops/<shop_id>/list")
-@player_required
+@account_required
 def shop_list_item(shop_id):
     item_id, price = _safe_int(request.form.get("item")), _safe_int(request.form.get("price"))
     try:
@@ -137,7 +137,7 @@ def shop_unlist_item(shop_id, index):
 
 
 @bp.post("/shops/<shop_id>/buy/<int:index>")
-@player_required
+@account_required
 def shop_buy_item(shop_id, index):
     db = get_db()
     shop = db.get_shop(shop_id)

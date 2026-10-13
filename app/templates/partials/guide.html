@@ -1,0 +1,24 @@
+{#- The first-session guide (app/game/onboarding.py GUIDE, drawn by app.js): from the save's stage on, each mark lights
+    up one real button or block, scrolls it into view and waits for the player to use it. When the next mark lives on
+    another page, a pill at the bottom links there. -#}
+{%- set G = guide_marks() -%}
+{%- set first = G.marks|selectattr('stage', 'equalto', guide_stage)|first -%}
+<script type="application/json" id="guide-marks">{{ {
+  "stage": guide_stage, "start": G.marks.index(first) if first else 0, "page": request.endpoint, "uid": me.id,
+  "advance": url_for('play.coach_step'),
+  "marks": G.marks,
+}|tojson }}</script>
+<div class="guide" id="guide" hidden>
+  <div class="guide-spot" aria-hidden="true"></div>
+  <div class="guide-card" role="dialog" aria-labelledby="guide-title" aria-describedby="guide-text">
+    <img class="guide-mascot" src="{{ url_for('static', filename='img/mascot-face.webp') }}" alt="" width="40" height="40" loading="lazy">
+    <p class="guide-count"></p>
+    <h2 class="guide-title" id="guide-title"></h2>
+    <p class="guide-text" id="guide-text"></p>
+    <div class="guide-actions">
+      <button type="button" class="link guide-skip" data-guide-skip>Skip the guide</button>
+      <button type="button" class="btn small gold" data-guide-next hidden>Next</button>
+    </div>
+  </div>
+</div>
+<a class="guide-pill" id="guide-pill" hidden href="#"><span aria-hidden="true">🧭</span> <span data-guide-pill-text></span> <b aria-hidden="true">→</b></a>

@@ -1,0 +1,17 @@
+{#- Play without an account (auth.guest): a guest save kept by a cookie on this browser. guest_name: the guest save
+    this browser already has (its cookie), to carry on with. -#}
+<div class="guest-start" id="guest">
+  <p class="auth-or"><span>or</span></p>
+  <form method="post" action="{{ url_for('auth.guest') }}" class="guest-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    {% if guest_name %}
+      <button class="btn sky big block">Continue as {{ guest_name }}</button>
+      <p class="muted guest-note">The guest save on this browser.</p>
+    {% else %}
+      <label class="check guest-agree"><input type="checkbox" name="agree" value="1" required>
+        <span>I understand a guest save lives in a cookie on this browser only: clearing cookies or switching device loses it, until I save it with a username.</span></label>
+      <button class="btn sky big block">Play as a guest</button>
+      <p class="muted guest-note">No sign-up. Save your progress any time from your account page. Guests can't chat or trade yet.</p>
+    {% endif %}
+  </form>
+</div>

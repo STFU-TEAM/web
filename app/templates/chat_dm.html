@@ -16,6 +16,7 @@
     {% if cant %}<p class="notice">{{ cant }}</p>
     {% else %}{% with placeholder='Message ' ~ ident.name ~ '…' %}{% include "partials/chat_form.html" %}{% endwith %}{% endif %}
   </section>
-  <p class="muted small-print">Private messages are only between the two of you. Admins don't read them, unless one is reported (⚑).</p>
+  <p class="muted small-print">Private messages are only between the two of you. Admins don't read them, unless one is reported (⚑).
+    🛡️ Nobody from the game will ever ask for your password, and the trade and auction pages are the only safe way to swap stands: if someone asks you to "send first", block and report them.</p>
 </section>
 {% endblock %}

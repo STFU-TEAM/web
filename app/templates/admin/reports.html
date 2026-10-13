@@ -57,4 +57,25 @@
 {% else %}
   <p class="notice">{{ 'No open reports.' if status == 'open' else 'No reports here.' }}</p>
 {% endif %}
+
+<section class="social-panel" id="automod">
+  <h2 class="h2">🤖 Automod</h2>
+  <p class="muted small-print">Every chat refuses the usual slurs on its own, plus the words below (matched through spacing, l33t and repeated letters).
+    It also stops floods, repeats and outside links in the global chat, refuses scams in public chats and flags them in private ones,
+    and limits how many new private conversations a player starts. Its reports show up here, by 🤖 Automod. Admins are never filtered.</p>
+  <form class="inline" method="post" action="{{ url_for('admin.automod_words', op='add') }}">
+    <input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <label><span class="sr">Word</span><input type="text" name="word" maxlength="40" placeholder="Add a blocked word" required></label>
+    <button class="btn small gold">Block it</button>
+  </form>
+  {% if automod_words %}
+    <ul class="webhook-list">
+      {% for w in automod_words %}
+        <li><code>{{ w }}</code>
+          <form method="post" action="{{ url_for('admin.automod_words', op='remove') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <input type="hidden" name="word" value="{{ w }}"><button class="btn small ghost">Remove</button></form></li>
+      {% endfor %}
+    </ul>
+  {% else %}<p class="muted">No extra words yet.</p>{% endif %}
+</section>
 {% endblock %}

@@ -12,6 +12,7 @@
         <a class="btn gold" href="{{ url_for('auth.welcome') }}">Begin my adventure</a>
       {% else %}
         <a class="btn gold big" href="{{ url_for('auth.register') }}">Play free →</a>
+        <a class="btn ghost" href="{{ url_for('auth.register') }}#guest">Try it as a guest</a>
         <a class="btn ghost" href="{{ url_for('auth.discord_login') }}">Continue with Discord</a>
         <a class="btn ghost" href="{{ url_for('auth.login') }}">Log in</a>
       {% endif %}

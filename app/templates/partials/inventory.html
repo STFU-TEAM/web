@@ -106,7 +106,7 @@
           </form>
         {% endif %}
         {% set rf = refinable.get(it.id) %}
-        {% if rf and rf.cost and rf.spares and it.refine == rf.level %}<a class="btn small ghost" href="#forge" title="Refine it in the forge below">⚒ Refine</a>{% endif %}
+        {% if rf and rf.cost and rf.spares and it.refine == rf.level %}<a class="btn small ghost" href="#forge-{{ it.id }}" data-jump title="Refine it in the forge below">⚒ Refine</a>{% endif %}
         {{ sell_buttons(it, g.count) }}
       </div>
     </li>
@@ -129,6 +129,26 @@
       {% endfor %}
     </ul>
   {% endif %}
+
+  {% if stored_gear %}
+    {% set held = stored_gear|map(attribute='items')|map('length')|sum %}
+    <details class="stored-gear" id="stored-gear">
+      <summary><span class="h3">Held by stands in storage</span> <small class="muted">{{ held }} item{{ 's' if held != 1 }} on {{ stored_gear|length }} stand{{ 's' if stored_gear|length != 1 }}</small></summary>
+      <p class="muted">Gear stays on a stand when it leaves the team. Take it back to wear it on someone else, refine it or sell it.</p>
+      <button class="btn small gold" hx-post="{{ url_for('play.item_unequip_storage') }}" hx-target="#use-result" hx-disabled-elt="this"
+              hx-confirm="Take all {{ held }} item{{ 's' if held != 1 }} off your stands in storage?">Take everything back</button>
+      <ul class="equipped">
+        {% for c in stored_gear %}
+          <li><img src="{{ c.id|stand_img }}" alt="" loading="lazy" onerror="this.hidden=true"><strong>{{ c.name }}</strong>
+            {% for it in c['items'] %}
+              <span class="equipped-item">{{ (it.emoji or "◈")|emoji }} {{ it.label }}
+                <button class="link" hx-post="{{ url_for('play.item_unequip') }}" hx-vals='{"uuid": "{{ c.uuid }}", "slot": {{ loop.index0 }}}' hx-target="#use-result" aria-label="Unequip {{ it.name }} from {{ c.name }}">✕</button></span>
+            {% endfor %}
+          </li>
+        {% endfor %}
+      </ul>
+    </details>
+  {% endif %}
 </section>
 
 {% if forge %}
@@ -138,7 +158,7 @@
   <ul class="bench-list">
     {% for row in forge %}{% set it = row.item %}
       {% set state = 'maxed' if not row.cost else ('ready' if row.spares and u.fragments >= row.cost else 'blocked') %}
-      {% call(part) fg.row(it.emoji|emoji, it.name, ('on ' ~ row.holder.name) if row.holder else ('in your bag' ~ (' · ' ~ row.spares ~ ' spare' ~ ('s' if row.spares != 1) if row.spares else '')), it.refine, REFINE_MAX, state) %}
+      {% call(part) fg.row(it.emoji|emoji, it.name, ('on ' ~ row.holder.name) if row.holder else ('in your bag' ~ (' · ' ~ row.spares ~ ' spare' ~ ('s' if row.spares != 1) if row.spares else '')), it.refine, REFINE_MAX, state, id=('' if row.holder else 'forge-' ~ it.id)) %}
         {% if part == 'body' %}
           <p class="bench-deltas">{% for l in row.lines %}{{ fg.delta(l.label, l.now, l.next) }}{% else %}<span class="muted">Special only: refining raises nothing it shows.</span>{% endfor %}</p>
         {% elif not row.cost %}

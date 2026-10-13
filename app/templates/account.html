@@ -10,12 +10,44 @@
     <dl class="account-facts">
       <div><dt>Player ID</dt><dd><code>{{ me.id }}</code></dd></div>
       <div><dt>Discord</dt><dd>{% if local %}Not linked{% else %}Linked ✔{% endif %}</dd></div>
-      <div><dt>Username</dt><dd>{{ username or 'None yet' }}</dd></div>
+      <div><dt>Username</dt><dd>{{ username or ('None: you play as a guest' if guest else 'None yet') }}</dd></div>
     </dl>
     <p class="muted">Other players can invite or challenge you with your username{% if not local %} or your Discord ID{% endif %}.</p>
   </section>
 
-  {% if local %}
+  {% if guest %}
+    <section class="social-panel guest-save" id="save">
+      <h2 class="h2">Save your progress</h2>
+      <p>Your guest save lives in a cookie on this browser only. Pick a username and password to keep it for good, log in
+        from any device, and open the chat, trades and the auction house. Everything you have stays.</p>
+      <form class="auth-form" method="post">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="add">
+        <label>Username<input type="text" name="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.\-]{3,24}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+          <small class="muted">It becomes your name in the game.</small></label>
+        <label>Password<input type="password" name="password" minlength="8" autocomplete="new-password" required></label>
+        <label>Repeat password<input type="password" name="confirm" minlength="8" autocomplete="new-password" required></label>
+        <button class="btn gold">Save my progress</button>
+      </form>
+    </section>
+  {% endif %}
+
+  {% if local and username %}
+    <section class="social-panel">
+      <h2 class="h2">Change your name</h2>
+      <p>Your username is your name in the game and your login. You can change it once a week.</p>
+      {% if rename_days %}
+        <p class="muted">You renamed recently: you can rename again in {{ rename_days }} day{{ 's' if rename_days != 1 }}.</p>
+      {% else %}
+        <form class="auth-form" method="post">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="action" value="rename">
+          <label>New name<input type="text" name="username" value="{{ username }}" minlength="3" maxlength="24" pattern="[A-Za-z0-9_.\-]{3,24}" autocapitalize="none" spellcheck="false" required></label>
+          <button class="btn">Rename</button>
+        </form>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if local and not guest %}
     <section class="social-panel">
       <h2 class="h2">Link Discord</h2>
       <p>Link Discord to log in with one click. You'll still be able to log in with your username.</p>
@@ -26,7 +58,7 @@
     </section>
   {% endif %}
 
-  {% if not username %}
+  {% if not username and not guest %}
     <section class="social-panel">
       <h2 class="h2">Add a username and password</h2>
       <p>Log in without Discord, for example from a browser where you aren't signed in to Discord.</p>
@@ -38,7 +70,7 @@
         <button class="btn gold">Save login</button>
       </form>
     </section>
-  {% else %}
+  {% elif username %}
     <section class="social-panel">
       <h2 class="h2">Change password</h2>
       <form class="auth-form" method="post">

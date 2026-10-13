@@ -89,7 +89,6 @@
     <li><a href="{{ url_for('trades.index') }}">⇄ Trades</a></li>
   </ul>
 
-  {% if coach_of(u) == 'team' %}{% with step = 'team' %}{% include "partials/coach.html" %}{% endwith %}{% endif %}
   <div id="collection">{% include "partials/collection.html" %}</div>
 </section>
 

@@ -627,10 +627,13 @@ def pull(banner_id: int, mode: str):
 @bp.post("/coach")
 @player_required
 def coach_step():
-    """The first-session coach (app/game/onboarding.py): to = "story" (on to the first fight) or "done" (skip / over)."""
+    """The first-session guide (app/game/onboarding.py): moves it on to `to` (a later stage, or "done" to skip / end it).
+    The guide's own buttons call it in the background (X-Guide header: 204)."""
     from app.game import onboarding
     to = request.form.get("to", "done")
-    _, _, err = action(lambda u: onboarding.coach_to(u, to if to in ("story", "done") else "done"))
+    _, _, err = action(lambda u: onboarding.coach_to(u, to if to in onboarding.COACH_STEPS else "done"))
+    if request.headers.get("X-Guide"):
+        return ("", 204) if not err else (err, 400)
     if err:
         flash(err, "error")
     if to == "story":
@@ -691,7 +694,8 @@ def _items_ctx(user):
     remember_craftable(user)
     return {"u": user, "groups": groups, "recipes": _recipes(user), "shop": DEFAULT_SHOP,
             "sell_price": logic.sell_price, "equip_opts": _equip_options(user, groups), "refinable": _refinable(user.items),
-            "forge": gear.forge_rows(user), "storage_price": logic.storage_ext_price(user)}
+            "forge": gear.forge_rows(user), "storage_price": logic.storage_ext_price(user),
+            "stored_gear": [c for c in user.storage_characters if c.items]}
 
 
 CRAFTABLE_KEY = "web:craftable:{}"
@@ -752,6 +756,14 @@ def item_unequip():
     uuid, slot = request.form.get("uuid"), _int("slot")
     user, res, err = action(lambda u: logic.unequip(u, uuid, slot))
     return render_template("partials/use_result.html", res={"kind": "unequipped", "stand": res[0], "item": res[1]} if res else None,
+                           error=err, **_items_ctx(user))
+
+
+@bp.post("/items/unequip-storage")
+@player_required
+def item_unequip_storage():
+    user, res, err = action(logic.unequip_storage)
+    return render_template("partials/use_result.html", res={"kind": "stripped", "count": res} if res else None,
                            error=err, **_items_ctx(user))
 
 
@@ -945,6 +957,8 @@ def mirror_start():
         name, enemies, multi, difficulty = logic.wormhole_start(u)
         from app.game import onboarding
         onboarding.mark(u, "mirror")  # a step of the Beginner's path
+        if onboarding.coach(u) == "mirror":
+            onboarding.coach_to(u, "home")  # the guide's last stop: the rewards on the home page
         foes = Side(f"{name} · {difficulty}", enemies, False)
         foes.ai = "easy" if difficulty == "Faded" or u.level < 5 else "smart"
         fight = Fight(Side(session.get("name", "You"), fighting_copy(u.main_characters), True, session.get("avatar")),

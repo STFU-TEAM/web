@@ -186,7 +186,7 @@ def _story_settle(user, fight):
     before = story.cleared(user)
     rewards = story.win(user, int(fight.meta["stage"]))
     from app.game import onboarding
-    onboarding.coach_to(user, "done")  # the first story win ends the first-session coach
+    onboarding.coach_to(user, "mirror")  # the first story win: the guide moves on to the Mirror World
     remember_cleared(user.id, story.cleared(user))  # may open new modes in the nav
     progression.announce(user.id, before, story.cleared(user), _skip())
     logic.track_quest_progress(user, "reach_story", story.cleared(user))

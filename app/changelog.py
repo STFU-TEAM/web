@@ -3,6 +3,30 @@
 entry = {"version", "date" (ISO), "title", "sections": [(heading, [line, ...]), ...]}
 """
 ENTRIES = [
+    {"version": "1.1", "date": "2026-10-13", "title": "Welcome",
+     "sections": [
+         ("New", [
+             "Play as a guest: no sign-up, your save lives on this browser. Save it with a username whenever you like (guests can't chat or trade until they do).",
+             "A guided first session: the guide lights up each button, takes you to it and waits for you, from your first summon to your first Mirror World fight.",
+             "Your very first 10-pull always has an SSR or better.",
+             "Looking for, in the auction house: post the stand you want and what you'd pay. Anyone who owns one can sell it to you on the spot. Your offer is held until then, and refunded after 7 days.",
+             "Web-only players can change their name, once a week.",
+             "The chat automod: slurs, floods and repeat messages are stopped, outside links stay out of the global chat, and messages that look like scams are flagged (in private messages, with a warning for the reader). New accounts can only start a few new conversations a day.",
+         ]),
+         ("Changes", [
+             "Summons keep their secret: a UR or an LR builds up exactly like an SSR. Sharp eyes may catch a faint hint, and only a UR or an LR ever shows one.",
+             "SSR and better are yours to turn over: the card waits for your tap. Reveal all and Skip turn the rest.",
+             "Hovering a face-down card tints it toward its rarity.",
+         ]),
+         ("Quality of life", [
+             "Gear held by stands in storage can be taken back from the Items page, one piece at a time or all at once.",
+             "⚒ Refine on an item takes you straight to it in the forge.",
+             "The install banner on phones shows once per session, never over the chat, and explains how to install on iPhone and from in-app browsers.",
+             "A cookie notice: the game only uses the cookies it needs.",
+             "Fixed: a card could show mirrored in the cinematic reveal.",
+             "Fixed: some hidden buttons still showed, like Reveal all after a pull and Install before your phone offered it.",
+         ]),
+     ]},
     {"version": "1.0", "date": "2026-10-12", "title": "Requiem",
      "sections": [
          ("New", [

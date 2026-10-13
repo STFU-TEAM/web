@@ -23,6 +23,83 @@
     {% include "partials/wallet.html" %}
   </header>
 
+  <nav class="filter-row auction-tabs" aria-label="Auction house">
+    <a class="filter-chip" href="{{ url_for('auction.index') }}" {% if tab != 'wanted' %}aria-current="page"{% endif %}>For sale</a>
+    <a class="filter-chip" href="{{ url_for('auction.index', tab='wanted') }}" {% if tab == 'wanted' %}aria-current="page"{% endif %}>🔎 Looking for{% if tab == 'wanted' and fillable %} <small>{{ fillable }} you can fill</small>{% endif %}</a>
+  </nav>
+
+  {% if tab == 'wanted' %}
+  <div class="auction-layout">
+    <div>
+      <form class="auction-filters" method="get" action="{{ url_for('auction.index') }}">
+        <input type="hidden" name="tab" value="wanted">
+        <label><span class="sr">Search</span><input type="search" name="q" value="{{ q }}" placeholder="Find a stand"></label>
+        <button class="btn small">Filter</button>
+      </form>
+      {% if board %}
+        <ul class="wanted-board">
+          {% for x in board %}
+            <li class="wanted-post{% if x.have %} can-fill{% endif %}">
+              <img src="{{ x.stand|stand_img }}" alt="" loading="lazy" onerror="this.hidden=true">
+              <div class="wanted-info">
+                <p class="wanted-name"><span class="rar-tag {{ x.rarity|rarity }}">{{ x.rarity }}</span> <strong>{{ x.name }}</strong></p>
+                <p class="muted">{% if x.level or x.stars %}At least {% if x.level %}Lv {{ x.level }}{% endif %}{% if x.level and x.stars %} and {% endif %}{% if x.stars %}★{{ x.stars }}{% endif %}{% else %}Any level{% endif %}
+                  · by <a href="{{ url_for('main.profile', uid=x.buyer) }}">{{ x.buyer_name }}</a> · {{ left(x) }}</p>
+                <p class="wanted-offer">Pays {{ price(x) }}</p>
+              </div>
+              {% if x.have %}
+                <form class="wanted-fill" method="post" action="{{ url_for('auction.wanted_fill', post_id=x.id) }}"
+                      data-ask="Give {{ x.name }} to {{ x.buyer_name }}? Its gear stays with you." onsubmit="return confirm(this.dataset.ask)">
+                  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+                  <label><span class="sr">Your stand</span><select name="uuid">{% for c in x.have %}<option value="{{ c.uuid }}">Lv {{ c.level }}{% if c.awaken %} ★{{ c.awaken }}{% endif %}{% if c.shiny %} ✨{% endif %}</option>{% endfor %}</select></label>
+                  <button class="btn small gold">Sell it</button>
+                </form>
+              {% else %}<span class="muted wanted-none">You don't have one that fits</span>{% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        {% call empty_state('Nobody is looking for anything.' if not q else 'Nobody is looking for that.', quote='Yare yare daze…') %}<p>Post the first request: the stand you want and what you'd pay.</p>{% endcall %}
+      {% endif %}
+      <p class="muted wiki-note">How it works: the buyer's offer is taken from their wallet when they post and held. Anyone with a stand that fits sells it in one tap and is paid at once (the house keeps {{ fee }}% of the Meteor Dust). The stand's gear stays with the seller. Requests nobody fills are refunded after {{ wanted_days }} days.</p>
+    </div>
+
+    <aside class="auction-side">
+      <section class="social-panel">
+        <h2 class="h3">Look for a stand</h2>
+        {% if my_wanted|length >= max_wanted %}
+          <p class="notice">You're looking for {{ max_wanted }} stands, the most at once.</p>
+        {% else %}
+          <form class="social-form" method="post" action="{{ url_for('auction.wanted_post') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <label>Stand<input type="text" name="stand" list="wanted-names" data-suggest autocomplete="off" placeholder="Its name" required></label>
+            <datalist id="wanted-names">{% for n in names %}<option value="{{ n }}">{% endfor %}</datalist>
+            <label>At least level<input type="number" name="level" min="0" max="100" step="1" value="0"></label>
+            <label>At least ★<input type="number" name="stars" min="0" max="5" step="1" value="0"></label>
+            <label>Meteor Dust<input type="number" name="dust" min="0" step="1" value="0"></label>
+            <label>Arrowheads<input type="number" name="heads" min="0" step="1" value="0"></label>
+            <p class="muted">Your offer is held from your wallet until the request is filled, cancelled or {{ wanted_days }} days pass.</p>
+            <button class="btn gold">Post the request</button>
+          </form>
+        {% endif %}
+      </section>
+      <section class="social-panel">
+        <h2 class="h3">Your requests {{ my_wanted|length }}/{{ max_wanted }}</h2>
+        {% if my_wanted %}
+          <ul class="auction-mine">
+            {% for x in my_wanted %}
+              <li><img src="{{ x.stand|stand_img }}" alt="" loading="lazy">
+                <div><strong>{{ x.name }}</strong>{% if x.level %} <small class="muted">Lv {{ x.level }}+</small>{% endif %}{% if x.stars %} <small class="muted">★{{ x.stars }}+</small>{% endif %}<br>{{ price(x) }}<small class="muted"> · {{ left(x) }}</small></div>
+                <form method="post" action="{{ url_for('auction.wanted_cancel', post_id=x.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Cancel</button></form>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}<p class="muted">You're not looking for anything.</p>{% endif %}
+      </section>
+    </aside>
+  </div>
+  {% else %}
+
   <div class="auction-layout">
     <div>
       <form class="auction-filters" method="get" action="{{ url_for('auction.index') }}">
@@ -150,5 +227,6 @@
       </section>
     </aside>
   </div>
+  {% endif %}
 </section>
 {% endblock %}

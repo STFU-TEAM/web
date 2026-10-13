@@ -13,6 +13,18 @@
 </div>
 
 <section class="social-panel">
+  <h2 class="h2">Discord webhooks</h2>
+  <p class="muted small-print">Send a test message to check a webhook works. Set them as environment variables on the server (both the web and worker services).</p>
+  <ul class="webhook-list">
+    {% for key, var, what, on in webhooks %}
+      <li><span>{{ '🟢' if on else '🔴' }} <code>{{ var }}</code> <small class="muted">{{ what }}</small></span>
+        <form method="post" action="{{ url_for('admin.safety_action', op='webhook') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="which" value="{{ key }}"><button class="btn small" {{ 'disabled' if not on }}>📨 Send a test</button></form></li>
+    {% endfor %}
+  </ul>
+</section>
+
+<section class="social-panel">
   <div class="social-heading"><h2 class="h2">Database backups</h2>
     <form method="post" action="{{ url_for('admin.safety_action', op='backup') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
       <button class="btn small gold">🗄️ Back up now</button></form></div>
