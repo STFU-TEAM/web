@@ -25,6 +25,8 @@ def create_app() -> Flask:
     filters.register(app)
     from app import maintenance
     maintenance.install(app, r)  # the admin's maintenance switch: players see the maintenance screen
+    from app import campaign
+    campaign.install(app, r)  # ?src= links: visits and signups per source (admin dashboard)
 
     from app.auth import bp as auth_bp
     from app.routes.main import bp as main_bp

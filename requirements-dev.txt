@@ -2,3 +2,4 @@
 pytest
 fakeredis
 pillow  # scripts/art_helper.py converts downloads to webp
+websocket-client  # promo/ drives Chrome to film the game

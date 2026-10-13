@@ -258,3 +258,67 @@ def test_the_very_first_pull_has_at_least_an_ssr(monkeypatch):
         assert any(c.rarity in ("SSR", "UR", "LR") for c, _ in res["drawn"])
         res = logic.banner_pull(u, banner["id"])  # the second pull: only the SR floor
         assert not any(c.rarity in ("SSR", "UR", "LR") for c, _ in res["drawn"])
+
+
+# ── Filming and promo tools ─────────────────────────────────────────────
+
+def test_admins_can_force_a_stand_and_a_shiny_on_their_own_pulls(client):
+    from app.game import logic
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111", super_fragments=2)
+    h = login(client, "111")
+    client.post("/banners/force", data={"stand": "Gold Experience Requiem", "shiny": "1", "scope": "last"}, headers=h)
+    banner = next(b for b in logic.BANNERS if logic.banner_enabled(b))
+    client.post(f"/banners/{banner['id']}/pull", headers={**h, "HX-Request": "true"})
+    pulled = [c for c in doc(client, "111")["main_characters"] + doc(client, "111")["storage_characters"] if c["id"] == 84]
+    assert pulled and pulled[0]["shiny"]
+    assert "No stand is called" in client.post("/banners/force", data={"stand": "Not A Stand"}, headers=h, follow_redirects=True).data.decode()
+    player(client, "222", super_fragments=1)  # not an admin: no forcing
+    assert client.post("/banners/force", data={"stand": "84"}, headers=login(client, "222")).status_code == 403
+
+
+def test_film_mode_hides_the_overlays_for_that_admin_only(client):
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111")
+    h = login(client, "111")
+    assert 'class="has-side film"' not in client.get("/team").data.decode()
+    client.post("/admin/film", data={"on": "1"}, headers=h)
+    assert 'class="has-side film"' in client.get("/team").data.decode()
+    client.post("/admin/film", data={"on": "0"}, headers=h)
+    assert 'class="has-side film"' not in client.get("/team").data.decode()
+
+
+def test_src_links_count_visits_and_the_signups_they_bring(client):
+    from app import campaign
+    client.get("/?src=TikTok")
+    client.get("/stands?src=tiktok")  # the same session: one visit
+    client.get("/?src=<script>")  # not a source name: ignored
+    login(client, "555")
+    with client.session_transaction() as s:
+        s["src"] = "tiktok"
+    client.post("/auth/welcome", headers={"X-CSRF-Token": "tok"})
+    rows = {r["src"]: r for r in campaign.report(client.fake)}
+    assert rows["tiktok"]["visits"] == 1 and rows["tiktok"]["signups"] == 1 and len(rows) == 1
+    client.application.config["DISCORD_ADMIN_IDS"] = {"111"}
+    player(client, "111")
+    assert "Where players come from" in client.get("/admin", headers=login(client, "111")).data.decode()
+
+
+def test_the_demo_world_for_filming_seeds_players_a_gang_a_market_and_a_chat(client, monkeypatch):
+    import importlib.util
+    import json as _json
+    from app.game import puzzle
+    monkeypatch.setattr(puzzle, "generate_one", lambda: None)  # ~10 s in real life
+    spec = importlib.util.spec_from_file_location("devscript", "scripts/dev.py")
+    dev = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(dev)
+    with client.application.app_context():
+        dev.seed_admin()
+        dev.seed_demo()
+    admin = doc(client, dev.ADMIN_UID)
+    assert not any(c["id"] == 84 for c in admin["main_characters"] + admin["storage_characters"])  # GER pulls NEW
+    assert [c["id"] for c in admin["main_characters"]] == dev.DEMO_TEAM and admin["gang_id"]
+    assert client.fake.hlen("users") == 1 + len(dev.DEMO_PLAYERS)
+    assert client.fake.hlen("web:auction:listings") == 6 and client.fake.hlen(W.KEY) == 4
+    assert client.fake.llen("web:chat:global") == len(dev.DEMO_CHAT)
+    assert _json.loads(client.fake.get(f"web:account:{dev.ADMIN_USERNAME}"))["name"] == dev.DEMO_NAME

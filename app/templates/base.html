@@ -163,7 +163,7 @@
 {#- a page about one part (a story chapter, a universe, a stand, an act) sets page_part: its colours tint the page.
     Every other page takes the part the player is on in the story (progress_part): the site's accent follows them. -#}
 {%- set body_part = page_part or progress_part -%}
-<body class="{{ 'has-side' if me.id }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% if body_part and part_style(body_part) %} data-part="{{ body_part }}" data-part-from="{{ 'page' if page_part else 'progress' }}" style="{{ part_style(body_part) }}"{% endif %}>
+<body class="{{ 'has-side' if me.id }}{{ ' film' if film_mode }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% if body_part and part_style(body_part) %} data-part="{{ body_part }}" data-part-from="{{ 'page' if page_part else 'progress' }}" style="{{ part_style(body_part) }}"{% endif %}>
   <a class="skip" href="#main">Skip to content</a>
   {% if me.id %}
   <aside class="sidenav" aria-label="Main">

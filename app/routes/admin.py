@@ -171,11 +171,21 @@ def index():
     for key in ("rich", "newest"):
         stats[key] = [(value, uid, identity(uid)["name"]) for value, uid in stats[key]]
     signups = _signups(stats.get("joined") or {}, logic.now().date())
-    from app import maintenance, wipe
+    from app import campaign, maintenance, wipe
     return render_template("admin/index.html", q=query, matches=matches, counts=counts, stats=stats, signups=signups,
-                           maint=maintenance.state(r()),
+                           maint=maintenance.state(r()), sources=campaign.report(r()), film=bool(session.get("film")),
                            audit=_audit_rows(8), section="dashboard", deleted=wipe.deleted(), keep_days=wipe.KEEP_DAYS,
                            owner=is_owner(session["uid"]))
+
+
+@bp.post("/film")
+@admin_required
+def film_switch():
+    """Film mode, for this admin's own session: no cookie note, install banner, chat bubble, guide or admin and dev
+    bars on screen, and a ripple wherever the screen is tapped. For recording the game."""
+    session["film"] = request.form.get("on") == "1"
+    flash("🎬 Film mode is on: overlays are hidden and taps show a ripple." if session["film"] else "Film mode is off.", "ok")
+    return redirect(request.form.get("next") or url_for("admin.index"))
 
 
 @bp.post("/maintenance")

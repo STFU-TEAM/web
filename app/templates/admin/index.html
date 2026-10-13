@@ -25,6 +25,24 @@
   {% endif %}
 </section>
 
+<section class="admin-card" aria-labelledby="film-h">
+  <h2 class="h3" id="film-h">🎬 Film mode {{ '· ON' if film }}</h2>
+  <p class="muted">For recording the game: hides the cookie note, the install banner, the chat bubble, the guide and the admin and dev bars, and shows a ripple wherever you tap. Only in your own session.</p>
+  <form method="post" action="{{ url_for('admin.film_switch') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+    <input type="hidden" name="on" value="{{ '0' if film else '1' }}"><button class="btn {{ '' if film else 'gold' }}">{{ 'Turn film mode off' if film else 'Turn film mode on' }}</button></form>
+</section>
+
+<section class="social-panel" aria-labelledby="src-h">
+  <h2 class="h3" id="src-h">Where players come from <small class="muted">last 30 days</small></h2>
+  <p class="muted small-print">Share links with <code>?src=</code> and a name: <code>stfurequiem.com/?src=tiktok</code>, <code>?src=youtube</code>, <code>?src=discord</code>. A visit counts once per session; a signup counts for the first source the browser came with.</p>
+  {% if sources %}
+    <div class="wiki-table-wrap"><table class="wiki-table">
+      <thead><tr><th scope="col">Source</th><th scope="col">Visits</th><th scope="col">Signups</th><th scope="col">Visits (7 d)</th><th scope="col">Signups (7 d)</th></tr></thead>
+      <tbody>{% for s in sources %}<tr><td><code>{{ s.src }}</code></td><td>{{ s.visits|num }}</td><td>{{ s.signups|num }}</td><td>{{ s.visits_7|num }}</td><td>{{ s.signups_7|num }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  {% else %}<p class="notice">No visits from a <code>?src=</code> link yet.</p>{% endif %}
+</section>
+
 <div class="stat-tiles">
   <div><span>Saves</span><strong>{{ counts.players|num }}</strong><small>{{ stats.totals.web_only|num }} web-only</small></div>
   <div><span>Supporters</span><strong>{{ stats.totals.supporters|num }}</strong></div>

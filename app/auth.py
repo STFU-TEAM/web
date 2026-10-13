@@ -370,8 +370,9 @@ def welcome():
                 begin(user)
                 user.update()
                 # no auto-tour: the coach (onboarding.coach) walks the first session, and offers the tour at its end
-                from app import social
+                from app import campaign, social
                 social.record_referral(session["uid"], session.pop("ref", None))
+                campaign.signup(r(), session)  # the ?src= link this browser came with, if any
         except Busy:
             return redirect(url_for("auth.welcome"))
         return redirect(url_for("play.banners", welcome=1))

@@ -700,6 +700,17 @@ document.addEventListener("click", (e) => {
 if ("serviceWorker" in navigator) {
   addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 }
+// Film mode (admins, for recording): a ripple wherever the screen is tapped or clicked.
+document.addEventListener("pointerdown", (e) => {
+  if (!document.body.classList.contains("film")) return;
+  const dot = document.createElement("i");
+  dot.className = "tap-ripple";
+  dot.setAttribute("aria-hidden", "true");
+  Object.assign(dot.style, { left: `${e.clientX}px`, top: `${e.clientY}px` });
+  document.body.append(dot);
+  setTimeout(() => dot.remove(), 600);
+}, true);
+
 // The cookie note: once per browser, until OK.
 (() => {
   const note = document.querySelector("[data-cookie-note]");

@@ -356,10 +356,22 @@ def _arrow_draw(banner: dict, user: User, exclude=(), forced: Optional[str] = No
 
 
 def _forced_at(force: Optional[dict], i: int, n: int) -> Optional[str]:
-    """An admin's forced rarity for card i of n: {"rarity", "scope": "last" | "all"}."""
+    """An admin's forced rarity for card i of n: {"rarity", "scope": "last" | "all", "stand", "shiny"}."""
     if not force:
         return None
-    return force["rarity"] if force.get("scope") == "all" or i == n - 1 else None
+    return force.get("rarity") if force.get("scope") == "all" or i == n - 1 else None
+
+
+def _force_extras(force: Optional[dict], i: int, n: int, char: Character) -> Character:
+    """An admin's forced stand (a stand id: it replaces the card, keeping its rolled types) and/or shiny, on the
+    forced card(s). For testing and filming reveals."""
+    if not force or not (force.get("scope") == "all" or i == n - 1):
+        return char
+    if force.get("stand") and 1 <= force["stand"] <= len(CHARACTER_FILE):
+        char = get_character_from_template(CHARACTER_FILE[force["stand"] - 1], list(char.types), list(char.qualities))
+    if force.get("shiny"):
+        char.shiny = True
+    return char
 
 
 RARITY_ORDER = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
@@ -523,7 +535,7 @@ def banner_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dic
             floor = "SSR"
         else:
             floor = "SR" if i == 9 and all(c.rarity == "R" for c, _ in drawn) else None
-        c = _banner_draw(banner, user, floor, forced=_forced_at(force, i, 10))
+        c = _force_extras(force, i, 10, _banner_draw(banner, user, floor, forced=_forced_at(force, i, 10)))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")
@@ -544,7 +556,7 @@ def arrow_pull(user: User, banner_id: int, force: Optional[dict] = None) -> dict
     user.items.remove(arrow)
     drawn = []
     for i in range(5):
-        c = _arrow_draw(banner, user, forced=_forced_at(force, i, 5))
+        c = _force_extras(force, i, 5, _arrow_draw(banner, user, forced=_forced_at(force, i, 5)))
         drawn.append((c, add_to_available_storage(user, c, skip_main=True)))
     track_quest_progress(user, "banner_pull")
     check_achievements(user, "banner_pull")

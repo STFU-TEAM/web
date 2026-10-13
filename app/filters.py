@@ -438,6 +438,8 @@ def register(app):
             "latest_post": None if fragment else _latest_post(),
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
                    "admin": bool(uid) and request.endpoint != "static" and not fragment and is_admin(uid)},
+            # film mode (admins, from the dashboard): the page hides its overlays and shows taps (base.html)
+            "film_mode": bool(session.get("film")) and bool(uid) and not fragment and request.endpoint != "static" and is_admin(uid),
             "csrf_token": session["csrf"],
             # app.js renews this browser's push subscription if it was made with an older VAPID key
             "push_key_meta": (push.keys() or {}).get("public") if uid and not fragment else None,

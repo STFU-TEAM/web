@@ -498,7 +498,8 @@ def banners():
                            sparks=logic.sparks(user), SPARK_COST=logic.SPARK_COST,
                            welcome=request.args.get("welcome"), history=history,
                            schedule=logic.banner_schedule(7), rotates_in=logic.rotation_ends() - logic.now(),
-                           forced=_forced_rarity(), FORCE_RARITIES=FORCE_RARITIES, PITY_ODDS=logic.PITY_ODDS)
+                           forced=_forced_rarity(), FORCE_RARITIES=FORCE_RARITIES, PITY_ODDS=logic.PITY_ODDS,
+                           stand_names=_stand_names() if _is_admin() else [])
 
 
 def banner_odds(banner: dict) -> dict:
@@ -558,6 +559,11 @@ def spark(banner_id: int):
     return redirect(url_for("play.banners") + f"#banner-{banner_id}")
 
 
+def _stand_names() -> list:
+    from app.game import wanted
+    return sorted(c["name"] for c in wanted.STANDS.values())
+
+
 FORCE_KEY = "web:admin:force_rarity:{}"
 FORCE_RARITIES = ("R", "SR", "SSR", "UR", "LR")
 
@@ -568,7 +574,7 @@ def _is_admin() -> bool:
 
 
 def _forced_rarity():
-    """An admin's test setting for their own pulls: {"rarity", "scope"} or None."""
+    """An admin's test setting for their own pulls: {"rarity", "scope", "stand", "shiny"} or None."""
     if not _is_admin():
         return None
     raw = r().get(FORCE_KEY.format(session["uid"]))
@@ -578,19 +584,28 @@ def _forced_rarity():
 @bp.post("/banners/force")
 @player_required
 def force_rarity():
-    """Admins only: make their own next pulls land a chosen rarity (to test reveals and drops)."""
+    """Admins only: make their own next pulls land a chosen rarity, a chosen stand and/or a shiny (to test and film
+    reveals and drops)."""
     if not _is_admin():
         abort(403)
+    from app.game import wanted
     from app.routes.admin import audit
-    rarity, scope = request.form.get("rarity", ""), request.form.get("scope", "last")
+    rarity, scope = request.form.get("rarity", ""), "all" if request.form.get("scope") == "all" else "last"
+    stand_text = request.form.get("stand", "").strip()
+    stand = wanted.stand_id_of(stand_text) if stand_text else None
+    shiny = bool(request.form.get("shiny"))
     key = FORCE_KEY.format(session["uid"])
-    if rarity in FORCE_RARITIES:
-        r().set(key, json.dumps({"rarity": rarity, "scope": "all" if scope == "all" else "last"}), ex=3600)
-        audit("force_rarity", session["uid"], rarity=rarity, scope=scope)
-        flash(f"Your pulls now force {rarity} on {'every card' if scope == 'all' else 'the last card'} (for an hour).", "ok")
+    if stand_text and stand is None:
+        flash(f"No stand is called “{stand_text}”: give its exact name or its #id.", "error")
+    elif rarity in FORCE_RARITIES or stand or shiny:
+        rarity = rarity if rarity in FORCE_RARITIES else None
+        r().set(key, json.dumps({"rarity": rarity, "scope": scope, "stand": stand, "shiny": shiny}), ex=3600)
+        audit("force_rarity", session["uid"], rarity=rarity, scope=scope, stand=stand, shiny=shiny)
+        what = " ".join(x for x in (("shiny" if shiny else ""), (wanted.STANDS[stand]["name"] if stand else rarity or "")) if x)
+        flash(f"Your pulls now force {what or 'a shiny'} on {'every card' if scope == 'all' else 'the last card'} (for an hour).", "ok")
     else:
         r().delete(key)
-        flash("Forced rarity cleared: your pulls use the normal odds again.", "ok")
+        flash("Forced pulls cleared: your pulls use the normal odds again.", "ok")
     return redirect(url_for("play.banners"))
 
 

@@ -4725,6 +4725,13 @@ a.cup-name:hover { color: var(--gold); }
 @media (max-width: 560px) { .wanted-post { grid-template-columns: 48px minmax(0, 1fr); } .wanted-fill, .wanted-none { grid-column: 1 / -1; justify-content: flex-end; } }
 .chat-warn { margin: .3rem 0 0; padding: .4rem .6rem; border-radius: var(--radius-ui); font-size: .82rem; font-weight: 700;
   color: var(--ink); background: #FFB547; border: 2px solid var(--ink); }
+/* Film mode (admins, app.js): nothing but the game on screen, and a ripple wherever the screen is tapped */
+body.film :is(.cookie-note, .install-hint, .chat-bubble, #guide, .guide-pill, .admin-force, .maint-banner, .dev-strip, .guest-strip,
+  .chat-del, [data-tour="admin"]) { display: none !important; }
+.tap-ripple { position: fixed; z-index: 300; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; pointer-events: none;
+  border: 3px solid rgb(255 255 255 / .95); background: rgb(255 255 255 / .28); box-shadow: 0 0 18px rgb(255 255 255 / .5);
+  animation: tap-ripple .55s ease-out forwards; }
+@keyframes tap-ripple { from { transform: scale(.35); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
 .webhook-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
 .webhook-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem .8rem; padding: .5rem .7rem;
   border-radius: var(--radius-ui); background: var(--night-3); }

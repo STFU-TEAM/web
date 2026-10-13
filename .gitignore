@@ -6,3 +6,5 @@ __pycache__/
 art/
 # local Redis backups (app/backup.py)
 backups/
+# promo footage and renders (promo/README.md): big files, rebuilt from the scripts
+promo/

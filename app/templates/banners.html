@@ -52,12 +52,16 @@
         <option value="">normal odds</option>
         {% for r in FORCE_RARITIES %}<option value="{{ r }}" {% if forced and forced.rarity == r %}selected{% endif %}>{{ r }}</option>{% endfor %}
       </select></label>
+      <label>or the stand <input type="text" name="stand" list="force-stands" data-suggest placeholder="any" autocomplete="off"
+             value="{{ (forced.stand|string) if forced and forced.stand else '' }}" size="14"></label>
+      <datalist id="force-stands">{% for n in stand_names %}<option value="{{ n }}">{% endfor %}</datalist>
+      <label class="check"><input type="checkbox" name="shiny" value="1" {{ 'checked' if forced and forced.shiny }}> shiny</label>
       <label>on <select name="scope">
         <option value="last" {% if not forced or forced.scope == 'last' %}selected{% endif %}>the last card</option>
         <option value="all" {% if forced and forced.scope == 'all' %}selected{% endif %}>every card</option>
       </select></label>
       <button class="btn small gold">Apply</button>
-      {% if forced %}<span class="muted">Active: {{ forced.rarity }} on {{ 'every card' if forced.scope == 'all' else 'the last card' }} of your own pulls · logged in the audit</span>
+      {% if forced %}<span class="muted">Active: {{ 'shiny ' if forced.shiny }}{{ ('stand #' ~ forced.stand) if forced.stand else (forced.rarity or '') }} on {{ 'every card' if forced.scope == 'all' else 'the last card' }} of your own pulls · logged in the audit</span>
       {% else %}<span class="muted">Only your own pulls; it lasts an hour and is logged in the audit.</span>{% endif %}
     </form>
   {% endif %}
