@@ -203,7 +203,7 @@ SYNERGY_EFFECTS = {
 
 EFFECT_INFO = {
     "STUN": ("Stun", "Skips its next turn. A stand that just sat out a stun shrugs off stuns on its following turn."),
-    "POISON": ("Poison", "Loses health at the end of each of its turns. Stronger in Nature."),
+    "POISON": ("Poison", "Loses health at the end of each of its turns, plus a small share of its max health on every tick, so it bites tanks too. Stronger in Nature."),
     "BURN": ("Burn", "Loses health at the end of each of its turns. Stronger in the Desert, put out by the Ocean."),
     "BLEED": ("Bleed", "Loses health at the end of each of its turns."),
     "WEAKEN": ("Weaken", "Damage is lowered while it lasts."),
@@ -421,6 +421,36 @@ def facts():
         "energy_minutes": logic.ENERGY_REGEN_MINUTES, "energy_minutes_donor": logic.DONOR_ENERGY_REGEN_MINUTES,
         "energy_can": logic.ENERGY_CAN_AMOUNT, "energy_bank": logic.ENERGY_BANK,
         **_new_facts(),
+        **_oct_facts(),
+    }
+
+
+def _oct_facts():
+    """The October rules: crit overflow, the hit soft cap, heal fatigue, stars, refining, storage, chips, the market."""
+    from app import accounts
+    from app.game import chips, gear, items as items_mod, user as user_mod, wanted
+    crit = character_mod.CRITMULTIPLIER - 1
+    stack = [1 + crit * character_mod.crit_stack(t) for t in (1, 2, 3)]
+    return {
+        "crit_overflow": round(character_mod.CRIT_OVERFLOW * 100),
+        "crit_150_double": round(50 * character_mod.CRIT_OVERFLOW),
+        "crit_always_double": round(100 + 100 / character_mod.CRIT_OVERFLOW),
+        "crit_stack_share": round(character_mod.CRIT_STACK_DECAY * 100),
+        "crit_tiers": [f"{m:g}" for m in (round(x, 3) for x in stack)],
+        "hit_soft_cap": character_mod.HIT_SOFT_CAP, "hit_soft_share": round(character_mod.HIT_SOFT_SHARE * 100),
+        "big_heal": round(character_mod.BIG_HEAL * 100), "heal_fatigue": round(character_mod.HEAL_FATIGUE * 100),
+        "heal_floor": round(character_mod.HEAL_FATIGUE_FLOOR * 100),
+        "poison_max_hp": f"{character_mod.POISON_MAX_HP * 100:g}",
+        "star_share": round(100 / character_mod.STAR_DIVISOR),
+        "star5_mult": f"{1 + 5 / character_mod.STAR_DIVISOR:.2f}",
+        "copy_awaken": logic.COPY_AWAKEN,
+        "refine_step": round(items_mod.REFINE_STEP * 100), "refine_max": items_mod.REFINE_MAX,
+        "refine_costs": gear.REFINE_COST,
+        "storage_step": user_mod.STORAGE_STEP, "storage_max_ext": user_mod.STORAGE_MAX_EXTENSIONS,
+        "storage_ext_price": logic.STORAGE_EXT_PRICE,
+        "chip_combine": chips.COMBINE, "chip_combine_chance": round(chips.COMBINE_CHANCE * 100),
+        "wanted_days": wanted.WANTED_DAYS, "wanted_max": wanted.MAX_WANTED,
+        "rename_days": accounts.RENAME_COOLDOWN // 86400,
     }
 
 

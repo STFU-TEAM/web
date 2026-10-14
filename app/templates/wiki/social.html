@@ -39,4 +39,12 @@
   <li><strong>Bids</strong>: pick a currency, a starting bid and a length ({{ facts.auction_hours|join(', ') }} hours), plus an optional buyout. Each bid must beat the last by {{ facts.auction_raise }}%. Your bid is held right away and returned the moment someone outbids you. A bid in the last {{ facts.auction_snipe }} minutes pushes the end back, so nobody wins by sniping.</li>
 </ul>
 <p>The house keeps <strong>{{ facts.auction_fee }}%</strong> of the Meteor Dust from a sale; Arrowheads go to the seller whole. You can cancel a listing until the first bid. An unsold stand comes back when time runs out.</p>
+<p>🔎 <strong>Looking for:</strong> post the stand you want (with a minimum level or awakening if you like) and what you'd pay, up to {{ facts.wanted_max }} requests at a time. Your offer is held from your wallet right away, so anyone who owns a match can sell it to you in one tap and is paid on the spot (minus the same {{ facts.auction_fee }}% on the Meteor Dust); the stand's gear stays with the seller. A request nobody fills is refunded after {{ facts.wanted_days }} days, or when you cancel it.</p>
+
+<h2 class="wiki-h2">Chat</h2>
+<p>The <a href="{{ url_for('chat.index') }}">chat</a> has a global channel, private messages, your gang's channel and each co-op raid's. Type <code>:name:</code> or use 😊 for emoji, emotes and stickers. An <strong>automod</strong> keeps it clean: slurs, floods and repeated messages are stopped, links to other sites stay out of the global chat, and messages that look like a scam are blocked (in private messages they arrive with a warning) and reported to an admin. New accounts can only start a few new conversations a day. Report anything with ⚑; block a player from your conversation with them.</p>
+<p>🛡️ Nobody from the game will ever ask for your password, and the trade and auction pages are the only safe way to swap stands: if someone asks you to "send first", block and report them.</p>
+
+<h2 class="wiki-h2">Accounts</h2>
+<p>Log in with Discord (the same save as the bot) or a username and password. You can also <strong>play as a guest</strong>: no sign-up, the save lives in a cookie on that browser. Save it with a username from your account page whenever you like: until then guests can't chat, trade or use the market. Players with a username can change their name once every {{ facts.rename_days }} days.</p>
 {% endblock %}

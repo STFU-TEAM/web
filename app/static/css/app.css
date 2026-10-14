@@ -4980,8 +4980,8 @@ body.film :is(.cookie-note, .install-hint, .chat-bubble, #guide, .guide-pill, .a
 
 /* The first-session guide (partials/guide.html): a spotlight on the one thing to use now, a card beside it, and a pill
    to the next page when the next step lives elsewhere. The page stays usable under it: only the card takes clicks. */
-.guide { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
-.guide[hidden], .guide-pill[hidden] { display: none; }
+#guide { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+#guide[hidden], .guide-pill[hidden] { display: none; }
 .guide-spot { position: fixed; border-radius: var(--radius-ui); pointer-events: none;
   box-shadow: 0 0 0 3px #3AB4F2, 0 0 18px 4px rgb(58 180 242 / .35), 0 0 0 9999px rgb(14 7 24 / .5);
   transition: left .3s ease, top .3s ease, width .3s ease, height .3s ease; animation: guide-pulse 1.6s ease-in-out infinite; }
