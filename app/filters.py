@@ -125,6 +125,8 @@ def register(app):
                                  MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
+    from app.game import heaven
+    app.jinja_env.globals.update(hv_banner=heaven.banner, hp_hidden=heaven.hp_hidden)
     from app.game.automod import SCAM_WARNING
     app.jinja_env.globals.update(SCAM_WARNING=SCAM_WARNING)
     from app.game import simulate

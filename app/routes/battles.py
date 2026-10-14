@@ -13,6 +13,7 @@ from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight,
 from app.game import bounty, chips, draft as draft_mod, events, history, logic, pickers, progression, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
+from app.game import profile as P
 from app.game.fight import PVP_MAX_SECONDS, Fight, Side, ai_choice, fighting_copy
 from app.filters import PLAYABLE
 
@@ -119,7 +120,8 @@ def _create_duel(uid_a, uid_b, kind, teams=None):
         bounty.record_picks([c.id for c in team_a + team_b])  # the season's meta (Ranked tab, Off the Meta bounty)
     fight = Fight(Side(identity(uid_a)["name"], copier(team_a), True),
                   Side(identity(uid_b)["name"], copier(team_b), True),
-                  kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False, "started": time.time()})
+                  kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False, "started": time.time(),
+                                   "looks": [P.duel_look(user_a), P.duel_look(user_b)]})  # each half of the arena
     fight.advance()
     arm_timer(fight)
     save_fight(uid_a, fight)

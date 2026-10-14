@@ -59,8 +59,9 @@ def _expected_hit(attacker: Optional[Character], target: Character) -> float:
     """Rough damage of one basic attack, with the same armor curve as Character.attack."""
     if attacker is None:
         return 0
-    armor = min(max(target.current_armor, 0), 400)
-    return attacker.current_damage * 200 / (100 + armor)
+    from app.game.character import ARMOR_CAP, soften
+    armor = min(max(target.current_armor, 0), ARMOR_CAP)
+    return soften(attacker.current_damage * 200 / (100 + armor))
 
 
 def ai_choice(enemies: List[Character], attacker: Optional[Character] = None, level: str = "smart") -> int:
@@ -86,7 +87,8 @@ def ai_choice(enemies: List[Character], attacker: Optional[Character] = None, le
 
 
 PVP_KINDS = ("ranked", "friend")
-SIMULATABLE = ("wormhole", "story", "tower", "rush", "dungeon", "alt_universe", "over_heaven", "training", "carry_me", "requiem")  # PvE a loss can replay
+SIMULATABLE = ("wormhole", "story", "tower", "rush", "dungeon", "alt_universe", "over_heaven", "training", "carry_me", "requiem",
+               "heaven")  # PvE a loss can replay
 CRIT_WORDS = {1: "", 2: "DOUBLE", 3: "TRIPLE"}
 
 
@@ -264,7 +266,43 @@ class Fight:
         self._log(f"{self.sides[side].name} surrendered.", "info", side=side)
         self._finish()
 
+    def _foretell(self) -> None:
+        """Epitaph (Heaven's Gate): who each enemy stand will strike on its next turn. Fate holds them to it."""
+        me, foe = self.sides[self.human_side], self.sides[1 - self.human_side]
+        self._fate = {i: ai_choice(me.chars, c, getattr(foe, "ai", "smart"))
+                      for i, c in enumerate(foe.chars) if c.is_alive() and valid_targets(me.chars)}
+
+    def _heaven_step(self, p: int, step: int) -> int:
+        """Heaven's Gate: after a turn, time may stop (the enemy acts again) or be erased (your next turn is skipped)."""
+        rules = self.__dict__.get("rules") or {}
+        foe = 1 - self.human_side
+        if p != foe or not self._on():
+            return step
+        if rules.get("time_stop"):
+            left = self.__dict__.get("_ts_left")
+            if left is None and self.round % rules["time_stop"] == 0:
+                self._ts_left = 1  # one extra turn: the enemy acts twice in a row
+                self._log(f"⏱️ ZA WARUDO! Time stops: {self.sides[foe].name} moves again.", "terrain", side=foe)
+                self.log[-1]["fx"] = "timestop"
+                return 0
+            if left:
+                self._ts_left = left - 1
+                if self._ts_left > 0:
+                    self._log("⏱️ Time is still stopped…", "terrain", side=foe)
+                    self.log[-1]["fx"] = "timestop"
+                    return 0
+                self._ts_left = None
+                self._log("⏱️ …and time moves again.", "terrain", side=foe)
+                self.log[-1]["fx"] = "timeflow"
+        if rules.get("erase") and self.round % rules["erase"] == 0 and step == 1:
+            self._log("👁️ King Crimson! Time is erased: your next turn never happened.", "terrain", side=foe)
+            self.log[-1]["fx"] = "erase"
+            return 2
+        return step
+
     def _start_turn(self, p: int) -> None:
+        if p == self.human_side and (self.__dict__.get("rules") or {}).get("epitaph"):
+            self._foretell()
         for s, side in enumerate(self.sides):
             for c in side.chars:
                 c._my_turn = s == p  # effects landing on your own turn don't tick away at its end
@@ -341,11 +379,20 @@ class Fight:
                         idx, target = target, None
                     else:
                         idx = ai_choice(watcher.chars, char, getattr(player, "ai", "smart"))
+                        fated = (self.__dict__.get("_fate") or {}).get(self.si)
+                        if fated is not None and fated in valid_targets(watcher.chars):
+                            idx = fated  # Epitaph: what was foretold happens
                     targeted = watcher.chars[idx]
                     char._focus = targeted  # single-target specials follow the chosen target
-                    data = char.attack(targeted)
+                    if p == self.human_side and self.__dict__.pop("_whiff", False):
+                        # Made in Heaven (Heaven's Gate): out of time, the attack lands on nothing
+                        data = {"dodged": True, "critical": False, "damage": 0, "whiff": True}
+                    else:
+                        data = char.attack(targeted)
                     hit = {"src": [p, self.si], "dst": [1 - p, idx]}
-                    if data["dodged"]:
+                    if data.get("whiff"):
+                        self._log(f"⏳ Out of time! {char.name}'s attack lands on nothing.", "dodge", char, p, **hit)
+                    elif data["dodged"]:
                         self._log(f"{targeted.name} dodged {char.name}'s attack.", "dodge", char, p, **hit)
                     elif data["critical"]:
                         tier = data.get("crit", 1)
@@ -355,6 +402,8 @@ class Fight:
                     else:
                         self._log(f"{char.name} hits {targeted.name} for {data['damage']}.", "hit", char, p,
                                   dmg=data["damage"], **hit)
+                    if (self.__dict__.get("rules") or {}).get("hidden_hp") and p == self.human_side:
+                        targeted._read = getattr(targeted, "_read", 0) + 1  # Heaven's Door: hits read its book
                     if data["damage"] and getattr(char, "_lifesteal", 0):
                         char.heal(data["damage"] * char._lifesteal)
                     if data["damage"] and self.__dict__.get("rules"):
@@ -380,6 +429,9 @@ class Fight:
             self._check_falls()
             step = 2 if self.king_crimson else 1
             self.king_crimson = False
+            if p != self.human_side:
+                self._fate = {}  # the foretold turn is over
+            step = self._heaven_step(p, step)
             self.turn += step
             self.si = 0
             self.round_started = False

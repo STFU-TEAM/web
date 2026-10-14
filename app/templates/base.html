@@ -56,6 +56,7 @@
   'altverse': ('Alternate Universe', url_for('progress.au_page'), ep.startswith('progress.au_'), '🌀', 'What if the villains had won? Custom chapters that open as you clear the story.'),
   'overheaven': ('Over Heaven', url_for('progress.oh_page'), ep.startswith('progress.oh_'), '☁', 'The endgame: puzzle fights in every mode that only the right team preparation beats.'),
   'requiem': ('Requiem mode', url_for('progress.rq_page'), ep.startswith('progress.rq_'), '☠', 'The story, every universe and Carry Me again, tuned so a maxed team has to fight for it.'),
+  'heaven': ("Heaven's Gate", url_for('progress.hv_page'), ep.startswith('progress.hv_'), '🌌', 'The campaign past Requiem: four impossible powers, Over Heaven rules, one gimmick each.'),
   'carryme': ('Carry Me · Part 10', url_for('progress.cm_page'), ep.startswith('progress.cm_'), '🎭', 'Joyce Joestar’s story: her Stand takes the form of every JoJo before her.'),
   'journey': ("Crusaders' Journey", url_for('journey.index'), ep.startswith('journey.'), '🐫', 'Send a stand from Tokyo to Cairo on its own. Stronger stands bring back more.'),
   'auction': ('Auction house', url_for('auction.index'), ep.startswith('auction.'), '🔨', 'Sell stands for Meteor Dust or Arrowheads, or buy other players’ stands.'),
@@ -95,7 +96,7 @@
     (app/game/progression.py). -#}
 {%- set daily_keys = ['quests', 'whos'] + (['puzzle'] if nav_unlocked.puzzle else []) + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else [])
                      + (['wormhole'] if nav_unlocked.wormhole else []) + ['journey'] -%}
-{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) + (['requiem'] if nav_unlocked.overheaven else []) -%}
+{%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) + (['requiem'] if nav_unlocked.overheaven else []) + (['heaven'] if nav_unlocked.overheaven else []) -%}
 {%- set challenge_keys = (['events'] if live_event else []) + (['tower'] if nav_unlocked.tower else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
 {%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles', 'ladder'] -%}
 {%- set battle_groups = [('Daily', 'daily', daily_keys), ('Adventure', 'adventure', adventure_keys), ('Challenges', 'challenges', challenge_keys), ('PvP', 'pvp', pvp_keys)] -%}

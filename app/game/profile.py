@@ -145,6 +145,15 @@ def view(user) -> dict:
             "locked": locked(user.id)}
 
 
+def duel_look(user) -> dict:
+    """How a player's half of a duel looks (stored on the fight when it starts): their theme's colours, their banner
+    image and their signature stand (else their team's lead), drawn behind their side of the arena."""
+    p = get(user)
+    by_uuid = {c.uuid: c for c in user.main_characters + user.storage_characters}
+    sig = by_uuid.get(p.get("stand") or "") or (user.main_characters[0] if user.main_characters else None)
+    return {"colors": theme_of(p.get("theme"))["colors"], "image": p.get("image") or "", "stand": sig.id if sig else None}
+
+
 # ── Moderation ───────────────────────────────────────────────────────────
 
 def clear(user):

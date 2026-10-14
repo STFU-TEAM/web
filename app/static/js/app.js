@@ -609,6 +609,18 @@ setInterval(() => {
     const b = el.querySelector("b");
     if (b) b.textContent = left;
     el.classList.toggle("urgent", left <= 3);
+    // Made in Heaven: out of time, the turn is wasted: the attack lands on nothing (the server checks the clock too)
+    if (left <= 0 && el.hasAttribute("data-auto-pick") && !el.dataset.fired) {
+      const picks = [...document.querySelectorAll("#fight .fighter-hit:not([disabled])")];
+      const form = el.closest("form");
+      if (picks.length && form) {
+        el.dataset.fired = "1";
+        const late = document.createElement("input");
+        Object.assign(late, { type: "hidden", name: "timeout", value: "1" });
+        form.append(late);
+        picks[Math.floor(Math.random() * picks.length)].click();
+      }
+    }
   });
 }, 1000);
 
@@ -1213,6 +1225,10 @@ function playFight(root) {
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
       if (src && e.kind === "stun") pop(src, "STUNNED", "stun");
       if (e.kind === "terrain") { restart(arena, "flash-special"); setField(e.field); }
+      // Heaven's Gate: the world goes grey while time is stopped, and an erased turn tears the screen
+      if (e.fx === "timestop") root.classList.add("timestopped");
+      if (e.fx === "timeflow") root.classList.remove("timestopped");
+      if (e.fx === "erase") restart(root, "erased");
       if (e.kind === "sudden") restart(arena, "shake");
       if (e.kind === "crit") restart(arena, "shake");  // no flash: it was too much on every crit
       // Any HP change since the previous event gets a number; covers specials, items and poison ticks too.
@@ -1236,6 +1252,7 @@ function playFight(root) {
     }
 
     if (!root.isConnected) return;
+    root.classList.remove("timestopped");
     arena.removeEventListener("click", skip);
     logItems.forEach((li) => li.classList.remove("pending"));
     root.querySelectorAll(".dmg-pop, .cry, .heavy-sfx").forEach((p) => p.remove());

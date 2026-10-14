@@ -47,7 +47,7 @@ NEW_TTL = 30 * 86400
 # apart from the save (web:debug_unlock:<uid>, a set of keys), so it's reversible and the bot never sees it.
 DEBUG_KEYS = {**{k: LABELS[k] for k in GATES}, "coop_heaven": "Co-op raids · Over Heaven", "training": "Training ground",
               "levels": "Skip the player-level gates", "requiem": "Requiem mode (every track)",
-              "oh_requiem": "Over Heaven · Requiem track", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
+              "oh_requiem": "Over Heaven · Requiem track", "heaven": "Heaven's Gate", **{f"au:{c['key']}": f"Alternate Universe · {c['title']}"
                                                            for c in altverse.CHAPTERS}}
 
 

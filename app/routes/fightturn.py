@@ -123,8 +123,11 @@ def resume(uid=None) -> Optional[dict]:
 
 
 def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
-              settle: Optional[Callable] = None):
-    """settle(user, fight) -> rewards dict; called once, under the save lock, then saved."""
+              settle: Optional[Callable] = None, pick: Optional[Callable] = None, extra: Optional[Callable] = None):
+    """settle(user, fight) -> rewards dict; called once, under the save lock, then saved.
+    pick(fight, target) -> target may change the pick (Heaven's Gate's clock); extra(fight) -> more for the template
+    (it may write to fight.meta: it runs before the save)."""
+    ctx = {}
     uid = session["uid"]
     try:
         with user_lock(uid, ttl=5):
@@ -136,7 +139,8 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
                 if request.form.get("forfeit"):
                     fight.forfeit()
                 else:
-                    fight.advance(request.form.get("target", type=int))
+                    target = request.form.get("target", type=int)
+                    fight.advance(pick(fight, target) if pick else target)
             if fight.finished and fight.rewards is None and settle:
                 user = get_db().get_user(uid)
                 fight.rewards = settle(user, fight)
@@ -148,8 +152,10 @@ def play_turn(kind: str, back_url: str, label: str, action: str, leave: str,
                         fight.rewards = {**fight.rewards, "bounty": line}
                 fun_achievements(user, fight)
                 user.update()
+            if extra:
+                ctx = extra(fight)
             save_fight(uid, fight)
     except Busy:
         fight = load_fight(uid)
     return render_template("partials/fight.html", fight=fight, fresh_from=request.form.get("log_len", type=int),
-                           fight_action=url_for(action), fight_leave_action=url_for(leave), fight_label=label)
+                           fight_action=url_for(action), fight_leave_action=url_for(leave), fight_label=label, **ctx)

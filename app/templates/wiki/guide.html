@@ -53,6 +53,7 @@
   <li><strong><a href="{{ url_for('progress.oh_page') }}">Over Heaven</a></strong> opens with the end of the story: {{ g.tracks|length }} tracks of puzzle fights where a team built for each fight's rule beats raw rarity. Start with <em>{{ g.tracks[0].title }}</em>, which teaches the rules one at a time.
     <small class="muted">({% for t in g.tracks %}{{ t.title }} · {{ t.fights }}{{ ', ' if not loop.last }}{% endfor %})</small></li>
   <li><strong>Over Heaven co-op raids</strong> open at the same time: the weekly raid boss with a rule, for 2 or 3 players.</li>
+  <li><strong><a href="{{ url_for('progress.hv_page') }}">Heaven's Gate</a></strong> opens once Requiem · Over Heaven is cleared: four fights at full Requiem strength under Over Heaven's rules, each built around an impossible power. The World stops time every third round, King Crimson erases your turns while Epitaph shows you who his stands will strike, Heaven's Door hides your enemies' health until you read it, and Made in Heaven shrinks your turn clock every round. Before each fight you pick a pact: a blessing with a curse attached. Clearing all four earns the title “Heaven's Gate”.</li>
   <li><strong><a href="{{ url_for('progress.training_page') }}">Training ground</a></strong> opens once the story <em>and</em> every Alternate Universe chapter are cleared: level any stand fast and earn chips.</li>
 </ul>
 

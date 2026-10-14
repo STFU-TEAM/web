@@ -5,14 +5,15 @@
 {% set art = fighter_art(c) %}
 {% set cos = fight_cosmetics and (art.shiny or art.full) %}
 {% set st = fighter_status(c) %}
-<li class="fighter {% if not c.is_alive() %}down{% endif %}{% for a in st.aura|sort %} st-{{ a }}{% endfor %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}{% if cos and art.shiny %} shiny{% endif %}{% if cos and art.full %} fullart{% endif %}"
+{% set unread = fight.kind == 'heaven' and hp_hidden(fight, c, side, my_side) %}
+<li class="fighter {% if unread %}hp-hidden {% endif %}{% if not c.is_alive() %}down{% endif %}{% for a in st.aura|sort %} st-{{ a }}{% endfor %}{% if acting %} acting{% endif %} {{ c.rarity|rarity }}{% if cos and art.shiny %} shiny{% endif %}{% if cos and art.full %} fullart{% endif %}"
     data-side="{{ side }}" data-idx="{{ idx }}" data-name="{{ c.name }}" data-max="{{ [c.start_hp, 1]|max }}" data-cry="{{ c.id|cry }}"
     data-img="{{ art.spot if cos else art.classic }}" data-gif="{{ c.id|special_gif }}"{% if cos and art.shiny and not art.own %} data-hue="1"{% endif %}
     {% if art.shiny or art.full %}data-art-classic="{{ art.classic }}" data-art-portrait="{{ art.portrait }}" data-art-spot="{{ art.spot }}"
     data-art-shiny="{{ 1 if art.shiny else 0 }}" data-art-full="{{ 1 if art.full else 0 }}" data-art-own="{{ 1 if art.own else 0 }}"{% endif %}>
   {% if targetable %}
   <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}{% if hit is not none %}, about {{ hit }} damage{% endif %}"
-          {% if hit is not none %}data-hit="~{{ hit }}{% if hit >= c.current_hp %} · KO{% endif %}"{% endif %}></button>
+          {% if hit is not none %}data-hit="~{{ hit }}{% if hit >= c.current_hp and not unread %} · KO{% endif %}"{% endif %}></button>
   {% endif %}
   <div class="fighter-portrait">
     <img src="{{ art.portrait if cos else art.classic }}" alt="" loading="lazy" decoding="async"{% if art.own %} class="own-art"{% endif %} onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
@@ -34,7 +35,8 @@
     {% if st.regen %}<b class="hp-regen" style="left: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%; width: {{ (100 * st.regen / maxhp)|round(1) }}%"></b>{% endif %}
   </div>
   <p class="fighter-meta">
-    <span><span class="hp-num">{{ hp|int }}</span> / {{ c.start_hp|int }}</span>
+    {% if unread %}<span title="Heaven's Door: hit it to read its health">📖 ??? / ???</span>
+    {% else %}<span><span class="hp-num">{{ hp|int }}</span> / {{ c.start_hp|int }}</span>{% endif %}
     {% if st.dot and c.is_alive() %}<span class="hp-forecast bad" title="Damage over time at the end of its next turn">−{{ st.dot }}{{ ' · KO' if st.dot >= hp }}</span>{% endif %}
     {% if st.regen and c.is_alive() %}<span class="hp-forecast good" title="Healing at the end of its next turn">+{{ st.regen }}</span>{% endif %}
   </p>
@@ -78,18 +80,32 @@
   {% set star = fight.acting_char or you.chars[0] %}
 {% endif %}
 {#- the anime's eyecatch when a big fight opens (bosses, ranked, co-op, Over Heaven, the rush, the alternate universe) -#}
-{% set big_fight = fight.kind in ('ranked', 'friend', 'coop', 'over_heaven', 'rush', 'alt_universe', 'puzzle', 'carry_me', 'requiem')
+{% set big_fight = fight.kind in ('ranked', 'friend', 'coop', 'over_heaven', 'rush', 'alt_universe', 'puzzle', 'carry_me', 'requiem', 'heaven')
    or (fight.kind == 'story' and story_stages[fight.meta.get('stage', 0)].get('boss') and not fight.meta.get('auto')) %}
 {% set eyecatch_label = {'ranked': 'Ranked duel', 'friend': 'Friendly duel', 'coop': 'Co-op raid', 'over_heaven': 'Over Heaven',
                          'rush': 'Boss rush', 'alt_universe': 'Alternate universe', 'story': 'Boss fight', 'puzzle': 'Daily puzzle',
-                         'carry_me': 'Carry Me', 'requiem': 'Requiem'}.get(fight.kind, '') %}
-<div id="fight" class="fight{% if fight.finished %} finished{% endif %}{% if viewer %} viewer{% endif %}" data-my-side="{{ my_side }}" data-fx="{{ 1 if fight_fx else 0 }}"
+                         'carry_me': 'Carry Me', 'requiem': 'Requiem', 'heaven': "Heaven's Gate"}.get(fight.kind, '') %}
+{#- each mode's own arena (CSS .kind-*); a duel draws each player's profile behind their half -#}
+{% set looks = fight.meta.get('looks') if fight.kind in ('ranked', 'friend') else none %}
+{% set hv_level = ((fight.round - 1) / 6)|round(2) if fight.kind == 'heaven' and fight.rules.get('accel') else none %}
+<div id="fight" class="fight kind-{{ fight.kind }}{% if fight.kind == 'heaven' %} hv-{{ fight.meta.get('fight', '') }}{% endif %}{% if looks %} has-looks{% endif %}{% if fight.finished %} finished{% endif %}{% if viewer %} viewer{% endif %}" data-my-side="{{ my_side }}" data-fx="{{ 1 if fight_fx else 0 }}"
+     {% if looks %}style="--me1: {{ looks[my_side].colors[0] }}; --me2: {{ looks[my_side].colors[2] }}; --them1: {{ looks[1 - my_side].colors[0] }}; --them2: {{ looks[1 - my_side].colors[2] }};"{% elif hv_level is not none %}style="--accel: {{ [hv_level, 1]|min }};"{% endif %}
      {% if big_fight and not viewer %}data-eyecatch="{{ foe.name }}" data-eyecatch-label="{{ eyecatch_label }}"{% endif %}
      {% if viewer == 'replay' %}data-replay="full" data-speed="1"{% endif %}>
   {% if viewer %}<div class="fight-stage">{% else %}
   <form class="fight-stage" hx-post="{{ fight_action }}" hx-target="#fight" hx-swap="outerHTML" hx-disabled-elt="find button">
     <input type="hidden" name="log_len" value="{{ fight.log|length }}">{% endif %}
     <div class="arena terrain-{{ fight.terrain.name|lower }}{% if fight.terrain.name != 'DEFAULT' %} has-terrain{% endif %}" data-terrain="{{ fight.terrain.name }}">
+      <i class="arena-bg" aria-hidden="true"></i>
+      {% if looks %}
+        {#- a duel: each half wears its player's colours, banner and signature stand -#}
+        {% for s, cls in ((1 - my_side, 'them'), (my_side, 'me')) %}{% set lk = looks[s] %}
+          <i class="duel-half {{ cls }}" aria-hidden="true"{% if lk.image %} style="background-image: url('{{ lk.image }}')"{% endif %}>
+            {% if lk.stand %}<img src="{{ lk.stand|stand_img }}" alt="" loading="lazy" onerror="this.remove()">{% endif %}</i>
+        {% endfor %}
+        <i class="duel-clash" aria-hidden="true"></i>
+      {% endif %}
+      {% if fight.kind == 'ranked' %}<i class="ranked-crown" aria-hidden="true">♛</i>{% endif %}
       {% if fight.finished and not viewer and fight.winner is not none and base < fight.log|length %}
         {#- the result slams in once the last turn's replay is over (hidden while #fight.playing) -#}
         <div class="fight-slam {{ 'win' if fight.winner == my_side else 'lose' }}" aria-hidden="true">
@@ -119,13 +135,16 @@
           {% endif %}
         </p>
         {% if turn_left is defined and turn_left is not none and not fight.finished and fight.awaiting_input %}
-          <p class="turn-clock{{ ' mine' if my_turn }}" data-turn-clock="{{ turn_left }}" role="timer" aria-live="off">
-            ⏱️ <b>{{ turn_left }}</b>s {{ 'to pick, or your stand picks for you' if my_turn else 'for ' ~ (ally_name if ally_turn else fight.sides[fight.acting_side].name) ~ ' to pick' }}
+          <p class="turn-clock{{ ' mine' if my_turn }}" data-turn-clock="{{ turn_left }}"{% if auto_pick is defined and auto_pick and my_turn %} data-auto-pick{% endif %} role="timer" aria-live="off">
+            ⏱️ <b>{{ turn_left }}</b>s {{ ("to pick, or this stand's attack is lost" if auto_pick is defined and auto_pick else 'to pick, or your stand picks for you') if my_turn else 'for ' ~ (ally_name if ally_turn else fight.sides[fight.acting_side].name) ~ ' to pick' }}
           </p>
         {% endif %}
         {% if my_turn and fight.special_ready %}
           {% set sp = special_power(fight.acting_char) %}
           <p class="special-preview"><strong>✦ {{ fight.acting_char.name }}'s special fires after this attack{% if sp.power|round(2) != 1 %} (×{{ '%.2f'|format(sp.power) }} {{ STAT_INFO[sp.stat][0] }}){% endif %}:</strong> {{ special_text(fight.acting_char) }}</p>
+        {% endif %}
+        {% if fight.kind == 'heaven' and not fight.finished %}
+          <ul class="hv-banner">{% for b in hv_banner(fight) %}<li class="{{ 'hot' if b.hot }}"><span aria-hidden="true">{{ b.icon }}</span> {{ b.text }}</li>{% endfor %}</ul>
         {% endif %}
         {% if fight.terrain.name != 'DEFAULT' %}<p class="terrain"><strong>{{ fight.terrain.emoji }} {{ fight.terrain.display_name }}</strong> {{ fight.terrain.rule }}</p>{% endif %}
         {% if not fight.finished %}

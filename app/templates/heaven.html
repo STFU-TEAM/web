@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% from "macros.html" import menacing, back_to_fight %}
+{% block title %}Heaven's Gate | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page story heaven-gate">
+  <header class="player-bar hv-hero">
+    <div>
+      <p class="kicker">Endgame · past Requiem</p>
+      <h1 class="display sm">{% call menacing() %}Heaven's Gate{% endcall %}</h1>
+      <p class="muted">{{ H.ACT_TITLE }}. Four impossible powers, four fights at full Requiem strength, Over Heaven's rules on every one, and a gimmick each that changes how you play. A maxed team wins some of the time; a team that plays the gimmick wins more.</p>
+    </div>
+    <div class="story-progress" title="Fights cleared">
+      <strong>{{ cleared }}</strong> / {{ total }} fights
+      <div class="meter"><i style="width: {{ (100 * cleared / total)|round }}%"></i></div>
+    </div>
+  </header>
+  {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% elif not unlocked %}
+    <article class="story-stage boss hv-locked">
+      <div class="story-stage-text">
+        <h2 class="h2">🔒 The gate is sealed</h2>
+        <p class="story-text">Heaven's Gate opens once you clear every fight of <a href="{{ url_for('progress.oh_page', t='requiem') }}">Requiem · Over Heaven</a>.</p>
+      </div>
+    </article>
+  {% else %}
+    <ol class="hv-stairs">
+      {% for f in fights %}
+        <li class="hv-step {{ f.state }}" style="--hv: {{ f.color }}">
+          <div class="hv-head">
+            <span class="hv-icon" aria-hidden="true">{{ f.icon }}</span>
+            <div>
+              <p class="kicker">Fight {{ f.j + 1 }} · {{ f.boss }}{% if f.state == 'cleared' %} · ✓ cleared{% endif %}</p>
+              <h2 class="h2">{{ f.title }}</h2>
+            </div>
+          </div>
+          {% if f.state == 'locked' %}
+            <p class="muted">🔒 Clear the fight before it.</p>
+          {% else %}
+            <p class="story-text">{{ f.story }}</p>
+            <ul class="oh-rules">{% for line in f.rules_text %}<li>{{ line }}</li>{% endfor %}</ul>
+            <p class="notice">🧩 <strong>How to win:</strong> {{ f.tip }}</p>
+            <div class="story-foes hv-foes"><ul>
+              {% for cid in f.ids %}<li><a href="{{ url_for('main.stand', stand_id=cid) }}"><img src="{{ cid|stand_img }}" alt="" loading="lazy"></a></li>{% endfor %}
+            </ul></div>
+            <p class="story-reward">🎁 {{ 'First clear: ' ~ f.reward|join(', ') if f.state == 'open' else 'Replay: 2,000 Meteor Dust · ' ~ H.REPLAY_ENERGY ~ ' energy' }}</p>
+            {% if u.main_characters|length >= 3 %}
+              <form method="post" action="{{ url_for('progress.hv_fight') }}" class="hv-pacts">
+                <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="stage" value="{{ f.j }}">
+                <fieldset>
+                  <legend>Choose a pact: a blessing, and the curse that comes with it</legend>
+                  {% for p in f.pacts %}
+                    <label class="hv-pact"><input type="radio" name="pact" value="{{ p.key }}" required {{ 'checked' if loop.first }}>
+                      <span><strong>{{ p.name }}</strong><small class="boon">＋ {{ p.boon }}</small><small class="bane">－ {{ p.bane }}</small></span></label>
+                  {% endfor %}
+                </fieldset>
+                <button class="btn gold big">{{ 'Climb →' if f.state == 'open' else 'Replay →' }}</button>
+              </form>
+              <p class="muted"><a href="{{ url_for('battles.simulator') }}">🧪 Test your team in the simulator</a> · a loss draws new pacts</p>
+            {% else %}
+              <p class="notice">Bring a full team of three. <a href="{{ url_for('play.team') }}">Open your team</a></p>
+            {% endif %}
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+    {% if cleared >= total %}<p class="notice">🌌 Heaven reached: the title “{{ H.TITLE }}” is yours. Act II is coming.</p>{% endif %}
+  {% endif %}
+</section>
+{% endblock %}

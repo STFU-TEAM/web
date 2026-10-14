@@ -456,6 +456,105 @@ def oh_leave():
 
 
 # --------------------------------------------------------------------------- #
+# Heaven's Gate: the campaign past Requiem · Over Heaven (app/game/heaven.py)
+# --------------------------------------------------------------------------- #
+HV_KIND = "heaven"
+
+
+def _hv_fight(uid):
+    fight = load_fight(uid)
+    return fight if fight and fight.kind == HV_KIND else None
+
+
+def _hv_ctx(fight) -> dict:
+    """The fight screen's extras: Made in Heaven's turn clock (auto-picks at 0)."""
+    from app.game import heaven
+    left = heaven.clock(fight) if fight else None
+    return {"turn_left": left, "auto_pick": left is not None}
+
+
+@bp.get("/heaven")
+@player_required
+def hv_page():
+    from app.game import heaven
+    uid = session["uid"]
+    user = get_db().get_user(uid)
+    fight = _hv_fight(uid)
+    ctx = {}
+    if fight:
+        ctx = _hv_ctx(fight)
+        save_fight(uid, fight)  # the clock's deadline
+    other = load_fight(uid)
+    error = f"Finish your {other.kind.replace('_', ' ')} fight first." if other and other.kind != HV_KIND and not other.finished else None
+    return render_template("heaven.html", u=user, fight=fight, error=error, fights=heaven.view(user),
+                           unlocked=heaven.unlocked(user), cleared=heaven.cleared(user), total=len(heaven.FIGHTS),
+                           H=heaven, fight_action=url_for("progress.hv_attack"), fight_leave_action=url_for("progress.hv_leave"),
+                           fight_label="Heaven's Gate", **ctx)
+
+
+@bp.post("/heaven/fight")
+@player_required
+def hv_fight():
+    from app.game import heaven
+    uid = session["uid"]
+    existing = load_fight(uid)
+    if existing and not existing.finished:
+        return redirect(url_for("progress.hv_page"))
+    j = request.form.get("stage", type=int) or 0
+    try:
+        with user_lock(uid):
+            user = get_db().get_user(uid)
+            offered = heaven.pacts_for(user.id, j, heaven.attempt(user, j))
+            pact = request.form.get("pact")
+            if pact not in offered:
+                flash("Pick one of the three pacts first.", "error")
+                return redirect(url_for("progress.hv_page"))
+            try:
+                heaven.check_can_fight(user, j)
+            except GameError as e:
+                flash(str(e), "error")
+                return redirect(url_for("progress.hv_page"))
+            rules = heaven.merge(heaven.FIGHTS[j]["rules"], pact)
+            fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
+                          Side(heaven.foe_name(j), heaven.enemy_team(j), False),
+                          kind=HV_KIND, meta={"stage": j, "rules": rules, "pact": pact, "fight": heaven.FIGHTS[j]["key"]})
+            fight.advance()
+            save_fight(uid, fight)
+            user.update()  # replays spend energy
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("progress.hv_page"))
+
+
+def _hv_settle(user, fight):
+    from app.game import heaven
+    j = int(fight.meta["stage"])
+    if fight.winner != 0:
+        heaven.lost(user, j)
+        return {"won": False, "fragments": 0, "xp": 0, "stand_xp": 0, "item": None}
+    logic.track_quest_progress(user, "fight_win")
+    logic.check_achievements(user, "fight_win")
+    return heaven.win(user, j)
+
+
+@bp.post("/heaven/attack")
+@player_required
+def hv_attack():
+    from app.game import heaven
+    return play_turn(HV_KIND, url_for("progress.hv_page"), "Heaven's Gate", "progress.hv_attack", "progress.hv_leave",
+                     _hv_settle, pick=heaven.pick, extra=_hv_ctx)
+
+
+@bp.post("/heaven/leave")
+@player_required
+def hv_leave():
+    fight = _hv_fight(session["uid"])
+    if fight and fight.finished:
+        clear_fight(session["uid"])
+    return redirect(url_for("progress.hv_page"))
+
+
+# --------------------------------------------------------------------------- #
 # Part 10 · Carry Me: Joyce Joestar's story (app/game/carryme.py)
 # --------------------------------------------------------------------------- #
 CM_KIND = "carry_me"

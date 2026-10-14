@@ -5068,3 +5068,161 @@ body.guiding .chat-bubble, body.guiding .install-hint, body.guiding .cookie-note
 .maint-banner { position: fixed; left: 50%; top: .5rem; z-index: 90; translate: -50% 0; padding: .35rem .9rem; border: 2px solid var(--ink);
   border-radius: 999px; background: var(--magenta); color: var(--paper); font-size: .8rem; font-weight: 700; text-decoration: none;
   box-shadow: 3px 3px 0 var(--ink); white-space: nowrap; max-width: calc(100vw - 1rem); overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Arenas: every mode has its own ground (partials/fight.html sets .kind-* on #fight; .arena-bg is a backdrop layer
+   behind the fighters). Gradients and patterns only, no images to load. ─────────────────────────────────── */
+.arena-bg { position: absolute; inset: 0; z-index: -2; pointer-events: none; opacity: .9; background: var(--arena-bg, none); }
+.fight .arena { background-color: var(--arena-base, var(--night-2)); }
+/* the story: a sunset road with manga speed lines */
+.kind-story { --arena-base: #2A1530; --arena-bg:
+  radial-gradient(ellipse 90% 50% at 50% 100%, rgb(255 154 60 / .30), transparent 70%),
+  repeating-conic-gradient(from 0deg at 50% 120%, rgb(255 220 160 / .06) 0 2deg, transparent 2deg 9deg),
+  linear-gradient(180deg, #24123A, #4A1E3A); }
+/* the Mirror World: cold shards of glass */
+.kind-wormhole { --arena-base: #141A33; --arena-bg:
+  conic-gradient(from 30deg at 30% 40%, rgb(198 179 240 / .16), transparent 20%, rgb(120 200 255 / .12) 40%, transparent 60%),
+  conic-gradient(from 210deg at 70% 60%, rgb(198 179 240 / .14), transparent 25%, rgb(120 200 255 / .10) 45%, transparent 65%),
+  linear-gradient(135deg, #10162E, #2A2350 50%, #10162E); }
+/* the Tower: stone courses rising into light */
+.kind-tower { --arena-base: #1D1A2B; --arena-bg:
+  linear-gradient(0deg, transparent 60%, rgb(244 197 66 / .14)),
+  repeating-linear-gradient(0deg, rgb(255 255 255 / .05) 0 2px, transparent 2px 38px),
+  repeating-linear-gradient(90deg, rgb(255 255 255 / .03) 0 2px, transparent 2px 76px),
+  linear-gradient(180deg, #2B2540, #15121F); }
+/* the dungeon: torchlit stone in the dark */
+.kind-dungeon { --arena-base: #0F0C14; --arena-bg:
+  radial-gradient(circle at 10% 50%, rgb(255 140 50 / .22), transparent 30%), radial-gradient(circle at 90% 50%, rgb(255 140 50 / .22), transparent 30%),
+  repeating-linear-gradient(0deg, rgb(255 255 255 / .03) 0 1px, transparent 1px 30px), linear-gradient(180deg, #1A1420, #0B0910); }
+.kind-dungeon .arena-bg { animation: torch 2.4s ease-in-out infinite alternate; }
+@keyframes torch { to { opacity: .7; } }
+/* the boss rush: a red arena */
+.kind-rush { --arena-base: #2A0E18; --arena-bg:
+  repeating-conic-gradient(from 0deg at 50% 50%, rgb(214 36 110 / .10) 0 4deg, transparent 4deg 12deg),
+  radial-gradient(circle, transparent 40%, rgb(0 0 0 / .5)), linear-gradient(180deg, #3A0F1F, #1A0810); }
+/* the alternate universe: the world turned negative */
+.kind-alt_universe { --arena-base: #0E1A1A; --arena-bg:
+  repeating-linear-gradient(90deg, rgb(95 242 228 / .06) 0 3px, transparent 3px 7px),
+  radial-gradient(ellipse at 50% 50%, rgb(95 242 228 / .18), transparent 65%), linear-gradient(180deg, #0F2424, #1A0F2A); }
+/* Over Heaven: a white-gold sky */
+.kind-over_heaven { --arena-base: #2A2340; --arena-bg:
+  repeating-conic-gradient(from 0deg at 50% -20%, rgb(255 243 196 / .10) 0 3deg, transparent 3deg 11deg),
+  radial-gradient(ellipse 80% 60% at 50% 0%, rgb(255 243 196 / .28), transparent 70%), linear-gradient(180deg, #4A3F6E, #231A3A); }
+/* Requiem: black, and a crimson halo where the Arrow struck */
+.kind-requiem { --arena-base: #0A0508; --arena-bg:
+  radial-gradient(circle at 50% 50%, rgb(214 36 110 / .26), transparent 45%), repeating-radial-gradient(circle at 50% 50%, rgb(214 36 110 / .06) 0 2px, transparent 2px 26px),
+  linear-gradient(180deg, #14060C, #050205); }
+/* Carry Me: a stage, curtains and a spotlight (Joyce is an actor) */
+.kind-carry_me { --arena-base: #1E0A12; --arena-bg:
+  radial-gradient(ellipse 40% 70% at 50% 0%, rgb(255 240 200 / .22), transparent 70%),
+  repeating-linear-gradient(90deg, rgb(140 20 40 / .55) 0 14px, rgb(90 10 25 / .55) 14px 28px) left / 12% 100% no-repeat,
+  repeating-linear-gradient(90deg, rgb(140 20 40 / .55) 0 14px, rgb(90 10 25 / .55) 14px 28px) right / 12% 100% no-repeat,
+  linear-gradient(180deg, #2A0F18, #120509); }
+/* the training ground and the dummy: dojo boards */
+.kind-training, .kind-dummy { --arena-base: #2B1E14; --arena-bg:
+  repeating-linear-gradient(90deg, rgb(255 220 170 / .06) 0 2px, transparent 2px 64px), linear-gradient(180deg, #3A2818, #1E140C); }
+/* co-op and gang fights: a war banner of blue and magenta */
+.kind-coop, .kind-gang_war, .kind-gang_raid { --arena-base: #121A33; --arena-bg:
+  linear-gradient(115deg, rgb(58 180 242 / .16), transparent 45%, transparent 55%, rgb(214 36 110 / .16)),
+  repeating-linear-gradient(115deg, rgb(255 255 255 / .03) 0 2px, transparent 2px 16px), linear-gradient(180deg, #172244, #0F142A); }
+/* the daily puzzle: graph paper */
+.kind-puzzle { --arena-base: #15122A; --arena-bg:
+  linear-gradient(rgb(255 255 255 / .05) 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, rgb(255 255 255 / .05) 1px, transparent 1px) 0 0 / 24px 24px,
+  linear-gradient(180deg, #1C1838, #120F22); }
+/* events: confetti */
+.kind-event { --arena-base: #24123A; --arena-bg:
+  radial-gradient(circle at 20% 30%, #F4C542 0 2px, transparent 3px) 0 0 / 90px 90px, radial-gradient(circle at 70% 60%, #5FF2E4 0 2px, transparent 3px) 0 0 / 110px 110px,
+  radial-gradient(circle at 40% 80%, #FF4DA0 0 2px, transparent 3px) 0 0 / 70px 70px, linear-gradient(180deg, #2E1748, #1A0E2C); }
+@media (prefers-reduced-motion: reduce) { .arena-bg { animation: none !important; } }
+
+/* ── Heaven's Gate (heaven.html, and each fight's gimmick on the fight screen) ── */
+.heaven-gate .hv-hero { background: linear-gradient(135deg, rgb(95 242 228 / .14), rgb(244 197 66 / .12) 50%, rgb(255 77 160 / .14)); }
+.hv-stairs { list-style: none; margin: 1rem 0; padding: 0; display: grid; gap: 1rem; }
+.hv-step { --hv: var(--gold); padding: 1rem 1.1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--night-3);
+  border-left: 6px solid var(--hv); }
+.hv-step.open { box-shadow: 0 0 0 2px color-mix(in srgb, var(--hv) 60%, transparent), 0 0 30px color-mix(in srgb, var(--hv) 25%, transparent); }
+.hv-step.locked { opacity: .55; }
+.hv-step.cleared { border-left-color: var(--teal); }
+.hv-head { display: flex; gap: .8rem; align-items: center; }
+.hv-head .h2 { margin: 0; }
+.hv-icon { display: grid; place-items: center; width: 54px; height: 54px; flex: none; border-radius: 50%; font-size: 1.7rem;
+  background: color-mix(in srgb, var(--hv) 25%, var(--night)); border: 3px solid var(--hv); }
+.hv-foes ul { display: flex; gap: .5rem; padding: 0; margin: .5rem 0; list-style: none; }
+.hv-foes img { width: 64px; height: 64px; object-fit: cover; border-radius: 12px; border: 2px solid var(--hv); }
+.hv-pacts fieldset { border: 0; padding: 0; margin: .6rem 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .5rem; }
+.hv-pacts legend { font-weight: 700; margin-bottom: .4rem; }
+.hv-pact { display: flex; gap: .5rem; padding: .6rem .7rem; border-radius: var(--radius-ui); background: var(--night); border: 2px solid var(--night-3); cursor: pointer; }
+.hv-pact:has(input:checked) { border-color: var(--gold); background: rgb(244 197 66 / .08); }
+.hv-pact span { display: grid; gap: .15rem; }
+.hv-pact .boon { color: #7EE29A; } .hv-pact .bane { color: #FF8DB9; }
+.hv-banner { list-style: none; margin: .3rem 0; padding: 0; display: grid; gap: .25rem; justify-items: center; }
+.hv-banner li { padding: .2rem .7rem; border-radius: 999px; font-size: .85rem; font-weight: 700; background: rgb(0 0 0 / .35); border: 1px solid rgb(255 255 255 / .15); }
+.hv-banner li.hot { color: var(--ink); background: var(--gold); border-color: var(--ink); animation: hv-hot 1s ease-in-out infinite alternate; }
+@keyframes hv-hot { to { box-shadow: 0 0 16px var(--gold); } }
+/* Heaven's Door: an unread enemy's health is a closed book */
+.fighter.hp-hidden .hp i { width: 100% !important; background: repeating-linear-gradient(45deg, #6E5A8E 0 6px, #4A3A66 6px 12px) !important; }
+.fighter.hp-hidden .hp b { display: none; }
+/* the four fights' grounds */
+.kind-heaven { --arena-base: #120B22; }
+.hv-world { --arena-bg: repeating-conic-gradient(from 0deg at 50% 50%, rgb(244 197 66 / .10) 0 1deg, transparent 1deg 30deg),
+  radial-gradient(circle, rgb(244 197 66 / .20), transparent 55%), linear-gradient(180deg, #2B1F0A, #120B04); }
+.hv-epitaph { --arena-bg: repeating-linear-gradient(0deg, rgb(214 36 110 / .08) 0 2px, transparent 2px 9px),
+  radial-gradient(ellipse at 50% 40%, rgb(214 36 110 / .30), transparent 60%), linear-gradient(180deg, #2A0814, #0E0308); }
+.hv-door { --arena-bg: repeating-linear-gradient(0deg, rgb(255 248 230 / .07) 0 1px, transparent 1px 22px),
+  linear-gradient(90deg, transparent 49.6%, rgb(255 248 230 / .18) 49.6% 50.4%, transparent 50.4%), linear-gradient(180deg, #1E2A40, #0F1626); }
+.hv-heaven { --arena-bg: radial-gradient(circle at 20% 30%, #fff 0 1px, transparent 2px) 0 0 / 60px 60px,
+  radial-gradient(circle at 70% 70%, #9EF 0 1px, transparent 2px) 0 0 / 90px 90px,
+  repeating-conic-gradient(from 0deg at 50% 50%, rgb(95 242 228 / .10) 0 2deg, transparent 2deg 14deg), linear-gradient(180deg, #050818, #120830); }
+/* Made in Heaven: time accelerates: the stars spin faster and the world tilts a little more every round */
+.hv-heaven .arena-bg { inset: -30%; animation: hv-spin calc(40s - 34s * var(--accel, 0)) linear infinite; }
+.hv-heaven .arena { transform: rotate(calc(var(--accel, 0) * -1.5deg)); filter: hue-rotate(calc(var(--accel, 0) * 40deg)); transition: transform 1s, filter 1s; }
+@keyframes hv-spin { to { transform: rotate(360deg); } }
+/* The World: time stops and the world drains to grey; King Crimson: an erased turn tears the screen */
+.fight.timestopped .arena { filter: grayscale(1) contrast(1.15) brightness(.85); transition: filter .25s; }
+.fight.erased .arena { animation: hv-erase .9s steps(6); }
+@keyframes hv-erase { 20% { clip-path: inset(10% 0 55% 0); transform: translateX(-12px); filter: invert(1); }
+  40% { clip-path: inset(50% 0 20% 0); transform: translateX(14px); } 60% { clip-path: inset(30% 0 40% 0); filter: hue-rotate(90deg); } 100% { clip-path: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .hv-heaven .arena { transform: none; } .fight.erased .arena { animation: none; } }
+
+/* ── Duels: each half of the arena wears its player's profile (theme colours, banner, signature stand) ── */
+.duel-half { position: absolute; left: 0; right: 0; height: 50%; z-index: -1; pointer-events: none; overflow: hidden;
+  background-size: cover; background-position: center; }
+.duel-half.them { top: 0; background-color: var(--them1); }
+.duel-half.me { bottom: 0; background-color: var(--me1); }
+.duel-half::before { content: ""; position: absolute; inset: 0; }
+.duel-half.them::before { background: linear-gradient(180deg, color-mix(in srgb, var(--them1) 75%, #0B0514), rgb(11 5 20 / .7) 85%); }
+.duel-half.me::before { background: linear-gradient(0deg, color-mix(in srgb, var(--me1) 75%, #0B0514), rgb(11 5 20 / .7) 85%); }
+.duel-half img { position: absolute; width: 46%; max-width: 260px; opacity: .28; filter: saturate(1.2); mix-blend-mode: screen; }
+.duel-half.them img { right: -4%; top: 4%; transform: rotate(8deg); }
+.duel-half.me img { left: -4%; bottom: 4%; transform: rotate(-8deg); }
+.duel-half.them { animation: duel-in-top .6s ease-out; } .duel-half.me { animation: duel-in-bottom .6s ease-out; }
+@keyframes duel-in-top { from { transform: translateY(-100%); } }
+@keyframes duel-in-bottom { from { transform: translateY(100%); } }
+/* the clash: where the two halves meet, energy runs along the line in both players' colours */
+.duel-clash { position: absolute; left: -10%; right: -10%; top: 50%; height: 4px; z-index: -1; pointer-events: none; translate: 0 -50%;
+  background: linear-gradient(90deg, var(--them2), var(--them1), #fff, var(--me1), var(--me2)); background-size: 200% 100%;
+  box-shadow: 0 0 16px #fff, 0 0 32px var(--them1), 0 0 32px var(--me1); animation: duel-clash 2.2s linear infinite; transform: rotate(-3deg); }
+@keyframes duel-clash { to { background-position: 200% 0; } }
+.has-looks .side.foe .side-name { color: color-mix(in srgb, var(--them1) 45%, #fff); }
+.has-looks .side.you .side-name { color: color-mix(in srgb, var(--me1) 45%, #fff); }
+@media (prefers-reduced-motion: reduce) { .duel-half, .duel-clash { animation: none; } }
+
+/* ── Ranked: everything gold and grandiose ── */
+.kind-ranked .arena { border: 3px solid var(--gold); box-shadow: 0 0 0 3px #6E4A0C, 0 0 40px rgb(244 197 66 / .35), inset 0 0 60px rgb(244 197 66 / .15); }
+.kind-ranked .arena-bg { inset: -50%; z-index: 0; opacity: .5; mix-blend-mode: screen;
+  background: repeating-conic-gradient(from 0deg at 50% 50%, rgb(244 197 66 / .22) 0 3deg, transparent 3deg 12deg); animation: hv-spin 60s linear infinite; }
+.kind-ranked .arena::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(circle at 15% 20%, #FFE9A0 0 1.5px, transparent 2.5px) 0 0 / 70px 70px,
+              radial-gradient(circle at 60% 70%, #F4C542 0 1.5px, transparent 2.5px) 0 0 / 90px 90px;
+  animation: ranked-dust 6s linear infinite; opacity: .8; }
+@keyframes ranked-dust { to { background-position: 0 -70px, 0 -90px; } }
+.kind-ranked .side-name { color: var(--gold) !important; font-size: var(--step-1); text-shadow: 3px 3px 0 #6E4A0C, 0 0 18px rgb(244 197 66 / .6); }
+.kind-ranked .turn-banner { color: #FFF3C4; }
+.kind-ranked .fighter { border-color: #C8931B; box-shadow: 0 0 0 1px rgb(244 197 66 / .35); }
+.kind-ranked .fighter.acting { border-color: var(--gold); box-shadow: 0 0 22px rgb(244 197 66 / .65); }
+.ranked-crown { position: absolute; top: 50%; left: 50%; translate: -50% -50%; z-index: -1; pointer-events: none; font-size: clamp(8rem, 30vw, 16rem);
+  line-height: 1; color: rgb(244 197 66 / .10); text-shadow: 0 0 40px rgb(244 197 66 / .25); animation: crown 4s ease-in-out infinite alternate; font-style: normal; }
+@keyframes crown { to { scale: 1.06; color: rgb(244 197 66 / .16); } }
+.kind-ranked .duel-clash { background: linear-gradient(90deg, #6E4A0C, #F4C542, #FFF3C4, #F4C542, #6E4A0C); background-size: 200% 100%;
+  box-shadow: 0 0 20px #F4C542, 0 0 40px #F4C542; height: 6px; }
+.kind-ranked .fight-slam b { background: linear-gradient(90deg, #FFF3C4, #F4C542, #C8931B); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@media (prefers-reduced-motion: reduce) { .kind-ranked .arena-bg, .kind-ranked .arena::after, .ranked-crown { animation: none; } }

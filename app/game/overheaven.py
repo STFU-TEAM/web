@@ -39,6 +39,15 @@ RULE_TEXT = {
     "reflect": lambda v: f"{v:.0%} of every basic hit on the enemy comes back to the attacker.",
     "purge": lambda v: "The enemy sheds every debuff and damage over time at the end of its turns.",
     "pressure": lambda v: f"Heaven's pressure: your stands lose {v:.0%} of their health at the end of each turn.",
+    # Heaven's Gate (heaven.py): the gimmicks and the pacts
+    "time_stop": lambda v: f"⏱️ Every {v}rd round time stops: the enemy acts twice in a row.",
+    "erase": lambda v: f"👁️ Every {v}th round King Crimson erases your next turn.",
+    "epitaph": lambda v: "📜 Epitaph: you see who each enemy will strike next, and fate holds them to it.",
+    "hidden_hp": lambda v: f"📖 Heaven's Door: an enemy's health stays hidden until you've hit it {v} times.",
+    "accel": lambda v: f"🌌 Time accelerates: your turn clock starts at {v[0]} s and loses {v[1]} s a round (down to {v[2]} s).",
+    "my_damage": lambda v: f"Pact: your stands deal {v:.0%} more damage.",
+    "my_health": lambda v: f"Pact: your stands have {v:.0%} more health.",
+    "my_charge": lambda v: f"Pact: every special starts {v} turn{'s' if v != 1 else ''} closer.",
 }
 
 
@@ -650,6 +659,13 @@ def apply_rules(fight) -> List[str]:
             c._ward = rules["native_ward"]
     for c in me.chars:
         c._heal_cut = 1 - min(1, rules.get("heal_cut", 0))
+        if rules.get("my_damage"):  # Heaven's Gate pacts (heaven.py)
+            c.current_damage *= 1 + rules["my_damage"]
+        if rules.get("my_health"):
+            c.start_hp = int(c.start_hp * (1 + rules["my_health"]))
+            c.current_hp = int(c.current_hp * (1 + rules["my_health"]))
+        if rules.get("my_charge"):
+            c.special_meter = min(c.turn_for_ability - 1, c.special_meter + rules["my_charge"])
     for c in foe.chars:
         c._stun_immune = bool(rules.get("stun_immune"))
     return ["☁️ Over Heaven: " + line for line in rule_lines(rules)]
