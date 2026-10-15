@@ -3876,9 +3876,11 @@ body.cine-open { overflow: hidden; }
 .dm-head h1 { margin: 0; overflow-wrap: anywhere; }
 
 /* the raid chat */
-.raid-chat { margin-top: 1rem; }
-.raid-chat .chat { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
-.raid-chat .chat-form { border-radius: 0 0 var(--radius-ui) var(--radius-ui); }
+.raid-chat, .ranked-chat { margin-top: 1rem; }
+.ranked-chat { display: block; }
+.ranked-chat .chat-list { max-height: 260px; }
+.raid-chat .chat, .ranked-chat .chat { border-radius: var(--radius-ui) var(--radius-ui) 0 0; }
+.raid-chat .chat-form, .ranked-chat .chat-form { border-radius: 0 0 var(--radius-ui) var(--radius-ui); }
 
 /* open co-op lobbies */
 .open-lobbies { margin: 0 0 1rem; padding: .9rem 1rem; border-radius: var(--radius-card); background: var(--night-2); border: 2px solid var(--sky); }
@@ -5240,3 +5242,150 @@ body.guiding .chat-bubble, body.guiding .install-hint, body.guiding .cookie-note
   box-shadow: 0 0 20px #F4C542, 0 0 40px #F4C542; height: 6px; }
 .kind-ranked .fight-slam b { background: linear-gradient(90deg, #FFF3C4, #F4C542, #C8931B); -webkit-background-clip: text; background-clip: text; color: transparent; }
 @media (prefers-reduced-motion: reduce) { .kind-ranked .arena-bg, .kind-ranked .arena::after, .ranked-crown { animation: none; } }
+
+/* ===================================================================================
+   THE REFRESH (2026-10): screentone pages, a watermark per part, page wipes, the team on stage, the story road,
+   the star-up moment, stand level-ups and the sound menu.
+   =================================================================================== */
+/* Screentone pages: halftone dots fade in from the top-right corner (and a little from the bottom-left), in the
+   part's light colour; faint speed lines fan out from the same corner. Fixed layers behind everything. */
+body { background: var(--night); }
+body[data-part] { background: radial-gradient(ellipse 90% 45% at 50% -8%, color-mix(in srgb, var(--part) 34%, transparent), transparent 70%), var(--night); }
+body[data-part-from="progress"] { background: radial-gradient(ellipse 90% 40% at 50% -10%, color-mix(in srgb, var(--part) 22%, transparent), transparent 70%), var(--night); }
+body::before, body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; }
+body::before {
+  background: radial-gradient(circle, color-mix(in srgb, var(--part-2, var(--violet)) 24%, transparent) 1.3px, transparent 1.9px) 0 0 / 11px 11px;
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 100% 0%, #000, transparent 75%), radial-gradient(ellipse 50% 45% at 0% 100%, rgb(0 0 0 / .65), transparent 75%);
+  mask-image: radial-gradient(ellipse 75% 65% at 100% 0%, #000, transparent 75%), radial-gradient(ellipse 50% 45% at 0% 100%, rgb(0 0 0 / .65), transparent 75%);
+}
+body::after {
+  background: repeating-conic-gradient(from 180deg at 100% 0%, rgb(255 255 255 / .05) 0deg 1deg, transparent 1deg 5deg);
+  -webkit-mask-image: radial-gradient(circle at 100% 0%, transparent 12%, #000 32%, transparent 70%);
+  mask-image: radial-gradient(circle at 100% 0%, transparent 12%, #000 32%, transparent 70%);
+}
+/* the part's symbol (parts.SYMBOLS), huge and faint behind the page */
+.part-mark { position: fixed; right: -6vw; top: 10vh; z-index: -1; width: min(50vw, 560px); aspect-ratio: 1; pointer-events: none;
+  color: var(--part-2); opacity: .065; transform: rotate(-12deg); }
+.part-mark svg { display: block; width: 100%; height: 100%; }
+body.film .part-mark, body.cine-open .part-mark { display: none; }
+
+/* Page transitions: the new page wipes in on a slant (cross-document View Transitions; browsers without them just
+   load the page), then its title stamps on for a beat (app.js, pagereveal). */
+@view-transition { navigation: auto; }
+::view-transition-old(root) { animation: vt-dim .42s ease both; }
+::view-transition-new(root) { animation: vt-wipe .42s cubic-bezier(.7, 0, .25, 1) both; }
+@keyframes vt-wipe { from { clip-path: polygon(0 0, 0 0, -28% 100%, -28% 100%); } to { clip-path: polygon(0 0, 128% 0, 100% 100%, -28% 100%); } }
+@keyframes vt-dim { to { filter: brightness(.55) saturate(.6); } }
+.vt-stamp { position: fixed; left: 50%; top: 42%; z-index: 96; translate: -50% -50%; pointer-events: none; max-width: 92vw; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; font: 400 clamp(1.8rem, 7vw, 4.2rem)/1 var(--display); color: var(--part-2, var(--gold));
+  -webkit-text-stroke: 8px var(--ink); paint-order: stroke fill; text-shadow: 6px 6px 0 var(--ink); animation: vt-stamp .75s cubic-bezier(.2, 1.4, .3, 1) both; }
+@keyframes vt-stamp { 0% { opacity: 0; transform: scale(2) rotate(-6deg); } 25% { opacity: 1; transform: scale(1) rotate(-4deg); } 70% { opacity: 1; } 100% { opacity: 0; transform: scale(1) rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+  .vt-stamp { display: none; }
+}
+
+/* Home: your team on stage */
+.team-stage { width: var(--page); margin: 1.5rem auto .5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 2.5rem; }
+.ts-copy { flex: 1 1 300px; max-width: 30rem; }
+.ts-copy .lede { margin: .6rem 0 0; }
+.ts-title { text-shadow: 4px 4px 0 var(--part, var(--violet)); }
+.ts-figures { list-style: none; display: flex; flex-wrap: wrap; gap: .5rem; margin: .9rem 0 0; padding: 0; }
+.ts-figures li { padding: .3rem .75rem; border-radius: 8px; font-weight: 700; font-size: .9rem;
+  border: 2px solid color-mix(in srgb, var(--part-2, var(--gold)) 65%, transparent); }
+.ts-figures .ts-power { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.ts-copy .cta { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.2rem; }
+.ts-stage { position: relative; isolation: isolate; flex: 2 1 460px; display: flex; justify-content: center; align-items: flex-end;
+  gap: clamp(.4rem, 1.4vw, 1rem); min-height: 400px; padding: 1rem 0 2.2rem; }
+.ts-stage .speedlines { inset: -8% 0; animation: none; opacity: .55; --sl: color-mix(in srgb, var(--part-2, var(--gold)) 22%, transparent); }
+.ts-aura { position: absolute; left: 8%; right: 8%; bottom: .6rem; z-index: -1; height: 64px; border-radius: 50%; filter: blur(7px);
+  background: radial-gradient(ellipse, color-mix(in srgb, var(--part-2, var(--gold)) 55%, transparent), transparent 70%); animation: ts-aura 3s ease-in-out infinite; }
+.ts-slot { width: clamp(118px, 16vw, 200px); animation: ts-bob 4.2s ease-in-out infinite; animation-delay: calc(var(--i) * -1.4s); }
+.ts-slot:nth-of-type(1) { rotate: -7deg; }
+.ts-slot:nth-of-type(2) { z-index: 2; scale: 1.12; margin: 0 .6rem 1.4rem; }
+.ts-slot:nth-of-type(3) { rotate: 7deg; }
+.ts-slot:hover, .ts-slot:focus-within { animation-play-state: paused; z-index: 3; }
+@keyframes ts-bob { 50% { translate: 0 -12px; } }
+@keyframes ts-aura { 50% { opacity: .65; transform: scaleX(1.08); } }
+@media (max-width: 640px) { .ts-stage { min-height: 0; padding-bottom: 1.6rem; } .ts-slot { width: 29vw; } .ts-slot:nth-of-type(2) { margin: 0 .2rem 1rem; } }
+@media (prefers-reduced-motion: reduce) { .ts-slot, .ts-aura { animation: none; } }
+
+/* The story map as a road: each part's stretch in its colour, the cleared part filled in, rows zigzag part to part */
+.story-map.road { gap: 1.2rem; }
+.story-map.road .story-part { position: relative; }
+.story-map.road .story-nodes { position: relative; display: flex; justify-content: space-between; align-items: flex-start; gap: .25rem; margin-top: 1.4rem; }
+.story-map.road .story-nodes > .node { position: relative; z-index: 1; flex: 1 1 0; min-width: 0; }
+.story-map.road .story-nodes::before, .story-map.road .story-nodes::after { content: ""; position: absolute; top: 13px; height: 8px; border-radius: 99px; }
+.story-map.road .story-nodes::before { left: calc(50% / var(--n, 5)); right: calc(50% / var(--n, 5)); background: rgb(255 255 255 / .1);
+  background-image: repeating-linear-gradient(90deg, rgb(255 255 255 / .18) 0 6px, transparent 6px 14px); }
+.story-map.road .story-nodes::after { left: calc(50% / var(--n, 5)); width: calc((100% - 100% / var(--n, 5)) * var(--done, 0));
+  background: var(--part); box-shadow: 0 0 12px color-mix(in srgb, var(--part) 70%, transparent); }
+.story-map.road .story-part:nth-child(even) .story-nodes { flex-direction: row-reverse; }
+.story-map.road .story-part:nth-child(even) .story-nodes::after { left: auto; right: calc(50% / var(--n, 5)); }
+.story-map.road .node.boss .node-dot { margin-top: -3px; box-shadow: 0 0 0 3px var(--ink), 0 0 16px color-mix(in srgb, var(--part) 70%, transparent); }
+.story-map.road .node.cleared .node-dot { box-shadow: 0 0 0 3px var(--ink); }
+/* the road turns from one part to the next: a short dashed bend on the side the last row ended */
+.story-map.road .story-part + .story-part::before { content: ""; position: absolute; top: -1.2rem; width: 8px; height: 1.2rem; border-radius: 4px;
+  background: repeating-linear-gradient(180deg, rgb(255 255 255 / .22) 0 5px, transparent 5px 9px); }
+.story-map.road .story-part:nth-child(even)::before { right: 2.4rem; }
+.story-map.road .story-part:nth-child(odd)::before { left: 2.4rem; }
+/* your lead stand stands on the next stage */
+.node-you { position: absolute; top: -32px; left: 50%; z-index: 2; width: 30px; height: 30px; margin-left: -15px; border-radius: 8px; object-fit: cover;
+  border: 2px solid var(--gold); background: #fff; box-shadow: 0 4px 10px rgb(0 0 0 / .5); animation: ts-bob 2.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .node-you { animation: none; } }
+
+/* The star-up moment (app.js starUp): the card flashes, a star slams on with a ドン, the stats count up */
+.starup { position: fixed; inset: 0; z-index: 95; display: grid; place-content: center; justify-items: center; gap: .8rem; padding: 16px;
+  overflow: hidden; isolation: isolate; background: rgb(18 8 30 / .82); cursor: pointer; animation: su-in .2s ease both; }
+.starup.leaving { animation: su-out .3s ease both; }
+.su-rays { position: absolute; left: 50%; top: 42%; width: 160vmax; height: 160vmax; translate: -50% -50%; z-index: -1; border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgb(244 197 66 / .3) 0 4deg, transparent 4deg 14deg); animation: su-rays 2.8s linear .25s both; }
+.su-card { position: relative; width: min(46vw, 210px); aspect-ratio: 3 / 4; border-radius: 16px; overflow: hidden; border: 5px solid var(--gold);
+  background: #fff; box-shadow: 0 0 0 3px var(--ink), 0 20px 50px rgb(0 0 0 / .6); animation: su-card .7s ease both; }
+.su-card img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 15%; display: block; }
+.su-card::after { content: ""; position: absolute; inset: 0; background: #fff; animation: su-flash .55s ease-out both; }
+.su-star { position: absolute; left: 50%; top: 40%; width: min(34vw, 150px); translate: -50% -50%; color: var(--gold); filter: drop-shadow(0 0 18px var(--gold));
+  animation: su-star .55s cubic-bezier(.2, 1.6, .4, 1) .35s both; }
+.su-star svg { display: block; width: 100%; stroke: var(--ink); stroke-width: 4; }
+.su-don { position: absolute; left: calc(50% + min(18vw, 90px)); top: calc(42% - min(30vw, 150px)); margin: 0; font: 400 clamp(2.4rem, 9vw, 4rem)/1 var(--display);
+  color: #fff; -webkit-text-stroke: 7px var(--ink); paint-order: stroke fill; text-shadow: 4px 4px 0 var(--magenta); rotate: -8deg; animation: su-don .5s ease-out .4s both; }
+.su-title { margin: 0; font: 400 clamp(1.5rem, 6vw, 2.3rem)/1.1 var(--display); color: var(--gold); text-align: center; -webkit-text-stroke: 6px var(--ink);
+  paint-order: stroke fill; animation: su-rise .4s ease-out .75s both; }
+.su-stats { display: grid; gap: .35rem; min-width: min(80vw, 290px); margin: 0; animation: su-rise .4s ease-out .9s both; }
+.su-stats div { display: flex; justify-content: space-between; gap: 1rem; padding: .35rem .8rem; border-radius: 8px; background: rgb(255 255 255 / .08); font-weight: 700; }
+.su-stats dd { margin: 0; color: #8BE3A0; font-variant-numeric: tabular-nums; }
+.su-hint { margin: 0; font-size: .8rem; color: var(--muted); animation: su-rise .4s ease-out 1.2s both; }
+@keyframes su-in { from { opacity: 0; } }
+@keyframes su-out { to { opacity: 0; } }
+@keyframes su-rays { from { opacity: 0; transform: rotate(0); } 15% { opacity: 1; } to { opacity: .6; transform: rotate(50deg); } }
+@keyframes su-card { 0% { transform: scale(.9); } 30% { transform: scale(1.06) rotate(-2deg); } 55% { transform: scale(.98) rotate(1deg); } 100% { transform: none; } }
+@keyframes su-flash { 0%, 30% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes su-star { from { opacity: 0; transform: scale(3) rotate(-30deg); } to { opacity: 1; transform: none; } }
+@keyframes su-don { from { opacity: 0; transform: scale(.4); } 60% { opacity: 1; transform: scale(1.15); } to { opacity: 1; transform: none; } }
+@keyframes su-rise { from { opacity: 0; transform: translateY(10px); } }
+.starup.shake { animation: su-in .2s ease both, arena-shake .35s ease .4s; }
+@media (prefers-reduced-motion: reduce) { .starup, .starup * { animation: none !important; } .su-card::after { opacity: 0; } }
+
+/* A stand's level-up: a smaller pop than the player's, a ring and the new level */
+.toast-pop.standup span:first-child { display: inline-flex; align-items: center; gap: .6rem; }
+.lv-ring { position: relative; flex: none; display: inline-grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%;
+  font: 400 1rem/1 var(--display); color: var(--ink); background: var(--sky, #3AB4F2); animation: lvl-pop .6s cubic-bezier(.2, 1.8, .4, 1) both; }
+.lv-ring::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 3px solid var(--sky, #3AB4F2); animation: lv-ring 1.4s ease-out .2s both; }
+@keyframes lv-ring { from { transform: scale(.7); opacity: 1; } to { transform: scale(1.7); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lv-ring, .lv-ring::after { animation: none; } }
+
+/* The sound menu (app.js sfx): off by default, saved on the device */
+.sound-drop > summary { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; color: var(--muted);
+  border: 2px solid rgb(255 255 255 / .14); }
+.sound-drop > summary:hover { color: var(--paper); }
+html.sound-on .sound-drop > summary { color: var(--gold); border-color: rgb(244 197 66 / .55); }
+.sound-icon svg { display: block; }
+html:not(.sound-on) .sound-icon .sound-wave, html.sound-on .sound-icon .sound-x { display: none; }
+.sound-menu { min-width: 17rem; padding: .8rem; display: grid; gap: .6rem; }
+.sound-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-height: 40px; font-weight: 700; }
+.sound-row.col { display: grid; gap: .3rem; }
+.sound-row input[type="checkbox"], .sound-cats input { width: 20px; height: 20px; accent-color: var(--gold); }
+.sound-row input[type="range"] { width: 100%; accent-color: var(--gold); }
+.sound-cats { display: grid; gap: .35rem; margin: 0; padding: .5rem .7rem .6rem; border: 1px solid rgb(255 255 255 / .14); border-radius: 10px; }
+.sound-cats legend { padding: 0 .3rem; font-weight: 700; font-size: .85rem; color: var(--gold); }
+.sound-cats label { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }

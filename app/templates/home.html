@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% from "macros.html" import template_card, menacing %}
 {% block main %}
+{% if registered and u and u.main_characters %}
+{% with welcome_line = ("Welcome, Stand user! Your first week starts right below: open today's gift, then follow your path." if welcome and welcome.claimed == 0 else "Welcome back, Stand user. Your team is waiting.") %}{% include "partials/team_stage.html" %}{% endwith %}
+{% else %}
 <section class="hero">
   <div class="hero-copy">
     <h1 class="display">{% call menacing() %}Your stand awakens here.{% endcall %}</h1>
@@ -29,6 +32,7 @@
     {% endfor %}
   </div>
 </section>
+{% endif %}
 {% if registered and (path or welcome) %}<div class="page">{% include "partials/onboarding.html" %}</div>{% endif %}
 {% if not me.id %}
 <section class="page landing-proof" aria-label="At a glance">

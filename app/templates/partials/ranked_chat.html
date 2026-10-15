@@ -1,0 +1,11 @@
+{#- The battle page's chat (battles._ranked_chat): a ranked match's two players from the draft to the end screen,
+    or the ranked lobby on the Ranked tab. -#}
+<section class="battle-panel ranked-chat" aria-labelledby="ranked-chat-h">
+  <h2 class="h3" id="ranked-chat-h">💬 {{ ranked_chat.title }}</h2>
+  {% with ch=ranked_chat.ch, msgs=ranked_chat.msgs, names=ranked_chat.names, titles=ranked_chat.titles, seq=ranked_chat.seq,
+          chat_error=none, chat_admin=ranked_chat.chat_admin,
+          placeholder=('Good luck, have fun…' if ranked_chat.ch.kind == 'match' else 'Looking for a match…') %}
+    {% include "partials/chat_box.html" %}
+    {% include "partials/chat_form.html" %}
+  {% endwith %}
+</section>

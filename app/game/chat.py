@@ -1,15 +1,19 @@
-"""Chat channels: the global chat, private messages between two players, and a co-op raid's chat (lobby and fight).
+"""Chat channels: the global chat, private messages between two players, a co-op raid's chat (lobby and fight), the
+ranked lobby and a ranked match's chat (its two players, from the draft to the end screen).
 Gang chat keeps its own module (gangs.py); this one follows the same shape.
 
 A channel is addressed by a token the routes put in URLs, resolved against the player who asks:
     "global"          every player with a save
     "dm-<other uid>"  the two of them (stored under both ids, sorted)
     "raid-<id>"       the players of one co-op raid (the id lives in the lobby, then in the fight's meta)
+    "ranked"          the ranked lobby: anyone who has ranked open (the Ranked tab)
+    "match-<id>"      the two players of one ranked match (the draft's id, kept in the duel's meta)
 
 Redis:
     web:chat:<channel>          list of JSON {id, uid, text, at}, newest last, capped
     web:chat:seq:<channel>      last message id (the page polls with it: nothing new, nothing sent)
     web:chat:slow:<uid>         set for COOLDOWN seconds after a message
+    web:match:chat:<id>         set of the match's two uids (MATCH_TTL)
     web:chat:muted              hash uid -> JSON {until, by, reason}: an admin mute (no message anywhere but private ones
                                 to admins until then)
     web:dm:with:<uid>           zset other uid -> time of the last message (the conversation list)
@@ -26,8 +30,9 @@ from app.game.logic import GameError
 
 MAX_LEN = 400
 COOLDOWN = 2
-KEEP = {"global": 200, "dm": 300, "raid": 120}
+KEEP = {"global": 200, "dm": 300, "raid": 120, "ranked": 150, "match": 60}
 RAID_TTL = 2 * 86400
+MATCH_TTL = 6 * 3600  # a match's chat outlives the duel a little: the end screen's GG
 MUTE_KEY = "web:chat:muted"
 
 
@@ -58,12 +63,32 @@ def resolve(token: str, me: str, raid_members=None) -> Channel:
         if not get_db().user_exists(other) and not r().exists(f"web:chat:{dm_key(me, other)}"):
             raise GameError("That player doesn't exist.")
         return Channel("dm", dm_key(me, other), token, [me, other], other)
+    if token == "ranked":
+        return Channel("ranked", "ranked", token)
+    if token.startswith("match-"):
+        members = match_members(token[6:])
+        if me not in members:
+            raise GameError("You're not in this match.")
+        return Channel("match", f"match:{token[6:]}", token, members, next((m for m in members if m != me), None))
     if token.startswith("raid-"):
         members = raid_members(token[5:]) if raid_members else None
         if not members or me not in members:
             raise GameError("You're not in this raid.")
         return Channel("raid", f"raid:{token[5:]}", token, members)
     raise GameError("That chat doesn't exist.")
+
+
+def match_open(match_id: str, players) -> None:
+    """A ranked match's chat, for its two players only."""
+    key = f"web:match:chat:{match_id}"
+    pipe = r().pipeline()
+    pipe.sadd(key, *[str(p) for p in players])
+    pipe.expire(key, MATCH_TTL)
+    pipe.execute()
+
+
+def match_members(match_id: str) -> List[str]:
+    return sorted(m.decode() if isinstance(m, bytes) else str(m) for m in r().smembers(f"web:match:chat:{match_id}"))
 
 
 def seq(ch: Channel) -> int:
@@ -130,6 +155,8 @@ def post(ch: Channel, uid: str, text: str) -> dict:
         why = can_message(uid, ch.other)
         if why:
             raise GameError(why)
+    if ch.kind == "match" and ch.other and (blocked(ch.other, uid) or blocked(uid, ch.other)):
+        raise GameError("One of you blocked the other: this match's chat is closed.")
     if not r().set(f"web:chat:slow:{uid}", "1", nx=True, ex=COOLDOWN):
         raise GameError("Slow down a little.")
     from app.game import automod
@@ -140,9 +167,10 @@ def post(ch: Channel, uid: str, text: str) -> dict:
     pipe = r().pipeline()
     pipe.rpush(ch.store, json.dumps(msg))
     pipe.ltrim(ch.store, -KEEP[ch.kind], -1)
-    if ch.kind == "raid":
-        pipe.expire(ch.store, RAID_TTL)
-        pipe.expire(f"web:chat:seq:{ch.key}", RAID_TTL)
+    if ch.kind in ("raid", "match"):
+        ttl = RAID_TTL if ch.kind == "raid" else MATCH_TTL
+        pipe.expire(ch.store, ttl)
+        pipe.expire(f"web:chat:seq:{ch.key}", ttl)
     if ch.kind == "dm":
         pipe.zadd(f"web:dm:with:{uid}", {ch.other: msg["at"]})
         pipe.zadd(f"web:dm:with:{ch.other}", {uid: msg["at"]})

@@ -2,7 +2,7 @@
 per-user lock, reload fresh data from Redis, apply the rule, save."""
 import json
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, make_response, redirect, render_template, request, session, url_for
 
 from app.auth import player_required
 from app.db import Busy, clear_fight, get_db, load_fight, r, save_fight, user_lock
@@ -244,8 +244,20 @@ def arrow():
 def awaken():
     """One star for spare copies (copies 1, 1, 2, 2, 3 for ★1 to ★5); with arrow=1 a Requiem Arrow replaces one."""
     uuid, arrow = request.form.get("uuid"), request.form.get("arrow") == "1"
-    user, res, err = action(lambda u: logic.awaken(u, uuid, arrow))
-    return _collection(user, f"★ {res.name} reached ★{res.awaken}." if res else None, err)
+
+    def go(u):
+        before, _, _ = logic.locate(u, uuid)
+        was = (before.start_hp, before.start_damage, before.awaken)
+        return logic.awaken(u, uuid, arrow), was
+    user, res, err = action(go)
+    char, was = res if res else (None, None)
+    resp = make_response(_collection(user, f"★ {char.name} reached ★{char.awaken}." if char else None, err))
+    if char:  # the star-up moment (app.js): the card, the new star, what it changed
+        import json
+        resp.headers["HX-Trigger-After-Settle"] = json.dumps({"starUp": {
+            "name": char.name, "star": char.awaken, "img": current_app.jinja_env.filters["stand_img"](char.id),
+            "hp": [was[0], char.start_hp], "dmg": [was[1], char.start_damage]}})
+    return resp
 
 
 @bp.post("/team/fuse")

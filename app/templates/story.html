@@ -104,7 +104,7 @@
     </form>
   {% endif %}
   <h2 class="h3 story-map-title">The journey</h2>
-  <ol class="story-map">
+  <ol class="story-map road">
     {% for p in journey %}
       <li class="story-part{% if p.cleared == p.stages|length %} complete{% endif %}" style="--part: {{ p.color }}">
         {% set label, name = p.title.split(' · ', 1) %}
@@ -115,10 +115,12 @@
           {% if p.jp %}<span class="part-jp" lang="ja">{{ p.jp }}</span>{% endif %}
           <span class="part-count">{{ p.cleared }} / {{ p.stages|length }} stages</span>
         </header>
-        <ol class="story-nodes">
+        {%- set last = [p.stages|length - 1, 1]|max -%}
+        <ol class="story-nodes" style="--done: {{ ([p.cleared, last]|min / last)|round(3) }}; --n: {{ p.stages|length }}">
           {% for s in p.stages %}
             <li class="node {{ s.state }}{% if s.boss %} boss{% endif %}" title="{{ s.title }} · enemy level {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}">
               <span class="node-dot" aria-hidden="true">{{ '✓' if s.state == 'cleared' else ('♛' if s.boss else s.index + 1) }}</span>
+              {% if s.state == 'current' and u and u.main_characters %}<img class="node-you" src="{{ u.main_characters[0].id|stand_img }}" alt="" loading="lazy" title="Your team is here">{% endif %}
               <span class="node-label">{{ s.title }}</span>
               <small class="node-level">Lv {{ s.level }}{% if s.awaken %} ★{{ s.awaken }}{% endif %}</small>
               {% if s.state == 'cleared' and not fight %}

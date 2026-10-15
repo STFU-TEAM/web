@@ -143,7 +143,8 @@ def register(app):
     app.jinja_env.globals.update(event_rule=events.describe, gear_set=gear.set_info, refine_cost=gear.refine_cost, REFINE_MAX=gear.REFINE_MAX,
                                  event_spotlight=events.spotlight, event_ends=events.ends_epoch)
     from app.game import parts
-    app.jinja_env.globals.update(part_style=parts.style, stand_part=parts.of_stand)  # part palettes (body data-part)
+    app.jinja_env.globals.update(part_style=parts.style, stand_part=parts.of_stand,
+                                 part_mark=lambda p: Markup(parts.mark(p)), part_name=parts.name)  # part palettes (body data-part)
     from app.routes.fightturn import resume as resume_fight
     app.jinja_env.globals.update(resume_fight=resume_fight)  # the "Back to your fight" buttons
     from app.game import characterabilities as abilities

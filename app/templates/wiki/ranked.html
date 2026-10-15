@@ -11,6 +11,9 @@
 <p>Ranked opens once you finish Part 3 · Stardust Crusaders in the <a href="{{ url_for('progress.story_page') }}">story</a>. Then queue from <a href="{{ url_for('battles.index', mode='ranked') }}">PvP → Ranked</a> to be matched against a player close to your ELO. First pick your <strong>ranked roster</strong>: 5 different stands from your whole collection. Once someone is found, a <strong>pick-and-ban</strong> opens: you each ban 2 of the other's stands (20 seconds; run out and their 2 strongest are banned for you), then put your 3 survivors in fighting order (20 seconds; run out and your roster order is used). Then the duel starts. Bring depth, not just your three best. A win adds {{ facts.season_win }} ELO and a loss takes {{ facts.season_loss }} (never below zero). If both teams fall together it's a draw and nobody's ELO moves.</p>
 <p>Every pick has a turn clock. When it runs out, your stand picks a target on its own; run out twice in a row and you lose the duel.</p>
 
+<h3 class="h3">Rival bots and chat</h3>
+<p>Nobody around? After {{ facts.bot_wait }} seconds in the queue you can fight a <strong>rival bot</strong> instead. It's always labelled as a bot, mirrors your roster's rarities, levels and stars, and plays the same pick-and-ban. A bot match pays a quarter of the ELO (+{{ facts.bot_win }} for a win, −{{ facts.bot_loss }} for a loss, up to +{{ facts.bot_cap }} a day from bots) and doesn't count toward the season's games or ladder. Quests still count it. While you wait, the <strong>ranked lobby</strong> chat on the Ranked tab is open to everyone; once matched, a <strong>match chat</strong> opens for you and your opponent, from the draft to the end screen.</p>
+
 <h2 class="wiki-h2">Rank tiers</h2>
 <ol class="rank-ladder">
   {% for r in ranks %}<li><strong>{{ r.name }}</strong><span>{{ r.elo }}+</span></li>{% endfor %}

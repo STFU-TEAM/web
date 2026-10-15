@@ -12,6 +12,7 @@ from app.game import character as character_mod
 from app.game import logic
 from app.game import tower as tower_mod
 from app.game import weekly as _weekly
+from app.game import ranked_bot as _ranked_bot
 from app.game import onboarding as _onboarding
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
 from app.game.characterabilities import AFFINITY, CROSS_GROUPS, PART_GROUPS, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
@@ -447,6 +448,8 @@ def _oct_facts():
         "star_share": round(100 / character_mod.STAR_DIVISOR),
         "star5_mult": f"{1 + 5 / character_mod.STAR_DIVISOR:.2f}",
         "copy_awaken": logic.COPY_AWAKEN,
+        "bot_wait": _ranked_bot.BOT_WAIT, "bot_win": _ranked_bot.WIN, "bot_loss": _ranked_bot.LOSS,
+        "bot_cap": _ranked_bot.DAILY_GAIN_CAP,
         "disc_value": logic.DISC_VALUE, "disc_price": logic.DISC_PRICE, "spark_cost": logic.SPARK_COST,
         "path_chapters": [{"name": c[1], "about": c[2], "steps": [(s[1], s[2]) for s in c[3]],
                            "final": ", ".join(_onboarding.reward_lines(c[4]))} for c in _onboarding.CHAPTERS],

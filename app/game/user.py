@@ -120,6 +120,7 @@ class User:
     def update(self) -> None:
         """Update the user info in the database"""
         self._note_level_up()
+        self._note_stand_levels()
         self.database.update_user(self.to_dict())
         try:  # the Quests tab lights up when a reward is waiting (one small key, read by the nav)
             from app.db import r
@@ -147,6 +148,35 @@ class User:
             notify(str(self.id), "levelup", text, "/", push=False)
         except Exception:
             pass  # outside the website (scripts, the bot's process): just keep the level
+
+    def _note_stand_levels(self) -> None:
+        """A team stand that gained levels since the last save pops a small level-up on the website (a toast only,
+        not the inbox). Like the player's level, the first save that sees a stand only records it."""
+        from app.game.character import MAX_LEVEL, STXPTOLEVEL
+        level = {c.uuid: min(MAX_LEVEL, c.xp // STXPTOLEVEL) for c in self.main_characters}  # c.level is set at load
+        seen = self.data.get("web_stand_lv")
+        now = level
+        self.data["web_stand_lv"] = now
+        if seen is None:
+            return
+        ups = [c for c in self.main_characters if c.uuid in seen and level[c.uuid] > seen[c.uuid]]
+        if not ups:
+            return
+        try:
+            import json
+            from app.db import r
+            key = f"web:toast:{self.id}"
+            pipe = r().pipeline()
+            for c in ups:
+                text = f"{c.name} reached level {level[c.uuid]}."
+                if any(seen[c.uuid] < gate <= level[c.uuid] for gate in (20, 50, 80, 100)) and c.awaken < 5:
+                    text += " A new star is in reach."
+                pipe.rpush(key, json.dumps({"text": text, "url": "/team", "kind": "standup"}))
+            pipe.ltrim(key, -8, -1)
+            pipe.expire(key, 7 * 86400)
+            pipe.execute()
+        except Exception:
+            pass  # outside the website (scripts, the bot's process): just keep the levels
 
     def is_donator(self):
         status = self.early_supporter

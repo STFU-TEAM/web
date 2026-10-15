@@ -1,3 +1,168 @@
+// Sound (off by default; the speaker menu in the top bar). Every effect is synthesised with Web Audio: no files to
+// load or license. Preferences live in this device's localStorage ("sfx"). Anything can call window.SFX.play(name).
+window.SFX = (() => {
+  const KEY = "sfx";
+  const DEF = { on: false, vol: 60, cats: { rewards: true, fights: true, clicks: false } };
+  let prefs = { ...DEF, cats: { ...DEF.cats } };
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+    prefs = { ...prefs, ...saved, cats: { ...DEF.cats, ...(saved.cats || {}) } };
+  } catch (_) { /* private mode: defaults */ }
+  const apply = () => document.documentElement.classList.toggle("sound-on", !!prefs.on);
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (_) { /* not saved */ } apply(); };
+  let ctx = null, master = null;
+  const level = () => (prefs.vol / 100) * 0.5;
+  const audio = () => {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    master.gain.value = level();
+    return ctx;
+  };
+  const tone = (freq, at, dur, type = "sine", gain = 0.3, slideTo = null) => {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, at);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, at + dur);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(master);
+    o.start(at); o.stop(at + dur + 0.02);
+  };
+  const noise = (at, dur, gain = 0.3, freq = 1200, q = 1) => {
+    const len = Math.ceil(ctx.sampleRate * dur), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    s.buffer = buf; f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q; g.gain.value = gain;
+    s.connect(f); f.connect(g); g.connect(master);
+    s.start(at);
+  };
+  // name: [category, play(at)]
+  const SOUNDS = {
+    click: ["clicks", (t) => tone(1400, t, 0.04, "square", 0.05)],
+    chime: ["rewards", (t) => { tone(988, t, 0.18, "triangle", 0.25); tone(1319, t + 0.09, 0.3, "triangle", 0.25); }],
+    level: ["rewards", (t) => [523, 659, 784, 1047].forEach((f, i) => tone(f, t + i * 0.07, 0.22, "triangle", 0.22))],
+    star: ["rewards", (t) => {  // ドン, then a sparkle
+      tone(110, t, 0.35, "sine", 0.7, 45); noise(t, 0.25, 0.5, 300, 0.7);
+      [784, 988, 1319].forEach((f, i) => tone(f, t + 0.35 + i * 0.08, 0.35, "triangle", 0.2));
+    }],
+    fanfare: ["rewards", (t) => {
+      [523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, t + i * 0.09, 0.45, "sawtooth", 0.09));
+      noise(t + 0.45, 0.6, 0.12, 6000, 0.5);
+    }],
+    hit: ["fights", (t) => { noise(t, 0.09, 0.35, 900, 0.8); tone(160, t, 0.08, "sine", 0.25, 70); }],
+    crit: ["fights", (t) => { noise(t, 0.16, 0.55, 1400, 0.6); tone(220, t, 0.2, "square", 0.18, 60); }],
+    ko: ["fights", (t) => tone(440, t, 0.5, "sawtooth", 0.12, 70)],
+    special: ["fights", (t) => { noise(t, 0.5, 0.25, 500, 2); tone(300, t, 0.5, "sine", 0.12, 900); }],
+  };
+  const play = (name) => {
+    const s = SOUNDS[name];
+    if (!s || !prefs.on || !prefs.cats[s[0]]) return;
+    const c = audio();
+    if (!c) return;
+    try { s[1](c.currentTime + 0.01); } catch (_) { /* never let a sound break the page */ }
+  };
+  const wire = () => {
+    document.querySelectorAll("[data-sound-menu]").forEach((m) => {
+      const on = m.querySelector('[data-sound="on"]'), vol = m.querySelector('[data-sound="vol"]');
+      on.checked = !!prefs.on;
+      vol.value = prefs.vol;
+      m.querySelectorAll("[data-sound-cat]").forEach((c) => { c.checked = !!prefs.cats[c.dataset.soundCat]; });
+      m.addEventListener("change", (e) => {
+        const t = e.target;
+        if (t === on) prefs.on = on.checked;
+        else if (t === vol) prefs.vol = +vol.value;
+        else if (t.dataset.soundCat) prefs.cats[t.dataset.soundCat] = t.checked;
+        save();
+        const cat = t.dataset.soundCat;
+        play(cat === "fights" ? "hit" : cat === "clicks" ? "click" : "chime");  // a sample of what was switched on
+      });
+      vol.addEventListener("input", () => { prefs.vol = +vol.value; if (master) master.gain.value = level(); });
+    });
+  };
+  apply();
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
+  document.addEventListener("click", (e) => { if (e.target.closest?.(".btn, .nav > a, .side-link, .dock a")) play("click"); }, true);
+  document.addEventListener("htmx:afterRequest", (e) => {  // a claim that went through
+    const path = e.detail?.pathInfo?.requestPath || "";
+    if (e.detail?.successful && /claim/.test(path)) play("chime");
+  });
+  return { play };
+})();
+
+// The star-up moment: the awaken route sends HX-Trigger-After-Settle {"starUp": {name, star, img, hp, dmg}}.
+document.addEventListener("starUp", (e) => {
+  const d = e.detail?.value || e.detail || {};
+  if (!d.name) return;
+  const el = document.createElement("div");
+  el.className = "starup shake";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", `${d.name} reached ${d.star} stars`);
+  el.innerHTML = '<div class="su-rays" aria-hidden="true"></div><div class="su-card"><img alt=""></div>'
+    + '<div class="su-star" aria-hidden="true"><svg viewBox="0 0 100 100"><path d="M50 4 L61 38 L97 38 L68 59 L79 94 L50 72 L21 94 L32 59 L3 38 L39 38 Z" fill="currentColor"/></svg></div>'
+    + '<p class="su-don" aria-hidden="true">ドン</p><p class="su-title"></p><dl class="su-stats"></dl><p class="su-hint">Tap to continue</p>';
+  if (d.img) el.querySelector("img").src = d.img; else el.querySelector(".su-card").remove();
+  el.querySelector(".su-title").textContent = `${d.name} · ${"★".repeat(Math.max(0, d.star || 0))}`;
+  const stats = el.querySelector(".su-stats");
+  const rows = [["Health", d.hp], ["Damage", d.dmg]].filter(([, v]) => Array.isArray(v) && v[1] !== v[0]);
+  const fmt = (n) => Math.round(n).toLocaleString();
+  rows.forEach(([label, [a, b]]) => {
+    const row = document.createElement("div");
+    row.innerHTML = "<dt></dt><dd></dd>";
+    row.querySelector("dt").textContent = label;
+    const dd = row.querySelector("dd");
+    dd.textContent = `${fmt(a)} → ${fmt(a)}`;
+    stats.append(row);
+    const start = performance.now() + 900, dur = 700;
+    const step = (now) => {
+      const k = Math.min(1, Math.max(0, (now - start) / dur));
+      dd.textContent = `${fmt(a)} → ${fmt(a + (b - a) * k)}`;
+      if (k < 1 && el.isConnected) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+  if (!rows.length) stats.remove();
+  let closed = false;
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    el.classList.add("leaving");
+    setTimeout(() => el.remove(), 300);
+    document.removeEventListener("keydown", onKey);
+  };
+  const onKey = (k) => { if (k.key === "Escape" || k.key === " " || k.key === "Enter") { k.preventDefault(); close(); } };
+  el.addEventListener("click", close);
+  document.addEventListener("keydown", onKey);
+  document.body.append(el);
+  window.SFX?.play("star");
+  setTimeout(close, 4200);
+});
+
+// Page transitions: after the slanted wipe (CSS @view-transition), the new page's title stamps on for a beat.
+window.addEventListener("pagereveal", (e) => {
+  if (!e.viewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (window.navigation?.activation?.navigationType === "reload") return;
+  const h = document.querySelector("#main h1, main h1");
+  const text = (h?.textContent || "").replace(/\s+/g, " ").trim();
+  let last = "";
+  try { last = sessionStorage.getItem("vt-last") || ""; sessionStorage.setItem("vt-last", text); } catch (_) { /* no storage */ }
+  if (!text || text.length > 26 || text === last) return;  // the same page again (a form posted back to it): no stamp
+  e.viewTransition.finished.then(() => {
+    const s = document.createElement("div");
+    s.className = "vt-stamp";
+    s.setAttribute("aria-hidden", "true");
+    s.textContent = text;
+    document.body.append(s);
+    setTimeout(() => s.remove(), 800);
+  }).catch(() => {});
+});
+
 // Only one dropdown open at a time: header menus and "Manage" menus.
 document.addEventListener("toggle", (e) => {
   for (const kind of ["details.nav-drop", "details.menu"]) {
@@ -444,6 +609,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
 
   function reveal(src, r) {
     state.pending = null;
+    window.SFX?.play(r === "UR" || r === "LR" ? "fanfare" : r === "SSR" ? "chime" : "click");
     const el = state.el;
     el.classList.replace(`r-${look(r)}`, `r-${r}`);  // its true colours, only now
     el.classList.remove("ready");
@@ -906,7 +1072,15 @@ document.addEventListener("htmx:load", (e) => {
     return true;
   };
   const slamify = (el) => {
+    if (el.classList.contains("standup")) {  // a team stand levelled up: a ring with the new level, no slam card
+      const span = el.querySelector("span");
+      const lv = (span?.textContent.match(/level (\d+)/i) || [])[1];
+      if (span && lv) { const ring = document.createElement("b"); ring.className = "lv-ring"; ring.textContent = lv; span.prepend(ring); }
+      window.SFX?.play("level");
+      return;
+    }
     if (el.classList.contains("levelup")) {
+      window.SFX?.play("level");
       levelUp(el);
       let host = document.getElementById("slams");
       if (!host) { host = document.createElement("div"); host.id = "slams"; host.className = "slams"; host.setAttribute("aria-live", "polite"); document.body.append(host); }
@@ -915,6 +1089,7 @@ document.addEventListener("htmx:load", (e) => {
     }
     const kind = Object.keys(SLAM).find((k) => el.classList.contains(k));
     if (!kind) return;
+    window.SFX?.play("chime");
     const [jp, en, strip] = SLAM[kind];
     const name = (el.querySelector("span")?.textContent || "").replace(strip, "").replace(/!$/, "").trim();
     const card = document.createElement("span");
@@ -1217,7 +1392,7 @@ function playFight(root) {
       if (src && e.kind !== "stun") restart(src, e.kind === "special" || e.kind === "item" ? "cast" : "lunge");
       showSpot(src, text, e.kind === "special");
       if (e.kind === "special") {
-        lastSpecial = [src, text]; restart(arena, "flash-special");
+        lastSpecial = [src, text]; restart(arena, "flash-special"); window.SFX?.play("special");
         if (src && fx()) { standReveal(src); shout(src); }
       }
       await wait(e.kind === "special" ? 450 * pace() : 200 * pace());
@@ -1231,6 +1406,7 @@ function playFight(root) {
       if (e.fx === "erase") restart(root, "erased");
       if (e.kind === "sudden") restart(arena, "shake");
       if (e.kind === "crit") restart(arena, "shake");  // no flash: it was too much on every crit
+      if (e.kind === "hit" || e.kind === "crit") window.SFX?.play(e.kind);
       // Any HP change since the previous event gets a number; covers specials, items and poison ticks too.
       if (e.hp) {
         fighters.forEach((f) => {
@@ -1239,7 +1415,7 @@ function playFight(root) {
           const crit = e.kind === "crit" && f === dst;
           if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); heavy(f, before - after); }
           else pop(f, `+${Math.round(after - before)}`, "miss");
-          if (after <= 0 && before > 0) setTimeout(() => restart(f, "ko"), 300 * pace());
+          if (after <= 0 && before > 0) setTimeout(() => { restart(f, "ko"); window.SFX?.play("ko"); }, 300 * pace());
         });
         setHp(e.hp);
         prev = e.hp;
@@ -2304,3 +2480,9 @@ document.addEventListener("pull:revealed", () => {
     });
   });
 })();
+
+// The ranked queue: the rival bot offer shows once the player has waited long enough (battles.ranked_bot_start).
+document.querySelectorAll("[data-bot-in]").forEach((f) => {
+  const wait = +f.dataset.botIn || 0;
+  if (wait > 0) setTimeout(() => { f.hidden = false; }, wait * 1000);
+});

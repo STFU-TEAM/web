@@ -11,6 +11,7 @@
     {% set fight_leave_action = url_for('battles.leave') %}
     {% set fight_label = "Battle" %}
     {% include "partials/fight.html" %}
+    {% if ranked_chat %}{% include "partials/ranked_chat.html" %}{% endif %}
   {% else %}
     <header class="player-bar">
       <div><p class="kicker">Combat arena</p><h1 class="display sm">{% call menacing() %}Battles{% endcall %}</h1></div>
@@ -21,6 +22,7 @@
     {% if mode == 'ranked' and dv %}
       {#- a 20 s pick-and-ban: first thing on the page, nothing else in the way -#}
       {% include "partials/ranked_draft.html" %}
+      {% if ranked_chat %}{% include "partials/ranked_chat.html" %}{% endif %}
     {% elif story_stage %}
       <a class="story-cta" href="{{ url_for('progress.story_page') }}">
         <span class="story-cta-icon" aria-hidden="true">📜</span>
@@ -112,11 +114,19 @@
         </details>
       {% endif %}
       {% if not dv %}
+      {% if ranked_chat %}{% include "partials/ranked_chat.html" %}{% endif %}
       <section class="battle-panel">
         <div><p class="kicker">Live matchmaking</p><h2 class="h2">Ranked duel</h2>
           <p>Bring a roster of {{ roster_size }} different stands. Once matched, each player bans 2 of the other's ({{ ban_seconds }} s), then orders the 3 left into a team. Victory grants 25 Elo; a defeat costs 20, with a zero floor.</p></div>
         {% if waiting %}
           <p class="notice searching"><span class="spinner" aria-hidden="true"></span> Searching the ranked queue… The draft opens by itself as soon as an opponent is found.</p>
+          {% if bot_in is not none %}
+            <form method="post" action="{{ url_for('battles.ranked_bot_start') }}" class="bot-offer" data-bot-in="{{ bot_in }}" {% if bot_in > 0 %}hidden{% endif %}>
+              <input type="hidden" name="csrf" value="{{ csrf_token }}">
+              <p><strong>Nobody's around right now.</strong> Fight a rival bot while you wait? It mirrors your roster's rarities and levels and plays the same draft. A bot match pays a quarter of the Elo (+{{ BOT.WIN }} for a win, −{{ BOT.LOSS }} for a loss, up to +{{ BOT.DAILY_GAIN_CAP }} a day) and doesn't count toward season games.</p>
+              <button class="btn ghost">🤖 Fight a rival bot</button>
+            </form>
+          {% endif %}
           <form method="post" action="{{ url_for('battles.ranked_cancel') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn danger">Leave queue</button></form>
         {% elif not roster_ready %}<p class="notice">Pick your {{ roster_size }} ranked stands below first.</p>
         {% else %}<form method="post" action="{{ url_for('battles.ranked_queue') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Join ranked queue</button></form>{% endif %}

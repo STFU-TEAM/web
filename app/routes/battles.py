@@ -10,7 +10,7 @@ from app.accounts import resolve_player
 from app.auth import player_required
 from app import social
 from app.db import LIVE_FIGHTS, Busy, clear_fight, get_db, identity, load_fight, r, save_fight, user_lock, users_lock
-from app.game import bounty, chips, draft as draft_mod, events, history, logic, pickers, progression, seasons, simulate, story
+from app.game import bounty, chips, draft as draft_mod, events, history, logic, pickers, progression, ranked_bot, seasons, simulate, story
 from app.game.logic import GameError
 from app.game.character import character_from_dict
 from app.game import profile as P
@@ -21,6 +21,7 @@ bp = Blueprint("battles", __name__, url_prefix="/battles")
 RANKED_QUEUE = "web:ranked:queue"
 RANKED_ELO = "web:ranked:elo"
 RANKED_ELO_RANGE = 300
+QUEUE_SINCE = "web:ranked:since:{}"  # when a player joined the queue (a rival bot is offered after ranked_bot.BOT_WAIT)
 CHALLENGE_INBOX = "web:friend:inbox:{}"
 CHALLENGE_KEY = "web:friend:challenge:{}"
 CHALLENGE_WAIT = "web:friend:waiting:{}"   # set while a player waits for a friend to accept (auto refresh)
@@ -103,7 +104,7 @@ def _fight_view(fight, uid, fresh_from=None):
                            fight_label={"dummy": "Practice", "ranked": "Ranked", "friend": "Friendly duel"}.get(fight.kind, "Battle"))
 
 
-def _create_duel(uid_a, uid_b, kind, teams=None):
+def _create_duel(uid_a, uid_b, kind, teams=None, chat=None):
     """teams: {uid: [stands, in fighting order]} (the ranked draft's); otherwise each player's team."""
     db = get_db()
     if load_fight(uid_a) or load_fight(uid_b):
@@ -121,7 +122,8 @@ def _create_duel(uid_a, uid_b, kind, teams=None):
     fight = Fight(Side(identity(uid_a)["name"], copier(team_a), True),
                   Side(identity(uid_b)["name"], copier(team_b), True),
                   kind=kind, meta={"players": [uid_a, uid_b], "elo_applied": False, "started": time.time(),
-                                   "looks": [P.duel_look(user_a), P.duel_look(user_b)]})  # each half of the arena
+                                   "looks": [P.duel_look(user_a), P.duel_look(user_b)],  # each half of the arena
+                                   **({"chat": chat} if chat else {})})
     fight.advance()
     arm_timer(fight)
     save_fight(uid_a, fight)
@@ -164,7 +166,10 @@ def index():
     elif mode == "history":
         rows = history.recent(r(), uid)
         extra = {"recent": rows, "record": history.summary(rows)}
-    return render_template("battles.html", u=user, mode=mode, **extra,
+    since = r().get(QUEUE_SINCE.format(uid)) if mode == "ranked" else None
+    bot_in = max(0, int(int(since) + ranked_bot.BOT_WAIT - time.time())) if since else None
+    return render_template("battles.html", u=user, mode=mode, **extra, ranked_chat=_ranked_chat(uid, mode, extra.get("dv")),
+                           bot_in=bot_in, BOT=ranked_bot,
                            fight=_active_fight(uid), pending=pending, waiting=r().zscore(RANKED_QUEUE, uid) is not None,
                            challenge_to=(lambda t: identity(t.decode() if isinstance(t, bytes) else t)["name"] if t else None)(
                                r().get(CHALLENGE_WAIT.format(uid))),
@@ -172,6 +177,23 @@ def index():
                            stands=PLAYABLE, story_stage=story.current(user), story_cleared=story.cleared(user),
                            story_total=story.TOTAL, ranked_at=progression.GATES["ranked"],
                            ranked_need=progression.requirement("ranked"))
+
+
+def _ranked_chat(uid, mode, dv):
+    """The chat box for the battle page: the match's (draft or ranked duel, for its two players), else the ranked
+    lobby on the Ranked tab once ranked is open."""
+    from app.game import chat as C
+    from app.routes.chat import box_ctx
+    fight = _active_fight(uid)
+    match = (fight.meta.get("chat") if fight and fight.kind == "ranked" else None) or (draft_mod.of(r(), uid) or {}).get("id")
+    try:
+        if match and uid in C.match_members(match):
+            return {"title": "Match chat", **box_ctx(C.resolve(f"match-{match}", uid))}
+        if mode == "ranked" and not fight and (progression.opened(story.cleared(get_db().get_user(uid))).get("ranked") or progression.is_forced(uid, "ranked")):
+            return {"title": "Ranked lobby", **box_ctx(C.resolve("ranked", uid))}
+    except GameError:
+        return None
+    return None
 
 
 @bp.post("/dummy/start")
@@ -256,8 +278,36 @@ def ranked_queue():
         return redirect(url_for("battles.index", mode="ranked"))
     if load_fight(uid) or draft_mod.of(r(), uid):
         return redirect(url_for("battles.index", mode="ranked"))
+    r().set(QUEUE_SINCE.format(uid), int(time.time()), nx=True, ex=3600)
     _try_match(uid, user.global_elo)
     return redirect(url_for("battles.index", mode="ranked", waiting=1))
+
+
+@bp.post("/ranked/bot")
+@player_required
+def ranked_bot_start():
+    """Nobody around after BOT_WAIT seconds in the queue: a rival bot instead (a quarter of the Elo)."""
+    uid = session["uid"]
+    since = r().get(QUEUE_SINCE.format(uid))
+    queued = r().zscore(RANKED_QUEUE, uid) is not None
+    if not queued or not since or time.time() - int(since) < ranked_bot.BOT_WAIT:
+        flash(f"A rival bot is offered after {ranked_bot.BOT_WAIT} s in the queue with nobody to match.", "error")
+        return redirect(url_for("battles.index", mode="ranked"))
+    try:
+        with user_lock(uid):
+            if load_fight(uid) or draft_mod.of(r(), uid):  # a real opponent got there first
+                return redirect(url_for("battles.index", mode="ranked"))
+            user = get_db().get_user(uid)
+            if not user or not draft_mod.roster_ready(user):
+                flash(f"Pick your {draft_mod.ROSTER_SIZE} ranked stands first.", "error")
+                return redirect(url_for("battles.index", mode="ranked"))
+            r().zrem(RANKED_QUEUE, uid)
+            r().hdel(RANKED_ELO, uid)
+            r().delete(QUEUE_SINCE.format(uid))
+            _create_bot_draft(user)
+    except Busy:
+        flash("Your last action is still running.", "error")
+    return redirect(url_for("battles.index", mode="ranked"))
 
 
 # --------------------------------------------------------------------------- #
@@ -286,9 +336,57 @@ def ranked_roster():
 def _strongest(uid, uuids):
     """A player's stands, strongest first (the bans a player runs out of time for)."""
     from app.filters import power_score
-    user = get_db().get_user(uid)
-    chars = [(u, user.find_character_by_uuid(u)[0]) for u in uuids] if user else []
+    if ranked_bot.is_bot(uid):
+        draft = draft_mod.of(r(), uid)
+        own = ranked_bot.stands(draft["bot"]) if draft and draft.get("bot") else {}
+        chars = [(u, own.get(u)) for u in uuids]
+    else:
+        user = get_db().get_user(uid)
+        chars = [(u, user.find_character_by_uuid(u)[0]) for u in uuids] if user else []
     return [u for u, c in sorted(chars, key=lambda uc: -(power_score(uc[1]) if uc[1] else 0))]
+
+
+def _draft_stands(draft, uid) -> dict:
+    """uuid -> Character for one side of a draft: a player's from their save, a bot's from the draft."""
+    if ranked_bot.is_bot(uid):
+        return ranked_bot.stands(draft["bot"])
+    user = get_db().get_user(uid)
+    return {u: user.find_character_by_uuid(u)[0] for u in draft["rosters"][uid]} if user else {}
+
+
+def _create_bot_draft(user):
+    """A ranked draft against a rival bot that mirrors user's roster. The bot bans at once."""
+    roster = draft_mod.roster(user)
+    bot = ranked_bot.build(roster)
+    draft = draft_mod.create(r(), [user.id, "bot:pending"], {user.id: [c.uuid for c in roster], "bot:pending": list(bot["stands"])})
+    bot_id = f"bot:{draft['id']}"
+    for key in ("rosters", "bans", "order"):
+        draft[key][bot_id] = draft[key].pop("bot:pending")
+    r().delete(draft_mod._of("bot:pending"))
+    draft["players"] = [user.id, bot_id]
+    draft["bot"] = {"id": bot_id, **bot}
+    r().set(draft_mod._of(bot_id), draft["id"], ex=draft_mod.DRAFT_TTL)
+    _bot_act(draft)
+    draft_mod.save(r(), draft)
+    return draft
+
+
+def _bot_act(draft) -> bool:
+    """The bot's move in its draft, the moment it can: ban two of the player's three strongest, then field its
+    strongest stands first. Returns True if it did something."""
+    bot = (draft.get("bot") or {}).get("id")
+    if not bot:
+        return False
+    import random
+    me = draft_mod.opponent(draft, bot)
+    if draft["phase"] == "ban" and draft["bans"][bot] is None:
+        top = _strongest(me, draft["rosters"][me])[:draft_mod.BANS + 1]
+        draft["bans"][bot] = random.sample(top, min(draft_mod.BANS, len(top)))
+        return True
+    if draft["phase"] == "compose" and draft["order"][bot] is None:
+        draft["order"][bot] = _strongest(bot, draft_mod.remaining(draft, bot))
+        return True
+    return False
 
 
 def _create_draft(uid_a, uid_b):
@@ -300,6 +398,8 @@ def _create_draft(uid_a, uid_b):
         return None
     rosters = {u: [c.uuid for c in draft_mod.roster(user)] for u, user in users.items()}
     draft = draft_mod.create(r(), [uid_a, uid_b], rosters)
+    from app.game import chat as C
+    C.match_open(draft["id"], [uid_a, uid_b])  # the match's chat: from the draft to the end screen
     for u in (uid_a, uid_b):
         social.notify(u, "fight", f"Ranked match found against {identity(draft_mod.opponent(draft, u))['name']}: "
                                   f"ban {draft_mod.BANS} of their stands!", url_for("battles.index", mode="ranked"))
@@ -307,19 +407,43 @@ def _create_draft(uid_a, uid_b):
 
 
 def _draft_tick(draft, force=False):
-    """Apply deadlines and, once both teams are set, start the duel. Call under both players' locks."""
-    if not draft_mod.step(draft, _strongest, force=force):
+    """Apply deadlines and, once both teams are set, start the duel. Call under both players' locks.
+    A bot moves as soon as its phase comes (_bot_act)."""
+    acted = _bot_act(draft)
+    moved = draft_mod.step(draft, _strongest, force=force)
+    if moved and _bot_act(draft):
+        draft_mod.step(draft, _strongest, force=force)
+    if not (moved or acted):
         return None
     if draft["phase"] != "ready":
         draft_mod.save(r(), draft)
         return None
-    db = get_db()
     teams = {}
     for uid in draft["players"]:
-        user = db.get_user(uid)
-        teams[uid] = [c for c in (user.find_character_by_uuid(u)[0] for u in draft["order"][uid]) if c is not None]
+        own = _draft_stands(draft, uid)
+        teams[uid] = [c for c in (own.get(u) for u in draft["order"][uid]) if c is not None]
     draft_mod.finish(r(), draft)
-    return _create_duel(*draft["players"], "ranked", teams=teams)
+    if draft.get("bot"):
+        return _create_bot_duel(draft, teams)
+    return _create_duel(*draft["players"], "ranked", teams=teams, chat=draft["id"])
+
+
+def _create_bot_duel(draft, teams):
+    """A ranked duel against a rival bot: the bot is a computer side, the meta lists only the player."""
+    uid, bot = draft["players"][0], draft["bot"]
+    user = get_db().get_user(uid)
+    if not user or load_fight(uid):
+        return None
+    bot_team = teams[bot["id"]]
+    fight = Fight(Side(identity(uid)["name"], chips.strip(teams[uid]), True), Side(bot["name"], bot_team, False),
+                  kind="ranked", meta={"players": [uid], "bot": {"name": bot["name"]}, "elo_applied": False,
+                                       "started": time.time(),
+                                       "looks": [P.duel_look(user), {"colors": P.theme_of(None)["colors"], "image": "",
+                                                                     "stand": bot_team[0].id if bot_team else None}]})
+    fight.advance()
+    arm_timer(fight)
+    save_fight(uid, fight)
+    return fight
 
 
 def _draft_action(fn):
@@ -389,15 +513,12 @@ def draft_view(uid):
     draft = draft_mod.of(r(), uid)
     if not draft:
         return None
-    db = get_db()
     foe = draft_mod.opponent(draft, uid)
-    stands = {}
-    for p in draft["players"]:
-        user = db.get_user(p)
-        stands[p] = {u: user.find_character_by_uuid(u)[0] for u in draft["rosters"][p]}
+    stands = {p: _draft_stands(draft, p) for p in draft["players"]}
     state = f"{draft['phase']}:{sum(bool(v) for v in draft['bans'].values())}:{sum(bool(v) for v in draft['order'].values())}"
     return {"draft": draft, "phase": draft["phase"], "left": draft_mod.seconds_left(draft), "state": state,
-            "foe_name": identity(foe)["name"], "me": uid, "foe": foe,
+            "foe_name": draft["bot"]["name"] if draft.get("bot") else identity(foe)["name"], "me": uid, "foe": foe,
+            "bot": bool(draft.get("bot")),
             "mine": [stands[uid][u] for u in draft["rosters"][uid]], "theirs": [stands[foe][u] for u in draft["rosters"][foe]],
             "banned_mine": set(draft_mod.banned_from(draft, uid)), "banned_theirs": set(draft_mod.banned_from(draft, foe)),
             "my_bans_done": draft["bans"][uid] is not None, "foe_bans_done": draft["bans"][foe] is not None,
@@ -460,6 +581,7 @@ def _try_match(uid, elo):
                 if fight:
                     r().zrem(RANKED_QUEUE, uid, opponent)
                     r().hdel(RANKED_ELO, uid, opponent)
+                    r().delete(QUEUE_SINCE.format(uid), QUEUE_SINCE.format(opponent))
                 else:
                     r().zrem(RANKED_QUEUE, uid, opponent)
                     r().hdel(RANKED_ELO, opponent)
@@ -513,6 +635,7 @@ def ping():
 def ranked_cancel():
     r().zrem(RANKED_QUEUE, session["uid"])
     r().hdel(RANKED_ELO, session["uid"])
+    r().delete(QUEUE_SINCE.format(session["uid"]))
     return redirect(url_for("battles.index", mode="ranked"))
 
 
@@ -530,6 +653,15 @@ def _settle(fight):
             elif not getattr(fight, "forfeited", False):
                 logic.check_achievements(user, "dummy_loss")
             fun_achievements(user, fight)
+            user.update()
+        return
+    if fight.meta.get("bot"):
+        user = get_db().get_user(players[0]) if players else None
+        if user:
+            logic.track_quest_progress(user, "fight_ranked")
+            fight.meta["elo_delta"] = ranked_bot.settle(user, fight.winner == 0, fight.winner == 1)
+            if fight.winner == 0:
+                logic.track_quest_progress(user, "fight_win")
             user.update()
         return
     if len(players) != 2:

@@ -1,0 +1,27 @@
+{#- Home, for a player with a team: the three stands on stage, floating over the part's colours (replaces the visitor hero). -#}
+{% from "macros.html" import owned_card %}
+{% set team = u.main_characters %}
+<section class="team-stage" aria-labelledby="ts-h">
+  <div class="ts-copy">
+    <p class="kicker">{% if progress_part %}Part {{ progress_part }} · {{ part_name(progress_part) }}{% else %}Your stand awakens here{% endif %}</p>
+    <h1 class="display ts-title" id="ts-h">Your team</h1>
+    <p class="lede">{{ welcome_line }}</p>
+    <ul class="ts-figures" aria-label="Team at a glance">
+      <li class="ts-power">Power {{ team|map('power')|sum|num }}</li>
+      <li>Lv {{ (team|sum(attribute='level') / team|length)|round|int }}</li>
+      <li>★{{ team|map(attribute='awaken')|min }}</li>
+    </ul>
+    <p class="cta">
+      <a class="btn gold" href="{{ url_for('progress.story_page') }}">Continue the story →</a>
+      <a class="btn ghost" href="{{ url_for('play.mirror') }}">Mirror World</a>
+      <a class="btn ghost" href="{{ url_for('play.team') }}">Open my team</a>
+    </p>
+  </div>
+  <div class="ts-stage" style="--n: {{ team|length }}">
+    <span class="ts-aura" aria-hidden="true"></span>
+    <span class="speedlines" aria-hidden="true"></span>
+    {% for c in team %}
+      <div class="ts-slot" style="--i: {{ loop.index0 }}">{{ owned_card(c, href=url_for('play.team')) }}</div>
+    {% endfor %}
+  </div>
+</section>
