@@ -97,9 +97,28 @@
   {% endif %}
 
   <h2 class="h3 story-map-title">The acts</h2>
+  {#- the theatre: the act on stage now under the marquee, every act a ticket (torn once it's played through) -#}
+  {% set showing = (acts|selectattr('open')|rejectattr('complete')|first) or (acts|last) %}
+  <section class="cm-theater" aria-label="The playbill">
+    <div class="cm-stage" style="--part: {{ showing.color }}">
+      <span class="cm-curtain left" aria-hidden="true"></span><span class="cm-curtain right" aria-hidden="true"></span>
+      <p class="cm-marquee" aria-hidden="true">{% for _ in range(18) %}<i></i>{% endfor %}</p>
+      <div class="cm-showing">
+        <p class="kicker">{{ 'Now showing' if not showing.complete else 'Curtain call' }}</p>
+        <p class="cm-act-title">{{ showing.title }}</p>
+        <p class="muted">{{ '☁ Over Heaven rules · any form' if showing.encore else 'Carry Me remembers ' ~ showing.jojo }} · {{ showing.cleared }}/{{ showing.stages|length }} scenes</p>
+      </div>
+    </div>
+    <ol class="cm-tickets">
+      {% for a in acts %}
+        <li><a class="cm-ticket{{ ' torn' if a.complete }}{{ ' shut' if not a.open }}{{ ' now' if a is sameas showing }}" href="#act-{{ a.index }}" style="--part: {{ a.color }}">
+          <b>{{ a.title.split(' ')[1] }}</b><span>{{ a.title.split('· ')[1] }}</span><small>{{ '🔒' if not a.open else (a.cleared ~ '/' ~ a.stages|length) }}</small></a></li>
+      {% endfor %}
+    </ol>
+  </section>
   <ol class="story-map">
     {% for a in acts %}
-      <li class="story-part{% if a.complete %} complete{% endif %}{% if not a.open %} au-locked{% endif %}{% if a.encore %} cm-encore{% endif %}" style="--part: {{ a.color }}">
+      <li class="story-part{% if a.complete %} complete{% endif %}{% if not a.open %} au-locked{% endif %}{% if a.encore %} cm-encore{% endif %}" id="act-{{ a.index }}" style="--part: {{ a.color }}">
         <header class="part-card">
           <span class="part-num" aria-hidden="true">{{ a.title.split(' ')[1] }}</span>
           <span class="part-label">{{ '☁ Over Heaven rules · any form' if a.encore else 'Carry Me remembers ' ~ a.jojo }}</span>

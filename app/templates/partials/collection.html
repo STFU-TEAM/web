@@ -137,6 +137,7 @@
   <div class="grid collection-grid" id="storage-grid">
     {% for c in u.storage_characters|reverse %}{{ slot(c, loop.index0) }}{% endfor %}
   </div>
+  <button type="button" class="btn ghost storage-more" data-storage-more hidden>Show all</button>
   <p class="muted collection-empty" hidden>No stands match.</p>
   {% else %}
     <p class="notice">Storage is empty. Pulls and rewards land here.</p>

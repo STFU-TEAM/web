@@ -25,7 +25,7 @@
     {% include "partials/fight.html" %}
   {% endif %}
 
-  {% if message and not (fight and not fight.finished) %}<p class="toast ok" role="status">{{ message }}</p>{% endif %}
+  {% if message and not (fight and not fight.finished) %}<p hidden data-float class="toast ok" role="status">{{ message }}</p>{% endif %}
 
   {% if other_fight %}
     <p class="notice">Your {{ other_fight }} fight is still on. Finish it first. {{ back_to_fight() }}</p>

@@ -104,9 +104,10 @@
     </form>
   {% endif %}
   <h2 class="h3 story-map-title">The journey</h2>
+  {% with wm = world_map(journey) %}{% include "partials/world_map.html" %}{% endwith %}
   <ol class="story-map road">
     {% for p in journey %}
-      <li class="story-part{% if p.cleared == p.stages|length %} complete{% endif %}" style="--part: {{ p.color }}">
+      <li class="story-part{% if p.cleared == p.stages|length %} complete{% endif %}" id="part-{{ p.part or 0 }}" style="--part: {{ p.color }}">
         {% set label, name = p.title.split(' · ', 1) %}
         <header class="part-card">
           <span class="part-num" aria-hidden="true">{{ p.part or '序' }}</span>

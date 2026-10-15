@@ -47,3 +47,24 @@ def test_team_stands_that_level_up_pop_a_toast(client):
     u._note_stand_levels()
     toasts = [json.loads(t) for t in r().lrange("web:toast:111", 0, -1)]
     assert toasts and toasts[-1]["kind"] == "standup" and "level 20" in toasts[-1]["text"] and "new star" in toasts[-1]["text"]
+
+
+def test_pages_carry_the_text_size_setting_and_the_transition_fallback(client):
+    page = client.get("/").data.decode()
+    assert 'name="density" value="compact"' in page and 'name="density" value="comfy"' in page
+    head = page.split("</head>")[0]
+    assert 'localStorage.getItem("density")' in head and '"onpagereveal" in window' in head and "vt-enter" in head
+
+
+def test_pve_menus_draw_the_world_map_wormholes_theatre_sky_and_targets(client):
+    from app.game import worldmap
+    rows = [{"part": None, "title": "Prologue · The Arrow", "color": "#999", "cleared": 1, "stages": [1]},
+            {"part": 3, "title": "Part 3 · Stardust Crusaders", "color": "#7A3FB8", "cleared": 2, "stages": [1] * 5},
+            {"part": 4, "title": "Part 4 · Diamond is Unbreakable", "color": "#D6246E", "cleared": 0, "stages": [1] * 5}]
+    wm = worldmap.view(rows)
+    assert [p["part"] for p in wm["pins"]] == [0, 3, 4] and [p["current"] for p in wm["pins"]] == [False, True, False]
+    assert all(0 <= p["x"] <= 100 and 0 <= p["y"] <= 100 for p in wm["pins"])
+    player(client, "111", main_characters=[char(1, xp=2000), char(2, xp=2000), char(5, xp=2000)], web_story={"cleared": 8})
+    login(client, "111")
+    assert 'class="world-map"' in client.get("/story").data.decode() and 'id="part-3"' in client.get("/story").data.decode()
+    assert 'class="rifts"' in client.get("/alternate-universe").data.decode()

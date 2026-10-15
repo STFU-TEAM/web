@@ -1,0 +1,28 @@
+{#- The story's world map (app/game/worldmap.py): a pin per part where it happens, the route between them, the
+    stretch travelled so far in gold. Each pin jumps to that part's road below. Expects `wm`. -#}
+<section class="world-map" aria-labelledby="wm-h">
+  <h2 class="h3 sr" id="wm-h">The journey on the map</h2>
+  <div class="wm-scroll">
+    <div class="wm-board" style="aspect-ratio: {{ wm.w }} / {{ wm.h }}">
+      <svg class="wm-svg" viewBox="0 0 {{ wm.w }} {{ wm.h }}" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+        <defs>
+          <pattern id="wm-grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="currentColor" stroke-width=".15"/></pattern>
+        </defs>
+        <rect class="wm-sea" width="{{ wm.w }}" height="{{ wm.h }}"/>
+        <rect class="wm-grid" width="{{ wm.w }}" height="{{ wm.h }}" fill="url(#wm-grid)"/>
+        {% for poly in wm.land %}<polygon class="wm-land" points="{{ poly }}"/>{% endfor %}
+        <polyline class="wm-route" points="{{ wm.route }}"/>
+        {% if wm.done_route %}<polyline class="wm-route done" points="{{ wm.done_route }}"/>{% endif %}
+      </svg>
+      {% for p in wm.pins %}
+        <a class="wm-pin {{ p.anchor }}{{ ' done' if p.done }}{{ ' current' if p.current }}{{ ' fresh' if not p.started and not p.current }}"
+           href="#part-{{ p.part }}" style="left: {{ p.x }}%; top: {{ p.y }}%; --part: {{ p.color }}; --frac: {{ p.frac }}"
+           aria-label="{{ p.title }}, {{ p.place }}: {{ (p.frac * 100)|round|int }}% cleared">
+          <span class="wm-dot" aria-hidden="true">{{ p.part or '序' }}</span>
+          {% if p.current and u and u.main_characters %}<img class="wm-you" src="{{ u.main_characters[0].id|stand_img }}" alt="" loading="lazy">{% endif %}
+          <span class="wm-label"><b>{{ p.place }}</b><small>{{ p.title.split(' · ', 1)[-1] }}</small></span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>

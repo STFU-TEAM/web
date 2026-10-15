@@ -17,11 +17,12 @@
     </div>
   </header>
 
-  <nav class="rq-tabs" aria-label="Requiem tracks">
+  <nav class="rq-tabs rq-board" aria-label="Requiem tracks">
     {% for t in tracks %}
       <a href="{{ url_for('progress.rq_page', t=t.key) }}" class="{{ 'on' if t.key == track.key }}{{ ' locked' if not t.unlocked }}{{ ' done' if t.complete }}"
          {% if t.key == track.key %}aria-current="page"{% endif %} style="--tc: {{ t.color }}">
-        <span aria-hidden="true">{{ '🔒' if not t.unlocked else ('✓' if t.complete else t.icon) }}</span> {{ t.short }}
+        <span class="rq-target" aria-hidden="true" style="--frac: {{ (t.cleared / (t.stages|length or 1))|round(3) }}"><span>{{ '🔒' if not t.unlocked else ('✓' if t.complete else t.icon) }}</span></span>
+        <b>{{ t.short }}</b>
         <small>{{ t.cleared }}/{{ t.stages|length }}</small></a>
     {% endfor %}
   </nav>

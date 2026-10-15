@@ -17,9 +17,20 @@
   {% if error %}<p class="toast error" role="alert">{{ error }} {{ back_to_fight() }}</p>{% endif %}
   {% if not fight %}<p class="notice">🤝 Raid with friends too: the <a href="{{ url_for('coop.index') }}">co-op raid</a> has an Over Heaven difficulty with a new rule every week, and its first win of the week pays an Arrowhead.</p>{% endif %}
 
-  <nav class="tabs scroll-tabs" aria-label="Tracks">
+  {#- the tracks as a night sky: a constellation per track, a star per fight, lit as you clear them -#}
+  {% set ys = [9, 27, 14, 33, 7, 25, 13, 31, 10, 27, 17, 35] %}
+  <nav class="oh-sky" aria-label="Tracks">
     {% for t in tracks %}
-      <a href="{{ url_for('progress.oh_page', t=t.key) }}" class="tab{% if t.key == track.key %} active{% endif %}{% if t.extra %} oh-extra-tab{% endif %}"{% if t.key == track.key %} aria-current="page"{% endif %}>{% if t.extra %}{{ '🔒' if t.locked else '☠' }} {% endif %}{{ t.mode }} <small>{{ t.cleared }}/{{ t.total }}</small></a>
+      {% set n = t.total or 1 %}
+      <a href="{{ url_for('progress.oh_page', t=t.key) }}" class="oh-const{% if t.key == track.key %} active{% endif %}{% if t.locked %} locked{% endif %}{% if t.cleared >= t.total %} done{% endif %}{% if t.extra %} extra{% endif %}"
+         style="--part: {{ t.color or '#F4C542' }}" {% if t.key == track.key %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 100 42" aria-hidden="true" focusable="false">
+          <polyline points="{% for j in range(n) %}{{ 8 + (84 * j / ([n - 1, 1]|max))|round(1) }},{{ ys[j % 12] }} {% endfor %}"/>
+          {% for j in range(n) %}<circle class="{{ 'lit' if j < t.cleared else ('next' if j == t.cleared and not t.locked else '') }}" cx="{{ 8 + (84 * j / ([n - 1, 1]|max))|round(1) }}" cy="{{ ys[j % 12] }}" r="{{ 3.4 if j == n - 1 else 2.4 }}"/>{% endfor %}
+        </svg>
+        <strong>{% if t.extra %}{{ '🔒 ' if t.locked else '☠ ' }}{% endif %}{{ t.mode }}</strong>
+        <small>{{ t.cleared }}/{{ t.total }}</small>
+      </a>
     {% endfor %}
   </nav>
 

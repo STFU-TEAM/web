@@ -88,6 +88,19 @@ window.SFX = (() => {
   };
   apply();
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire();
+  // text size on phones (html.comfy: the bigger one; Compact is the default), in the same menu
+  const wireDensity = () => {
+    const now = document.documentElement.classList.contains("comfy") ? "comfy" : "compact";
+    document.querySelectorAll("[data-density]").forEach((r) => {
+      r.checked = r.value === now;
+      r.addEventListener("change", () => {
+        if (!r.checked) return;
+        document.documentElement.classList.toggle("comfy", r.value === "comfy");
+        try { localStorage.setItem("density", r.value); } catch (_) { /* not saved */ }
+      });
+    });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireDensity); else wireDensity();
   document.addEventListener("click", (e) => { if (e.target.closest?.(".btn, .nav > a, .side-link, .dock a")) play("click"); }, true);
   document.addEventListener("htmx:afterRequest", (e) => {  // a claim that went through
     const path = e.detail?.pathInfo?.requestPath || "";
@@ -144,24 +157,37 @@ document.addEventListener("starUp", (e) => {
   setTimeout(close, 4200);
 });
 
-// Page transitions: after the slanted wipe (CSS @view-transition), the new page's title stamps on for a beat.
-window.addEventListener("pagereveal", (e) => {
-  if (!e.viewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  if (window.navigation?.activation?.navigationType === "reload") return;
-  const h = document.querySelector("#main h1, main h1");
-  const text = (h?.textContent || "").replace(/\s+/g, " ").trim();
-  let last = "";
-  try { last = sessionStorage.getItem("vt-last") || ""; sessionStorage.setItem("vt-last", text); } catch (_) { /* no storage */ }
-  if (!text || text.length > 26 || text === last) return;  // the same page again (a form posted back to it): no stamp
-  e.viewTransition.finished.then(() => {
+// Page transitions. The head script decides (base.html): html.vt-stamp-on stamps the new page's title on for a beat;
+// html.vt-enter (browsers without cross-page transitions) plays the entrance wipe, which CSS runs from the first paint.
+// A click on a link to another page marks where it came from, so only link navigations get the wipe.
+(() => {
+  const h = document.documentElement;
+  const stamp = () => {
+    const el = document.querySelector("#main h1, main h1");
+    const text = (el?.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length > 26) return;
     const s = document.createElement("div");
     s.className = "vt-stamp";
     s.setAttribute("aria-hidden", "true");
     s.textContent = text;
     document.body.append(s);
-    setTimeout(() => s.remove(), 800);
-  }).catch(() => {});
-});
+    setTimeout(() => s.remove(), 900);
+  };
+  const soon = () => { if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", stamp, { once: true }); else stamp(); };
+  if (h.classList.contains("vt-stamp-on")) soon(); else document.addEventListener("vt:stamp", soon, { once: true });
+  setTimeout(() => h.classList.remove("vt-enter"), 700);
+  if (!("onpagereveal" in window)) {
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest?.("a[href]");
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      if (a.target && a.target !== "_self") return;
+      if (a.hasAttribute("download") || a.hasAttribute("hx-get") || a.hasAttribute("hx-post")) return;
+      const url = new URL(a.href, location.href);
+      if (url.origin !== location.origin || (url.pathname === location.pathname && url.search === location.search)) return;
+      try { sessionStorage.setItem("vt-from", location.pathname + location.search); } catch (_) { /* no storage: no wipe */ }
+    });
+  }
+})();
 
 // Only one dropdown open at a time: header menus and "Manage" menus.
 document.addEventListener("toggle", (e) => {
@@ -267,8 +293,15 @@ document.addEventListener("htmx:afterRequest", (e) => {
   if (e.detail.elt.closest?.("[data-close-panel]") && e.detail.successful && standPanel()?.open) standPanel().close();
 });
 
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.("[data-storage-more]")) { storageState.all = true; applyStorage(); }
+});
+
 // Storage toolbar: search, rarity, fusable, group copies, sort, multi-select. State survives htmx refreshes.
-const storageState = { q: "", rarity: "", dupe: false, stack: false, sort: "idx", selecting: false };
+// Storage draws STORAGE_FIRST cards until "Show all" (a full storage of detailed cards was the slowest page to scroll,
+// in Firefox above all); search, filters and sort still look through every stand.
+const STORAGE_FIRST = 30;
+const storageState = { q: "", rarity: "", dupe: false, stack: false, sort: "idx", selecting: false, all: false };
 try { storageState.stack = localStorage.getItem("storage-stack") === "1"; } catch (e) { /* storage blocked */ }
 function applyStorage() {
   const grid = document.getElementById("storage-grid");
@@ -293,14 +326,21 @@ function applyStorage() {
       if (!cur || +el.dataset.level > +cur.dataset.level || (+el.dataset.level === +cur.dataset.level && +el.dataset.power > +cur.dataset.power)) best.set(el.dataset.sid, el);
     });
   }
-  let shown = 0;
+  let shown = 0, later = 0;
   slots.forEach((el) => {
     const ok = el.dataset.search.includes(s.q) && (!s.rarity || el.dataset.rarity === s.rarity) && (!s.dupe || el.dataset.dupe === "1")
       && (!s.stack || best.get(el.dataset.sid) === el);
-    el.hidden = !ok;
+    const wait = ok && !s.all && !s.selecting && shown >= STORAGE_FIRST;
+    el.hidden = !ok || wait;
     shown += ok;
+    later += wait;
     grid.appendChild(el);
   });
+  const more = document.querySelector("[data-storage-more]");
+  if (more) {
+    more.hidden = !later;
+    more.textContent = `Show all ${shown} (${later} more)`;
+  }
   grid.closest(".storage").classList.toggle("selecting", s.selecting);
   document.querySelector(".bulk-bar").hidden = !s.selecting;
   document.querySelector(".storage .collection-empty").hidden = shown > 0;
@@ -791,7 +831,15 @@ setInterval(() => {
 }, 1000);
 
 // Action results (equipped, sold, crafted, socketed...) arrive as [data-float] notes: they float as toasts instead of
-// sitting at the top of the swapped block, so the page never moves. A pull reveal or a simulation still scrolls into view.
+// sitting at the top of the swapped block, so the page never moves (CSS keeps them out of the layout from the start).
+// A pull reveal or a simulation still scrolls into view. Notes that came with a full page load float too.
+document.addEventListener("DOMContentLoaded", () => {
+  const notes = [...document.querySelectorAll("[data-float]")];
+  if (!notes.length) return;
+  document.body.dispatchEvent(new CustomEvent("toast", { detail: notes.map((n) => (
+    { text: n.textContent.trim(), kind: n.classList.contains("error") ? "flash-error" : "flash-ok" })) }));
+  notes.forEach((n) => n.remove());
+});
 document.addEventListener("htmx:afterSwap", (e) => {
   const target = e.detail.target;
   const notes = [...target.querySelectorAll("[data-float]")];
@@ -1122,6 +1170,7 @@ document.addEventListener("htmx:load", (e) => {
     if (e.target?.closest?.("#pull-result, .banner")) { held = held.concat(list); return; }  // no spoilers mid-pull
     show(list);
   });
+  const MAX_POPS = 3;
   function show(list) {
     for (const t of list) {
       const a = document.createElement(t.url ? "a" : "div");  // never href="#": it would jump to the top
@@ -1140,6 +1189,9 @@ document.addEventListener("htmx:load", (e) => {
       box()?.append(a);
       arm(a);
     }
+    // at most MAX_POPS at once: the oldest go first, so a burst (a trap, a reroll, a claim) never buries the page
+    const pops = [...(box()?.querySelectorAll(".toast-pop:not(.leaving)") || [])];
+    pops.slice(0, Math.max(0, pops.length - MAX_POPS)).forEach((p) => p.remove());
     const bell = document.querySelector(".bell");  // news rings the bell; the result of your own click doesn't
     if (bell && list.some((t) => !String(t.kind || "").startsWith("flash-"))) bell.classList.add("has-news", "ring");
   }
@@ -2485,4 +2537,11 @@ document.addEventListener("pull:revealed", () => {
 document.querySelectorAll("[data-bot-in]").forEach((f) => {
   const wait = +f.dataset.botIn || 0;
   if (wait > 0) setTimeout(() => { f.hidden = false; }, wait * 1000);
+});
+
+// The story's world map scrolls sideways on narrow screens: start it on the part being played.
+document.querySelectorAll(".wm-scroll").forEach((box) => {
+  const pin = box.querySelector(".wm-pin.current") || [...box.querySelectorAll(".wm-pin.done")].pop();
+  if (!pin || box.scrollWidth <= box.clientWidth) return;
+  box.scrollLeft = Math.max(0, pin.offsetLeft - box.clientWidth / 2);
 });

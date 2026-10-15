@@ -5389,3 +5389,231 @@ html:not(.sound-on) .sound-icon .sound-wave, html.sound-on .sound-icon .sound-x 
 .sound-cats { display: grid; gap: .35rem; margin: 0; padding: .5rem .7rem .6rem; border: 1px solid rgb(255 255 255 / .14); border-radius: 10px; }
 .sound-cats legend { padding: 0 .3rem; font-weight: 700; font-size: .85rem; color: var(--gold); }
 .sound-cats label { display: flex; align-items: center; gap: .5rem; font-size: .9rem; }
+
+/* ===================================================================================
+   PERFORMANCE (measured in Firefox, which repaints far more than Chromium): every looping animation used to force
+   a repaint of the page's fixed screentone layers. The layers get their own compositor layer, the loops animate
+   only transform and opacity, and Firefox skips the backdrop blurs (the bars are near-opaque anyway).
+   =================================================================================== */
+body::before, body::after { will-change: transform; transform: translateZ(0); contain: strict; }
+.part-mark { will-change: transform; contain: strict; }
+.dododo b, .wm-go, .ts-slot, .node-you, .dododo-face { will-change: translate, transform; }
+/* the red "new" dot and the next story stage pulse with a ring that scales (no box-shadow repaints) */
+.nav-dot { position: relative; animation: none; box-shadow: none; }
+.nav-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--magenta); opacity: .7;
+  animation: dot-ring 1.8s ease-out infinite; will-change: transform, opacity; }
+@keyframes dot-ring { 70%, 100% { transform: scale(2.6); opacity: 0; } }
+.node.current .node-dot { position: relative; animation: none; }
+.node.current .node-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 3px solid rgb(214 36 110 / .45);
+  animation: node-ring 1.4s ease-in-out infinite; will-change: transform, opacity; pointer-events: none; }
+@keyframes node-ring { 50% { transform: scale(1.18); opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .nav-dot::after, .node.current .node-dot::after { animation: none; } }
+@supports (-moz-appearance: none) {
+  .topbar, .dock, .storage-tools, .explorer-tools, .gang-tabs { backdrop-filter: none; }
+  .topbar { background: rgb(43 23 71 / .985); }
+  .storage-tools, .explorer-tools, .gang-tabs { background: rgb(28 15 46 / .97); }
+}
+.storage-more { display: block; margin: 1rem auto 0; }
+/* the home stage's glow: a soft gradient that breathes with transform and opacity only (no animated blur) */
+.ts-aura { filter: none; background: radial-gradient(ellipse, color-mix(in srgb, var(--part-2, var(--gold)) 45%, transparent), transparent 72%); will-change: transform, opacity; }
+
+/* ===================================================================================
+   MOBILE FIXES (2026-10): the dungeon's layout, text selection in fights, the long-press link menu on cards, and a
+   denser team page.
+   =================================================================================== */
+/* the dungeon's redesign set two columns after the phone rule: on a phone the map got squeezed into a strip */
+@media (max-width: 760px) { .dungeon-layout { grid-template-columns: minmax(0, 1fr); } }
+/* tapping fast in a fight no longer selects text; long-pressing a card no longer opens the phone's link menu (share...) */
+#fight, .fight, .card, .stand-slot, .draft-pick { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+.card img, #fight img { -webkit-user-drag: none; user-drag: none; }
+/* team presets: one empty slot (it holds the save form), not ten */
+.preset-card.empty ~ .preset-card.empty { display: none; }
+@media (max-width: 640px) {
+  .player-bar { gap: .6rem; padding-block: .8rem; }
+  .player-bar .display.sm { font-size: 1.7rem; }
+  .wallet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem .8rem; }
+  .wallet > div { display: flex; align-items: baseline; justify-content: space-between; gap: .4rem; min-width: 0; }
+  .wallet dt { font-size: .74rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .wallet dd { margin: 0; font-size: 1rem; white-space: nowrap; }
+  .gang-hub { padding: .8rem .9rem; }
+  .gang-hub .muted, .gang-hub-crest { display: none; }
+  .gang-hub-facts { font-size: .78rem; }
+  .gang-hub-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .gang-hub-actions .btn { min-height: 40px; padding: .35rem .8rem; }
+  /* the four tiles become one swipeable row */
+  .actions-row { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: .6rem; margin: 0 -1rem 1.2rem; padding: 0 1rem .4rem; scrollbar-width: none; }
+  .actions-row::-webkit-scrollbar { display: none; }
+  .actions-row > .action-tile { flex: 0 0 78%; scroll-snap-align: start; padding: .8rem .9rem; }
+  .action-tile .h3 { font-size: 1.05rem; }
+  .action-tile p { font-size: .88rem; margin-bottom: .6rem; }
+  .timers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; margin-bottom: 1.2rem; }
+  .timers li { padding: .35rem .5rem; font-size: .72rem; min-width: 0; }
+  /* three stands a row in the team and storage */
+  .team-grid, .collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .55rem .45rem; }
+  /* small cards keep the art, rarity, level, stars and name; the stand's panel has every stat */
+  :is(.team-grid, .collection-grid) .card :is(.card-stats, .traits, .card-flavor) { display: none; }
+  :is(.team-grid, .collection-grid) .card .card-name { font-size: .78rem; line-height: 1.1; }
+}
+
+/* ===================================================================================
+   PHONES: Compact by default (more on screen), Comfortable as a setting (html.comfy, the sound and display menu).
+   And the entrance wipe for browsers without cross-page transitions (html.vt-enter, set before the first paint).
+   =================================================================================== */
+@media (max-width: 640px) {
+  html:not(.comfy) { font-size: 87.5%; --page: min(1200px, 100% - 1.25rem); }
+  html:not(.comfy) .page { margin-top: 1rem; margin-bottom: 2.5rem; }
+  html:not(.comfy) .topbar { padding-top: calc(.3rem + env(safe-area-inset-top)); padding-bottom: .3rem; }
+  html:not(.comfy) .topbar .mascot img { width: 32px; height: 32px; }
+  html:not(.comfy) .sound-drop > summary { width: 36px; height: 36px; }
+  html:not(.comfy) .dock { padding-top: .1rem; }
+  html:not(.comfy) :is(.player-bar, .action-tile, .battle-panel, .story-part, .bounty-card, .gang-hub, .presets, .story-stage) { padding: .7rem .8rem; }
+  html:not(.comfy) .display { font-size: clamp(1.7rem, 8.5vw, 2.4rem); }
+  html:not(.comfy) :is(.grid, .collection-grid, .team-grid) { gap: .45rem .4rem; }
+  html:not(.comfy) .btn { min-height: 44px; }  /* still easy to tap */
+}
+html.vt-enter::before { content: ""; position: fixed; inset: -2px; z-index: 2147483000; pointer-events: none;
+  background: repeating-linear-gradient(-18deg, rgb(255 255 255 / .16) 0 2px, transparent 2px 14px), linear-gradient(120deg, #7A3FB8, #D6246E 55%, #F4C542);
+  animation: vt-sweep .5s cubic-bezier(.7, 0, .25, 1) .05s both; }
+@keyframes vt-sweep { from { clip-path: polygon(0 0, 128% 0, 100% 100%, -28% 100%); } to { clip-path: polygon(128% 0, 128% 0, 100% 100%, 100% 100%); } }
+@media (prefers-reduced-motion: reduce) { html.vt-enter::before { display: none; } }
+
+/* floating notes never take space in the page (app.js lifts them into the toast stack, three at most) */
+[data-float] { display: none !important; }
+@media (max-width: 640px) {
+  .toasts { top: calc(56px + env(safe-area-inset-top)); right: .6rem; left: .6rem; width: auto; gap: .35rem; }
+  .toast-pop { padding: .5rem .7rem; font-size: .85rem; box-shadow: 0 6px 18px rgb(0 0 0 / .45); }
+}
+
+/* ===================================================================================
+   PVE MENUS (2026-10): the story's world map, the Alternate Universe's wormholes, Carry Me's theatre, Over Heaven's
+   night sky and Requiem's targets. Only the playing pieces move (transform/opacity), and only where you are.
+   =================================================================================== */
+/* the team: its three stands side by side, at every width */
+.team-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 900px; }
+
+/* Story: the world map */
+.world-map { margin: 0 0 1.4rem; }
+.wm-scroll { overflow-x: auto; border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--night-3); scrollbar-width: thin; }
+.wm-board { position: relative; min-width: 760px; }
+.wm-svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; color: rgb(255 255 255 / .07); }
+.wm-sea { fill: #130A26; }
+.wm-land { fill: #2C1A4C; stroke: #4C3080; stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wm-route { fill: none; stroke: rgb(255 255 255 / .38); stroke-width: 2; stroke-dasharray: 3 5; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.wm-route.done { stroke: var(--gold); stroke-width: 3; stroke-dasharray: none; filter: drop-shadow(0 0 3px rgb(244 197 66 / .6)); }
+.wm-pin { position: absolute; z-index: 1; translate: -50% -50%; display: grid; justify-items: center; text-decoration: none; color: var(--paper); }
+.wm-pin:hover, .wm-pin:focus-visible { z-index: 3; }
+.wm-dot { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--ink); font: 400 .85rem/1 var(--display); color: var(--ink);
+  background: radial-gradient(circle, var(--part) 0 56%, transparent 58%), conic-gradient(var(--gold) calc(var(--frac) * 360deg), rgb(255 255 255 / .2) 0);
+  box-shadow: 0 3px 10px rgb(0 0 0 / .55); transition: scale .15s; }
+.wm-pin:hover .wm-dot, .wm-pin:focus-visible .wm-dot { scale: 1.15; }
+.wm-pin.fresh .wm-dot { filter: saturate(.35) brightness(.75); }
+.wm-pin.current .wm-dot { position: relative; }
+.wm-pin.current .wm-dot::after { content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 3px solid var(--gold); animation: node-ring 1.4s ease-in-out infinite; will-change: transform, opacity; }
+.wm-label { position: absolute; display: grid; white-space: nowrap; text-align: center; padding: .12rem .45rem; border-radius: 6px; background: rgb(18 8 30 / .85);
+  font-size: .72rem; line-height: 1.2; pointer-events: none; }
+.wm-label small { color: var(--muted); font-size: .66rem; }
+.wm-pin.below .wm-label { top: calc(100% + 5px); left: 50%; translate: -50% 0; }
+.wm-pin.above .wm-label { bottom: calc(100% + 5px); left: 50%; translate: -50% 0; }
+.wm-pin.left .wm-label { right: calc(100% + 7px); top: 50%; translate: 0 -50%; text-align: right; }
+.wm-pin.right .wm-label { left: calc(100% + 7px); top: 50%; translate: 0 -50%; text-align: left; }
+.wm-you { position: absolute; left: calc(100% + 4px); top: 50%; margin-top: -12px; width: 24px; height: 24px; border-radius: 6px; border: 2px solid var(--gold); object-fit: cover; background: #fff;
+  box-shadow: 0 3px 8px rgb(0 0 0 / .5); animation: ts-bob 2.4s ease-in-out infinite; will-change: translate; }
+.story-part { scroll-margin-top: 80px; }
+@media (prefers-reduced-motion: reduce) { .wm-pin.current .wm-dot::after, .wm-you { animation: none; } }
+
+/* Alternate Universe: the wormholes */
+.rifts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; margin: 0 0 1.4rem; }
+.rift { display: grid; justify-items: center; gap: .3rem; padding: .8rem .4rem; border-radius: var(--radius-card); text-align: center; text-decoration: none; color: var(--paper);
+  border: 2px solid transparent; transition: background .15s; }
+.rift:hover, .rift:focus-visible { background: rgb(255 255 255 / .04); }
+.rift.here { border-color: color-mix(in srgb, var(--part) 70%, transparent); background: rgb(255 255 255 / .05); }
+.rift-ring { display: grid; place-items: center; width: 116px; aspect-ratio: 1; padding: 5px; border-radius: 50%;
+  background: conic-gradient(var(--part) calc(var(--frac) * 360deg), rgb(255 255 255 / .12) 0); box-shadow: 0 0 26px color-mix(in srgb, var(--part) 40%, transparent); }
+.rift-hole { position: relative; isolation: isolate; display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: 50%;
+  border: 3px solid var(--ink); background: #07030E; }
+.rift-swirl { position: absolute; inset: -25%; z-index: -1; will-change: transform;
+  background: radial-gradient(circle, #07030E 0 14%, transparent 52%),
+    repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--part) 85%, #fff) 0 9deg, color-mix(in srgb, var(--part) 30%, #07030E) 9deg 22deg, #07030E 22deg 36deg);
+  animation: rift-spin 16s linear infinite paused; }
+.rift-swirl::after { content: ""; position: absolute; inset: 18%; border-radius: 50%; background: repeating-conic-gradient(from 40deg, rgb(255 255 255 / .18) 0 4deg, transparent 4deg 26deg);
+  animation: rift-spin 9s linear infinite reverse paused; }
+.rift.here .rift-swirl, .rift.here .rift-swirl::after, .rift:hover .rift-swirl, .rift:hover .rift-swirl::after { animation-play-state: running; }
+.rift-core { font: 400 1.05rem/1 var(--display); color: #fff; text-shadow: 0 0 10px var(--part), 2px 2px 0 var(--ink); }
+.rift.sealed { opacity: .5; filter: grayscale(.75); }
+.rift.sealed .rift-swirl, .rift.sealed .rift-swirl::after { animation: none; }
+.rift-name { font: 400 .92rem/1.15 var(--display); }
+.rift-meta { color: var(--muted); font-size: .74rem; }
+@keyframes rift-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rift-swirl, .rift-swirl::after { animation: none !important; } }
+
+/* Carry Me: the theatre */
+.cm-theater { display: grid; gap: .9rem; margin: 0 0 1.4rem; }
+.cm-stage { position: relative; isolation: isolate; overflow: hidden; display: grid; place-items: center; min-height: 170px; padding: 2.3rem 19% 1.6rem; text-align: center;
+  border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--night-3);
+  background: radial-gradient(ellipse at 50% 125%, color-mix(in srgb, var(--part) 60%, transparent), transparent 62%),
+    radial-gradient(ellipse 60% 70% at 50% -25%, rgb(255 236 190 / .28), transparent 70%), #1A0912; }
+.cm-curtain { position: absolute; top: 0; bottom: 0; width: 17%; z-index: -1;
+  background: repeating-linear-gradient(90deg, #6E0B1E 0 9px, #A8182F 9px 17px, #7E0F24 17px 25px); box-shadow: inset 0 -14px 20px rgb(0 0 0 / .35); }
+.cm-curtain.left { left: 0; border-bottom-right-radius: 70% 22%; }
+.cm-curtain.right { right: 0; border-bottom-left-radius: 70% 22%; }
+.cm-marquee { position: absolute; top: .5rem; left: 19%; right: 19%; display: flex; justify-content: space-between; margin: 0; }
+.cm-marquee i { width: 7px; height: 7px; border-radius: 50%; background: #FFE07A; box-shadow: 0 0 8px #FFC93A; }
+.cm-marquee i:nth-child(odd) { animation: bulb 1.3s steps(2) infinite; }
+@keyframes bulb { 50% { opacity: .3; } }
+.cm-showing .kicker { margin: 0; color: #FFE07A; }
+.cm-act-title { margin: .25rem 0; font: 400 clamp(1.3rem, 3.4vw, 2.1rem)/1.1 var(--display); color: #fff; text-shadow: 3px 3px 0 var(--ink); }
+.cm-showing .muted { margin: 0; font-size: .85rem; }
+.cm-tickets { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.cm-ticket { display: grid; gap: .05rem; padding: .5rem 1.1rem .5rem .8rem; border-left: 6px solid var(--part); border-radius: 8px; text-decoration: none; color: #2A1A12;
+  background: #F3E6C8; -webkit-mask: radial-gradient(circle at 100% 50%, transparent 7px, #000 7.5px); mask: radial-gradient(circle at 100% 50%, transparent 7px, #000 7.5px);
+  transition: translate .15s; }
+.cm-ticket:hover, .cm-ticket:focus-visible { translate: 0 -3px; }
+.cm-ticket b { font: 400 .95rem/1 var(--display); }
+.cm-ticket span { font-weight: 700; font-size: .84rem; line-height: 1.15; }
+.cm-ticket small { color: #6B5847; font-size: .74rem; }
+.cm-ticket.now { background: #FFF2CC; translate: 0 -3px; }
+.cm-ticket.torn { background: repeating-linear-gradient(-45deg, #E4D6B6 0 6px, #EADDBF 6px 12px); }
+.cm-ticket.torn small::after { content: " · played"; }
+.cm-ticket.shut { opacity: .45; filter: grayscale(1); }
+.story-part[id^="act-"], .story-part[id^="au-"] { scroll-margin-top: 80px; }
+@media (prefers-reduced-motion: reduce) { .cm-marquee i { animation: none; } }
+
+/* Over Heaven: the tracks as a night sky */
+.oh-sky { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .5rem; margin: 0 0 1.2rem; padding: .7rem;
+  border-radius: var(--radius-card); border: 3px solid var(--ink); box-shadow: 4px 4px 0 var(--night-3);
+  background: radial-gradient(1px 1px at 12% 20%, #fff8, transparent), radial-gradient(1px 1px at 72% 64%, #fff6, transparent), radial-gradient(1px 1px at 40% 82%, #fff5, transparent),
+    radial-gradient(ellipse at 25% 0%, #2A1F66, #0B0820 72%); }
+.oh-const { display: grid; gap: .1rem; padding: .45rem .55rem .55rem; border-radius: 10px; border: 2px solid transparent; text-decoration: none; color: var(--paper); }
+.oh-const:hover, .oh-const:focus-visible { background: rgb(255 255 255 / .05); }
+.oh-const.active { border-color: color-mix(in srgb, var(--part) 80%, #fff); background: rgb(255 255 255 / .07); }
+.oh-const svg { width: 100%; height: 62px; overflow: visible; }
+.oh-const polyline { fill: none; stroke: rgb(255 255 255 / .2); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.oh-const circle { fill: rgb(255 255 255 / .32); }
+.oh-const circle.lit { fill: #FFEBB0; filter: drop-shadow(0 0 2.5px #F4C542); }
+.oh-const circle.next { fill: none; stroke: #F4C542; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+.oh-const strong { font-size: .88rem; line-height: 1.15; }
+.oh-const small { color: var(--muted); font-size: .74rem; }
+.oh-const.done strong::after { content: " ✓"; color: var(--gold); }
+.oh-const.locked { opacity: .5; }
+.oh-const.extra { border-style: dashed; border-color: rgb(214 36 110 / .5); }
+
+/* Requiem: a target per track */
+.rq-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: .55rem; }
+.rq-board a { display: grid; justify-items: center; align-content: start; gap: .25rem; padding: .6rem .4rem; border-radius: 12px; text-align: center; }
+.rq-board a.on { background: color-mix(in srgb, var(--tc, var(--magenta)) 30%, var(--night-2)); }
+.rq-target { display: grid; place-items: center; width: 64px; aspect-ratio: 1; padding: 5px; border-radius: 50%;
+  background: conic-gradient(var(--tc, var(--magenta)) calc(var(--frac) * 360deg), rgb(255 255 255 / .12) 0); }
+.rq-target > span { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--ink); font-size: 1.15rem;
+  background: repeating-radial-gradient(circle, #33195A 0 6px, #1C0F2E 6px 12px); }
+.rq-board b { font-size: .82rem; line-height: 1.15; }
+
+/* phones: the sky, the wormholes, the tickets and the targets scroll sideways */
+@media (max-width: 640px) {
+  :is(.rifts, .oh-sky, .cm-tickets, .rq-board) { display: flex; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; }
+  :is(.rifts, .oh-sky, .cm-tickets, .rq-board)::-webkit-scrollbar { display: none; }
+  .rift { flex: 0 0 128px; scroll-snap-align: start; } .rift-ring { width: 92px; }
+  .oh-const { flex: 0 0 136px; scroll-snap-align: start; }
+  .cm-tickets > li { flex: 0 0 140px; scroll-snap-align: start; }
+  .rq-board a { flex: 0 0 104px; scroll-snap-align: start; }
+  .cm-stage { padding-inline: 22%; min-height: 150px; }
+}

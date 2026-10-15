@@ -64,9 +64,21 @@
   {% endif %}
 
   <h2 class="h3 story-map-title">The universes</h2>
+  {#- a wormhole per universe: its colour swirling, the ring filling as you clear it; sealed until it opens -#}
+  <nav class="rifts" aria-label="Universes">
+    {% for c in chapters %}
+      {% set here = stage and stage.chapter == c.key %}
+      <a class="rift{{ ' here' if here }}{{ ' sealed' if not c.unlocked }}{{ ' done' if c.complete }}" href="{{ url_for('progress.au_page', ch=c.key) if c.unlocked else '#au-' ~ c.key }}"
+         style="--part: {{ c.color }}; --frac: {{ (c.cleared / (c.stages|length or 1))|round(3) }}" {% if here %}aria-current="true"{% endif %}>
+        <span class="rift-ring" aria-hidden="true"><span class="rift-hole"><span class="rift-swirl"></span><span class="rift-core">{{ '🔒' if not c.unlocked else ('✓' if c.complete else 'IF') }}</span></span></span>
+        <strong class="rift-name">{{ c.title }}</strong>
+        <small class="rift-meta">{% if c.unlocked %}{{ c.cleared }}/{{ c.stages|length }} · with {{ c.ally }}{% else %}Opens after {{ c.source }}{% endif %}</small>
+      </a>
+    {% endfor %}
+  </nav>
   <ol class="story-map">
     {% for c in chapters %}
-      <li class="story-part{% if c.complete %} complete{% endif %}{% if not c.unlocked %} au-locked{% endif %}" style="--part: {{ c.color }}">
+      <li class="story-part{% if c.complete %} complete{% endif %}{% if not c.unlocked %} au-locked{% endif %}" id="au-{{ c.key }}" style="--part: {{ c.color }}">
         <header class="part-card">
           <span class="part-num" aria-hidden="true">IF</span>
           <span class="part-label">Alternate Universe · {{ c.ally }}</span>

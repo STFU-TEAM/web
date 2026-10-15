@@ -36,6 +36,26 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {#- the desktop sidebar's collapsed (icon rail) state, set before the first paint so nothing jumps -#}
   <script>try { if (localStorage.getItem("side-mini") === "1") document.documentElement.classList.add("side-mini"); } catch (e) {}</script>
+  {#- before the first paint: the player's text size on phones (Compact is the default, "comfy" the bigger one), and the
+      page transition. Chromium runs the slanted wipe itself (@view-transition in app.css); browsers without
+      cross-page transitions (Firefox) get an entrance wipe instead when they arrived by a link (app.js marks the
+      click). Either way the new page's title stamps on (app.js, html.vt-stamp-on). -#}
+  <script>(() => {
+    const h = document.documentElement;
+    try { if (localStorage.getItem("density") === "comfy") h.classList.add("comfy"); } catch (e) {}
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let from = null;
+    try { from = sessionStorage.getItem("vt-from"); sessionStorage.removeItem("vt-from"); } catch (e) {}
+    if ("onpagereveal" in window) {
+      addEventListener("pagereveal", (e) => {
+        if (!e.viewTransition) return;
+        h.classList.add("vt-stamp-on");
+        document.dispatchEvent(new Event("vt:stamp"));  // app.js may already be running: it listens for this
+      });
+    } else if (from && from !== location.pathname + location.search) {
+      h.classList.add("vt-enter", "vt-stamp-on");
+    }
+  })();</script>
   <script src="{{ url_for('static', filename='js/htmx.min.js') }}" defer></script>
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
@@ -226,7 +246,7 @@
 
     <div class="account">
       <details class="nav-drop sound-drop" data-sound-menu>
-        <summary aria-label="Sound settings"><span class="sound-icon" aria-hidden="true">
+        <summary aria-label="Sound and display settings"><span class="sound-icon" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="sound-wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="sound-wave" d="M18.5 5.5a9 9 0 0 1 0 13"/><path class="sound-x" d="M16 9l5 6M21 9l-5 6"/></svg>
         </span></summary>
         <div class="nav-menu right sound-menu">
@@ -238,7 +258,12 @@
             <label><input type="checkbox" data-sound-cat="fights"> Fights</label>
             <label><input type="checkbox" data-sound-cat="clicks"> Menu clicks</label>
           </fieldset>
-          <small class="muted">Off by default. Saved on this device.</small>
+          <fieldset class="sound-cats">
+            <legend>Text size on phones</legend>
+            <label><input type="radio" name="density" value="compact" data-density> Compact (more on screen)</label>
+            <label><input type="radio" name="density" value="comfy" data-density> Comfortable (bigger text)</label>
+          </fieldset>
+          <small class="muted">Sound is off by default. Saved on this device.</small>
         </div>
       </details>
       {% if me.id %}
