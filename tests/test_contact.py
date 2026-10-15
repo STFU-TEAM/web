@@ -53,3 +53,16 @@ def test_the_contact_inbox_is_for_admins_only(client):
     player(client, "222")
     login(client, "222")
     assert client.get("/admin/contact").status_code == 403
+
+
+def test_news_posts_render_markdown_safely():
+    from app.news import render_body, summary
+    text = ("# Patch notes\n\n## New stands\n- **Tenore Sax** (R): a *maze*, [wiki](https://jojowiki.com/Tenore_Sax)\n"
+            "  - nested: `code`\n1. one\n2. two\n\n> a quote\n---\nline one\nline two <script>x</script> snake_case")
+    html = str(render_body(text))
+    for tag in ("<h2>Patch notes</h2>", "<h3>New stands</h3>", "<ul><li><strong>Tenore Sax</strong>", "<em>maze</em>",
+                '<a href="https://jojowiki.com/Tenore_Sax"', "<ul><li>nested: <code>code</code></li></ul>",
+                "<ol><li>one</li><li>two</li></ol>", "<blockquote>a quote</blockquote>", "<hr>", "line one<br>line two"):
+        assert tag in html, tag
+    assert "<script>" not in html and "&lt;script&gt;" in html and "snake_case" in html  # escaped; no stray italics
+    assert summary("## Hi\n- **one** item\n---\n> two", 100) == "Hi one item two"

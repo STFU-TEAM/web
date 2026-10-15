@@ -137,19 +137,103 @@ def cover(post_id: str):
 
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
 _LINK = re.compile(r"\[([^\]]{1,200})\]\((https://[^\s)]{4,500})\)")
+_ITALIC = re.compile(r"(?<![\w*])[*_](?![\s*_])(.+?)(?<![\s*_])[*_](?![\w*])")
+_CODE = re.compile(r"`([^`]{1,200})`")
+_HEADING = re.compile(r"^(#{1,4})\s+(.+?)\s*#*$")
+_BULLET = re.compile(r"^( *)[-*+]\s+(.*)$")
+_NUMBER = re.compile(r"^( *)\d{1,3}[.)]\s+(.*)$")
+_RULE = re.compile(r"^\s*([-*_])(\s*\1){2,}\s*$")
+
+
+def _inline(text: str) -> str:
+    """One line of Markdown, escaped first so nothing but these tags can come out: `code`, **bold**, *italic*,
+    [label](https://link)."""
+    html = str(escape(text))
+    codes = []
+
+    def keep(m):  # code spans are left exactly as typed
+        codes.append(m.group(1))
+        return f"\x00{len(codes) - 1}\x00"
+    html = _CODE.sub(keep, html)
+    html = _BOLD.sub(r"<strong>\1</strong>", html)
+    html = _ITALIC.sub(r"<em>\1</em>", html)
+    html = _LINK.sub(r'<a href="\2" target="_blank" rel="noopener">\1</a>', html)
+    return re.sub("\x00(\\d+)\x00", lambda m: f"<code>{codes[int(m.group(1))]}</code>", html)
 
 
 def render_body(text: str) -> Markup:
-    """Plain text with blank-line paragraphs, **bold** and [label](https://link). Everything else is escaped."""
-    out = []
-    for para in re.split(r"\n\s*\n", text.strip()):
-        html = str(escape(para))
-        html = _BOLD.sub(r"<strong>\1</strong>", html)
-        html = _LINK.sub(r'<a href="\2" target="_blank" rel="noopener">\1</a>', html)
-        out.append("<p>" + html.replace("\n", "<br>") + "</p>")
+    """The post's Markdown, the common part of it: # headings, - and 1. lists (indent two spaces to nest), > quotes,
+    --- dividers, **bold**, *italic*, `code` and [label](https://link). A line break inside a paragraph is kept.
+    Raw HTML is never let through: everything is escaped before the tags above are added."""
+    out, para, quote = [], [], []
+    lists = []  # open lists, innermost last: (tag, indent)
+
+    def flush_para():
+        if para:
+            out.append("<p>" + "<br>".join(_inline(line) for line in para) + "</p>")
+            para.clear()
+
+    def flush_quote():
+        if quote:
+            out.append("<blockquote>" + "<br>".join(_inline(line) for line in quote) + "</blockquote>")
+            quote.clear()
+
+    def close_lists(to_indent=-1):
+        while lists and lists[-1][1] > to_indent:
+            out.append(f"</li></{lists.pop()[0]}>")
+
+    for raw in text.replace("\r\n", "\n").split("\n"):
+        line = raw.rstrip()
+        item = _BULLET.match(line) or _NUMBER.match(line)
+        if item and not _RULE.match(line):
+            flush_para(), flush_quote()
+            indent, tag = len(item.group(1)), "ul" if _BULLET.match(line) else "ol"
+            if lists and indent > lists[-1][1]:  # a nested list inside the open item
+                out.append(f"<{tag}>")
+                lists.append((tag, indent))
+            else:
+                close_lists(indent)
+                if lists and lists[-1][1] == indent and lists[-1][0] == tag:
+                    out.append("</li>")
+                else:
+                    close_lists(indent - 1)
+                    out.append(f"<{tag}>")
+                    lists.append((tag, indent))
+            out.append("<li>" + _inline(item.group(2)))
+            continue
+        if lists and line.startswith(" ") and line.strip():  # a wrapped line of the open item
+            out.append("<br>" + _inline(line.strip()))
+            continue
+        if not line.strip():
+            flush_para(), flush_quote()
+            continue
+        close_lists()
+        heading = _HEADING.match(line)
+        if _RULE.match(line):
+            flush_para(), flush_quote()
+            out.append("<hr>")
+        elif heading:
+            flush_para(), flush_quote()
+            level = min(4, len(heading.group(1)) + 1)  # the page title is the h1: # is a section
+            out.append(f"<h{level}>{_inline(heading.group(2))}</h{level}>")
+        elif line.startswith(">"):
+            flush_para()
+            quote.append(line[1:].strip())
+        else:
+            flush_quote()
+            para.append(line.strip())
+    flush_para(), flush_quote(), close_lists()
     return Markup("".join(out))
 
 
 def summary(text: str, length: int = 180) -> str:
-    plain = _LINK.sub(r"\1", _BOLD.sub(r"\1", text)).replace("\n", " ")
+    """The post as one line of plain text: its Markdown marks taken off."""
+    lines = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        if _RULE.match(line):
+            continue
+        line = re.sub(r"^\s*(#{1,4}\s+|[-*+]\s+|\d{1,3}[.)]\s+|>\s?)", "", line)
+        lines.append(line.strip())
+    plain = " ".join(x for x in lines if x)
+    plain = _CODE.sub(r"\1", _ITALIC.sub(r"\1", _LINK.sub(r"\1", _BOLD.sub(r"\1", plain))))
     return plain if len(plain) <= length else plain[:length].rsplit(" ", 1)[0] + "…"

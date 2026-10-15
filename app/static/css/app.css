@@ -342,6 +342,21 @@ body.touring .nav-drop[open] > .nav-menu { display: none; }
 .news-pages { display: flex; justify-content: space-between; margin-top: 1.2rem; }
 .news-article .news-cover { width: 100%; max-height: 420px; object-fit: cover; border-radius: var(--radius-card); margin: .6rem 0 1.2rem; }
 .news-text p { font-size: 1.05rem; line-height: 1.65; margin: 0 0 1rem; }
+/* the post's Markdown (app/news.py render_body) */
+.news-text :is(h2, h3, h4) { margin: 1.8rem 0 .6rem; line-height: 1.2; }
+.news-text h2 { font: 400 1.55rem/1.15 var(--display); color: var(--paper); }
+.news-text h3 { font: 400 1.2rem/1.2 var(--display); color: var(--gold); }
+.news-text h4 { font-size: 1.05rem; color: var(--gold); }
+.news-text > :first-child { margin-top: 0; }
+.news-text :is(ul, ol) { margin: 0 0 1rem; padding-left: 1.4rem; font-size: 1.05rem; line-height: 1.6; }
+.news-text li { margin: .3rem 0; }
+.news-text li > :is(ul, ol) { margin: .3rem 0 .2rem; font-size: 1em; }
+.news-text li::marker { color: var(--gold); }
+.news-text blockquote { margin: 0 0 1rem; padding: .6rem 1rem; border-left: 4px solid var(--magenta); border-radius: 0 var(--radius-ui) var(--radius-ui) 0;
+  background: var(--night-2); color: var(--muted); }
+.news-text hr { margin: 1.8rem 0; border: 0; border-top: 2px dashed var(--night-3); }
+.news-text code { padding: .05rem .35rem; border-radius: 6px; background: var(--night-3); font-size: .92em; }
+.news-text em { color: var(--paper); }
 .news-more-title { margin-top: 2rem; }
 .news-more { padding-left: 1.1rem; }
 .home-news .shelf-head a { margin-left: auto; }
