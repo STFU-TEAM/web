@@ -15,6 +15,7 @@
       <li class="{{ 'done' if done else ('next' if d == s.next_day else '') }}{{ ' big' if b.super }}" title="Day {{ d }}: {{ full }}">
         <small aria-hidden="true">D{{ d }}</small>
         <span class="streak-icon" aria-hidden="true">{% if done %}✓{% elif b.super %}➶{% elif b['items'] and not b.fragments %}🎁{% else %}✦{% endif %}</span>
+        {% if done %}{% set fresh_stamp = res is defined and res and s.claimed_today and d == s.next_day %}<span class="streak-stamp{{ ' new' if fresh_stamp }}" aria-hidden="true">済</span>{% if fresh_stamp %}<span class="streak-ink" aria-hidden="true"></span>{% endif %}{% endif %}
         <b aria-hidden="true">{% if b.super %}1{% elif b.fragments %}{{ b.fragments }}{% else %}&nbsp;{% endif %}</b>
         <span class="sr">Day {{ d }}: {{ full }}{{ ', claimed' if done }}</span>
       </li>

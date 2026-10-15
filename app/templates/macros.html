@@ -48,7 +48,7 @@
   <div class="empty-bubble"><p class="empty-quote">{{ quote }}</p><p class="muted">{{ text }}</p>{{ caller() if caller }}</div></div>
 {%- endmacro %}
 
-{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None, look='', params=False) %}
+{% macro card(s, hp, dmg, arm, spd, crit=None, level=None, awaken=0, owned=None, size='', link=True, reveal=False, badges=None, href=None, look='', params=False, inspect=False) %}
 {% set rar = s.rarity|rarity %}
 {% set b = badges or {} %}
 {# look: '' as owned, or a cosmetic preview for the encyclopedia: 'full', 'shiny' or 'both' #}
@@ -112,10 +112,14 @@
     </div>
   {% endif %}
 </article>
-{% if params %}
+{% if params or inspect %}<div class="card-tools">
+  {% if params %}
   <button type="button" class="params-flip" data-params-flip aria-controls="params-{{ s.id }}-{{ owned.uuid if owned else 't' }}" aria-pressed="false">
     <span aria-hidden="true">⬡</span> <span data-flip-label>Parameters</span></button>
-{% endif %}
+  {% endif %}
+  {#- Inspect: the card full screen, to turn in the hand and see its back (app.js, openInspect) -#}
+  {% if inspect %}<button type="button" class="params-flip" data-inspect="{{ s.rarity }}" aria-haspopup="dialog"><span aria-hidden="true">⟲</span> Inspect</button>{% endif %}
+</div>{% endif %}
 {% endmacro %}
 
 {% macro template_card(t, size='', link=True, look='', params=False) -%}
@@ -128,6 +132,6 @@
   {%- if rf %}<a class="{{ cls }} back-to-fight" href="{{ rf.url }}">⚔ Back to your {{ rf.label }} fight →</a>{% endif -%}
 {%- endmacro %}
 
-{% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None, params=False) -%}
-  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, crit=c.start_critical, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal, badges=badges, href=href, params=params) }}
+{% macro owned_card(c, size='', link=True, reveal=False, badges=None, href=None, params=False, inspect=False) -%}
+  {{ card(c, c.start_hp, c.start_damage, c.start_armor, c.start_speed, crit=c.start_critical, level=c.level, awaken=c.awaken, owned=c, size=size, link=link, reveal=reveal, badges=badges, href=href, params=params, inspect=inspect) }}
 {%- endmacro %}

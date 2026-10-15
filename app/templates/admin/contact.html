@@ -1,0 +1,46 @@
+{% extends "admin/layout.html" %}
+{% block admin_title %}Contact{% endblock %}
+{% block admin %}
+<h1 class="display sm">Contact and bug reports</h1>
+<p class="muted">Messages from the <a href="{{ url_for('main.contact') }}">contact page</a>, newest first. Answer by email when one was given, or reach the player in the game. Mark a message done once it's handled.</p>
+
+<nav class="tabs" aria-label="Which messages">
+  {% for key, label in [('open', 'Open'), ('done', 'Done'), ('all', 'All')] %}
+    <a class="tab{{ ' active' if status == key }}" href="{{ url_for('admin.contact_inbox', status=key) }}"{% if status == key %} aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+
+{% if rows %}
+<ol class="report-list">
+  {% for e in rows %}
+    {% set icon, label, _hint = kinds.get(e.kind, kinds['other']) %}
+    <li class="report-item {{ 'open' if e.status == 'open' else 'closed' }}">
+      <div class="report-head">
+        <span class="pill">{{ icon }} {{ label }}</span>
+        {% if e.uid %}<a href="{{ url_for('admin.player', uid=e.uid) }}"><strong>{{ e.name or e.uid }}</strong></a>{% else %}<strong>A visitor</strong>{% endif %}
+        <small class="muted"><time data-ago="{{ e.at }}"></time>{% if e.page %} · on <code>{{ e.page }}</code>{% endif %}</small>
+      </div>
+      <p class="report-note contact-text">{{ e.message }}</p>
+      <dl class="report-seen">
+        <div><dt>Email</dt><dd>{% if e.email %}<a href="mailto:{{ e.email }}?subject={{ ('Re: your ' ~ label|lower ~ ' on STFU Requiem')|urlencode }}">{{ e.email }}</a>{% else %}—{% endif %}</dd></div>
+        <div><dt>Browser</dt><dd><small>{{ e.ua or '—' }}</small></dd></div>
+      </dl>
+      <div class="admin-actions">
+        {% if e.status == 'open' %}
+          <form class="inline" method="post" action="{{ url_for('admin.contact_action', mid=e.id, op='done', status=status) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small gold">✓ Done</button></form>
+        {% else %}
+          <small class="muted">Done{% if e.closed_by %} by <a href="{{ url_for('admin.player', uid=e.closed_by) }}">{{ e.closed_by }}</a>{% endif %}</small>
+          <form class="inline" method="post" action="{{ url_for('admin.contact_action', mid=e.id, op='reopen', status=status) }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Reopen</button></form>
+        {% endif %}
+        <form class="inline" method="post" action="{{ url_for('admin.contact_action', mid=e.id, op='delete', status=status) }}" onsubmit="return confirm('Delete this message for good?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Delete</button></form>
+      </div>
+    </li>
+  {% endfor %}
+</ol>
+{% else %}
+  <p class="notice">{{ 'No open messages.' if status == 'open' else 'No messages here.' }}</p>
+{% endif %}
+{% endblock %}

@@ -4,9 +4,9 @@
 {% set acts = 'hx-target="#collection" hx-swap="innerHTML" data-close-panel' %}
 <div class="panel-grid">
   <div class="panel-card">
-    {{ owned_card(c, size='big', link=False, badges={'team': in_team, 'locked': is_locked, 'copies': dupes|length}, params=True) }}
+    {{ owned_card(c, size='big', link=False, badges={'team': in_team, 'locked': is_locked, 'copies': dupes|length}, params=True, inspect=True) }}
   </div>
-  <div class="panel-body">
+  <div class="panel-body" data-tab="stats">
     <p class="kicker">{{ c.rarity }} · {{ template.universe }}</p>
     <h2 class="display sm">{% if c.shiny %}<span class="shiny-title" title="Shiny: a rare colour variant">✨</span> {% endif %}{{ c.name }}</h2>
     <p class="panel-meta">
@@ -24,6 +24,15 @@
       <p class="mastery-stats muted"><span>{{ m.g }} fights</span><span>{{ m.w }} wins</span><span>{{ m.d|stat }} damage</span><span>{{ m.s }} specials</span></p>
     </div>
 
+    {#- phones show one group at a time (the tab bar); wider screens show them all -#}
+    <div class="ptabs" role="tablist" aria-label="Stand details">
+      {% for key, label in [('stats', 'Stats'), ('gear', 'Gear'), ('stars', 'Stars'), ('chips', 'Chips')] %}
+        <button type="button" role="tab" data-ptab="{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>
+      {% endfor %}
+      <i class="ptabs-line" aria-hidden="true"></i>
+    </div>
+
+    <section class="pt-group" data-group="stats">
     <h3 class="h3">Special</h3>
     <p class="special-text">{{ special_text(c) }} <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
     {{ special_scaling(c) }}
@@ -56,7 +65,9 @@
         {% for g in wiki.synergies %}<li><span>{{ g.icon }}</span><span><a href="{{ url_for('main.wiki', topic='synergies') }}#{{ g.key }}">{{ g.name }}</a>: {{ g.bonus|join(', ') }}{% if g.effect %}. Special: {{ g.effect }}{% endif %}</span></li>{% endfor %}
       </ul>
     {% endif %}
+    </section>
 
+    <section class="pt-group" data-group="gear">
     <h3 class="h3">Items {{ c.items|length }}/3</h3>
     {% if c.items %}
       <ul class="panel-items">
@@ -82,7 +93,9 @@
         </div>
       </form>
     {% elif not in_team %}<p class="muted">Only team stands hold items.</p>{% endif %}
+    </section>
 
+    <section class="pt-group" data-group="chips">
     <h3 class="h3">Chips {{ socketed|length }}/{{ chip_slots }} <small class="muted"><a href="{{ url_for('play.chips_page') }}">all chips</a></small></h3>
     <div class="chip-slots">
       {% for x in socketed %}
@@ -108,8 +121,10 @@
       {% else %}<p class="muted small-print">None of your spare chips fit: a chip only goes into a stand of its synergy.</p>{% endif %}
     {% endif %}
     <p class="muted small-print">Chips are off in ranked duels.</p>
+    </section>
 
-    <h3 class="h3">Actions</h3>
+    <section class="pt-group" data-group="stars">
+    <h3 class="h3">Stars and actions</h3>
     <div class="panel-actions">
       {% if in_team %}
         <button class="btn small" hx-post="{{ url_for('play.store') }}" hx-vals='{"uuid": "{{ c.uuid }}"}' {{ acts|safe }}>Move to storage</button>
@@ -171,5 +186,6 @@
                 hx-confirm="Release {{ c.name }} for good for {{ release_discs(c)|num }} Stand Discs? This can't be undone.">Release · 💿{{ release_discs(c)|num }}</button>
       {% endif %}
     </div>
+    </section>
   </div>
 </div>

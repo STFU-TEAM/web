@@ -75,7 +75,7 @@ def news_cover(post_id):
     return resp
 
 
-LEGAL_UPDATED = "2026-10-12"
+LEGAL_UPDATED = "2026-10-16"
 
 
 @bp.get("/privacy")
@@ -87,6 +87,34 @@ def privacy():
 @bp.get("/terms")
 def terms():
     return render_template("legal/terms.html", updated=LEGAL_UPDATED)
+
+
+@bp.route("/contact", methods=["GET", "POST"])
+def contact():
+    """Contact us and bug reports (app/contact.py): anyone can write, signed in or not; admins read them."""
+    from urllib.parse import urlparse
+    from app import contact as C
+    from app.db import r
+    uid = session.get("uid")
+    if request.method == "POST":
+        f = request.form
+        if f.get("website"):  # the hidden field only bots fill in
+            return redirect(url_for("main.contact", sent=1))
+        try:
+            C.submit(r(), f.get("kind", ""), f.get("message", ""), f.get("email", ""), f.get("page", ""),
+                     request.headers.get("User-Agent", ""), uid=uid, name=identity(uid).get("name", "") if uid else "",
+                     addr=request.remote_addr or "")
+        except C.ContactError as err:
+            flash(str(err), "error")
+            return render_template("contact.html", kinds=C.KINDS, form=f, sent=False), 400
+        return redirect(url_for("main.contact", sent=1))
+    page = request.args.get("page", "")
+    if not page and request.referrer:  # where they came from, when it's this site
+        ref = urlparse(request.referrer)
+        if ref.netloc == request.host and ref.path != url_for("main.contact"):
+            page = ref.path
+    return render_template("contact.html", kinds=C.KINDS, sent=bool(request.args.get("sent")),
+                           form={"kind": request.args.get("kind", "bug"), "page": page})
 
 
 @bp.post("/share")
@@ -391,6 +419,28 @@ def leaderboard():
         rows.append({**row, "rank": rank, "name": ident["name"], "avatar": ident["avatar"], "value": value})
     tpl = "partials/leaderboard_rows.html" if request.headers.get("HX-Request") else "leaderboard.html"
     return render_template(tpl, rows=rows, by=by, season=season)
+
+
+@bp.get("/u/<uid>/stand/<uuid>")
+def stand_build(uid: str, uuid: str):
+    """Another player's stand as they built it, read-only: level, stars, stats, items, chips (a profile card opens it)."""
+    doc = get_db().get_user_doc(uid)
+    if not doc:
+        abort(404)
+    owner = User(doc)
+    char, lst, _ = owner.find_character_by_uuid(uuid)
+    if char is None:
+        abort(404)
+    from app.db import r
+    from app.filters import power_score
+    from app.game import chips, gear, mastery
+    ctx = dict(owner=owner, uid=uid, c=char, in_team=lst is owner.main_characters, ident=identity(uid),
+               chip_slots=chips.slots(char), socketed=[chips.view(x) for x in chips.socketed(char)],
+               sets=gear.active_sets(char.items), wiki=wiki_data.stand_links(char.id),
+               power=power_score(char), template=CHARACTER_FILE[char.id - 1], mastery=mastery.of(r(), uid, char.id))
+    if request.headers.get("HX-Request"):
+        return render_template("partials/stand_build.html", **ctx)
+    return render_template("stand_build.html", **ctx)
 
 
 @bp.get("/u/<uid>")

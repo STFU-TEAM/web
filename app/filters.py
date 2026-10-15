@@ -188,7 +188,10 @@ def register(app):
     from app.game import params, story as story_mod
     app.jinja_env.globals.update(stand_params=params.chart, story_stages=story_mod.STAGES)
     from app.game import profile as profile_mod
-    app.jinja_env.globals.update(open_reports_count=profile_mod.open_count, profile_theme=profile_mod.theme_of)  # the A-E hexagon (macros.param_chart)
+    app.jinja_env.globals.update(open_reports_count=profile_mod.open_count, profile_theme=profile_mod.theme_of)
+    from app import contact as contact_mod
+    from app.db import r as _redis
+    app.jinja_env.globals.update(open_contact_count=lambda: contact_mod.open_count(_redis()))  # the A-E hexagon (macros.param_chart)
     app.add_template_filter(lambda n: branding.amount(n, "dust"), "dust")
     app.add_template_filter(lambda n: branding.amount(n, "head"), "heads")
     app.add_template_filter(lambda n: branding.amount(n, "palm"), "palms")

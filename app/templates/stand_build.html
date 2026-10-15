@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ c.name }} · {{ ident.name }} | STFU Requiem{% endblock %}
+{% block description %}{{ ident.name }}'s {{ c.name }} on STFU Requiem: level {{ c.level }}, ★{{ c.awaken }}, items and chips.{% endblock %}
+{% block main %}
+<section class="page build-page">
+  <p><a href="{{ url_for('main.profile', uid=uid) }}">← {{ ident.name }}'s profile</a></p>
+  {% include "partials/stand_build.html" %}
+</section>
+{% endblock %}

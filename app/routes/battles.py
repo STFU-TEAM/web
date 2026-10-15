@@ -659,7 +659,10 @@ def _settle(fight):
         user = get_db().get_user(players[0]) if players else None
         if user:
             logic.track_quest_progress(user, "fight_ranked")
+            before = logic.rank_name(int(user.global_elo or 0))
             fight.meta["elo_delta"] = ranked_bot.settle(user, fight.winner == 0, fight.winner == 1)
+            if fight.winner == 0 and logic.rank_name(int(user.global_elo)) != before:
+                fight.meta.setdefault("promoted", {})[str(user.id)] = [before, logic.rank_name(int(user.global_elo))]
             if fight.winner == 0:
                 logic.track_quest_progress(user, "fight_win")
             user.update()
@@ -687,7 +690,10 @@ def _settle(fight):
         winner, loser = users[fight.winner], users[1 - fight.winner]
         actions = ["fight_win"]
         if fight.kind == "ranked":
+            before = logic.rank_name(int(winner.global_elo or 0))
             winner.global_elo += seasons.WIN
+            if logic.rank_name(int(winner.global_elo)) != before:  # a new tier: the end screen's promotion moment
+                fight.meta.setdefault("promoted", {})[str(winner.id)] = [before, logic.rank_name(int(winner.global_elo))]
             loser.global_elo = max(0, loser.global_elo - seasons.LOSS)
             actions.insert(0, "fight_ranked_win")
             fight.meta["tokens"] = events.earn(winner, events.TOKENS_PVP)

@@ -584,6 +584,32 @@ def restore_save(uid):
 # --------------------------------------------------------------------------- #
 # Gangs, shops, banners, audit
 # --------------------------------------------------------------------------- #
+@bp.get("/contact")
+@admin_required
+def contact_inbox():
+    """Contact us and bug reports (app/contact.py), newest first."""
+    from app import contact as C
+    status = request.args.get("status", "open") if request.args.get("status") in ("open", "done", "all") else "open"
+    rows = C.listing(r(), status)
+    return render_template("admin/contact.html", rows=rows, status=status, kinds=C.KINDS, section="contact")
+
+
+@bp.post("/contact/<mid>/<op>")
+@admin_required
+def contact_action(mid, op):
+    from app import contact as C
+    if op == "done":
+        C.set_status(r(), mid, "done", session["uid"])
+    elif op == "reopen":
+        C.set_status(r(), mid, "open")
+    elif op == "delete":
+        C.delete(r(), mid)
+    else:
+        abort(404)
+    audit(f"contact_{op}", mid)
+    return redirect(url_for("admin.contact_inbox", status=request.args.get("status", "open")))
+
+
 @bp.get("/gangs")
 @admin_required
 def gangs():

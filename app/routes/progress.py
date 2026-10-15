@@ -834,7 +834,7 @@ def wts_picture():
     from app.game import whos
     s = whos.state(session["uid"])
     step = whos.picture_step(s)
-    if step is None:  # the first guess is blind
+    if step is None:  # no picture before PICTURE_AT misses
         return Response(status=404)
     cfg = current_app.config
 
@@ -843,7 +843,7 @@ def wts_picture():
         res = requests.get(current_app.jinja_env.filters["stand_img"](cid), timeout=6)
         res.raise_for_status()
         return res.content
-    data = whos.mosaic(whos.today(), step, fetch)
+    data = whos.blurred(whos.today(), step, fetch)
     if not data:
         return Response(status=404)
     return Response(data, mimetype="image/png", headers={"Cache-Control": "private, max-age=300"})

@@ -1,9 +1,10 @@
 """Who's that Stand? (web only): a daily guessing game, the same stand for everyone.
 
 Guess a stand by name. Each guess shows how it compares with the mystery stand: rarity (higher or lower), part,
-what powers its special, and its health, damage and speed (higher or lower). The first guess is blind: the picture
-only appears after a miss, as a coarse mosaic that sharpens with every miss after that; after 3 misses the special's description shows (the name blanked out), after 5 the
-first letter. MAX_GUESSES tries; the ladder ranks fewest guesses, then the earliest solve.
+what powers its special, and its health, damage and speed (higher or lower). After 3 misses the special's description
+shows (the name blanked out); the picture only appears after PICTURE_AT misses, heavily blurred, and sharpens with every
+miss after that; after 7 misses the first letter. MAX_GUESSES tries; the ladder ranks fewest guesses, then the earliest
+solve.
 
 The picture is made on the server (Pillow) from the stand's art, at the sharpness the player has earned, so the
 page never holds the answer: not its id, not its image URL.
@@ -12,7 +13,7 @@ Redis (day = UTC date):
     web:wts:<day>:<uid>        JSON {guesses: [ids], solved, at}
     web:wts:ladder:<day>       zset uid -> guesses * 1e6 + seconds into the day
     web:wts:streak:<uid>       hash last (day solved), n (current streak), best
-    web:wts:img:<day>:<step>   the mosaic PNG for a step, cached
+    web:wts:blur:<day>:<step>  the blurred PNG for a step, cached
 """
 import datetime
 import io
@@ -26,10 +27,11 @@ from app.db import r
 from app.game.character import CHARACTER_FILE
 from app.game.logic import GameError
 
-MAX_GUESSES = 8
+MAX_GUESSES = 10
 KEEP = 8 * 86400
-BLOCKS = [5, 7, 10, 14, 20, 30, 44, 64]   # mosaic tiles across, by misses so far (more = sharper)
-CLUE_SPECIAL, CLUE_LETTER = 3, 5          # misses before each clue shows
+PICTURE_AT = 5                            # misses before the picture shows at all
+BLUR = [30, 22, 15, 9, 4]                 # blur radius on the 360px picture, by misses past PICTURE_AT (less = sharper)
+CLUE_SPECIAL, CLUE_LETTER = 3, 7          # misses before each clue shows
 RARITY_ORDER = ["R", "SR", "SSR", "UR", "LR"]
 REWARD_BASE, REWARD_PER_SPARE = 300, 60   # Meteor Dust: base, plus this per unused guess
 XP_BASE, XP_PER_SPARE = 1000, 120        # player XP, the same way
@@ -198,26 +200,26 @@ def share_text(s: dict, day: Optional[str] = None) -> str:
 # ── The picture ─────────────────────────────────────────────────────────
 
 def picture_step(s: dict) -> Optional[int]:
-    """How sharp the picture is for this player: None before the first miss (nothing shown), then 0, 1, 2..."""
-    return None if s["misses"] < 1 else min(s["misses"] - 1, len(BLOCKS) - 1)
+    """How sharp the picture is for this player: None before PICTURE_AT misses (nothing shown), then 0, 1, 2..."""
+    return None if s["misses"] < PICTURE_AT else min(s["misses"] - PICTURE_AT, len(BLUR) - 1)
 
 
-def mosaic(day: str, step: int, fetch) -> Optional[bytes]:
-    """The day's stand as a PNG mosaic, `step` sharpness (0 = coarsest), cached. fetch(url) -> bytes."""
-    step = max(0, min(step, len(BLOCKS) - 1))
-    key = f"web:wts:img:{day}:{step}"
+def blurred(day: str, step: int, fetch) -> Optional[bytes]:
+    """The day's stand as a blurred PNG, `step` sharpness (0 = blurriest), cached. fetch(stand id) -> bytes."""
+    step = max(0, min(step, len(BLUR) - 1))
+    key = f"web:wts:blur:{day}:{step}"
     cached = r().get(key)
     if cached:
         return cached
     try:
-        from PIL import Image
+        from PIL import Image, ImageFilter
         raw = fetch(answer(day))
         img = Image.open(io.BytesIO(raw)).convert("RGBA")
         img.thumbnail((360, 360))
-        w, h = img.size
-        n = BLOCKS[step]
-        small = img.resize((max(1, n), max(1, round(n * h / w))), Image.BILINEAR)
-        out = small.resize((w, h), Image.NEAREST)
+        # a dark ground first, so the blur doesn't trace the art's transparent outline
+        ground = Image.new("RGBA", img.size, (28, 15, 46, 255))
+        ground.alpha_composite(img)
+        out = ground.convert("RGB").filter(ImageFilter.GaussianBlur(BLUR[step]))
         buf = io.BytesIO()
         out.save(buf, "PNG", optimize=True)
         data = buf.getvalue()

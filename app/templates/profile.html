@@ -40,7 +40,7 @@
       {% endif %}
     </div>
     {% if best %}
-      <div class="file-stand file-card">{{ owned_card(best, size='small') }}</div>
+      <div class="file-stand file-card">{{ owned_card(best, size='small', href=url_for('main.stand_build', uid=uid, uuid=best.uuid)) }}</div>
     {% endif %}
     <span class="file-bars" aria-hidden="true"><i></i><i></i><i></i></span>
   </header>
@@ -85,7 +85,7 @@
     <section>
       <h2 class="h2">Team</h2>
       {% if u.main_characters %}
-        <div class="grid team-grid">{% for c in u.main_characters %}{{ owned_card(c) }}{% endfor %}</div>
+        <div class="grid team-grid">{% for c in u.main_characters %}{{ owned_card(c, href=url_for('main.stand_build', uid=uid, uuid=c.uuid)) }}{% endfor %}</div>
       {% else %}<p class="notice">No stand in the team right now.</p>{% endif %}
     </section>
     <aside class="profile-side">
@@ -140,7 +140,7 @@
 
   {% if showcase %}
     <h2 class="h2 profile-showcase-title">Showcase</h2>
-    <div class="grid pull-grid">{% for c in showcase %}{{ owned_card(c, size='small') }}{% endfor %}</div>
+    <div class="grid pull-grid">{% for c in showcase %}{{ owned_card(c, size='small', href=url_for('main.stand_build', uid=uid, uuid=c.uuid)) }}{% endfor %}</div>
   {% endif %}
   {% if is_me %}
     <section class="social-panel customize" id="customize" aria-labelledby="customize-h">
@@ -229,4 +229,10 @@
   {% if is_me %}<p class="muted wiki-note">This is how other players see you. <a href="{{ url_for('play.team') }}">Manage your team</a>
     · <button type="button" class="link share-btn" data-share="profile">📣 Share your profile</button></p>{% endif %}
 </section>
+{#- a stand card opens its build here, read-only (app.js: card links to /u/<uid>/stand/<uuid>) -#}
+<dialog id="stand-panel" class="stand-panel" aria-label="Stand build">
+  <span class="panel-grab" aria-hidden="true"></span>
+  <button type="button" class="sheet-close panel-close" data-panel-close aria-label="Close">✕</button>
+  <div id="stand-panel-body"></div>
+</dialog>
 {% endblock %}

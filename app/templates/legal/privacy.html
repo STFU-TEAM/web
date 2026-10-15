@@ -14,6 +14,7 @@
     <li><strong>What you write.</strong> Chat messages (global, gang, raid and private), gang names and mottos, your profile text, and reports you send. Private messages are visible to the two players in them and, when a message is reported, to the admins.</li>
     <li><strong>Notifications.</strong> If you turn on push notifications, your browser's push subscription (an address your browser gives us to deliver them). Turning them off deletes it.</li>
     <li><strong>A salted hash of your IP address.</strong> Used only to spot one person running many accounts. We never keep the address itself, and the hash expires after 90 days.</li>
+    <li><strong>Messages you send us.</strong> The <a href="{{ url_for('main.contact') }}">contact and bug report form</a> keeps your message, the email you give (only if you give one), the page it's about and your browser's name, to answer you and fix the problem. Only admins read them; the most recent thousand are kept, and admins delete them once handled.</li>
     <li><strong>Error logs.</strong> When a page breaks, we keep the page address and your player ID with the error so it can be fixed. Logs roll over after a few thousand lines.</li>
   </ul>
 
@@ -27,13 +28,13 @@
   <p>Your save and account stay until you ask for them to be deleted. Daily backups of the game database are kept for 14 days, so deleted data disappears from them within two weeks. Chat keeps only the most recent few hundred messages per channel.</p>
 
   <h2 class="h3">Deleting your data</h2>
-  <p>Ask an admin on the <a href="https://discord.gg/stfurequiem">Discord server</a> (or send a report from your profile) to delete your account. We remove your save, your account, your chat history, friendships, listings and every other piece of data tied to you. A copy of the save is kept for {{ keep_days }} days in case the deletion was a mistake, then it's gone.</p>
+  <p>Ask an admin on the <a href="https://discord.gg/stfurequiem">Discord server</a> (or <a href="{{ url_for('main.contact', kind='account') }}">write to us</a>) to delete your account. We remove your save, your account, your chat history, friendships, listings and every other piece of data tied to you. A copy of the save is kept for {{ keep_days }} days in case the deletion was a mistake, then it's gone.</p>
 
   <h2 class="h3">Children</h2>
   <p>The game is meant for players aged 13 and over, the same as Discord. If you're under the age where your country requires a parent's consent, please get it before playing.</p>
 
   <h2 class="h3">Questions</h2>
-  <p>Ask on the <a href="https://discord.gg/stfurequiem">Discord server</a>. If this policy changes, the date at the top changes too, and big changes are announced in the news.</p>
+  <p>Ask on the <a href="https://discord.gg/stfurequiem">Discord server</a> or <a href="{{ url_for('main.contact') }}">write to us</a>. If this policy changes, the date at the top changes too, and big changes are announced in the news.</p>
   <p class="muted"><a href="{{ url_for('main.terms') }}">Terms of use</a></p>
 </article>
 {% endblock %}

@@ -57,6 +57,7 @@
         </div>
       {% endfor %}
     </div>
+    <div class="pull-fan" hidden data-after-reveal data-pull-fan aria-hidden="true"></div>
     <p class="pull-summary" hidden data-pull-summary>
       {% for r in ['LR', 'UR', 'SSR', 'SR', 'R'] %}{% set n = res.cards|selectattr('stand.rarity', 'equalto', r)|list|length %}{% if n %}<span class="rar-tag {{ r|rarity }}">{{ n }} {{ r }}</span> {% endif %}{% endfor %}
       {% set fresh = res.cards|selectattr('new')|list|length %}{% if fresh %}· {{ fresh }} new stand{{ 's' if fresh > 1 }}{% endif %}

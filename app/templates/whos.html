@@ -8,7 +8,7 @@
     <div>
       <p class="kicker">Daily · {{ day }} · the same stand for everyone</p>
       <h1 class="display sm">{% call menacing() %}Who's that Stand?{% endcall %}</h1>
-      <p class="muted">Guess the mystery stand in {{ W.MAX_GUESSES }}. Your first guess is blind; after that, every guess shows how close it was and the picture sharpens with each miss.</p>
+      <p class="muted">Guess the mystery stand in {{ W.MAX_GUESSES }}. Every guess shows how close it was. The picture only appears after {{ W.PICTURE_AT }} misses, very blurry, and sharpens with each miss after that.</p>
     </div>
     <dl class="wts-figures">
       <div><dt>Streak</dt><dd>🔥 {{ streak.n }}</dd></div>
@@ -20,12 +20,12 @@
   <div class="wts-layout">
     <div class="wts-main">
       <section class="wts-board">
-        {#- the mystery card: a mosaic made on the server at the sharpness earned, the real art once it's settled -#}
+        {#- the mystery card: a blurred picture made on the server at the sharpness earned, the real art once it's settled -#}
         <figure class="wts-card{{ ' solved' if s.solved }}{{ ' failed' if s.over and not s.solved }}">
           <div class="wts-window">
             {% if reveal %}<img src="{{ reveal.id|stand_img }}" alt="{{ reveal.name }}" width="320" height="320">
             {% elif step is not none %}<img src="{{ url_for('progress.wts_picture', s=step) }}" alt="The mystery stand, blurred" width="320" height="320" onerror="this.hidden=true">
-            {% else %}<span class="wts-blind">First guess is blind.<br>Miss once to see a blurred glimpse.</span>{% endif %}
+            {% else %}{% set left = W.PICTURE_AT - s.misses %}<span class="wts-blind">No picture yet.<br>It shows, very blurry, after {{ left }} more miss{{ 'es' if left != 1 }}.</span>{% endif %}
             {% if not reveal %}<span class="wts-q" aria-hidden="true">？</span>{% endif %}
           </div>
           <figcaption>
@@ -52,6 +52,7 @@
           {% endif %}
 
           <ul class="wts-clues">
+            <li class="{{ 'on' if step is not none or reveal }}"><b>Picture</b>{% if reveal %}<span>Revealed</span>{% elif step is not none %}<span>Blurred · sharper with each miss</span>{% else %}<span class="muted">after {{ W.PICTURE_AT }} misses</span>{% endif %}</li>
             <li class="{{ 'on' if clues.special }}"><b>Special</b>{% if clues.special %}<span>{{ clues.special }}</span>{% else %}<span class="muted">after {{ W.CLUE_SPECIAL }} misses</span>{% endif %}</li>
             <li class="{{ 'on' if clues.letter }}"><b>First letter</b>{% if clues.letter %}<span>{{ clues.letter }} · {{ clues.length }} characters</span>{% else %}<span class="muted">after {{ W.CLUE_LETTER }} misses</span>{% endif %}</li>
           </ul>

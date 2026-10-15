@@ -13,7 +13,7 @@
     data-art-shiny="{{ 1 if art.shiny else 0 }}" data-art-full="{{ 1 if art.full else 0 }}" data-art-own="{{ 1 if art.own else 0 }}"{% endif %}>
   {% if targetable %}
   <button class="fighter-hit" name="target" value="{{ idx }}" aria-label="Attack {{ c.name }}{% if hit is not none %}, about {{ hit }} damage{% endif %}"
-          {% if hit is not none %}data-hit="~{{ hit }}{% if hit >= c.current_hp and not unread %} · KO{% endif %}"{% endif %}></button>
+          {% if hit is not none %}data-hit="≈ {{ hit }}{% if not unread %} · {{ 'finishes it' if hit >= c.current_hp else ((100 * hit / [c.current_hp, 1]|max)|round|int) ~ '% of its health' }}{% endif %}"{% endif %}></button>
   {% endif %}
   <div class="fighter-portrait">
     <img src="{{ art.portrait if cos else art.classic }}" alt="" loading="lazy" decoding="async"{% if art.own %} class="own-art"{% endif %} onerror="this.onerror=null;this.src='{{ url_for('static', filename='img/stand-fallback.svg') }}'">
@@ -33,6 +33,7 @@
     <i style="width: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%"></i>
     {% if st.dot %}<b class="hp-dot" style="left: {{ (100 * (hp - st.dot) / maxhp)|round(1) }}%; width: {{ (100 * st.dot / maxhp)|round(1) }}%"></b>{% endif %}
     {% if st.regen %}<b class="hp-regen" style="left: {{ ([100 * hp / maxhp, 100]|min)|round(1) }}%; width: {{ (100 * st.regen / maxhp)|round(1) }}%"></b>{% endif %}
+    {% if targetable and hit is not none and not unread %}{% set lost = [hit, hp]|min %}<b class="hp-ghost" aria-hidden="true" style="left: {{ (100 * (hp - lost) / maxhp)|round(1) }}%; width: {{ (100 * lost / maxhp)|round(1) }}%"></b>{% endif %}
   </div>
   <p class="fighter-meta">
     {% if unread %}<span title="Heaven's Door: hit it to read its health">📖 ??? / ???</span>
@@ -177,6 +178,16 @@
         </div>
       </div>
     {% elif fight.finished %}
+      {% set promo = (fight.meta.get('promoted') or {}).get(me.id) if fight.kind == 'ranked' else none %}
+      {% if promo %}
+        <button type="button" class="promo-moment" data-promo="{{ fight.id }}" aria-label="Promoted from {{ promo[0] }} to {{ promo[1] }}. Tap to continue">
+          <span class="promo-rays" aria-hidden="true"></span>
+          <span class="promo-badge old" aria-hidden="true">{{ promo[0] }}</span>
+          <span class="promo-badge new" aria-hidden="true">{{ promo[1] }}</span>
+          <b class="promo-word" aria-hidden="true">PROMOTED</b>
+          <small aria-hidden="true">Tap to continue</small>
+        </button>
+      {% endif %}
       <div class="result {{ 'win' if fight.winner == my_side else 'loss' }}">
         {% set rw = (fight.meta.rewards or {}).get(coop_me) if fight.kind == 'coop' else fight.rewards %}
         {% if fight.meta.damage is defined %}

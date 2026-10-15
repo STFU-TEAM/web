@@ -92,7 +92,7 @@
   'simulator': ('Team simulator', url_for('battles.simulator'), ep.startswith('battles.simulator'), '🧪', 'Test a team against any stage or player before you spend energy.'),
   'wormhole': ('Mirror World', url_for('play.mirror'), ep.startswith('play.mirror'), '🪞', 'Fight a reflection of your own team: Meteor Dust, XP and items.'),
   'tower': ('Tower', url_for('play.tower'), ep.startswith('play.tower'), '▲', 'An endless weekly climb that gets brutal fast. Weekly leaderboard.'),
-  'whos': ("Who's that Stand?", url_for('progress.wts_page'), ep.startswith('progress.wts_'), '❓', 'One mystery stand a day: guess it in 8, keep your streak.'),
+  'whos': ("Who's that Stand?", url_for('progress.wts_page'), ep.startswith('progress.wts_'), '❓', 'One mystery stand a day: guess it in 10, keep your streak.'),
   'cup': ('Gang Cup', url_for('gangs.cup_page'), ep == 'gangs.cup_page', '🏆', 'The monthly tournament of the top 8 gangs: a bout a day for your gang.'),
   'puzzle': ('Daily puzzle', url_for('progress.pz_page'), ep.startswith('progress.pz_'), '🧩', 'One puzzle a day for everyone: pick 3 of 6 stands, hand out the items, beat the crew. Fastest solve tops the ladder.'),
   'dungeon': ('Dungeon', url_for('play.dungeon'), ep.startswith('play.dungeon'), '▦', 'A free daily delve: explore, loot, and choose when to get out.'),
@@ -111,6 +111,7 @@
   'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
   'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖', 'How fights work: terrains, synergies, status effects.'),
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
+  'contact': ('Contact & bugs', url_for('main.contact'), ep == 'main.contact', '✉', 'Report a bug or write to the team.'),
   'admin': ('Moderation' if me.mod_only else 'Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
 {#- THE NAV, ONCE. Every surface (desktop sidebar, top-bar dropdowns, the phone menu sheet) reads these groups, so
@@ -130,13 +131,13 @@
 {%- set community_keys = ['chat', 'friends', 'players', 'gangs', 'cup', 'gang_ladder', 'inbox'] -%}
 {%- set market_keys = ['trades', 'auction', 'shops'] -%}
 {%- set social_groups = [('People', 'community', community_keys), ('Market', 'market', market_keys)] -%}
-{%- set explore_keys = ['news', 'wiki', 'stands'] + (['admin'] if is_admin else []) -%}
+{%- set explore_keys = ['news', 'wiki', 'stands', 'contact'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
   {%- set sheet = [('Daily', daily_keys), ('Adventure', adventure_keys), ('Challenges', challenge_keys), ('PvP', pvp_keys),
                    ('Collection', ['team', 'banners'] + collection_keys), ('Progress', progress_keys),
                    ('Community', community_keys), ('Market', market_keys), ('Explore', explore_keys)] -%}
 {%- else -%}
-  {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder', 'gang_ladder'])] -%}
+  {%- set sheet = [('Explore', ['news', 'wiki', 'stands', 'ladder', 'gang_ladder', 'contact'])] -%}
 {%- endif -%}
 {%- macro nav_link(key, cls='') -%}
   {%- set label, href, active, icon, why = L[key] -%}
@@ -475,7 +476,7 @@
   <footer class="footer">
     <p>STFU Requiem is a fan game. JoJo's Bizarre Adventure belongs to Hirohiko Araki.</p>
     <p><a class="kofi-link" href="{{ config.KOFI_URL }}" target="_blank" rel="noopener">☕ Support the game on Ko-fi</a> | <a href="https://discord.gg/stfurequiem">Discord server</a></p>
-    <p class="footer-links"><a href="{{ url_for('main.changelog') }}">What's new</a> · <a href="{{ url_for('main.privacy') }}">Privacy</a> · <a href="{{ url_for('main.terms') }}">Terms</a></p>
+    <p class="footer-links"><a href="{{ url_for('main.changelog') }}">What's new</a> · <a href="{{ url_for('main.privacy') }}">Privacy</a> · <a href="{{ url_for('main.terms') }}">Terms</a> · <a href="{{ url_for('main.contact') }}">Contact us</a> · <a href="{{ url_for('main.contact', kind='bug') }}">Report a bug</a></p>
     {% if config.DEBUG %}
       <form class="dev-strip dev-foot" method="post" action="{{ url_for('auth.dev_fresh') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
         <span class="dev-tag">🛠 Dev mode</span><button class="btn small gold" title="Signs you in as a brand-new player with an empty save, at the welcome screen">New test player (empty save)</button></form>

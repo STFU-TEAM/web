@@ -1,0 +1,75 @@
+{#- Another player's stand as they built it, read-only (a card on their profile opens it; main.stand_build). -#}
+{% from "macros.html" import owned_card, special_scaling %}
+{% from "partials/chip_macros.html" import chip_tile %}
+<div class="panel-grid build-view">
+  <div class="panel-card">
+    {{ owned_card(c, size='big', link=False, badges={'team': in_team}, params=True, inspect=True) }}
+  </div>
+  <div class="panel-body" data-tab="stats">
+    <p class="kicker">{{ c.rarity }} · {{ template.universe }}</p>
+    <h2 class="display sm">{% if c.shiny %}<span class="shiny-title" title="Shiny: a rare colour variant">✨</span> {% endif %}{{ c.name }}</h2>
+    <p class="panel-meta">
+      <a href="{{ url_for('main.profile', uid=uid) }}">{{ ident.name }}</a>'s · Level {{ c.level }} · ★{{ c.awaken }}/5 · Power {{ power|num }}
+      · {{ 'In their team' if in_team else 'In their collection' }}
+    </p>
+
+    {% set m = mastery %}
+    <div class="mastery-box lv{{ m.level }}">
+      <p class="mastery-head"><span class="mastery-medal" aria-hidden="true">{{ m.icon or '·' }}</span>
+        <strong>{{ m.rank }} mastery</strong> <small class="muted">{{ m.points|num }} pts</small></p>
+      <p class="mastery-stats muted"><span>{{ m.g }} fights</span><span>{{ m.w }} wins</span><span>{{ m.d|stat }} damage</span><span>{{ m.s }} specials</span></p>
+    </div>
+
+    <div class="ptabs three" role="tablist" aria-label="Stand details">
+      {% for key, label in [('stats', 'Stats'), ('gear', 'Gear'), ('chips', 'Chips')] %}
+        <button type="button" role="tab" data-ptab="{{ key }}" aria-selected="{{ 'true' if loop.first else 'false' }}">{{ label }}</button>
+      {% endfor %}
+      <i class="ptabs-line" aria-hidden="true"></i>
+    </div>
+
+    <section class="pt-group" data-group="stats">
+    <h3 class="h3">Stats</h3>
+    <table class="panel-stats">
+      <thead><tr><th></th><th scope="col">Base</th><th scope="col">Theirs</th><th scope="col">Gain</th></tr></thead>
+      <tbody>
+        {% for label, base, mine, unit in [('Health', template.base_hp, c.start_hp, ''), ('Damage', template.base_damage, c.start_damage, ''), ('Armor', template.armor, c.start_armor, ''), ('Speed', template.base_speed, c.start_speed, ''), ('Critical', template.base_critical, c.start_critical, '%')] %}
+          {% set gain = mine - base %}
+          <tr><th scope="row">{{ label }}</th><td>{{ base }}{{ unit }}</td>
+            <td>{% if unit %}{{ mine|round(1) }}{% else %}{{ mine|int|num }}{% endif %}{{ unit }}</td>
+            <td class="{{ 'gain' if gain > 0 else 'muted' }}">{% if gain|abs >= 0.05 %}{{ '+' if gain > 0 else '−' }}{% if unit %}{{ gain|abs|round(1) }}{% else %}{{ gain|abs|int|num }}{% endif %}{{ unit }}{% else %}·{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="muted small-print">Gain: what levels, stars, items, chips and qualities add on top of the stand's base.</p>
+
+    <h3 class="h3">Special</h3>
+    <p class="special-text">{{ special_text(c) }} <span class="muted">Charges in {{ c.turn_for_ability }} turns.</span></p>
+    {{ special_scaling(c) }}
+
+    {% set tr = c|traits %}
+    <h3 class="h3">Types & qualities</h3>
+    {% if tr %}
+      <ul class="panel-traits">{% for emo, t, q, rank, qemo in tr %}<li class="q{{ rank }}"><span>{{ emo }} {{ t }}</span><strong>{{ q }}</strong><em>grade {{ rank }}</em></li>{% endfor %}</ul>
+    {% else %}<p class="muted">No types rolled.</p>{% endif %}
+    </section>
+
+    <section class="pt-group" data-group="gear">
+    <h3 class="h3">Items {{ c.items|length }}/3</h3>
+    {% if c.items %}
+      <ul class="panel-items">{% for it in c.items %}<li>{{ (it.emoji or '◈')|emoji }} {{ it.label }}</li>{% endfor %}</ul>
+      {% for st in sets %}<p class="item-set on">{{ st.icon }} <strong>{{ st.name }}</strong> {{ st.worn }}/{{ st.of }}: {{ st.text }}</p>{% endfor %}
+    {% else %}<p class="muted">No items equipped.</p>{% endif %}
+    </section>
+
+    <section class="pt-group" data-group="chips">
+    <h3 class="h3">Chips {{ socketed|length }}/{{ chip_slots }}</h3>
+    {% if socketed %}
+      <div class="chip-slots">{% for x in socketed %}{% call chip_tile(x, 'compact') %}{% endcall %}{% endfor %}</div>
+    {% else %}<p class="muted">No chips socketed.</p>{% endif %}
+    </section>
+
+    <p class="panel-actions build-foot">
+      <a class="btn small ghost" href="{{ url_for('main.stand', stand_id=c.id) }}">Stand wiki →</a>
+    </p>
+  </div>
+</div>

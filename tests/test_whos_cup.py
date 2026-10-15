@@ -66,14 +66,20 @@ def test_the_picture_is_made_on_the_server_and_sharpens(client, monkeypatch):
     monkeypatch.setattr(requests, "get", lambda url, timeout: calls.append(url) or Res())
     player(client, "111")
     h = login(client, "111")
-    assert client.get("/whos-that-stand/picture.png").status_code == 404 and not calls  # the first guess is blind
-    assert "First guess is blind" in client.get("/whos-that-stand").data.decode()
-    wrong = next(p for p in whos.POOL if p != whos.answer())
-    client.post("/whos-that-stand/guess", data={"name": whos.facts(wrong)["name"]}, headers=h)
+    assert whos.MAX_GUESSES == 10 and whos.PICTURE_AT == 5
+    assert client.get("/whos-that-stand/picture.png").status_code == 404 and not calls  # no picture at first
+    assert "after 5 more misses" in client.get("/whos-that-stand").data.decode()
+    wrong = [p for p in whos.POOL if p != whos.answer()]
+    for cid in wrong[:4]:
+        client.post("/whos-that-stand/guess", data={"name": whos.facts(cid)["name"]}, headers=h)
+    assert client.get("/whos-that-stand/picture.png").status_code == 404 and not calls  # 4 misses: still hidden
+    assert "after 1 more miss." in client.get("/whos-that-stand").data.decode()
+    client.post("/whos-that-stand/guess", data={"name": whos.facts(wrong[4])["name"]}, headers=h)
     r1 = client.get("/whos-that-stand/picture.png")
     assert r1.status_code == 200 and r1.mimetype == "image/png" and len(calls) == 1
     client.get("/whos-that-stand/picture.png")
     assert len(calls) == 1  # cached per day and step
+    assert whos.picture_step(whos.state("111")) == 0  # the blurriest
 
 
 def _gang(client, uid, name, elo):

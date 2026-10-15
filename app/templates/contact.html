@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Contact us · Report a bug | STFU Requiem{% endblock %}
+{% block description %}Report a bug, ask about your account or send an idea to the STFU Requiem team.{% endblock %}
+{% block main %}
+<section class="page contact-page">
+  <header class="contact-head">
+    <p class="kicker">Help</p>
+    <h1 class="display sm">Contact us</h1>
+    <p class="muted">Found a bug, lost something, or have an idea? Write to the team here: every message is read. For a quick chat, the <a href="https://discord.gg/stfurequiem">Discord server</a> is faster.</p>
+  </header>
+
+  <div class="contact-layout">
+    {% if sent %}
+      <div class="social-panel contact-sent" role="status">
+        <p class="contact-sent-mark" aria-hidden="true">✓</p>
+        <h2 class="h3">Message sent. Thank you!</h2>
+        <p>If you left an email, the answer goes there. Fixes show up in <a href="{{ url_for('main.changelog') }}">What's new</a>.</p>
+        <a class="btn small ghost" href="{{ url_for('main.contact') }}">Send another</a>
+      </div>
+    {% else %}
+      {% set kind = form.get('kind') if form.get('kind') in kinds else 'bug' %}
+      <form class="social-panel contact-form" method="post" action="{{ url_for('main.contact') }}">
+        <input type="hidden" name="csrf" value="{{ csrf_token }}">
+        <fieldset class="contact-kinds">
+          <legend>What is it about?</legend>
+          {% for key, (icon, label, hint) in kinds.items() %}
+            <label class="contact-kind"><input type="radio" name="kind" value="{{ key }}" data-hint="{{ hint }}" {% if key == kind %}checked{% endif %}>
+              <span><span aria-hidden="true">{{ icon }}</span> {{ label }}</span></label>
+          {% endfor %}
+        </fieldset>
+
+        <label for="contact-message">Your message</label>
+        <textarea id="contact-message" name="message" rows="7" minlength="10" maxlength="3000" required aria-describedby="contact-hint">{{ form.get('message', '') }}</textarea>
+        <p class="muted small-print" id="contact-hint" data-contact-hint>{{ kinds[kind][2] }}</p>
+
+        <div class="contact-row">
+          <div>
+            <label for="contact-page">Page it's about <small class="muted">(optional)</small></label>
+            <input id="contact-page" name="page" value="{{ form.get('page', '') }}" maxlength="300" placeholder="/team, the ranked queue…" autocomplete="off">
+          </div>
+          <div>
+            <label for="contact-email">Email for an answer <small class="muted">(optional)</small></label>
+            <input id="contact-email" name="email" type="email" value="{{ form.get('email', '') }}" maxlength="200" autocomplete="email" placeholder="you@example.com">
+          </div>
+        </div>
+        {#- only bots fill this in -#}
+        <div class="contact-trap" aria-hidden="true"><label for="contact-website">Website</label><input id="contact-website" name="website" tabindex="-1" autocomplete="off"></div>
+
+        <p class="muted small-print">{% if me.id %}Sent as <strong>{{ me.name }}</strong>, so we can find your account: no need to give your ID. {% endif %}Your browser's name is attached to help reproduce bugs. Never send a password.</p>
+        <button class="btn gold">Send</button>
+      </form>
+    {% endif %}
+
+    <aside class="social-panel contact-tips">
+      <h2 class="h3">A good bug report</h2>
+      <ol>
+        <li>Where you were (the page, the fight mode).</li>
+        <li>What you did, step by step.</li>
+        <li>What happened, and what you expected instead.</li>
+        <li>Phone or computer, and which browser.</li>
+      </ol>
+      <p class="muted small-print">A screenshot helps: post it on the <a href="https://discord.gg/stfurequiem">Discord server</a> and mention it in your message.</p>
+      <p class="muted small-print">How your message is kept: <a href="{{ url_for('main.privacy') }}">Privacy</a>.</p>
+    </aside>
+  </div>
+</section>
+<script>
+  // the hint under the message follows the topic picked
+  document.addEventListener("change", (e) => {
+    if (!e.target.matches?.(".contact-kinds input")) return;
+    const hint = document.querySelector("[data-contact-hint]");
+    if (hint) hint.textContent = e.target.dataset.hint;
+  });
+</script>
+{% endblock %}

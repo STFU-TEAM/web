@@ -266,14 +266,56 @@ document.addEventListener("keydown", (e) => {
   if (opener) { e.preventDefault(); opener.click(); }
 });
 
-// Stand panel: a tap on a stand opens the dialog; htmx fills it.
+// Stand panel: a tap on a stand opens the dialog; htmx fills it. Until it lands, its shapes shimmer in place.
+const PANEL_SKELETON = '<div class="panel-skeleton" aria-label="Loading"><span class="sk sk-card"></span><span class="sk-col">'
+  + '<span class="sk sk-line w40"></span><span class="sk sk-line w70 tall"></span><span class="sk sk-line w55"></span>'
+  + '<span class="sk sk-line"></span><span class="sk sk-line"></span><span class="sk sk-line w80"></span></span></div>';
 const standPanel = () => document.getElementById("stand-panel");
+// its tabs (phones): Stats, Gear, Stars, Chips, the line sliding under the picked one; the last pick is kept
+document.addEventListener("click", (e) => {
+  const tab = e.target.closest?.("[data-ptab]");
+  if (!tab) return;
+  const body = tab.closest(".panel-body");
+  body.dataset.tab = tab.dataset.ptab;
+  body.querySelectorAll("[data-ptab]").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
+  try { sessionStorage.setItem("panel-tab", tab.dataset.ptab); } catch (_) { /* fine */ }
+});
+document.addEventListener("htmx:afterSwap", (e) => {
+  const body = e.detail.target?.querySelector?.(".panel-body[data-tab]");
+  if (!body) return;
+  let tab = "stats";
+  try { tab = sessionStorage.getItem("panel-tab") || "stats"; } catch (_) { /* fine */ }
+  body.querySelector(`[data-ptab="${tab}"]`)?.click();
+});
+// on phones the panel is a sheet: drag it down from the top (or its grab handle) to close it
+(() => {
+  let y0 = null, dy = 0;
+  document.addEventListener("touchstart", (e) => {
+    const p = standPanel();
+    if (!p?.open || !p.contains(e.target) || p.scrollTop > 0 || innerWidth > 640) return;
+    y0 = e.touches[0].clientY; dy = 0;
+  }, { passive: true });
+  document.addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    standPanel().style.transform = dy ? `translateY(${dy}px)` : "";
+  }, { passive: true });
+  document.addEventListener("touchend", () => {
+    if (y0 === null) return;
+    const p = standPanel();
+    p.style.transition = "transform .2s ease";
+    p.style.transform = "";
+    if (dy > 110) p.close();
+    setTimeout(() => { p.style.transition = ""; }, 220);
+    y0 = null;
+  });
+})();
 document.addEventListener("click", (e) => {
   const slot = e.target.closest("[data-open-panel]");
   if (slot && !slot.closest(".selecting")) {
     const panel = standPanel();
     if (panel && !panel.open) {
-      document.getElementById("stand-panel-body").innerHTML = '<p class="muted">Loading…</p>';
+      document.getElementById("stand-panel-body").innerHTML = PANEL_SKELETON;
       panel.showModal();
     }
     return;
@@ -284,7 +326,7 @@ document.addEventListener("keyup", (e) => {
   if (e.key !== "Enter") return;
   const slot = e.target.closest?.("[data-open-panel]");
   if (slot && !slot.closest(".selecting") && standPanel() && !standPanel().open) {
-    document.getElementById("stand-panel-body").innerHTML = '<p class="muted">Loading…</p>';
+    document.getElementById("stand-panel-body").innerHTML = PANEL_SKELETON;
     standPanel().showModal();
   }
 });
@@ -423,7 +465,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-params-flip]");
   if (!btn) return;
-  const card = btn.previousElementSibling;
+  const card = btn.closest(".card-tools")?.previousElementSibling;
   const back = card?.querySelector(".card-params");
   if (!back) return;
   const on = btn.getAttribute("aria-pressed") !== "true";
@@ -454,12 +496,55 @@ document.addEventListener("click", (e) => {
   });
 })();
 
+// A shiny: a burst of sparkles and SHINY over the card (the grid's slot, or the cinematic's stage).
+function sparkle(host) {
+  if (!host || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const box = document.createElement("span");
+  box.className = "sparkle-burst";
+  box.setAttribute("aria-hidden", "true");
+  box.innerHTML = '<b class="sparkle-word">SHINY</b>' + Array.from({ length: 16 }, (_, k) => {
+    const a = (k / 16) * Math.PI * 2, d = 70 + Math.random() * 70;
+    return `<i style="--dx: ${Math.round(Math.cos(a) * d)}px; --dy: ${Math.round(Math.sin(a) * d)}px; animation-delay: ${Math.round(Math.random() * 140)}ms"></i>`;
+  }).join("");
+  if (!host.style.position) host.style.position = "relative";
+  host.appendChild(box);
+  setTimeout(() => box.remove(), 1600);
+}
+window.sparkle = sparkle;
+
+// After the last card: the ten deal into a fan sorted by rarity, the best one in the middle and glowing.
+function pullFan(batch) {
+  const fan = batch.querySelector("[data-pull-fan]");
+  if (!fan || fan.childElementCount) return;
+  const cards = [...batch.querySelectorAll("[data-flip]")].map((f) => ({
+    rank: +f.dataset.rank + (f.dataset.shiny === "1" ? 0.5 : 0), r: f.dataset.rarity,
+    img: f.querySelector(".flip-front img")?.src || "", name: f.dataset.name }));
+  cards.sort((a, b) => b.rank - a.rank);
+  const placed = [];  // centre out: best in the middle, then alternate sides
+  cards.forEach((c, k) => { if (k % 2) placed.push(c); else placed.unshift(c); });
+  const mid = placed.indexOf(cards[0]);
+  placed.forEach((c, i) => {
+    const d = document.createElement("span");
+    const off = i - mid;
+    d.className = `fan-card r-${c.r}${i === mid ? " top" : ""}`;
+    d.style.setProperty("--a", `${off * 8}deg`);
+    d.style.zIndex = String(20 - Math.abs(off));
+    d.style.animationDelay = `${(placed.length - Math.abs(off)) * 55}ms`;
+    d.innerHTML = '<img alt=""><small></small>';
+    d.querySelector("img").src = c.img;
+    d.querySelector("small").textContent = c.r;
+    d.title = c.name;
+    fan.appendChild(d);
+  });
+}
+
 // Pull reveal: tap a card to flip it, or reveal all in sequence (rarest last).
 function flip(card) {
   if (card.classList.contains("flipped")) return;
   card.classList.add("flipped");
   card.setAttribute("aria-label", "Revealed");
   if (+card.dataset.rank >= 3) burst(card.closest(".slot"));  // UR and LR: manga speed lines and ドドド
+  if (card.dataset.shiny === "1") sparkle(card.closest(".slot"));
   const batch = card.closest("[data-pull]");
   if (batch && !batch.querySelector("[data-flip]:not(.flipped)")) {
     batch.querySelector("[data-pull-summary]").hidden = false;
@@ -467,6 +552,7 @@ function flip(card) {
     batch.querySelector("[data-tap-hint]")?.setAttribute("hidden", "");
     batch.querySelectorAll("[data-after-reveal]").forEach((x) => { x.hidden = false; });
     batch.querySelector("[data-cinematic]")?.setAttribute("hidden", "");
+    pullFan(batch);
     document.dispatchEvent(new CustomEvent("pull:revealed"));
   }
 }
@@ -659,6 +745,7 @@ document.addEventListener("keyup", (e) => { if (e.key === "Enter" && e.target.ma
     el.querySelector(".cine-card").classList.add("turned");
     const shiny = src.dataset.shiny === "1";  // 1 in 1000: it gets its own title
     el.classList.toggle("is-shiny", shiny);
+    if (shiny) setTimeout(() => sparkle(el.querySelector(".cine-stage")), 250);
     el.querySelector(".cine-title").textContent = shiny ? "✨ SHINY ✨" : TITLE[r] || "";
     if (["SSR", "UR", "LR"].includes(r) && src.dataset.gif) {  // the special's animation fills the background
       const gif = document.createElement("img");
@@ -1312,6 +1399,7 @@ function standReveal(f) {
 
 // Fight replay: a fresh turn arrives with its log events as JSON. Rewind the bars to before the turn,
 // then play each event (lunge, hit, damage numbers, special GIF in the spotlight) and land on the server's final state.
+const RUSH_RE = /(\d+)\s+(?:punches|hits|blows|kicks|stabs|slashes|strikes|shots|bullets|nails|jabs)/i;
 const FIGHT_STEP = { hit: 700, crit: 950, dodge: 700, special: 1900, item: 1000, info: 600, stun: 700, terrain: 1300, sudden: 900 };
 // A crit's colour by how many times it crit: yellow, red (double), rainbow (triple and more).
 const critClass = (e) => (e.kind !== "crit" ? "" : e.crit >= 3 ? "crit crit3" : e.crit === 2 ? "crit crit2" : "crit");
@@ -1372,6 +1460,51 @@ function playFight(root) {
     f.appendChild(s);
     s.addEventListener("animationend", () => s.remove());
     restart(arena, "shake");
+  };
+  const pvp = root.classList.contains("kind-ranked") || root.classList.contains("kind-friend");
+  // hit-stop: the target freezes bright for a few frames as the blow lands
+  const hitstop = (f) => { f.classList.remove("hitstop"); void f.offsetWidth; f.classList.add("hitstop"); };
+  // a rush: the damage split into one number per hit, each one flashing the target, and a hit counter
+  const rush = (f, n, total) => {
+    const parts = Array.from({ length: n }, () => 0.7 + Math.random() * 0.6);
+    const sum = parts.reduce((a, b) => a + b, 0);
+    let shown = 0;
+    const counter = document.createElement("span");
+    counter.className = "rush-count";
+    counter.setAttribute("aria-hidden", "true");
+    f.appendChild(counter);
+    parts.forEach((p, k) => setTimeout(() => {
+      const d = k === n - 1 ? Math.round(total - shown) : Math.round((total * p) / sum);
+      shown += d;
+      restart(f, "hurt");
+      hitstop(f);
+      const q = document.createElement("span");
+      q.className = "dmg-pop rush-pop";
+      q.textContent = `-${d}`;
+      q.setAttribute("aria-hidden", "true");
+      q.style.left = `${20 + Math.random() * 55}%`;
+      q.style.top = `${15 + Math.random() * 40}%`;
+      f.appendChild(q);
+      q.addEventListener("animationend", () => q.remove());
+      counter.innerHTML = `${k + 1}<small>HITS</small>`;
+      counter.classList.remove("bump"); void counter.offsetWidth; counter.classList.add("bump");
+      if (k === n - 1) { heavy(f, total); setTimeout(() => counter.remove(), 900 * pace()); }
+    }, k * 110 * pace()));
+  };
+  // PvP specials: a manga panel slashes in (the stand's art, its user, its name) before the special lands
+  const cutIn = (f) => {
+    const side = f.closest(".side");
+    const el = document.createElement("div");
+    el.className = `cut-in ${side?.classList.contains("foe") ? "foe" : "you"}`;
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = '<div class="cut-art"><i class="speedlines"></i><img alt=""></div><div class="cut-text"><small></small><b></b></div><span class="cut-sfx"></span>';
+    el.querySelector("img").src = f.dataset.img || "";
+    el.querySelector("small").textContent = side?.querySelector(".side-name")?.textContent.trim() || "";
+    el.querySelector("b").textContent = `｢${f.dataset.name.replace(/^｢|｣$/g, "").toUpperCase()}｣`;
+    el.querySelector(".cut-sfx").textContent = f.dataset.cry ? `${f.dataset.cry}!!` : "ドン!!";
+    document.querySelectorAll(".cut-in, .stand-reveal").forEach((x) => x.remove());
+    document.body.append(el);
+    setTimeout(() => el.remove(), 1700 * pace());
   };
   const pop = (f, text, cls) => {
     const p = document.createElement("span");
@@ -1445,8 +1578,13 @@ function playFight(root) {
       showSpot(src, text, e.kind === "special");
       if (e.kind === "special") {
         lastSpecial = [src, text]; restart(arena, "flash-special"); window.SFX?.play("special");
-        if (src && fx()) { standReveal(src); shout(src); }
+        if (src && fx()) {
+          if (pvp) { cutIn(src); await wait(1100 * pace()); } else standReveal(src);
+          shout(src);
+        }
       }
+      // a multi-hit special ("4 punches", "6 hits"...) lands as a rush: one number per hit, a hit counter
+      const rushN = e.kind === "special" ? +((text.match(RUSH_RE) || [])[1] || 0) : 0;
       await wait(e.kind === "special" ? 450 * pace() : 200 * pace());
 
       if (dst && e.kind === "dodge") { restart(dst, "dodge"); pop(dst, "MISS", "miss"); }
@@ -1465,7 +1603,8 @@ function playFight(root) {
           const before = prev?.[f.dataset.side]?.[f.dataset.idx], after = e.hp[f.dataset.side]?.[f.dataset.idx];
           if (before === undefined || after === undefined || Math.round(before) === Math.round(after)) return;
           const crit = e.kind === "crit" && f === dst;
-          if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); heavy(f, before - after); }
+          if (after < before && rushN >= 2 && src && f.dataset.side !== src.dataset.side && fx()) rush(f, rushN, before - after);
+          else if (after < before) { restart(f, "hurt", ...(crit ? ["crit"] : [])); hitstop(f); pop(f, `-${Math.round(before - after)}`, crit ? critClass(e) : ""); heavy(f, before - after); }
           else pop(f, `+${Math.round(after - before)}`, "miss");
           if (after <= 0 && before > 0) setTimeout(() => { restart(f, "ko"); window.SFX?.play("ko"); }, 300 * pace());
         });
@@ -1473,6 +1612,7 @@ function playFight(root) {
         prev = e.hp;
       } else if (dst && e.dmg) {
         restart(dst, "hurt", ...(e.kind === "crit" ? ["crit"] : []));
+        hitstop(dst);
         pop(dst, `-${e.dmg}`, critClass(e));
         heavy(dst, e.dmg);
       }
@@ -2544,4 +2684,213 @@ document.querySelectorAll(".wm-scroll").forEach((box) => {
   const pin = box.querySelector(".wm-pin.current") || [...box.querySelectorAll(".wm-pin.done")].pop();
   if (!pin || box.scrollWidth <= box.clientWidth) return;
   box.scrollLeft = Math.max(0, pin.offsetLeft - box.clientWidth / 2);
+});
+
+// The ranked promotion moment on the end screen: once per duel, tap to continue.
+document.addEventListener("click", (e) => {
+  const p = e.target.closest?.("[data-promo]");
+  if (!p) return;
+  try { sessionStorage.setItem(`promo:${p.dataset.promo}`, "1"); } catch (_) { /* fine */ }
+  p.remove();
+});
+const hideSeenPromos = (root) => root.querySelectorAll?.("[data-promo]").forEach((p) => {
+  let seen = null;
+  try { seen = sessionStorage.getItem(`promo:${p.dataset.promo}`); } catch (_) { /* fine */ }
+  if (seen) p.remove(); else window.SFX?.play("fanfare");
+});
+hideSeenPromos(document);
+document.addEventListener("htmx:afterSwap", (e) => hideSeenPromos(e.detail.target));
+
+// Cards tilt toward the pointer (mouse and pen; not touch scrolling): a light glare on every card, a sheen on SSR,
+// a rainbow foil that slides with the pointer on UR and LR. One frame at a time, so it never piles up.
+(() => {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches || !matchMedia("(hover: hover)").matches) return;
+  let card = null, pending = null;
+  const apply = () => {
+    pending = null;
+    if (!card) return;
+    const { x, y } = card._p;
+    card.style.setProperty("--tx", `${((x - 0.5) * 16).toFixed(2)}deg`);
+    card.style.setProperty("--ty", `${((0.5 - y) * 12).toFixed(2)}deg`);
+    card.style.setProperty("--gx", `${(x * 100).toFixed(1)}%`);
+    card.style.setProperty("--gy", `${(y * 100).toFixed(1)}%`);
+  };
+  document.addEventListener("pointermove", (e) => {
+    if (e.pointerType === "touch") return;
+    const c = e.target.closest?.(".card:not(.big)");
+    if (c !== card) {
+      card?.classList.remove("tilting");
+      card = c;
+      if (card) {
+        card.classList.add("tilting");
+        if (!card.querySelector(":scope > .card-glare")) {
+          const g = document.createElement("span");
+          g.className = "card-glare";
+          g.setAttribute("aria-hidden", "true");
+          card.appendChild(g);
+        }
+      }
+    }
+    if (!card) return;
+    const r = card.getBoundingClientRect();
+    card._p = { x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height };
+    if (!pending) pending = requestAnimationFrame(apply);
+  }, { passive: true });
+  document.addEventListener("pointerleave", () => { card?.classList.remove("tilting"); card = null; });
+})();
+
+// A tap is heard: the button that sent a request stays pressed with a spinner until the answer lands, and a block
+// being replaced shimmers if the answer takes more than a moment (polls don't count).
+document.addEventListener("htmx:beforeRequest", (e) => {
+  const elt = e.detail.elt;
+  if ((elt.getAttribute?.("hx-trigger") || "").includes("every")) return;
+  const target = e.detail.target;
+  if (target && target !== document.body && !target.closest?.("#fight, [data-chat]")) target.classList.add("is-loading");
+});
+document.addEventListener("htmx:afterRequest", (e) => {
+  e.detail.target?.classList?.remove("is-loading");
+});
+document.addEventListener("submit", (e) => {  // plain forms reload the page: their button shows it's working
+  const b = e.submitter;
+  if (b && !e.target.hasAttribute("hx-post") && !e.defaultPrevented) setTimeout(() => b.classList.add("is-busy"), 0);
+});
+window.addEventListener("pageshow", () => document.querySelectorAll(".is-busy").forEach((b) => b.classList.remove("is-busy")));
+
+// A stand card on a profile opens that player's build in the panel, read-only (the link is the no-script fallback).
+document.addEventListener("click", (e) => {
+  const a = e.target.closest?.("a.card-link");
+  if (!a || !/\/u\/[^/]+\/stand\//.test(a.getAttribute("href") || "") || e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+  const panel = standPanel();
+  if (!panel || !window.htmx) return;
+  e.preventDefault();
+  document.getElementById("stand-panel-body").innerHTML = PANEL_SKELETON;
+  if (!panel.open) panel.showModal();
+  window.htmx.ajax("GET", a.getAttribute("href"), { target: "#stand-panel-body", swap: "innerHTML" });
+});
+
+// Inspect: a stand card full screen, to turn in the hand. A drag (finger or mouse) spins it and it settles on the
+// nearest face; Flip or a double tap shows its back, which changes with the rarity (only here: pulls keep the one
+// back, for the suspense); Motion follows the phone's tilt where the browser allows it. Arrow keys turn it too.
+const CARD_BACK_TIER = { R: "R · STAND", SR: "SR · RARE", SSR: "SSR · SUPER RARE", UR: "UR · ULTRA RARE", LR: "LR · REQUIEM" };
+const STAND_ARROW = '<svg class="cb-arrow" viewBox="0 0 100 150" aria-hidden="true"><path d="M50 4C60 22 72 40 80 66C70 60 60 58 50 58S30 60 20 66C28 40 40 22 50 4Z" fill="currentColor"/>'
+  + '<ellipse cx="50" cy="40" rx="6" ry="9" fill="#1C0F2E" opacity=".55"/><path d="M43 58h14l-2 10h-10z" fill="currentColor"/>'
+  + '<rect x="47" y="68" width="6" height="64" rx="2" fill="currentColor"/><path d="M40 130h20l-4 14h-12z" fill="currentColor"/></svg>';
+function openInspect(btn) {
+  const src = btn.closest(".card-tools")?.previousElementSibling;
+  if (!src?.classList.contains("card")) return;
+  const r = CARD_BACK_TIER[btn.dataset.inspect] ? btn.dataset.inspect : "R";
+  const name = src.querySelector(".card-name")?.textContent.trim() || "Stand";
+  const HINT = "Drag to spin it · double-tap to flip";
+  const dlg = document.createElement("dialog");
+  dlg.className = "inspect";
+  dlg.setAttribute("aria-label", `Inspect ${name}`);
+  dlg.innerHTML = '<span class="inspect-lines" aria-hidden="true"></span>'
+    + '<div class="inspect-top"><button type="button" class="inspect-x" data-inspect-close aria-label="Close">✕</button><b></b>'
+    + '<button type="button" class="inspect-motion" aria-pressed="false">📱 Motion</button></div>'
+    + `<div class="inspect-stage"><div class="inspect-float"><div class="inspect-card rk-${r}">`
+    + '<div class="inspect-face inspect-front"><span class="inspect-foil" aria-hidden="true"></span><span class="inspect-glare" aria-hidden="true"></span></div>'
+    + `<div class="inspect-face card-back cb-${r}" aria-hidden="true"><span class="cb-pat"></span><span class="cb-halo"></span>`
+    + '<span class="cb-go g1">ゴ</span><span class="cb-go g2">ゴ</span><span class="cb-go g3">ゴ</span><span class="cb-go g4">ゴ</span>'
+    + `<span class="cb-inner"></span>${STAND_ARROW}<span class="cb-logo">STFU REQUIEM</span><span class="cb-tier">${CARD_BACK_TIER[r]}</span>`
+    + '<span class="cb-foil"></span><span class="cb-glare"></span></div></div></div></div>'
+    + '<div class="inspect-bottom"><p class="inspect-hint" aria-live="polite"></p><div class="inspect-btns">'
+    + '<button type="button" class="btn gold" data-inspect-flip>Flip</button><button type="button" class="btn ghost" data-inspect-reset>Reset</button></div></div>';
+  dlg.querySelector(".inspect-top b").textContent = name;
+  const clone = src.cloneNode(true);
+  clone.classList.remove("params-on", "turning", "tilting");
+  clone.removeAttribute("style");
+  clone.querySelectorAll(".card-params, .card-glare, .card-link").forEach((x) => x.remove());
+  clone.querySelectorAll("[id]").forEach((x) => x.removeAttribute("id"));
+  dlg.querySelector(".inspect-front").prepend(clone);
+
+  const card = dlg.querySelector(".inspect-card"), stage = dlg.querySelector(".inspect-stage");
+  const hint = dlg.querySelector(".inspect-hint"), motionBtn = dlg.querySelector(".inspect-motion");
+  let rx = 0, ry = 0, base = 0, drag = null, raf = 0, onOri = null, oriTimer = 0, lastTap = 0;
+  const face = () => Math.round(ry / 180) * 180;
+  const paint = (settle) => {
+    card.classList.toggle("settle", !!settle);
+    const a = ((ry % 360) + 360) % 360, back = a > 90 && a < 270;
+    const d = back ? a - 180 : (a > 180 ? a - 360 : a);
+    // only the face toward the viewer shows (the card turns as one flat piece; the back is drawn mirrored)
+    card.classList.toggle("show-back", back);
+    card.style.setProperty("--gx", `${Math.max(0, Math.min(100, 50 - d * 1.4))}%`);
+    card.style.setProperty("--gy", `${Math.max(0, Math.min(100, 50 + rx * 1.6))}%`);
+    card.style.setProperty("--fo", String(Math.min(1, 0.35 + Math.abs(d) / 50 + Math.abs(rx) / 60)));
+    card.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+  };
+  const later = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; paint(false); }); };
+  const settleTo = (y) => { rx = 0; ry = y; paint(true); };
+  const flip = () => { base = face() + 180; settleTo(base); };
+  stage.addEventListener("pointerdown", (e) => {
+    if (onOri) return;
+    stage.setPointerCapture?.(e.pointerId);
+    drag = { x: e.clientX, y: e.clientY, rx, ry, moved: false };
+    paint(false);
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 6) drag.moved = true;
+    ry = drag.ry + dx * 0.6;
+    rx = Math.max(-30, Math.min(30, drag.rx - dy * 0.4));
+    later();
+  });
+  const release = () => {
+    if (!drag) return;
+    const tap = !drag.moved;
+    drag = null;
+    if (tap && performance.now() - lastTap < 320) { lastTap = 0; flip(); return; }
+    if (tap) lastTap = performance.now();
+    settleTo(face());
+  };
+  stage.addEventListener("pointerup", release);
+  stage.addEventListener("pointercancel", release);
+  dlg.addEventListener("keydown", (e) => {
+    const turn = { ArrowLeft: [0, -20], ArrowRight: [0, 20], ArrowUp: [10, 0], ArrowDown: [-10, 0] }[e.key];
+    if (!turn) return;
+    e.preventDefault();
+    rx = Math.max(-30, Math.min(30, rx + turn[0])); ry += turn[1];
+    paint(true);
+  });
+  const stopMotion = () => {
+    if (onOri) removeEventListener("deviceorientation", onOri);
+    onOri = null;
+    clearTimeout(oriTimer);
+    motionBtn.setAttribute("aria-pressed", "false");
+  };
+  motionBtn.addEventListener("click", async () => {
+    if (onOri) { stopMotion(); settleTo(face()); hint.textContent = HINT; return; }
+    try {
+      if (window.DeviceOrientationEvent?.requestPermission && await window.DeviceOrientationEvent.requestPermission() !== "granted") throw new Error("refused");
+    } catch (_) { hint.textContent = "Motion was not allowed: drag the card instead"; return; }
+    base = face();
+    let got = false;
+    onOri = (ev) => {
+      if (ev.gamma == null) return;
+      got = true;
+      ry = base + Math.max(-35, Math.min(35, ev.gamma));
+      rx = Math.max(-30, Math.min(30, 40 - ev.beta));
+      later();
+    };
+    addEventListener("deviceorientation", onOri);
+    motionBtn.setAttribute("aria-pressed", "true");
+    hint.textContent = "Tilt your phone to catch the light";
+    oriTimer = setTimeout(() => {
+      if (got) return;
+      stopMotion();
+      hint.textContent = "No motion sensor here: drag the card instead";
+    }, 1500);
+  });
+  dlg.querySelector("[data-inspect-close]").addEventListener("click", () => dlg.close());
+  dlg.querySelector("[data-inspect-flip]").addEventListener("click", flip);
+  dlg.querySelector("[data-inspect-reset]").addEventListener("click", () => { base = 0; settleTo(0); });
+  dlg.addEventListener("close", () => { stopMotion(); dlg.remove(); });
+  document.body.append(dlg);
+  hint.textContent = HINT;
+  paint(true);
+  dlg.showModal();
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest?.("[data-inspect]");
+  if (btn) openInspect(btn);
 });
