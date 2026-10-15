@@ -52,6 +52,26 @@ def foe_for(value: str, db=None) -> Optional[dict]:
             fight = overheaven.BY_KEY[key]["fights"][int(j)]
             return {"name": fight["title"], "team": overheaven.enemy_team(key, int(j)), "ai": "smart",
                     "rules": fight["rules"], "label": f"Over Heaven · {fight['title']}"}
+    if kind == "au":  # an Alternate Universe stage
+        from app.game import altverse
+        key, _, j = arg.rpartition(":")
+        if key in altverse.BY_KEY and j.isdigit() and int(j) < len(altverse.BY_KEY[key]["stages"]):
+            st = altverse.BY_KEY[key]["stages"][int(j)]
+            return {"name": st["title"], "team": altverse.enemy_team(key, int(j)), "ai": "smart",
+                    "label": f"Alternate Universe · {st['title']}"}
+    if kind == "rq":  # a Requiem stage (Carry Me's guest stand isn't simulated)
+        from app.game import requiem
+        key, _, i = arg.rpartition(":")
+        if key in requiem.BY_KEY and i.isdigit() and int(i) < len(requiem.BY_KEY[key]["stages"]):
+            st = requiem.BY_KEY[key]["stages"][int(i)]
+            return {"name": st["title"], "team": requiem.enemy_team(key, int(i)), "ai": "smart",
+                    "label": f"Requiem · {st['title']}"}
+    if kind == "hv" and arg.isdigit():  # Heaven's Gate, without a pact
+        from app.game import heaven
+        j = int(arg)
+        if j < len(heaven.FIGHTS):
+            return {"name": heaven.FIGHTS[j]["boss"], "team": heaven.enemy_team(j), "ai": "smart",
+                    "rules": heaven.FIGHTS[j]["rules"], "label": f"Heaven's Gate · {heaven.FIGHTS[j]['title']} (no pact)"}
     if kind == "player" and arg and db is not None:
         other = db.get_user(arg)
         if other and other.main_characters:

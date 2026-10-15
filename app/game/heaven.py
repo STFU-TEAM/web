@@ -53,7 +53,7 @@ REWARDS = [  # first clears
     {"fragments": 20000, "super": 2, "items": [3]},
     {"fragments": 24000, "super": 2, "items": [3]},
     {"fragments": 28000, "super": 3, "items": [3]},
-    {"fragments": 40000, "super": 5, "items": [3, 3]},
+    {"fragments": 40000, "super": 5, "items": [3]},
 ]
 
 # Pacts: a blessing and its curse (rules of the fight). Three are offered before each fight.

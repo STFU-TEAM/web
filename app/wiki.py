@@ -10,6 +10,9 @@ import re
 
 from app.game import character as character_mod
 from app.game import logic
+from app.game import tower as tower_mod
+from app.game import weekly as _weekly
+from app.game import onboarding as _onboarding
 from app.game.character import CHARACTER_FILE, Qualities, Types, specials
 from app.game.characterabilities import AFFINITY, CROSS_GROUPS, PART_GROUPS, POWER_RANGE, SYNERGIES, SYNERGY_BONUS, SYNERGY_INFO
 from app.game import fight as fight_mod
@@ -444,6 +447,11 @@ def _oct_facts():
         "star_share": round(100 / character_mod.STAR_DIVISOR),
         "star5_mult": f"{1 + 5 / character_mod.STAR_DIVISOR:.2f}",
         "copy_awaken": logic.COPY_AWAKEN,
+        "disc_value": logic.DISC_VALUE, "disc_price": logic.DISC_PRICE, "spark_cost": logic.SPARK_COST,
+        "path_chapters": [{"name": c[1], "about": c[2], "steps": [(s[1], s[2]) for s in c[3]],
+                           "final": ", ".join(_onboarding.reward_lines(c[4]))} for c in _onboarding.CHAPTERS],
+        "road_tiers": [(p, ", ".join(_weekly.reward_text(r))) for p, r in _weekly.TIERS], "road_points": _weekly.POINTS,
+        "star_copies": logic.STAR_COPIES, "star_levels": logic.STAR_LEVELS, "rq_arrow_every": tower_mod.RQ_ARROW_EVERY,
         "refine_step": round(items_mod.REFINE_STEP * 100), "refine_max": items_mod.REFINE_MAX,
         "refine_costs": gear.REFINE_COST,
         "storage_step": user_mod.STORAGE_STEP, "storage_max_ext": user_mod.STORAGE_MAX_EXTENSIONS,

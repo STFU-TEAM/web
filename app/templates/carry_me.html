@@ -79,6 +79,7 @@
             <span>Carry Me ｢{{ stage.form_view.name }}｣</span><small>{{ stage.jojo }}'s form · guest</small></a></li>
         </ul>
         <p class="muted">Enemies · level {{ stage.level }} · ★{{ stage.awaken }} · {{ stage.quality_name }} · ×{{ stage.mult }} health & damage</p>
+        {% with a = fight_advice(u, stage.level, stage.awaken or 0, stage.mult) %}{% include "partials/fight_advice.html" %}{% endwith %}
         <ul>
           {% for c in stage.enemy_stands %}
             <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">

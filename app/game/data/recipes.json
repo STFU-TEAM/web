@@ -60,14 +60,14 @@
     },
     {
       "name": "Devil's Palm",
-      "ingredients": [[40, 3]],
+      "ingredients": [[40, 5]],
       "result": 2
     },
     {
       "name": "Requiem Arrow",
       "ingredients": [
-        [40, 4],
-        [2, 2]
+        [40, 6],
+        [2, 3]
       ],
       "result": 3
     },

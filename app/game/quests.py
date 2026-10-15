@@ -154,7 +154,9 @@ def _notify(user, text: str):
 
 
 def track_quest_progress(user, action: str, count: int = 1) -> List[str]:
-    """Increment progress on matching quests. Returns names of newly completed quests."""
+    """Increment progress on matching quests (and the Weekly Road's points). Returns names of newly completed quests."""
+    from app.game import weekly
+    weekly.add(user, action, count)
     ensure_quests_assigned(user)
     qd = user.quests
     newly_completed = []

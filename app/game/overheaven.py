@@ -421,7 +421,7 @@ REQUIEM_TRACK = {
          "hint": "You lose 2% a turn and they cleanse every debuff: raw damage and fast specials, not attrition."},
         {"title": "The Arrow's Will · Over Heaven", "power": 1.6, "difficulty": 5, "enemies": _RQ(84, 110, 161),
          "rules": {"heaven_tax": 0.3, "enemy_first": True, "regen": 0.04},
-         "reward": {"fragments": 25000, "super": 3, "items": [3, 3]},
+         "reward": {"fragments": 25000, "super": 3, "items": [3]},
          "text": "Three Requiems the Arrow chose, in heaven itself. Your borrowed power is taxed at the door.",
          "hint": "Your UR and LR lose 30%, they move first and heal 4% a turn: a synergy team of SSR and below, built to burst."},
     ],

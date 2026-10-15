@@ -22,6 +22,19 @@
     {% if bounty.claimed %}<span class="muted">✓ Claimed</span>
     {% elif bounty.done %}<form method="post" action="{{ url_for('play.bounty_claim') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Claim</button></form>{% endif %}
   </section>
+  <section class="bounty-card road{{ ' done' if road.ready }}" id="road" aria-labelledby="road-h">
+    <span class="bounty-icon" aria-hidden="true">🛣</span>
+    <div class="bounty-body">
+      <p class="kicker">Weekly Road · every Monday, forever</p>
+      <h2 class="h3" id="road-h">{{ road.points }} point{{ 's' if road.points != 1 }} this week</h2>
+      <p>Every win, Mirror World trip and tower floor is a point; a boss rush boss or raid attack 2, a dungeon run 4, the daily reward 5.</p>
+      <div class="meter" role="meter" aria-label="Weekly Road" aria-valuemin="0" aria-valuemax="{{ road.top }}" aria-valuenow="{{ road.points }}"><i style="width: {{ road.pct }}%"></i></div>
+      <ol class="road-tiers">
+        {% for t in road.tiers %}<li class="{{ 'claimed' if t.claimed else ('ready' if t.ready else '') }}"><strong>{{ t.points }}</strong> {{ t.reward }}{% if t.claimed %} ✓{% endif %}</li>{% endfor %}
+      </ol>
+    </div>
+    {% if road.ready %}<form method="post" action="{{ url_for('play.road_claim') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Claim {{ road.ready }}</button></form>{% endif %}
+  </section>
   <div id="quests">{% include "partials/quests_body.html" %}</div>
 </section>
 {% endblock %}

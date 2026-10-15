@@ -7,6 +7,8 @@
   <p>Long-term goals: get to know your favourite stands, collect whole sets, and wear what you earned under your name.</p>
 </header>
 
+<h2 class="wiki-h2" id="road">Weekly Road</h2>
+<p>A reward track on the <a href="{{ url_for('play.quests') }}#road">quests page</a> that starts over every Monday and never runs out. Points: {% for k, v in facts.road_points.items() %}{{ {'fight_win': 'a win', 'wormhole_complete': 'a Mirror World trip', 'tower_floor': 'a tower floor', 'raid_attack': 'a raid attack', 'rush_boss': 'a boss rush boss', 'dungeon_complete': 'a dungeon run', 'daily_claim': 'the daily reward'}[k] }} {{ v }}{{ ', ' if not loop.last }}{% endfor %}. Rewards: {% for p, r in facts.road_tiers %}<strong>{{ p }}</strong> {{ r }}{{ ' · ' if not loop.last }}{% endfor %}.</p>
 <h2 class="wiki-h2">Stand mastery</h2>
 <p>Every stand you fight with keeps a record: fights, wins, damage dealt and specials fired. Mastery belongs to the <strong>stand</strong>, not to one copy, so fusing, releasing or pulling a new copy never resets it. You'll find it in each stand's panel on your <a href="{{ url_for('play.team') }}">Team</a> page, and your best ones show on your profile.</p>
 <p>Points: <strong>1 per fight</strong>, <strong>+3 per win</strong> and <strong>+1 per special</strong> fired. Every fight counts (story, tower, Mirror World, raids, duels…) except the training dummy and fights you surrender.</p>

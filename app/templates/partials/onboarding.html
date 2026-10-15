@@ -26,8 +26,8 @@
   {% if path %}
     <section class="b-path" aria-labelledby="bp-h">
       <header class="ob-head">
-        <div><p class="kicker">Beginner's path · {{ path.claimed }} / {{ path.total }}</p>
-          <h2 class="h2" id="bp-h">{% if path.next %}Next: {{ path.next.title }}{% else %}Path complete!{% endif %}</h2></div>
+        <div><p class="kicker">{{ path.name|safe }} · chapter {{ path.chapter }}/{{ path.chapters }} · {{ path.claimed }} / {{ path.total }}{% if path.chapter > 1 %} · {{ path.kicker }}{% endif %}</p>
+          <h2 class="h2" id="bp-h">{% if path.next %}Next: {{ path.next.title }}{% else %}{{ path.name|safe }} complete!{% endif %}</h2></div>
         {% if path.next %}<a class="btn gold" href="{{ url_for(path.next.endpoint, **path.next.kwargs) }}">Go →</a>{% endif %}
       </header>
       {% if path.next %}<p class="muted">{{ path.next.how }} Reward: {{ path.next.reward|join(', ') }}.</p>{% endif %}
@@ -46,7 +46,7 @@
         {% endfor %}
       </ol>
       {% if path.finished %}
-        <p class="bp-final">Every step done. <button class="btn gold" hx-post="{{ url_for('play.path_claim') }}" hx-vals='{"step": "done"}' hx-target="#onboarding" hx-swap="outerHTML" hx-disabled-elt="this">Claim {{ path.final|join(' and ') }}</button></p>
+        <p class="bp-final">Every step done.{% if path.upcoming %} Next chapter: {{ path.upcoming|safe }}.{% endif %} <button class="btn gold" hx-post="{{ url_for('play.path_claim') }}" hx-vals='{"step": "{{ path.done_key }}"}' hx-target="#onboarding" hx-swap="outerHTML" hx-disabled-elt="this">Claim {{ path.final|join(' and ') }}</button></p>
       {% endif %}
     </section>
   {% endif %}

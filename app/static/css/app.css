@@ -3156,6 +3156,20 @@ body.cine-open { overflow: hidden; }
 .bounty-body .meter { max-width: 26rem; }
 .bounty-icon { font-size: 2rem; flex: none; }
 @media (max-width: 620px) { .bounty-card { flex-wrap: wrap; } }
+.guide-path { margin: .4rem 0; padding: .5rem .8rem; border-radius: 10px; background: rgba(255,255,255,.04); }
+.guide-path summary { cursor: pointer; }
+.guide-path .wiki-list { margin: .5rem 0 .3rem; }
+.fight-advice { margin: .3rem 0 .6rem; padding: .35rem .6rem; border-radius: 8px; font-size: .85rem; line-height: 1.4;
+  border-left: 3px solid var(--violet); background: rgba(255,255,255,.04); }
+.fight-advice.ready { border-left-color: #3fbf7f; }
+.fight-advice.close { border-left-color: var(--gold); }
+.fight-advice.low { border-left-color: #e0524f; }
+.bounty-card.road { border-style: solid; border-color: var(--line, var(--violet)); }
+.bounty-card.road.done { border-color: var(--gold); }
+.road-tiers { display: flex; flex-wrap: wrap; gap: .35rem; margin: .5rem 0 0; padding: 0; list-style: none; font-size: .85rem; }
+.road-tiers li { padding: .2rem .55rem; border-radius: 999px; background: var(--night-3, rgba(255,255,255,.06)); opacity: .75; }
+.road-tiers li.ready { opacity: 1; outline: 2px solid var(--gold); }
+.road-tiers li.claimed { opacity: .5; text-decoration: line-through; }
 
 /* Ranked: this season's most picked stands */
 .meta-chart { margin: 0 0 1rem; padding: .8rem 1rem; border-radius: var(--radius-ui); background: var(--night-2); border: 1px solid var(--night-3); }

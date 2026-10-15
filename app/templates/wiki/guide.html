@@ -7,6 +7,16 @@
   <p>The whole path from your first pull to Over Heaven, in the order it opens. The story drives everything; past Part 3, each new part, universe and act also asks for a <strong>player level</strong>, so the rest of the game (quests, Mirror World, raids) is part of the climb, not a detour.</p>
 </header>
 
+<h2 class="wiki-h2" id="paths">Guided paths</h2>
+<p>Your <a href="{{ url_for('main.home') }}">home page</a> always shows your next goal. The Beginner's path is the first of {{ facts.path_chapters|length }} chapters; each one opens when you claim the last, and every step pays once (steps you'd already done count straight away).</p>
+{% for c in facts.path_chapters %}
+<details class="guide-path"{% if loop.first %} open{% endif %}>
+  <summary><strong>{{ loop.index }} · {{ c.name }}</strong> <span class="muted">· {{ c.about }}</span></summary>
+  <ol class="wiki-list">{% for title, how in c.steps %}<li><strong>{{ title }}</strong> <span class="muted">{{ how }}</span></li>{% endfor %}</ol>
+  <p class="muted">Chapter reward: {{ c.final }}.</p>
+</details>
+{% endfor %}
+
 <h2 class="wiki-h2" id="day-one">1 · Your first day</h2>
 <ol class="guide-steps">
   <li><strong>Pull.</strong> You start with an Arrowhead: spend it on a <a href="{{ url_for('play.banners') }}">banner</a> for ten stands.</li>
@@ -57,6 +67,23 @@
   <li><strong><a href="{{ url_for('progress.training_page') }}">Training ground</a></strong> opens once the story <em>and</em> every Alternate Universe chapter are cleared: level any stand fast and earn chips.</li>
 </ul>
 
+<h2 class="wiki-h2" id="team-goals">Your team at each step</h2>
+<p>What a team usually needs to win each milestone (measured with the team simulator on SSR teams and on a top LR/UR team). Every PvE fight shows the same advice under its enemies, next to your own team, with a link to simulate it.</p>
+<div class="wiki-table-wrap">
+<table class="wiki-table">
+  <thead><tr><th scope="col">Milestone</th><th scope="col">Team level</th><th scope="col">Stars (every stand)</th><th scope="col">Gear</th></tr></thead>
+  <tbody>
+    <tr><th scope="row">Story Parts 3 to 5</th><td>The stage's level</td><td>★0 to ★1</td><td>Any items</td></tr>
+    <tr><th scope="row">Part 6 · Made in Heaven</th><td>About 65</td><td>★1</td><td>Two items each</td></tr>
+    <tr><th scope="row">Part 7 · Love Train</th><td>90 to 100</td><td>★2 (LR/UR) or ★3 (SSR)</td><td>Refining starts to count</td></tr>
+    <tr><th scope="row">Part 8 · Wonder of U</th><td>100</td><td>★3 to win, ★4 to be safe</td><td>+3 items</td></tr>
+    <tr><th scope="row">Alternate Universe, Carry Me</th><td>100</td><td>★4 to ★5</td><td>+3 to +5</td></tr>
+    <tr><th scope="row">Over Heaven, Requiem, Heaven's Gate</th><td>100</td><td>★5</td><td>+5 items built for each stand, good qualities (Supreme, Universal)</td></tr>
+  </tbody>
+</table>
+</div>
+<p><strong>Where the copies come from:</strong> every star takes spare copies of the stand ({% for s, n in facts.star_copies.items() %}★{{ s }} {{ n }}{{ ', ' if not loop.last }}{% endfor %}). Pull the banner your team comes from; Devil's Palms pull 5 stands at SR or better; every 10-pull adds a spark ({{ facts.spark_cost }} buy any SSR of a banner); release the stands you won't use for <a href="{{ url_for('main.wiki', topic='stands') }}#discs">Stand Discs</a> and buy the exact copy you need; a Requiem Arrow stands in for one copy (the bosses of Parts 6, 7 and 8 each give one). The <a href="{{ url_for('main.wiki', topic='progress') }}#road">Weekly Road</a> adds Devil's Palms, Discs and an Arrowhead every week. Swapping a starred stand out? Releasing it refunds the copies its stars used, as Discs.</p>
+
 <h2 class="wiki-h2" id="levels">How to level up</h2>
 <p>Player XP comes from almost everything you do. {{ g.how }}</p>
 <div class="wiki-table-wrap">
@@ -67,7 +94,7 @@
     <tr><th scope="row">Story, Alternate Universe, Carry Me</th><td>On each first clear, more the further you go</td></tr>
     <tr><th scope="row">Co-op raids</th><td>{% for t in g.raids %}{{ t.label }} {{ t.xp }}{{ ' · ' if not loop.last }}{% endfor %}</td></tr>
     <tr><th scope="row">Dungeon</th><td>40 per floor you get out with</td></tr>
-    <tr><th scope="row">Quests</th><td>Daily and weekly rewards</td></tr>
+    <tr><th scope="row">Quests</th><td>Daily and weekly rewards, and the <a href="{{ url_for('main.wiki', topic='progress') }}#road">Weekly Road</a></td></tr>
   </tbody>
 </table>
 </div>
@@ -75,8 +102,9 @@
 
 <h2 class="wiki-h2" id="stuck">Stuck on a fight?</h2>
 <ul class="wiki-list">
-  <li>Run it in the <a href="{{ url_for('battles.simulator') }}">team simulator</a> first, or try other stands and gear in the <a href="{{ url_for('battles.planner_page') }}">team planner</a>.</li>
-  <li>Level and fuse your team (<a href="{{ url_for('main.wiki', topic='stands') }}">upgrading stands</a>), equip and refine items, and socket <a href="{{ url_for('main.wiki', topic='items') }}">chips</a>.</li>
+  <li>Read the line under the enemies: it says what the fight asks (level, stars, gear) and what your team is missing.</li>
+  <li>Run it in the <a href="{{ url_for('battles.simulator') }}">team simulator</a> first (the 🧪 Simulate link), or try other stands and gear in the <a href="{{ url_for('battles.planner_page') }}">team planner</a>.</li>
+  <li>Level your team and give it stars (<a href="{{ url_for('main.wiki', topic='stands') }}">upgrading stands</a>): short on copies, buy them with Stand Discs. Equip and refine items, and socket <a href="{{ url_for('main.wiki', topic='items') }}">chips</a>.</li>
   <li>Look for a synergy: a team that shares a crew or a part hits much harder (<a href="{{ url_for('main.wiki', topic='synergies') }}">explorer</a>).</li>
   <li>Replay cleared stages for stand XP while you wait for a level gate.</li>
 </ul>

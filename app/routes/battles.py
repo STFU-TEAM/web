@@ -774,9 +774,21 @@ def simulator():
     friends = sorted(({"id": f, "name": identity(f)["name"]} for f in social.friends(uid)), key=lambda f: f["name"].lower())
     k = story.cleared(user)
     from app.game import overheaven
-    return render_template("simulator.html", u=user, teams=_sim_teams(user), groups=simulate.opponents(overheaven.unlocked(user)),
-                           friends=friends, preset=request.args.get("vs") or f"story:{min(k, story.TOTAL - 1)}",
-                           runs=simulate.RUNS)
+    groups = simulate.opponents(overheaven.unlocked(user))
+    preset = request.args.get("vs") or f"story:{min(k, story.TOTAL - 1)}"
+    listed = {o["value"] for g in groups for o in g["options"]}
+    if preset not in listed and preset.split(":")[0] in ("au", "rq", "hv") and _sim_open(user, preset):
+        foe = simulate.foe_for(preset)  # a fight page's "Simulate" link: that fight on top of the list
+        if foe:
+            groups = [{"group": "This fight", "options": [{"value": preset, "label": foe["label"]}]}] + groups
+    return render_template("simulator.html", u=user, teams=_sim_teams(user), groups=groups,
+                           friends=friends, preset=preset, runs=simulate.RUNS)
+
+
+def _sim_open(user, vs: str) -> bool:
+    """Requiem and Heaven's Gate fights only simulate once the player has Over Heaven open (like oh:)."""
+    from app.game import overheaven
+    return vs.split(":")[0] not in ("oh", "rq", "hv") or overheaven.unlocked(user)
 
 
 @bp.post("/simulator/run")
@@ -789,7 +801,7 @@ def simulator_run():
     if vs == "player":
         vs = f"player:{resolve_player(request.form.get('player', '')) or ''}"
     from app.game import overheaven
-    if vs.startswith("oh:") and not overheaven.unlocked(user):
+    if not _sim_open(user, vs):
         vs = ""  # Over Heaven isn't open for this player yet
     foe = simulate.foe_for(vs, get_db())
     if not pick or not pick["team"]:

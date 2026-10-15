@@ -60,6 +60,7 @@
         </div>
         <div class="story-foes" aria-label="Enemies">
           <p class="muted">Enemies · level 100 · ★5</p>
+          {% with a = fight_advice(u, 100, 5, hard=True, vs='oh:' ~ track.key ~ ':' ~ current.index) %}{% include "partials/fight_advice.html" %}{% endwith %}
           <ul>
             {% for e in current.enemies %}
               <li class="rar-{{ e.stand.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=e.stand.id) }}">

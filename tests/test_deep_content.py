@@ -131,6 +131,7 @@ def test_the_requiem_tower_is_its_own_harder_better_paid_climb(client, monkeypat
 
 def test_requiem_tower_loot_beats_the_tower_and_the_toggle_pays_more():
     r10, n10 = tower.reward_for(10, tower.RQ), tower.reward_for(10)
-    assert r10["fragments"] > n10["fragments"] and 3 in r10["items"] and r10["super"] == 1
+    assert r10["fragments"] > n10["fragments"] and 3 not in r10["items"] and r10["super"] == 1
+    assert 3 in tower.reward_for(tower.RQ_ARROW_EVERY, tower.RQ)["items"]  # a Requiem Arrow every 20th floor
     assert tower.reward_for(10, tower.RQ, oh=True)["fragments"] > r10["fragments"]
     assert tower.rq_mult(2) > tower.rq_mult(1)

@@ -30,10 +30,10 @@ PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = economy.dust(300)  # at the economy's pace (economy.py)
 CHANCEITEM = 15
-MIRROR_ITEM_DROPS = {13: 0.20, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.08, 2: 0.08, 3: 0.04, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll
+MIRROR_ITEM_DROPS = {13: 0.15, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.16, 2: 0.08, 3: 0.01, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll (Arrows 4% -> 1%, Lottery tickets 8% -> 16%: they build most gear)
 DAILY_ITEM_CHANCE = 60
 DAILY_DUST = economy.dust(100)  # at the economy's pace
-DAILY_ITEM_DROPS = {13: 0.26, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.04, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
+DAILY_ITEM_DROPS = {13: 0.20, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.10, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
 DONOR_WH_WAIT_TIME = 14 / 60  # Mirror World: 14 minutes for everyone (economy.TIME_RATE)
 NORMAL_WH_WAIT_TIME = 0
 DONOR_ADV_WAIT_TIME = 8  # the daily: 16 h, 8 h for supporters (economy.TIME_RATE)
@@ -49,7 +49,7 @@ DEFAULT_SHOP = {
     "super_fragment": {"name": "Arrowhead", "price": 5000, "type": "currency"},
     "1": {"name": "Dio's Knife", "price": 2500, "type": "item", "id": 1},
     "2": {"name": "Devil's Palm", "price": 5000, "type": "item", "id": 2, "summon": True},
-    "3": {"name": "Requiem Arrow", "price": 10000, "type": "item", "id": 3},
+    "3": {"name": "Requiem Arrow · 1 a week", "price": 40000, "type": "item", "id": 3, "weekly": 1},  # was 10,000 and unlimited
     "4": {"name": "Giorno's ladybug", "price": 5000, "type": "item", "id": 4},
     "storage": {"name": "Storage extension · +25 slots", "price": 25000, "type": "storage"},
 }
@@ -69,16 +69,114 @@ CHIP_TEMPLATE_INDEX = [9, 0, 5, 29, 162, 30, 57, 31, 33, 44, 48, 49, 58, 59, 68,
 REQUIEMABLE = [49, 6, 59]
 # Stars a stand needs (at level 100) before a Requiem Arrow evolves it; Gold Experience needs ★3 for GER.
 REQUIEM_STARS = {49: 2, 6: 2, 59: 3}
-MAX_AWAKEN = 5  # ascension and fusion stop at ★3; Requiem Arrows can push to ★5, never further
-COPY_AWAKEN = 3  # from here on (★4 and ★5) an Arrow also eats a spare copy of the stand (web only, the bot has its own rule)
+MAX_AWAKEN = 5
+COPY_AWAKEN = 3  # kept for old templates: from ★3 on, a star always takes at least one copy
+# Every star takes spare copies of the stand (web only, the bot has its own rule); a Requiem Arrow stands in for one.
+STAR_COPIES = {1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
+STAR_LEVELS = {1: 20, 2: 50, 3: 80, 4: 100, 5: 100}  # the level the stand needs for that star
 
 
-def spare_copy(user: User, char: Character) -> Optional[Character]:
-    """The copy a ★4/★5 awakening would consume: an unlocked storage copy, the least advanced first."""
+def spare_copies(user: User, char: Character) -> List[Character]:
+    """Unlocked storage copies of the stand, the least advanced first (the ones a star consumes)."""
     protected = locked(user)
     copies = [c for c in user.storage_characters
               if c.id == char.id and c.uuid != char.uuid and c.uuid not in protected]
-    return min(copies, key=lambda c: (c.awaken, c.xp)) if copies else None
+    return sorted(copies, key=lambda c: (c.awaken, c.xp))
+
+
+def spare_copy(user: User, char: Character) -> Optional[Character]:
+    copies = spare_copies(user, char)
+    return copies[0] if copies else None
+
+
+def star_cost(char: Character, arrow: bool = False) -> Optional[dict]:
+    """What the next star asks: {"star", "level", "copies"} (an Arrow takes one copy off), or None at ★5."""
+    nxt = char.awaken + 1
+    if nxt > MAX_AWAKEN:
+        return None
+    return {"star": nxt, "level": STAR_LEVELS[nxt], "copies": STAR_COPIES[nxt] - (1 if arrow else 0)}
+
+
+# Stand Discs (web only, data["web_discs"]): releasing a stand pays its rarity's worth, plus the same again for every
+# copy its stars used (a stand you replace isn't wasted); Discs buy a copy of a banner stand you already own.
+DISC_VALUE = {"R": 1, "SR": 3, "SSR": 15, "UR": 50, "LR": 120}
+DISC_PRICE = {"R": 10, "SR": 25, "SSR": 120, "UR": 400, "LR": 1000}
+
+
+def discs(user: User) -> int:
+    return int(user.data.get("web_discs", 0))
+
+
+def copies_spent(char: Character) -> int:
+    """Copies (or Arrows standing in for them) a stand's stars took."""
+    return sum(STAR_COPIES[s] for s in range(1, min(char.awaken, MAX_AWAKEN) + 1))
+
+
+def release_discs(char: Character) -> int:
+    """Stand Discs a released stand gives: its rarity's worth, plus that again for every copy its stars used."""
+    return DISC_VALUE.get(char.rarity, 1) * (1 + copies_spent(char))
+
+
+def disc_price(char_or_id) -> Optional[int]:
+    """Discs for a fresh copy of a stand, or None for stands no banner sells (Requiem forms, specials)."""
+    sid = getattr(char_or_id, "id", char_or_id)
+    if not any(sid in b["cards"] for b in BANNERS):
+        return None
+    return DISC_PRICE.get(CHARACTER_FILE[sid - 1]["rarity"])
+
+
+def buy_copy(user: User, uuid: str) -> Character:
+    """A fresh copy (new types and qualities, level 0, ★0) of a stand you own, for Stand Discs. Lands in storage."""
+    char, _, _ = locate(user, uuid)
+    price = disc_price(char)
+    if price is None:
+        raise GameError(f"No banner sells {char.name}, so Discs can't make a copy of it.")
+    if discs(user) < price:
+        raise GameError(f"A copy of {char.name} costs {price:,} Stand Discs. You have {discs(user):,}.")
+    if free_slots(user) < 1:
+        raise GameError("Storage is full. Auto-fuse or release a few stands first.")
+    types, qualities = roll_types_qualities()
+    copy = roll_shiny(get_character_from_template(CHARACTER_FILE[char.id - 1], types, qualities))
+    user.data["web_discs"] = discs(user) - price
+    user.data.setdefault("web_path_flags", {})["disc_copy"] = 1
+    add_to_available_storage(user, copy, skip_main=True)
+    return copy
+
+
+def copies_still_useful(char: Character) -> int:
+    """Copies the stand could still spend on stars (auto-fuse keeps them)."""
+    return sum(STAR_COPIES[s] for s in range(char.awaken + 1, MAX_AWAKEN + 1))
+
+
+def awaken(user: User, uuid: str, arrow: bool = False) -> Character:
+    """One star: the stand needs its level, and spends spare copies (their XP, items and chips come back to you);
+    with arrow, a Requiem Arrow takes the place of one copy."""
+    char, lst, idx = locate(user, uuid)
+    cost = star_cost(char, arrow)
+    if cost is None:
+        raise GameError(f"{char.name} is at ★{MAX_AWAKEN}, the highest awakening.")
+    if char.level < cost["level"]:
+        raise GameError(f"★{cost['star']} needs level {cost['level']} (now level {char.level}).")
+    copies = spare_copies(user, char)
+    if len(copies) < cost["copies"]:
+        need = cost["copies"]
+        raise GameError(f"★{cost['star']} needs {need} spare cop{'y' if need == 1 else 'ies'} of {char.name} in storage "
+                        f"(unlocked){' and a Requiem Arrow' if arrow else ''}; you have {len(copies)}.")
+    if arrow:
+        _take_item(user, 3)
+    from app.game import chips
+    for copy in copies[:cost["copies"]]:
+        user.storage_characters.remove(copy)
+        user.items.extend(copy.items)
+        chips.give_back(user, [copy])
+        char.xp += copy.xp  # a consumed copy still teaches what it knew
+        char.shiny = char.shiny or getattr(copy, "shiny", False)
+        for team in user.teams.values():
+            if copy.uuid in team:
+                team.remove(copy.uuid)
+    char.awaken += 1
+    track_quest_progress(user, "fuse", cost["copies"])
+    return _refresh(user, char)
 REQUIEM_TEMPLATE_INDEX = [57, 82, 83]
 SPECIAL_CHARACTERS = [163, 110, 84, 109, 161, 120, 114]
 
@@ -626,7 +724,8 @@ def set_locks(user: User, uuids: List[str], lock: bool) -> int:
 
 
 def release(user: User, uuids: List[str]) -> List[Character]:
-    """Release stands. A single pick must be releasable; a bulk pick skips locked and team stands."""
+    """Release stands for Stand Discs (release_discs). A single pick must be releasable; a bulk pick skips locked
+    and team stands."""
     gone = []
     protected = locked(user)
     bulk = len(uuids) > 1
@@ -642,6 +741,8 @@ def release(user: User, uuids: List[str]) -> List[Character]:
             raise GameError(f"{char.name} is locked. Unlock it first.")
         lst.pop(idx)
         gone.append(char)
+        user.data["web_discs"] = discs(user) + release_discs(char)
+        user.data.setdefault("web_path_flags", {})["release"] = 1  # the guided path's "release for Discs" step
         if char.rarity in ("SSR", "UR", "LR"):
             check_achievements(user, "release_rare")
     if not gone:
@@ -656,14 +757,7 @@ def release(user: User, uuids: List[str]) -> List[Character]:
 
 
 def ascend(user: User, uuid: str) -> Character:
-    char, lst, _ = locate(user, uuid)
-    if lst is not user.main_characters:
-        raise GameError("Only stands in your team can ascend.")
-    if char.level >= 100 and char.awaken < 3:
-        char.awaken += 1
-        char.xp = 0
-        return char
-    raise GameError("A stand must be level 100 and below 3 awakenings to ascend.")
+    raise GameError("Ascension is gone: every star now takes spare copies of the stand (Awaken, on its panel).")
 
 
 CATCH_UP_LEVEL = 30  # stands below this level learn twice as fast, so new pulls can join the team
@@ -677,28 +771,24 @@ def train(char: Character, amount: int) -> int:
     return amount
 
 
-# Fusing: the kept copy takes the other's XP plus a bonus by its rarity. It also gains an
-# awakening, but only once it has the level for it, so stars come with time played and a
-# lucky pull can't skip the whole climb. Below the gate a copy still pays its XP.
+# Fusing: the kept copy takes the other's XP plus a bonus by its rarity. Stars no longer come from fusing: they're
+# bought with copies (awaken), so a copy is worth more kept for a star than fused for XP.
 FUSE_BONUS_XP = {"R": 30, "SR": 100, "SSR": 400, "UR": 2500, "LR": 5000}  # rare copies teach a lot: +25 levels for a UR
 AWAKEN_LEVELS = (20, 50, 80)  # level needed for ★1, ★2, ★3 through fusing
 
 
 def awaken_gate(char: Character) -> Optional[int]:
-    """Level the next fusion awakening needs, or None once fusing can't add stars."""
-    return AWAKEN_LEVELS[char.awaken] if char.awaken < len(AWAKEN_LEVELS) else None
+    """Level the next star needs, or None at ★5."""
+    return STAR_LEVELS.get(char.awaken + 1)
 
 
 def _absorb(user: User, keeper: Character, fodder: Character) -> Character:
-    """Fold fodder into keeper: its XP plus a rarity bonus, one gated awakening, its items back to the bag."""
+    """Fold fodder into keeper: its XP plus a rarity bonus, its items back to the bag (no star: see awaken)."""
     user.items.extend(fodder.items)
     from app.game import chips
     chips.give_back(user, [fodder])
     keeper.shiny = keeper.shiny or getattr(fodder, "shiny", False)
     keeper.xp += fodder.xp + FUSE_BONUS_XP.get(fodder.rarity, 100)
-    gate = awaken_gate(keeper)
-    if gate is not None and min(100, keeper.xp // STXPTOLEVEL) >= gate:
-        keeper.awaken += 1
     return keeper
 
 
@@ -731,8 +821,8 @@ AUTO_FUSE_RARITIES = ("R", "SR")
 
 def auto_fuse_plan(user: User, rarities=AUTO_FUSE_RARITIES) -> List[tuple]:
     """[(keeper, [fodder...])] for every R/SR stand owned more than once.
-    The keeper is the team copy if there is one, else the most advanced copy.
-    Only unlocked storage copies are consumed; nothing is fused past what it can use."""
+    The keeper is the team copy if there is one, else the most advanced copy. Only unlocked storage copies are used,
+    and the ones the keeper could still spend on stars are kept for that: only the extras are fused for XP."""
     protected = locked(user)
     by_id = {}
     for c in user.main_characters + user.storage_characters:
@@ -745,15 +835,17 @@ def auto_fuse_plan(user: User, rarities=AUTO_FUSE_RARITIES) -> List[tuple]:
         team = [c for c in copies if c in user.main_characters]
         keeper = team[0] if team else max(copies, key=lambda c: (c.uuid in protected, c.awaken, c.xp))
         fodder = [c for c in copies if c is not keeper and c not in user.main_characters and c.uuid not in protected]
-        if fodder:
-            plan.append((keeper, fodder))
+        fodder.sort(key=lambda c: (c.awaken, c.xp))
+        extra = fodder[:max(0, len(fodder) - copies_still_useful(keeper))]
+        if extra:
+            plan.append((keeper, extra))
     return plan
 
 
 def auto_fuse(user: User, rarities=AUTO_FUSE_RARITIES) -> dict:
     plan = auto_fuse_plan(user, rarities)
     if not plan:
-        raise GameError("No R or SR duplicates to fuse.")
+        raise GameError("No R or SR duplicates to fuse beyond the copies your stands still need for their stars.")
     fused, copies = [], 0
     gone = set()
     for keeper, fodder in plan:
@@ -1066,22 +1158,12 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
             res = {"kind": "requiem", "stand": new}
             track_quest_progress(user, "requiem")
         else:
-            if char.awaken >= MAX_AWAKEN:
-                refund(f"{char.name} is at ★{MAX_AWAKEN}, the highest awakening.")
-            if char.awaken >= COPY_AWAKEN:
-                copy = spare_copy(user, char)
-                if copy is None:
-                    refund(f"★{char.awaken + 1} also needs a spare copy of {char.name} in storage (unlocked).")
-                user.storage_characters.remove(copy)
-                user.items.extend(copy.items)
-                from app.game import chips
-                chips.give_back(user, [copy])
-                for team in user.teams.values():
-                    if copy.uuid in team:
-                        team.remove(copy.uuid)
-            char.awaken += 1
-            user.main_characters[idx] = Character(char.to_dict())
-            res = {"kind": "awaken", "stand": user.main_characters[idx]}
+            user.items.append(item)  # awaken takes the Arrow itself
+            try:
+                new = awaken(user, uuid, arrow=True)
+            except GameError:
+                raise
+            res = {"kind": "awaken", "stand": new}
     else:
         refund(f"{item.name} can't be used here.")
     track_quest_progress(user, "item_use")
@@ -1156,8 +1238,16 @@ def shop_buy(user: User, key: str) -> str:
             raise GameError(f"The shop sells {SHOP_HEADS_PER_WEEK} summons a week (Arrowheads and Devil's Palms). "
                             "More arrive on Monday.")
         user.data["web_shop_heads"] = {"week": now().strftime("%G-W%V"), "n": SHOP_HEADS_PER_WEEK - left + 1}
+    if entry.get("weekly"):  # a few items the shop only sells so many of a week (the Requiem Arrow)
+        week = now().strftime("%G-W%V")
+        bought = (user.data.get("web_shop_weekly") or {}).get(key) or {}
+        n = bought.get("n", 0) if bought.get("week") == week else 0
+        if n >= entry["weekly"]:
+            raise GameError(f"The shop sells {entry['weekly']} {entry['name'].split(' · ')[0]} a week. Come back next week.")
     if user.fragments < entry["price"]:
         raise GameError(f"You need {entry['price']:,} Meteor Dust. You have {user.fragments:,}.")
+    if entry.get("weekly"):
+        user.data.setdefault("web_shop_weekly", {})[key] = {"week": week, "n": n + 1}
     user.fragments -= entry["price"]
     _check_broke(user)
     track_quest_progress(user, "shop_buy")

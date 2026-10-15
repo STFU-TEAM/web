@@ -201,10 +201,19 @@ def release():
     user, res, err = action(lambda u: logic.release(u, uuids))
     msg = None
     if res:
-        msg = f"{res[0].name} was released." if len(res) == 1 else f"{len(res)} stands were released."
+        got = sum(logic.release_discs(c) for c in res)
+        msg = (f"{res[0].name} was released" if len(res) == 1 else f"{len(res)} stands were released") + f": +{got:,} 💿 Stand Discs."
         if len(uuids) > len(res):
             msg += f" {len(uuids) - len(res)} locked or team stand{'s' if len(uuids) - len(res) != 1 else ''} kept."
     return _collection(user, msg, err)
+
+
+@bp.post("/team/buy-copy")
+@player_required
+def buy_copy():
+    uuid = request.form.get("uuid")
+    user, res, err = action(lambda u: logic.buy_copy(u, uuid))
+    return _collection(user, f"A new copy of {res.name} joined your storage (💿 {logic.discs(user):,} left)." if res else None, err)
 
 
 @bp.post("/team/ascend")
@@ -230,12 +239,21 @@ def arrow():
     return _collection(user, msg, err)
 
 
+@bp.post("/team/awaken")
+@player_required
+def awaken():
+    """One star for spare copies (copies 1, 1, 2, 2, 3 for ★1 to ★5); with arrow=1 a Requiem Arrow replaces one."""
+    uuid, arrow = request.form.get("uuid"), request.form.get("arrow") == "1"
+    user, res, err = action(lambda u: logic.awaken(u, uuid, arrow))
+    return _collection(user, f"★ {res.name} reached ★{res.awaken}." if res else None, err)
+
+
 @bp.post("/team/fuse")
 @player_required
 def fuse():
     a, b = request.form.get("uuid"), request.form.get("fodder")
     user, res, err = action(lambda u: logic.fuse(u, a, b))
-    return _collection(user, f"Fused. {res.name} is now awakening {res.awaken}, level {res.level}." if res else None, err)
+    return _collection(user, f"Fused. {res.name} is now level {res.level}." if res else None, err)
 
 
 @bp.post("/team/autofuse")
@@ -911,7 +929,17 @@ def welcome_claim():
 def quests():
     user, _, _ = action(_sync_social_quests)  # assignment is saved, like /quest view
     from app.game import bounty
-    return render_template("quests.html", bounty=bounty.view(user), **_quests_ctx(user))
+    from app.game import weekly
+    return render_template("quests.html", bounty=bounty.view(user), road=weekly.view(user), **_quests_ctx(user))
+
+
+@bp.post("/road/claim")
+@player_required
+def road_claim():
+    from app.game import weekly
+    _, got, err = action(weekly.claim)
+    flash(err or f"🛣 Weekly Road: {', '.join(got)}.", "error" if err else "ok")
+    return redirect(url_for("play.quests", _anchor="road"))
 
 
 @bp.post("/bounty/claim")

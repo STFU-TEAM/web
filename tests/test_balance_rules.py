@@ -61,7 +61,7 @@ def test_four_and_five_stars_take_an_arrow_and_a_spare_copy(client):
     r = client.post("/team/arrow", data={"uuid": sp["uuid"], "mode": "awaken"}, headers=h)
     d = doc(client, "111")
     assert d["main_characters"][0]["awaken"] == 4 and sorted(i["id"] for i in d["items"]) == [1, 3]
-    assert b"spare copy" in r.data
+    assert b"spare cop" in r.data
 
 
 def test_below_three_stars_the_arrow_alone_is_enough(client):

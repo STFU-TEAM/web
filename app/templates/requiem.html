@@ -59,6 +59,7 @@
           <ul class="cm-guest"><li><a href="{{ url_for('main.stand', stand_id=stage.guest.id) }}"><img src="{{ stage.guest.id|stand_img }}" alt="" loading="lazy"><span>Carry Me ｢{{ stage.guest.name }}｣</span><small>guest</small></a></li></ul>
         {% endif %}
         <p class="muted">Enemies · level {{ RQ.LEVEL }} · ★{{ RQ.AWAKEN }} · Universal · refined items · ×{{ '%.2f'|format(stage.mult) }} health &amp; damage</p>
+        {% with a = fight_advice(u, RQ.LEVEL, RQ.AWAKEN, stage.mult, hard=True, vs=none if stage.guest else 'rq:' ~ track.key ~ ':' ~ stage.index) %}{% include "partials/fight_advice.html" %}{% endwith %}
         <ul>
           {% for c in stage.enemy_stands %}
             <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">

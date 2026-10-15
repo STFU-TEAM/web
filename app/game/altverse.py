@@ -272,7 +272,8 @@ def enemy_team(key: str, j: int, sealed: bool = False) -> list:
 
 def reward_for(key: str, j: int) -> dict:
     """First clear only. Worth more than the source part's boss; the 3rd stage adds a crafting
-    material, the chapter boss an Arrowhead and a Devil's Palm, the finale a Requiem Arrow."""
+    material, the chapter boss an Arrowhead and a Devil's Palm (the finale: a Requiem Arrow instead), and from
+    Part 5's chapter on, a Requiem Arrow as well."""
     chapter = BY_KEY[key]
     index = CHAPTERS.index(chapter)
     base = story.reward_for(_boss_index(chapter["after"]))
@@ -285,6 +286,8 @@ def reward_for(key: str, j: int) -> dict:
     if stage.get("boss"):
         reward["super_fragments"] = 1
         reward["items"].append(REQUIEM_ARROW if chapter is CHAPTERS[-1] else DEVILS_PALM)
+        if chapter is not CHAPTERS[-1] and chapter["after"] >= 5:
+            reward["items"].append(REQUIEM_ARROW)
     return reward
 
 

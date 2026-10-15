@@ -1,12 +1,14 @@
 """A new player's first week: the Beginner's path (guided first goals, each paying once) and the Welcome week
-(a gift a day for the first 7 days of a new save).
+(a gift a day for the first 7 days of a new save). After the Beginner's path, three more chapters of guided goals
+(CHAPTERS) walk the player through the mid-game (stars, Stand Discs, the Weekly Road), the late game (the end of the
+story, gear, Carry Me) and the endgame (★5, Over Heaven, Requiem, Heaven's Gate), one chapter at a time.
 
 The path reads the save itself (stands owned, team size, story stages...), so a step done before it existed still
 counts. Only Mirror World needs a mark (data["web_path_flags"]["mirror"], set when a fight starts there).
 The welcome week is only for saves begun after it was added (logic.begin starts it): 7 claims, one per calendar
 day, within WELCOME_WINDOW days of the start.
 
-Save: data["web_path"] = [step keys claimed]
+Save: data["web_path"] = [step keys claimed; "done" for the Beginner's path, "done:<chapter>" for the others]
       data["web_welcome"] = {"start": ISO date, "claimed": n, "last": ISO date or None}
 """
 import datetime
@@ -47,7 +49,137 @@ PATH = [
      {"fragments": 1000, "items": [2]}, lambda u: u.level >= 10),
 ]
 PATH_DONE = {"super": 1, "title": "Rookie Stand User"}  # every step claimed
-BY_KEY = {p[0]: p for p in PATH}
+
+
+# ── The chapters after it: same shape, each opens once the one before is finished ──
+def _team_stars(u, n):
+    team = list(u.main_characters)
+    return len(team) >= 3 and all(c.awaken >= n for c in team)
+
+
+def _refined(u, n):
+    gear = list(u.items) + [i for c in u.main_characters + u.storage_characters for i in c.items]
+    return any(getattr(it, "refine", 0) >= n for it in gear)
+
+
+def _flag(u, key):
+    return bool((u.data.get("web_path_flags") or {}).get(key))
+
+
+def _boss_done(u, part):
+    from app.game import story
+    boss = next(k for k, s in enumerate(story.STAGES) if s["part"] == part and s.get("boss"))
+    return story.cleared(u) > boss
+
+
+def _au(u):
+    from app.game import altverse
+    return altverse.total_cleared(u)
+
+
+def _au_chapter(u):
+    from app.game import altverse
+    return any(altverse.cleared(u, c["key"]) >= len(c["stages"]) for c in altverse.CHAPTERS)
+
+
+def _road(u, points):
+    return (u.data.get("web_road") or {}).get("points", 0) >= points or _flag(u, "road")
+
+
+def _carry_me(u):
+    from app.game import carryme
+    return carryme.cleared(u) > carryme.FINALE
+
+
+def _oh(u):
+    from app.game import overheaven
+    return overheaven.total_cleared(u)
+
+
+def _rq(u):
+    from app.game import requiem
+    return requiem.total_cleared(u)
+
+
+def _hv(u, n=0):
+    from app.game import heaven
+    return heaven.cleared(u) >= n if n else heaven.unlocked(u)
+
+
+def _story_done(u):
+    from app.game import story
+    return story.cleared(u) >= story.TOTAL
+
+
+def _team_refined(u):
+    items = [i for c in u.main_characters for i in c.items]
+    return len(u.main_characters) >= 3 and len(items) >= 6 and all(i.refine >= 5 for i in items)
+
+
+RISING = [
+    ("star1", "Give a team stand its first star", "On a team stand's panel: ★1 takes level 20 and one spare copy.",
+     ("play.team", {}), {"discs": 20}, lambda u: any(c.awaken >= 1 for c in u.main_characters)),
+    ("release", "Release a spare stand for Stand Discs", "Discs buy copies of the stands you keep.",
+     ("play.team", {}), {"fragments": 1000}, lambda u: _flag(u, "release")),
+    ("part5", "Beat King Crimson", "The boss of Part 5 in the story.", ("progress.story_page", {}),
+     {"items": [2]}, lambda u: _boss_done(u, 5)),
+    ("refine2", "Refine an item to +2", "Fuse a spare copy of a piece of gear into it in the forge.", ("play.items", {}),
+     {"fragments": 1500}, lambda u: _refined(u, 2)),
+    ("road", "Reach 70 points on the Weekly Road", "Wins, Mirror World trips, dungeon runs and the daily reward all count.",
+     ("play.quests", {}), {"discs": 20}, lambda u: _road(u, 70)),
+    ("team2", "Bring your whole team to ★2", "Three team stands at ★2: copies, or a Requiem Arrow for one of them.",
+     ("play.team", {}), {"discs": 40}, lambda u: _team_stars(u, 2)),
+    ("au1", "Clear a chapter of the Alternate Universe", "“What if the villains won?”: every chapter ends on a boss.",
+     ("progress.au_page", {}), {"super": 1}, _au_chapter),
+    ("level30", "Reach player level 30", "Quests, the dungeon and every fight pay player XP.", ("play.quests", {}),
+     {"items": [2]}, lambda u: u.level >= 30),
+]
+HEIR = [
+    ("story", "Finish the story", "Wonder of U waits at the end of Part 8: a ★3 team can win, ★4 is safe.",
+     ("progress.story_page", {}), {"super": 1}, _story_done),
+    ("copy", "Buy a copy with Stand Discs", "The 💿 Copy button on a stand's panel.", ("play.team", {}),
+     {"fragments": 2000}, lambda u: _flag(u, "disc_copy")),
+    ("team3", "Bring your whole team to ★3", "★3 takes level 80 and two copies (or an Arrow and one).", ("play.team", {}),
+     {"discs": 60}, lambda u: _team_stars(u, 3)),
+    ("refine5", "Refine an item to +5", "The forge's highest level.", ("play.items", {}), {"items": [2]}, lambda u: _refined(u, 5)),
+    ("au_half", "Clear 15 Alternate Universe stages", "Each chapter is harder than the part it branches from.",
+     ("progress.au_page", {}), {"items": [2]}, lambda u: _au(u) >= 15),
+    ("carry_me", "Reach Carry Me's final curtain", "Part 10: Joyce's story, after the main one.", ("progress.cm_page", {}),
+     {"super": 1}, _carry_me),
+    ("level50", "Reach player level 50", "Carry Me's last acts ask for it.", ("play.quests", {}), {"discs": 40},
+     lambda u: u.level >= 50),
+]
+OVER = [
+    ("star5", "Take a stand to ★5", "The cap: three copies (or an Arrow and two) at level 100.", ("play.team", {}),
+     {"discs": 100}, lambda u: any(c.awaken >= 5 for c in u.main_characters + u.storage_characters)),
+    ("oh1", "Win an Over Heaven fight", "Hand-made fights, each built around a rule: read it, then build for it.",
+     ("progress.oh_page", {}), {"items": [2]}, lambda u: _oh(u) >= 1),
+    ("gear5", "Refine your whole team's gear to +5", "At least two items on each stand, every one at +5.",
+     ("play.items", {}), {"fragments": 5000}, _team_refined),
+    ("team5", "Bring your whole team to ★5", "Three ★5 stands: the start of the real endgame.", ("play.team", {}),
+     {"discs": 150}, lambda u: _team_stars(u, 5)),
+    ("rq10", "Clear 10 Requiem stages", "The story again, tuned against a maxed team.", ("progress.rq_page", {}),
+     {"super": 1}, lambda u: _rq(u) >= 10),
+    ("gate", "Open Heaven's Gate", "Clear Requiem · Over Heaven.", ("progress.oh_page", {}), {"super": 1}, lambda u: _hv(u)),
+    ("stair1", "Climb Heaven's Gate's first stair", "Stopped Time: DIO stops time every third round.",
+     ("progress.hv_page", {}), {"items": [2, 2]}, lambda u: _hv(u, 1)),
+]
+# (key, name, what it covers, steps, final reward)
+CHAPTERS = [
+    ("beginner", "Beginner's path", "Your first goals", PATH, PATH_DONE),
+    ("rising", "Rising Stand User", "Mid-game: stars, Discs and the Weekly Road", RISING,
+     {"items": [3], "title": "Rising Stand User"}),
+    ("heir", "Heir to the Arrow", "Late game: the story's end, gear and Carry Me", HEIR,
+     {"items": [3], "super": 1, "title": "Heir to the Arrow"}),
+    ("over", "Over Heaven", "Endgame: ★5, Requiem and Heaven's Gate", OVER,
+     {"super": 2, "discs": 200, "title": "Over Heaven"}),
+]
+BY_KEY = {p[0]: p for c in CHAPTERS for p in c[3]}
+CHAPTER_OF = {p[0]: c for c in CHAPTERS for p in c[3]}
+
+
+def _done_key(chapter) -> str:
+    return "done" if chapter[0] == "beginner" else f"done:{chapter[0]}"
 
 WELCOME = [  # day 1..7 of a new save's first week
     {"super": 2, "fragments": 500},
@@ -77,6 +209,8 @@ def reward_lines(r: dict) -> List[str]:
     for i in r.get("items", []):
         counts[i] = counts.get(i, 0) + 1
     out += [f"{item_file[i - 1]['name']}{f' ×{n}' if n > 1 else ''}" for i, n in counts.items()]
+    if r.get("discs"):
+        out.append(f"{r['discs']} Stand Discs")
     if r.get("title"):
         out.append(f"the title “{r['title']}”")
     return out
@@ -88,6 +222,8 @@ def _pay(user, r: dict) -> List[str]:
     user.fragments += r.get("fragments", 0)
     user.super_fragments += r.get("super", 0)
     user.items.extend(item_from_dict({"id": i}) for i in r.get("items", []))
+    if r.get("discs"):
+        user.data["web_discs"] = int(user.data.get("web_discs", 0)) + r["discs"]
     if r.get("title"):
         titles.grant(user, r["title"])
     return reward_lines(r)
@@ -95,35 +231,50 @@ def _pay(user, r: dict) -> List[str]:
 
 # ── The Beginner's path ─────────────────────────────────────────────────
 
-def path(user) -> Optional[dict]:
-    """The path as the home page draws it, or None once it's finished and its last reward paid."""
+def current_chapter(user):
+    """The first chapter whose final reward isn't claimed yet, or None once every chapter is done."""
     claimed = set(user.data.get("web_path") or [])
-    if len(claimed) >= len(PATH) and "done" in claimed:
+    return next((c for c in CHAPTERS if _done_key(c) not in claimed), None)
+
+
+def path(user) -> Optional[dict]:
+    """The current chapter as the home page draws it, or None once every chapter is finished and paid."""
+    chapter = current_chapter(user)
+    if chapter is None:
         return None
+    claimed = set(user.data.get("web_path") or [])
     steps = []
-    for key, title, how, (ep, kw), reward, done in PATH:
+    for key, title, how, (ep, kw), reward, done in chapter[3]:
         steps.append({"key": key, "title": title, "how": how, "endpoint": ep, "kwargs": kw, "reward": reward_lines(reward),
-                      "done": bool(done(user)), "claimed": key in claimed})
+                      "done": key in claimed or bool(done(user)), "claimed": key in claimed})
     nxt = next((s for s in steps if not s["done"]), None)
-    return {"steps": steps, "next": nxt, "claimed": sum(s["claimed"] for s in steps), "total": len(steps),
-            "ready": [s for s in steps if s["done"] and not s["claimed"]],
-            "finished": all(s["claimed"] for s in steps), "final": reward_lines(PATH_DONE)}
+    index = CHAPTERS.index(chapter)
+    return {"key": chapter[0], "name": chapter[1], "kicker": chapter[2], "chapter": index + 1, "chapters": len(CHAPTERS),
+            "done_key": _done_key(chapter), "steps": steps, "next": nxt, "claimed": sum(s["claimed"] for s in steps),
+            "total": len(steps), "ready": [s for s in steps if s["done"] and not s["claimed"]],
+            "finished": all(s["claimed"] for s in steps), "final": reward_lines(chapter[4]),
+            "upcoming": CHAPTERS[index + 1][1] if index + 1 < len(CHAPTERS) else None}
 
 
 def claim_step(user, key: str) -> List[str]:
     claimed = user.data.setdefault("web_path", [])
-    if key == "done":
-        if not all(k in claimed for k in BY_KEY):
-            raise GameError("Finish every step of the path first.")
-        if "done" in claimed:
+    if key == "done" or key.startswith("done:"):
+        chapter = next((c for c in CHAPTERS if _done_key(c) == key), None)
+        if chapter is None:
+            raise GameError("That chapter doesn't exist.")
+        if not all(p[0] in claimed for p in chapter[3]):
+            raise GameError("Finish every step of the chapter first.")
+        if key in claimed:
             raise GameError("Already claimed.")
-        claimed.append("done")
-        return _pay(user, PATH_DONE)
+        claimed.append(key)
+        return _pay(user, chapter[4])
     step = BY_KEY.get(key)
     if not step:
         raise GameError("That step doesn't exist.")
     if key in claimed:
         raise GameError("Already claimed.")
+    if CHAPTER_OF[key] is not current_chapter(user):
+        raise GameError("That step belongs to a later chapter: finish this one first.")
     if not step[5](user):
         raise GameError(f"Not done yet: {step[2]}")
     claimed.append(key)

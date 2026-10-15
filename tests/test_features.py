@@ -536,25 +536,19 @@ def test_pity_floor_and_new_tags(client):
 # --------------------------------------------------------------------------- #
 # Collection management
 # --------------------------------------------------------------------------- #
-def test_auto_fuse_merges_r_and_sr_duplicates_only(client):
-    team_hermit = char(4, xp=2000)  # Hermit Purple (R, Lv 20) in the team absorbs its storage copies
-    locked_copy = char(15)  # Wheel of Fortune (R), locked: never consumed
-    storage = [char(4), char(4), char(15, xp=900), locked_copy, char(15),
-               char(1), char(1),  # Star Platinum is SSR: left alone
-               char(2)]  # a single SR: nothing to fuse
-    player(client, "111", main_characters=[team_hermit], storage_characters=storage,
-           web_locked=[locked_copy["uuid"]])
+def test_auto_fuse_keeps_the_copies_a_stand_still_needs_for_its_stars(client):
+    team_hermit = char(4, xp=10_000, awaken=4)  # Hermit Purple (R) at ★4: ★5 still takes 3 copies
+    storage = [char(4) for _ in range(5)] + [char(15), char(15)]  # Wheel of Fortune at ★0 could use 9: kept
+    storage += [char(1), char(1)]  # Star Platinum is SSR: left alone
+    player(client, "111", main_characters=[team_hermit], storage_characters=storage)
     h = login(client, "111")
     assert b"Auto-fuse R &amp; SR" in client.get("/team").data
     r = client.post("/team/autofuse", headers=h)
-    assert b"Auto-fuse: 4 duplicates fused into 2 stands." in r.data
+    assert b"Auto-fuse: 2 duplicates fused into 1 stand." in r.data
     d = doc(client, "111")
     hermit = d["main_characters"][0]
-    # Lv 20 earns ★1 on the first copy; ★2 needs Lv 50, so the second copy pays XP only
-    assert hermit["uuid"] == team_hermit["uuid"] and hermit["awaken"] == 1 and hermit["xp"] == 2000 + 2 * logic.FUSE_BONUS_XP["R"]
-    wof = [c for c in d["storage_characters"] if c["id"] == 15]
-    assert [c["uuid"] for c in wof] == [locked_copy["uuid"]] and wof[0]["awaken"] == 0 and wof[0]["xp"] == 900 + 2 * logic.FUSE_BONUS_XP["R"]
-    assert sorted(c["id"] for c in d["storage_characters"]) == [1, 1, 2, 15]
+    assert hermit["awaken"] == 4 and hermit["xp"] == 10_000 + 2 * logic.FUSE_BONUS_XP["R"]  # fusing gives XP, not stars
+    assert sorted(c["id"] for c in d["storage_characters"]) == [1, 1, 4, 4, 4, 15, 15]
     assert b"No R or SR duplicates" in client.post("/team/autofuse", headers=h).data
 
 
@@ -803,7 +797,7 @@ def test_boss_rush_carries_health_pays_weekly_and_ranks(client):
 def test_new_recipes_and_gear_specials(client):
     from app.game.itemabilities import item_specials
     from app.game.effects import Effect, EffectType
-    player(client, "111", items=[{"id": 38}, {"id": 38}, {"id": 1}, {"id": 40}, {"id": 40}, {"id": 40}])
+    player(client, "111", items=[{"id": 38}, {"id": 38}, {"id": 1}] + [{"id": 40}] * 5)  # a Devil's Palm takes 5 Sand
     h = login(client, "111")
     assert b"Steel Ball" in client.get("/items").data
     client.post("/items/craft", data={"recipe": "Steel Ball"}, headers=h)
@@ -915,7 +909,7 @@ def test_profile_shows_records_and_collection(client):
 def test_requiem_arrow_rules_for_ger_and_the_star_cap(client):
     from app.game.logic import MAX_AWAKEN
     ge_two = char(59, xp=10_000, awaken=2)
-    player(client, "111", main_characters=[ge_two], items=[{"id": 3}, {"id": 3}])
+    player(client, "111", main_characters=[ge_two], storage_characters=[char(59)], items=[{"id": 3}, {"id": 3}])  # ★3: Arrow + 1 copy
     h = login(client, "111")
     client.post("/items/use", data={"item": 3, "uuid": ge_two["uuid"]}, headers=h)
     d = doc(client, "111")
@@ -933,11 +927,11 @@ def test_requiem_arrow_rules_for_ger_and_the_star_cap(client):
 def test_requiem_is_a_choice_so_the_original_can_reach_five_stars(client):
     from app.game.logic import MAX_AWAKEN
     kq = char(49, xp=10_000, awaken=2)  # Killer Queen, level 100, ★2: could evolve right now
-    spares = [char(49), char(49)]  # ★4 and ★5 each eat a copy
+    spares = [char(49) for _ in range(4)]  # with an Arrow each: ★3 and ★4 take 1 copy, ★5 takes 2
     player(client, "111", main_characters=[kq], storage_characters=spares, items=[{"id": 3}] * 5)
     h = login(client, "111")
     panel = client.get(f"/team/stand/{kq['uuid']}", headers=h).data.decode()
-    assert "Evolve into Killer Queen bite the dust" in panel and "★3 with an Arrow" in panel
+    assert "Evolve into Killer Queen bite the dust" in panel and "★3 · Arrow + 1" in panel
     for _ in range(MAX_AWAKEN - 2):  # awaken on purpose: it stays Killer Queen
         client.post("/team/arrow", data={"uuid": kq["uuid"], "mode": "awaken"}, headers=h)
     d = doc(client, "111")
@@ -999,16 +993,22 @@ def test_service_worker_and_install_prompt(client):
     assert b"data-install" in client.get("/").data
 
 
-def test_fusing_stars_wait_for_the_level_and_shop_heads_are_capped(client):
+def test_fusing_gives_xp_and_stars_take_copies_and_the_level(client):
     from app.game.logic import SHOP_HEADS_PER_WEEK
-    keeper, spare, spare2 = char(1, xp=4900), char(1), char(1)
-    player(client, "111", main_characters=[keeper], storage_characters=[spare, spare2], fragments=100_000)
+    keeper, spare, spare2, spare3 = char(1, xp=1700), char(1), char(1), char(1)
+    player(client, "111", main_characters=[keeper], storage_characters=[spare, spare2, spare3], fragments=200_000)
     h = login(client, "111")
-    client.post("/team/fuse", data={"uuid": keeper["uuid"], "fodder": spare["uuid"]}, headers=h)  # team keeper is fine
+    client.post("/team/fuse", data={"uuid": keeper["uuid"], "fodder": spare["uuid"]}, headers=h)
     d = doc(client, "111")["main_characters"][0]
-    assert d["xp"] == 4900 + logic.FUSE_BONUS_XP["SSR"] and d["awaken"] == 1  # Lv 50+: ★1 comes first
-    client.post("/team/fuse", data={"uuid": keeper["uuid"], "fodder": spare2["uuid"]}, headers=h)
-    assert doc(client, "111")["main_characters"][0]["awaken"] == 2
+    assert d["xp"] == 1700 + logic.FUSE_BONUS_XP["SSR"] and d["awaken"] == 0  # fusing: XP only (now Lv 21)
+    client.post("/team/awaken", data={"uuid": keeper["uuid"]}, headers=h)  # Lv 21: ★1 takes 1 copy
+    assert doc(client, "111")["main_characters"][0]["awaken"] == 1
+    r = client.post("/team/awaken", data={"uuid": keeper["uuid"]}, headers=h)  # ★2 needs Lv 50
+    assert b"needs level 50" in r.data and doc(client, "111")["main_characters"][0]["awaken"] == 1
+    assert len(doc(client, "111")["storage_characters"]) == 1
+    client.post("/shop/buy", data={"key": "3"}, headers=h)
+    assert b"a week" in client.post("/shop/buy", data={"key": "3"}, headers=h).data  # one Requiem Arrow a week
+    assert sum(1 for i in doc(client, "111")["items"] if i["id"] == 3) == 1
     for _ in range(SHOP_HEADS_PER_WEEK):
         client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)
     r = client.post("/shop/buy", data={"key": "super_fragment"}, headers=h)

@@ -332,7 +332,8 @@ def quality_for(k: int) -> str:
 LATE_EASE = {7: 0.88, 8: 0.85}
 # Stages whose enemies share one of the newer synergy groups (Bow and Arrow, Kira family, Pucci's agents, the
 # Higashikata family, the Rock Humans...): eased so the team that used to clear them on the edge still does.
-STAGE_EASE = {6: 0.92, 8: 0.96, 9: 0.92, 16: 0.95, 17: 0.92, 27: 0.93, 28: 0.92}
+STAGE_EASE = {6: 0.92, 8: 0.96, 9: 0.92, 16: 0.95, 17: 0.92, 27: 0.93, 28: 0.92,
+              30: 0.85}  # Wonder of U: ★3 teams ~50%, ★4 safe (it was a ★4 wall after two ★3 stages)
 
 
 # Rosters got stronger (LR odds, no duplicate protection) and players cleared the story in days: from Part 4 on the
@@ -378,10 +379,12 @@ def ai_level(k: int) -> str:
 
 
 HEAD_PARTS = (3, 5, 8)  # the bosses whose first clear pays an Arrowhead (economy.py: every other part)
+ARROW_PARTS = (6, 7, 8)  # the bosses whose first clear also pays a Requiem Arrow: the mid-game stars (★3 on) take two copies, an Arrow stands in for one
 
 
 def reward_for(k: int) -> dict:
-    """First clear only. Meteor Dust grows with the stage; the bosses of HEAD_PARTS add an Arrowhead."""
+    """First clear only. Meteor Dust grows with the stage; the bosses of HEAD_PARTS add an Arrowhead, those of
+    ARROW_PARTS a Requiem Arrow."""
     from app.game.economy import dust
     stage = STAGES[k]
     reward = {
@@ -393,6 +396,8 @@ def reward_for(k: int) -> dict:
     }
     if k % 3 == 2:
         reward["items"].append(2)  # a Devil's Palm every third stage
+    if stage.get("boss") and stage["part"] in ARROW_PARTS:
+        reward["items"].append(3)
     return reward
 
 

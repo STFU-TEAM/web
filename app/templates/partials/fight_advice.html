@@ -1,0 +1,8 @@
+{#- What this fight asks vs. your team (app/game/advice.py). Expects `a` = fight_advice(...). -#}
+<p class="fight-advice {{ a.state }}">
+  <strong>{{ '✓ Ready' if a.state == 'ready' else ('≈ Close' if a.state == 'close' else '⚠ Under-powered') }}</strong>
+  · Recommended: Lv {{ a.rec.level }}, ★{{ a.rec.stars }}{% if a.rec.refine %}, +{{ a.rec.refine }} items built for your stands, good qualities{% endif %}
+  · Your team: Lv {{ a.team.level }}, ★{{ a.team.stars }}{% if a.rec.refine %}, items +{{ a.team.refine }}{% endif %}
+  {%- if a.missing %} · needs {{ a.missing|join(', ') }}{% endif %}
+  {%- if a.vs %} · <a href="{{ url_for('battles.simulator', vs=a.vs) }}">🧪 Simulate</a>{% endif %}
+</p>

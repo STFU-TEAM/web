@@ -6,6 +6,7 @@ from markupsafe import Markup, escape
 
 from app.game.character import CHARACTER_FILE, MAX_LEVEL, STXPTOLEVEL, Qualities, Types
 from app.game.logic import ARROW_ODDS, BANNER_ODDS, PITY_LIMIT, PITY_ODDS, SHINY_CHANCE, fmt_delta, rank_name
+from app.game import advice as _advice
 
 RARITY = {"R": "common", "SR": "rare", "SSR": "epic", "UR": "legend", "LR": "mythic"}
 RARITY_RANK = {"R": 0, "SR": 1, "SSR": 2, "UR": 3, "LR": 4}
@@ -122,7 +123,10 @@ def register(app):
     from app.game import onboarding
     app.jinja_env.globals.update(awaken_gate=logic.awaken_gate, shop_heads_left=logic.shop_heads_left,
                                  FULLART_STARS=FULLART_STARS, requiem_form=logic.requiem_form, guide_marks=onboarding.guide_marks,
-                                 MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy)
+                                 MAX_STARS=logic.MAX_AWAKEN, COPY_STARS=logic.COPY_AWAKEN, spare_copy=logic.spare_copy,
+                                 star_cost=logic.star_cost, spare_copies=logic.spare_copies,
+                                 discs=logic.discs, disc_price=logic.disc_price, release_discs=logic.release_discs,
+                                 fight_advice=_advice.for_fight)
     from app.game import status
     app.jinja_env.globals.update(fighter_status=status.view)
     from app.game import heaven

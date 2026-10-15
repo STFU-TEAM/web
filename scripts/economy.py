@@ -155,8 +155,10 @@ def main():
     print(f"  Refining one item 0 → +{gear.REFINE_MAX}: {item_full:,} Dust · a whole team's 9 items: {9 * item_full:,}")
     for name, dust_day, *_ in rows:
         print(f"    {name:26} one item maxed every {item_full / dust_day:5.1f} days · the whole team in {9 * item_full / dust_day:5.0f} days")
-    print(f"  ★4 and ★5 for a team of three: 6 Requiem Arrows and 6 spare copies; the tower climb {tower.CLIMB_COST} a week,"
-          f" the Requiem Tower {tower.RQ_COST}")
+    copies = sum(logic.STAR_COPIES.values())
+    print(f"  ★0 to ★5 for a team of three: {3 * copies} spare copies, or {3 * (copies - len(logic.STAR_COPIES))} with"
+          f" {3 * len(logic.STAR_COPIES)} Requiem Arrows (scripts/progression.py: how long that takes);"
+          f" the tower climb {tower.CLIMB_COST} a week, the Requiem Tower {tower.RQ_COST}")
     ot = one_time()
     print(f"  One-time PvE first clears (Over Heaven + Requiem): {ot['fragments']:,} Dust, {ot['super_fragments']} Arrowheads")
 
@@ -167,8 +169,9 @@ def main():
             marks.append(f"Lv{lvl} day {xp_for_level(lvl) / xp_day:4.0f}")
         print(f"  {name:26} " + " · ".join(marks))
     _, _, _, _, tw = rows[-1]
-    print(f"\nRequiem Arrows a week at the endgame: {tw['requiem_arrows']} from the Requiem Tower, plus a 35% chance a day"
-          f" from the B9 dungeon boss (~{0.35 * 7:.1f} a week if cleared daily).")
+    print(f"\nRequiem Arrows a week at the endgame: {tw['requiem_arrows']} from the Requiem Tower, 1 from the shop"
+          f" ({logic.DEFAULT_SHOP['3']['price']:,} Dust), plus a {dungeon.REQUIEM_ARROW_CHANCE:.0%} chance a day from the"
+          f" B9 dungeon boss (~{dungeon.REQUIEM_ARROW_CHANCE * 7:.1f} a week if cleared daily).")
 
 
 if __name__ == "__main__":

@@ -45,6 +45,7 @@
             <div class="story-foes hv-foes"><ul>
               {% for cid in f.ids %}<li><a href="{{ url_for('main.stand', stand_id=cid) }}"><img src="{{ cid|stand_img }}" alt="" loading="lazy"></a></li>{% endfor %}
             </ul></div>
+            {% with a = fight_advice(u, 100, 5, hard=True, vs='hv:' ~ f.j) %}{% include "partials/fight_advice.html" %}{% endwith %}
             <p class="story-reward">🎁 {{ 'First clear: ' ~ f.reward|join(', ') if f.state == 'open' else 'Replay: 2,000 Meteor Dust · ' ~ H.REPLAY_ENERGY ~ ' energy' }}</p>
             {% if u.main_characters|length >= 3 %}
               <form method="post" action="{{ url_for('progress.hv_fight') }}" class="hv-pacts">

@@ -41,6 +41,7 @@
       </div>
       <div class="story-foes" aria-label="Enemies">
         <p class="muted">Enemies · level {{ stage.level }}{% if stage.awaken %} · ★{{ stage.awaken }}{% endif %} · {{ stage.quality_name }}{% if stage.mult > 1 %} · ×{{ stage.mult }} health & damage{% endif %}</p>
+        {% with a = fight_advice(u, stage.level, stage.awaken or 0, stage.mult, vs='au:' ~ stage.chapter ~ ':' ~ stage.index) %}{% include "partials/fight_advice.html" %}{% endwith %}
         <ul>
           {% for c in stage.enemy_stands %}
             <li class="rar-{{ c.rarity|rarity }}"><a href="{{ url_for('main.stand', stand_id=c.id) }}">

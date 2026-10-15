@@ -131,7 +131,7 @@
       <button class="btn small" hx-post="{{ url_for('play.lock_many') }}" hx-vals='{"lock": "1"}' hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked">Lock</button>
       <button class="btn small" hx-post="{{ url_for('play.lock_many') }}" hx-vals='{"lock": "0"}' hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked">Unlock</button>
       <button class="btn small danger" hx-post="{{ url_for('play.release') }}" hx-target="#collection" hx-include="#storage-grid [name=uuid]:checked"
-              hx-confirm="Release every selected stand for good? Locked stands are kept. This can't be undone.">Release</button>
+              hx-confirm="Release every selected stand for good, for Stand Discs? Locked stands are kept. This can't be undone.">Release for 💿</button>
     </span>
   </div>
   <div class="grid collection-grid" id="storage-grid">
