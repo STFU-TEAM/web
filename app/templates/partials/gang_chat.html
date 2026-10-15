@@ -5,7 +5,7 @@
       {% for m in msgs %}
         {% set mine = m.uid == me.id %}
         <li class="chat-msg{{ ' mine' if mine }}">
-          <p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a> <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
+          {% set bd = badges_of([m.uid]).get(m.uid) %}<p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a>{% if bd %} <span class="chat-badge badge-{{ bd.key }}" title="{{ bd.desc }}">{{ bd.icon }} {{ bd.label }}</span>{% endif %} <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
           <p class="chat-text">{{ m.text|chat_text }}</p>
           {% if mine or me_rank <= 1 %}
             <button type="button" class="chat-del" aria-label="Delete this message" title="Delete"

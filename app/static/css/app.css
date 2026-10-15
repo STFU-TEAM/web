@@ -5617,3 +5617,53 @@ html.vt-enter::before { content: ""; position: fixed; inset: -2px; z-index: 2147
   .rq-board a { flex: 0 0 104px; scroll-snap-align: start; }
   .cm-stage { padding-inline: 22%; min-height: 150px; }
 }
+
+/* Badges: staff (STFU Team, Moderator) and earned ones, on the profile and next to names in the chats */
+.profile-badges { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 0; padding: 0; list-style: none; }
+.badge-chip, .chat-badge { display: inline-flex; align-items: center; gap: .25rem; padding: .12rem .5rem; border-radius: 999px; font-weight: 700; font-size: .78rem;
+  line-height: 1.3; color: var(--paper); background: rgb(255 255 255 / .08); border: 1.5px solid rgb(255 255 255 / .2); white-space: nowrap; }
+.badge-chip.main { box-shadow: 0 0 0 2px var(--gold); }
+.chat-badge { margin-left: .3rem; padding: 0 .4rem; font-size: .68rem; vertical-align: .1em; }
+.badge-team { background: linear-gradient(120deg, #7A3FB8, #D6246E); border-color: #F4C542; color: #fff; }
+.badge-mod { background: #1B5E8A; border-color: #3AB4F2; color: #fff; }
+.badge-supporter { background: rgb(244 197 66 / .18); border-color: var(--gold); color: var(--gold); }
+.badge-heaven { background: rgb(95 242 228 / .14); border-color: #5FF2E4; }
+.badge-requiem { background: rgb(214 36 110 / .18); border-color: var(--magenta); }
+.badge-shiny { background: rgb(255 255 255 / .1); border-color: #FFD6F5; }
+.badge-veteran { background: rgb(200 100 43 / .2); border-color: #F2C27A; }
+
+/* ===================================================================================
+   NO SIDEWAYS PAGE ON PHONES: nothing may make the page wider than the screen (a wider page lets phones pan and
+   zoom out, and the layout looks broken). Decorations that bleed off the edge are clipped inside their own box.
+   =================================================================================== */
+html, body { overflow-x: clip; max-width: 100%; }
+.part-mark-box { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; contain: strict; }
+.part-mark-box .part-mark { position: absolute; z-index: auto; }
+.ts-stage { overflow-x: clip; overflow-y: visible; }
+@media (max-width: 640px) {
+  /* the swipeable tile row reaches exactly to the screen edges, whatever the page gutter (Compact or Comfortable) */
+  .actions-row { margin-inline: calc((100% - 100vw) / 2); padding-inline: calc((100vw - 100%) / 2); }
+  /* phones zoom into any field under 16 px when it's tapped (and stay zoomed): fields keep 16 px in Compact too */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { font-size: max(16px, 1em); }
+}
+@media (max-width: 640px) {
+  /* the home stage: three cards that fit the screen, a gentler tilt, the stats left to the stand's panel */
+  .ts-stage { gap: .35rem; padding-inline: .2rem; }
+  .ts-slot { width: calc((100% - 1.2rem) / 3); }
+  .ts-slot:nth-of-type(1) { rotate: -4deg; }
+  .ts-slot:nth-of-type(2) { scale: 1.06; margin: 0 .1rem .8rem; }
+  .ts-slot:nth-of-type(3) { rotate: 4deg; }
+  .ts-stage .card :is(.card-stats, .traits, .card-flavor) { display: none; }
+  .ts-stage .card .card-name { font-size: .78rem; line-height: 1.1; }
+}
+
+/* Special numbers and power: a tooltip with the whole equation, on hover, keyboard focus and tap (the browser's own
+   tooltip never shows on phones) */
+.sp-scales[data-tip], .scaling-power[data-tip] { position: relative; cursor: help; }
+.sp-scales[data-tip]:is(:hover, :focus)::after, .scaling-power[data-tip]:is(:hover, :focus)::after {
+  content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 8px); translate: -50% 0; z-index: 40;
+  width: max-content; max-width: min(320px, 82vw); padding: .5rem .65rem; border-radius: 8px; border: 2px solid var(--gold);
+  background: var(--ink); color: var(--paper); font: 500 .78rem/1.4 var(--body); text-align: left; white-space: pre-line;
+  box-shadow: 0 8px 20px rgb(0 0 0 / .5); pointer-events: none; }
+.sp-scales[data-tip]:focus, .scaling-power[data-tip]:focus { outline: none; }
+.sp-scales[data-tip]:focus-visible, .scaling-power[data-tip]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

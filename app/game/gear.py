@@ -80,10 +80,15 @@ REFINE_STATS = (("bonus_hp", "HP"), ("bonus_damage", "ATK"), ("bonus_armor", "AR
 
 def refine_preview(item) -> List[dict]:
     """The item's stat lines now and one refine level up: [{label, now, next}] (next is None at the cap)."""
-    from app.game.items import Item
+    from app.game.items import REFINE_STEP, Item
+    from app.game.itemabilities import ABILITY_ITEMS
     up = Item({**item.data, "refine": item.refine + 1}) if item.refine < REFINE_MAX else None
-    return [{"label": label, "now": getattr(item, key), "next": getattr(up, key) if up else None}
+    rows = [{"label": label, "now": getattr(item, key), "next": getattr(up, key) if up else None}
             for key, label in REFINE_STATS if getattr(item, key)]
+    if item.id in ABILITY_ITEMS:  # refining strengthens the ability too: +10% a level
+        pct = lambda n: f"+{round(REFINE_STEP * n * 100)}%" if n else "base"  # noqa: E731
+        rows.append({"label": "Ability", "now": pct(item.refine), "next": pct(item.refine + 1) if up else None})
+    return rows
 
 
 def forge_rows(user) -> List[dict]:

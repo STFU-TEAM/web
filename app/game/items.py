@@ -54,11 +54,12 @@ class Item:
 
     def special(self, stand, allies, ennemies) -> str:
         self.special_meter = 0
+        from app.game import itemabilities
+        itemabilities._POWER = 1 + REFINE_STEP * self.refine  # a refined item's ability is stronger
         try:
             message = item_specials[f"{self.id}"](stand, allies, ennemies)
-        except Exception as e:
-            raise(e)
-            message = "None"
+        finally:
+            itemabilities._POWER = 1.0
         return message
 
     def as_special(self):

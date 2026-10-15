@@ -43,6 +43,10 @@
   <script>(() => {
     const h = document.documentElement;
     try { if (localStorage.getItem("density") === "comfy") h.classList.add("comfy"); } catch (e) {}
+    // the installed app (home-screen icon) behaves like an app: no pinch zoom. A browser tab keeps zoom (accessibility).
+    if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
+      document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover");
+    }
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     let from = null;
     try { from = sessionStorage.getItem("vt-from"); sessionStorage.removeItem("vt-from"); } catch (e) {}
@@ -60,7 +64,7 @@
   <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 {%- set ep = request.endpoint or '' -%}
-{%- set is_admin = me.admin -%}
+{%- set is_admin = me.staff -%}{#- the panel link: admins, and moderators (their tools only) -#}
 {%- set on_ranked = ep == 'battles.index' and request.args.get('mode') == 'ranked' -%}
 {#- Every destination once: (label, url, active, icon, why it matters). Desktop menus, mobile dock,
     the menu sheet and the new-player tour all read from here. -#}
@@ -107,7 +111,7 @@
   'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
   'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖', 'How fights work: terrains, synergies, status effects.'),
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
-  'admin': ('Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
+  'admin': ('Moderation' if me.mod_only else 'Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
 {#- THE NAV, ONCE. Every surface (desktop sidebar, top-bar dropdowns, the phone menu sheet) reads these groups, so
     a page is always in the same place, in the same order. Groups go from what you do most to what you do least:
@@ -186,7 +190,7 @@
 {%- set body_part = page_part or progress_part -%}
 <body class="{{ 'has-side' if me.id }}{{ ' film' if film_mode }}" hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'{% if body_part and part_style(body_part) %} data-part="{{ body_part }}" data-part-from="{{ 'page' if page_part else 'progress' }}" style="{{ part_style(body_part) }}"{% endif %}>
   <a class="skip" href="#main">Skip to content</a>
-  {% if body_part and part_mark(body_part) %}<div class="part-mark" aria-hidden="true">{{ part_mark(body_part) }}</div>{% endif %}
+  {% if body_part and part_mark(body_part) %}<div class="part-mark-box" aria-hidden="true"><div class="part-mark">{{ part_mark(body_part) }}</div></div>{% endif %}
   {% if me.id %}
   <aside class="sidenav" aria-label="Main">
     <a class="wordmark side-brand" href="{{ url_for('main.home') }}" aria-label="STFU Requiem home">

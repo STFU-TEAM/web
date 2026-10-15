@@ -68,3 +68,28 @@ def test_pve_menus_draw_the_world_map_wormholes_theatre_sky_and_targets(client):
     login(client, "111")
     assert 'class="world-map"' in client.get("/story").data.decode() and 'id="part-3"' in client.get("/story").data.decode()
     assert 'class="rifts"' in client.get("/alternate-universe").data.decode()
+
+
+def test_refining_strengthens_an_items_ability_and_the_forge_says_so():
+    from app.game import gear
+    from app.game.character import character_from_dict
+    from app.game.items import item_from_dict
+    grown = []
+    for refine in (0, 5):
+        ch = character_from_dict({"id": 1, "xp": 5000, "types": ["ATTACK"], "qualities": ["GOOD"], "items": []})
+        before = ch.current_damage
+        item_from_dict({"id": 7, "refine": refine}).special(ch, [ch], [])  # the Stone Mask
+        grown.append(ch.current_damage - before)
+    assert grown[1] > grown[0] * 1.45
+    rows = gear.refine_preview(item_from_dict({"id": 7, "refine": 2}))
+    assert {"label": "Ability", "now": "+20%", "next": "+30%"} in rows
+
+
+def test_special_numbers_explain_their_power(client):
+    import re
+    from app.filters import special_text
+    from app.game.character import character_from_dict
+    with client.application.test_request_context():
+        ch = character_from_dict({"id": 111, "xp": 8000, "types": ["ATTACK"], "qualities": ["GREAT"], "items": []})  # Tusk Act 1
+        tip = re.findall(r'data-tip="([^"]*)"', str(special_text(ch)))[0]
+    assert "1.12 power (1 + 12% Attack Great type)" in tip and "Grows with ATK" in tip

@@ -2,7 +2,7 @@
 private, co-op raid). The rules live in app/game/chat.py."""
 from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 
-from app.auth import account_required, is_admin, player_required
+from app.auth import account_required, is_admin, is_mod, player_required
 from app.db import get_db, identities, identity, r
 from app.game import chat as C
 from app.game.logic import GameError
@@ -22,7 +22,7 @@ def box_ctx(ch: C.Channel, error=None) -> dict:
     uids = {m["uid"] for m in msgs}
     who = identities(uids)
     return {"ch": ch, "msgs": msgs, "names": {u: who[u]["name"] for u in uids}, "titles": titles.shown_of(uids),
-            "seq": C.seq(ch), "chat_error": error, "chat_admin": is_admin(session["uid"]) and ch.kind != "dm"}
+            "seq": C.seq(ch), "chat_error": error, "chat_admin": is_mod(session["uid"]) and ch.kind != "dm"}
 
 
 def _box(ch, error=None):
@@ -164,7 +164,7 @@ def post(token):
 def delete(token, msg_id):
     try:
         ch = _channel(token)
-        msg = C.delete(ch, session["uid"], msg_id, admin=is_admin(session["uid"]))
+        msg = C.delete(ch, session["uid"], msg_id, admin=is_mod(session["uid"]))
         if msg["uid"] != session["uid"]:
             from app.routes.admin import audit
             audit("chat_delete", msg["uid"], chat=ch.kind, text=msg["text"][:200])

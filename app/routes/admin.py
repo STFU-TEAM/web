@@ -4,11 +4,14 @@ promote from the Admins tab. Every change is audited."""
 import datetime
 import json
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 
 from app import accounts
 from app.accounts import resolve_player
-from app.auth import ADMINS_KEY, admin_required, is_owner
+from app.auth import ADMINS_KEY, MODS_KEY, admin_required, is_admin, is_owner, mod_only, staff_required
+
+# what a moderator (no admin rights) may do to a player: moderation only, never grants, edits or deletions
+MOD_OPS = {"ban", "mute", "unmute", "profile_clear", "profile_lock", "profile_unlock"}
 from app.db import Busy, clear_fight, get_db, identity, load_fight, r, user_lock
 from app.filters import PLAYABLE, RARITY_RANK
 from app.game import logic
@@ -149,9 +152,11 @@ def _find_by_name(query: str, limit=12):
 # Dashboard and search
 # --------------------------------------------------------------------------- #
 @bp.get("")
-@admin_required
+@staff_required
 def index():
     query = request.args.get("q", "").strip()
+    if mod_only(session["uid"]) and not query:  # a moderator's panel starts at the reports
+        return redirect(url_for("admin.reports"))
     if query:
         uid = resolve_player(query)
         if uid:
@@ -161,6 +166,10 @@ def index():
             return redirect(url_for("admin.player", uid=matches[0]["id"]))
         if not matches:
             flash("No player found by username, ID or display name.", "error")
+        if mod_only(session["uid"]):
+            if matches:
+                flash("Several players match: " + ", ".join(m["name"] for m in matches[:8]) + ". Search by username or ID.", "error")
+            return redirect(url_for("admin.reports"))
     else:
         matches = []
     if request.args.get("refresh"):
@@ -208,7 +217,7 @@ def maintenance_switch():
 # One player
 # --------------------------------------------------------------------------- #
 @bp.get("/player/<uid>")
-@admin_required
+@staff_required
 def player(uid):
     db = get_db()
     target = db.get_user(uid)
@@ -230,6 +239,7 @@ def player(uid):
                            catalog=item_file, STANDS=PLAYABLE, EDITABLE=EDITABLE, MAX_AWAKEN=logic.MAX_AWAKEN, fight=load_fight(uid),
                            history=_audit_rows(15, target=uid), now=logic.now(), story_total=story.TOTAL,
                            section="players", owner=is_owner(session["uid"]), profile_view=_profile_view(target),
+                           mod_only=mod_only(session["uid"]),
                            chat_mute=_chat_mute(uid), same_ip=_same_ip(uid),
                            open_reports=[e for e in _reports_about(uid)])
 
@@ -273,8 +283,10 @@ def _edit(uid, fn, kind, ok, **details):
 
 
 @bp.post("/player/<uid>/<op>")
-@admin_required
+@staff_required
 def player_action(uid, op):
+    if mod_only(session["uid"]) and op not in MOD_OPS:
+        abort(403, "Moderators can mute, ban and clean up profiles; anything else is for admins.")
     f = request.form
     back = redirect(url_for("admin.player", uid=uid) + f.get("anchor", ""))
     name = identity(uid)["name"]
@@ -489,7 +501,7 @@ def player_action(uid, op):
 
 
 @bp.get("/reports")
-@admin_required
+@staff_required
 def reports():
     from app.game import profile as P
     status = request.args.get("status", "open")
@@ -504,7 +516,7 @@ def reports():
 
 
 @bp.post("/automod/<op>")
-@admin_required
+@staff_required
 def automod_words(op):
     from app.game import automod
     from app.game.logic import GameError
@@ -524,7 +536,7 @@ def automod_words(op):
 
 
 @bp.post("/reports/<rid>/<op>")
-@admin_required
+@staff_required
 def report_action(rid, op):
     from app.game import profile as P
     entry = next((e for e in P.reports("all", 10_000) if e["id"] == rid), None)
@@ -616,7 +628,7 @@ def gang_action(gang_id, op):
 
 
 @bp.get("/shops")
-@admin_required
+@staff_required
 def shops():
     rows = []
     for shop in get_db().all_shops():
@@ -627,7 +639,7 @@ def shops():
 
 
 @bp.post("/shops/<shop_id>/unlist/<int:index>")
-@admin_required
+@staff_required
 def shop_unlist(shop_id, index):
     db = get_db()
     shop = db.get_shop(shop_id)
@@ -732,8 +744,59 @@ def admins():
                          "at": meta.get("at", "")})
     promoted.sort(key=lambda a: a["at"], reverse=True)
     owners = [{"uid": uid, "name": identity(uid)["name"]} for uid in sorted(current_app.config["DISCORD_ADMIN_IDS"])]
+    from app.game import badges
     return render_template("admin/admins.html", section="admins", owners=owners, promoted=promoted,
+                           mods=_role_rows(MODS_KEY), team=_role_rows(badges.TEAM_KEY),
                            can_manage=is_owner(session["uid"]))
+
+
+def _role_rows(key):
+    rows = []
+    for uid, raw in r().hgetall(key).items():
+        uid = uid.decode() if isinstance(uid, bytes) else uid
+        try:
+            meta = json.loads(raw)
+        except (TypeError, ValueError):
+            meta = {}
+        rows.append({"uid": uid, "name": identity(uid)["name"], "by": identity(meta["by"])["name"] if meta.get("by") else "?",
+                     "at": meta.get("at", "")})
+    return sorted(rows, key=lambda a: a["at"], reverse=True)
+
+
+ROLES = {"mod": (MODS_KEY, "moderator"), "team": ("web:badges:team", "STFU Team member")}
+
+
+@bp.post("/roles/<role>/add")
+@admin_required
+def role_add(role):
+    """Any admin adds a moderator or an STFU Team badge."""
+    if role not in ROLES:
+        abort(404)
+    key, label = ROLES[role]
+    uid = resolve_player(request.form.get("player", ""))
+    if not uid:
+        flash("No player with that username or Discord ID.", "error")
+    elif r().hexists(key, uid):
+        flash(f"{identity(uid)['name']} is already a {label}.", "error")
+    else:
+        r().hset(key, uid, json.dumps({"by": session["uid"], "at": datetime.datetime.now(datetime.timezone.utc).isoformat()}))
+        audit(f"{role}_add", uid, name=identity(uid)["name"])
+        flash(f"{identity(uid)['name']} is now a {label}.", "ok")
+    return redirect(url_for("admin.admins"))
+
+
+@bp.post("/roles/<role>/<uid>/remove")
+@admin_required
+def role_remove(role, uid):
+    if role not in ROLES:
+        abort(404)
+    key, label = ROLES[role]
+    if r().hdel(key, uid):
+        audit(f"{role}_remove", uid, name=identity(uid)["name"])
+        flash(f"{identity(uid)['name']} is no longer a {label}.", "ok")
+    else:
+        flash(f"That player isn't a {label}.", "error")
+    return redirect(url_for("admin.admins"))
 
 
 @bp.post("/admins/promote")
@@ -769,7 +832,7 @@ def admin_demote(uid):
 
 
 @bp.get("/audit")
-@admin_required
+@staff_required
 def audit_log():
     kind = request.args.get("kind") or None
     target = request.args.get("target") or None
@@ -875,7 +938,7 @@ def puzzles_build():
 # Safety: database backups (app/backup.py), error alerts (app/alerts.py), alt-account flags (app/alts.py)
 # --------------------------------------------------------------------------- #
 @bp.get("/safety")
-@admin_required
+@staff_required
 def safety():
     import os
     from app import alts, backup

@@ -34,4 +34,30 @@
   </tbody>
 </table>
 </div>
+
+{% for role, title, rows, blurb in [('mod', 'Moderators', mods, 'Moderators get the moderation tools only: reports, chat mutes, website bans, profile clean-up, chat deletes, shop unlisting, alt flags and the audit log. They can never give, edit or delete anything. They show the 🛡 Moderator badge.'), ('team', 'STFU Team badge', team, 'The ⚡ STFU Team badge, for the people who make the game (admins have it already). A badge only: no rights.')] %}
+<h2 class="h2" id="{{ role }}">{{ title }} <small class="muted">{{ rows|length }}</small></h2>
+<p class="muted">{{ blurb }} Any admin can add or remove them.</p>
+<form class="inline admin-promote" method="post" action="{{ url_for('admin.role_add', role=role) }}">
+  <input type="hidden" name="csrf" value="{{ csrf_token }}">
+  <label for="add-{{ role }}">Username or Discord ID</label>
+  <input id="add-{{ role }}" type="text" name="player" required autocapitalize="none" spellcheck="false">
+  <button class="btn gold">Add</button>
+</form>
+{% if rows %}
+<div class="admin-table-wrap">
+<table class="admin-table">
+  <thead><tr><th>Player</th><th>Added by</th><th></th></tr></thead>
+  <tbody>
+    {% for a in rows %}
+      <tr><td><a href="{{ url_for('admin.player', uid=a.uid) }}"><strong>{{ a.name }}</strong></a><br><small class="muted">{{ a.uid }}</small></td>
+        <td>{{ a.by }}<br><small class="muted">{{ a.at[:10] }}</small></td>
+        <td><form method="post" action="{{ url_for('admin.role_remove', role=role, uid=a.uid) }}" onsubmit="return confirm('Remove {{ a.name|e }}?')">
+          <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small danger">Remove</button></form></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endfor %}
 {% endblock %}

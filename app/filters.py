@@ -29,12 +29,38 @@ SPECIAL_TOKEN = re.compile(r"`([^`]+)`")
 SPECIAL_NUMBER = re.compile(r"^([+-]?)(\d[\d,.]*)(?:-(\d[\d,.]*))?(%?)$")
 
 
+def power_parts(char, sp) -> str:
+    """Where a special's power comes from, in words: "1 + 12% Attack Great type" (with the build share, the top
+    rarities' trim and the cap when they apply)."""
+    from app.game.characterabilities import POWER_RANGE, RARITY_SPECIAL_POWER
+    def term(v, what):
+        return f"1 {'+' if v >= 0 else '−'} {abs(v) * 100:.0f}% {what}"
+    terms = []
+    if abs(sp["invest"]) >= 0.005:
+        terms.append(term(sp["invest"], "build"))
+    if sp["type"]:
+        terms.append(term(sp["affinity"], f"{sp['type']} type"))
+    if not terms:
+        text = "1, no matching type"
+    elif len(terms) == 1:
+        text = terms[0]
+    else:  # the two multiply
+        text = " × ".join(f"({t})" for t in terms)
+    raw = (1 + sp["invest"]) * (1 + sp["affinity"])
+    if raw < POWER_RANGE[0] or raw > POWER_RANGE[1]:
+        text += f", kept within {POWER_RANGE[0]}–{POWER_RANGE[1]}"
+    trim = RARITY_SPECIAL_POWER.get(getattr(char, "rarity", ""), 1)
+    if trim != 1:
+        text += f", × {trim} for {char.rarity}"
+    return text
+
+
 def _calc_token(char, sp, sign, num, pct, before, after):
     """(value text, formula) for one number of a special description, or None when it doesn't scale."""
     from app.game.characterabilities import ARMOR_BASE, DEBUFF_CAP, HEALING_STATS, SPEED_FLOOR
     p, x = sp["power"], num / 100
     stat = sp["stat"]
-    mult = f" × {p:.2f} power" if round(p, 2) != 1 else ""
+    mult = f" × {p:.2f} power ({power_parts(char, sp)})" if round(p, 2) != 1 else ""
     sentence = before[before.rfind(".") + 1:].lower()
     if not pct:
         if sign == "+" and after.startswith("crit"):
@@ -53,7 +79,7 @@ def _calc_token(char, sp, sign, num, pct, before, after):
         if after.startswith("speed"):
             base = max(char.start_speed, SPEED_FLOOR)
             return f"+{base * x * p:.0f} SPD", f"{num:g}% × {base:.0f} SPD{mult}"
-        return f"+{num * p:.0f}%", f"{num:g}% × {p:.2f} power"
+        return f"+{num * p:.0f}%", f"{num:g}% × {p:.2f} power ({power_parts(char, sp)})"
     if after.startswith("damage") or (after.startswith(("burn", "poison", "bleed")) and "damage" not in after[:8]):
         return f"{char.start_damage * x * p:,.0f}", f"{num:g}% × {char.start_damage:.0f} ATK{mult}"
     if after.startswith(("of its max health", "of its own max health", "of max health", "of their max health")):
@@ -63,7 +89,7 @@ def _calc_token(char, sp, sign, num, pct, before, after):
         if who == "their":
             return (f"{num * p:.0f}%", f"{num:g}%{hp_mult} of their max health") if hp_mult else None
         return f"{char.start_hp * x * (p if hp_mult else 1):,.0f} HP", f"{num:g}% × {char.start_hp:.0f} HP{hp_mult}"
-    return f"{num * p:.0f}%", f"{num:g}% × {p:.2f} power"
+    return f"{num * p:.0f}%", f"{num:g}% × {p:.2f} power ({power_parts(char, sp)})"
 
 
 def special_text(char, owned=True):
@@ -83,17 +109,21 @@ def special_text(char, owned=True):
             continue
         sign, value, pct = num.group(1), float(num.group(2).replace(",", "")), num.group(4)
         if not owned:
-            out.append(Markup('<b class="sp-scales" title="Grows with this stand\'s stats and special power">{}</b>')
+            out.append(Markup('<b class="sp-scales" tabindex="0" data-tip="Grows with this stand\'s stats and special power">{}</b>')
                        .format(token))
             continue
         calc = None if num.group(3) else _calc_token(char, sp, sign, value, pct, text[:m.start()], after)
         if calc is None:
             out.append(Markup('<b class="sp-fixed">{}</b>').format(token))
-        elif calc[0].replace("−", "-") == token:
-            out.append(Markup('<b class="sp-scales" title="{1} = {2}">{0}</b>').format(token, calc[1], calc[0]))
         else:
-            out.append(Markup('<b class="sp-scales" title="{1} = {2}">{0}<span class="sp-calc">{2}</span></b>')
-                       .format(token, calc[1], calc[0]))
+            tip = f"{calc[1]}\n= {calc[0]}"
+            if sp["stat"] == "damage" and "ATK" in calc[1]:
+                tip += "\nGrows with ATK: level, stars and items."
+            if calc[0].replace("−", "-") == token:
+                out.append(Markup('<b class="sp-scales" tabindex="0" data-tip="{1}">{0}</b>').format(token, tip))
+            else:
+                out.append(Markup('<b class="sp-scales" tabindex="0" data-tip="{1}">{0}<span class="sp-calc">{2}</span></b>')
+                           .format(token, tip, calc[0]))
     out.append(escape(text[last:]))
     return Markup("").join(out)
 PLAYABLE = [c for c in CHARACTER_FILE if c["universe"] != "Dummy"]
@@ -146,7 +176,10 @@ def register(app):
     app.jinja_env.globals.update(part_style=parts.style, stand_part=parts.of_stand,
                                  part_mark=lambda p: Markup(parts.mark(p)), part_name=parts.name)
     from app.game import worldmap
-    app.jinja_env.globals.update(world_map=worldmap.view)  # the story's world map  # part palettes (body data-part)
+    app.jinja_env.globals.update(world_map=worldmap.view)  # the story's world map
+    app.jinja_env.globals.update(power_parts=power_parts)  # what a special's power is made of
+    from app.game import badges as badges_mod
+    app.jinja_env.globals.update(badges_of=badges_mod.main_of)  # each chatter's main badge  # part palettes (body data-part)
     from app.routes.fightturn import resume as resume_fight
     app.jinja_env.globals.update(resume_fight=resume_fight)  # the "Back to your fight" buttons
     from app.game import characterabilities as abilities
@@ -392,7 +425,7 @@ def register(app):
         inbox_count, toasts, duel_waiting, chat_unread = 0, [], False, 0
         chat_dots_now = {"dm": 0, "gang": 0}
         from app import push
-        from app.auth import is_admin
+        from app.auth import is_admin, is_mod, mod_only
         from app.game import progression
         nav_unlocked, nav_new, craft_ready, quests_ready = progression.opened(0), [], 0, 0
         progress_part = None
@@ -446,7 +479,9 @@ def register(app):
             "fight_fx": session.get("fight_fx", True),
             "latest_post": None if fragment else _latest_post(),
             "me": {"id": uid, "name": session.get("name"), "avatar": session.get("avatar"),
-                   "admin": bool(uid) and request.endpoint != "static" and not fragment and is_admin(uid)},
+                   "admin": bool(uid) and request.endpoint != "static" and not fragment and is_admin(uid),
+                   "staff": bool(uid) and request.endpoint != "static" and not fragment and is_mod(uid),
+                   "mod_only": bool(uid) and request.endpoint != "static" and not fragment and mod_only(uid)},
             # film mode (admins, from the dashboard): the page hides its overlays and shows taps (base.html)
             "film_mode": bool(session.get("film")) and bool(uid) and not fragment and request.endpoint != "static" and is_admin(uid),
             "csrf_token": session["csrf"],

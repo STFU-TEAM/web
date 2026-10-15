@@ -16,7 +16,7 @@
       · joined {{ t.join_date.strftime('%Y-%m-%d') if t.join_date.year > 1 else 'unknown' }}
       {% if gang %} · gang <strong>{{ gang.name }}</strong>{% endif %}
       {% if t.is_donator() %} · supporter{% if t.donor_status > now %} until {{ t.donor_status.strftime('%Y-%m-%d') }}{% endif %}{% endif %}</p>
-    <p class="admin-links"><a href="{{ url_for('main.profile', uid=uid) }}">Public profile</a> · <a href="{{ url_for('admin.player_raw', uid=uid) }}">Raw save</a> · <a href="{{ url_for('admin.audit_log', target=uid) }}">Audit for this player</a></p>
+    <p class="admin-links"><a href="{{ url_for('main.profile', uid=uid) }}">Public profile</a>{% if not mod_only %} · <a href="{{ url_for('admin.player_raw', uid=uid) }}">Raw save</a>{% endif %} · <a href="{{ url_for('admin.audit_log', target=uid) }}">Audit for this player</a></p>
   </div>
 </header>
 
@@ -32,6 +32,7 @@
 </div>
 
 <div class="admin-columns">
+  {% if not mod_only %}
   <section class="social-panel" id="edit">
     <h2 class="h2">Edit a value</h2>
     {% call act('set', 'Set value', 'btn small gold', anchor='#edit') %}
@@ -47,15 +48,18 @@
     {% endcall %}
     <p class="muted">Currency grants cap at 1,000,000 and items at 25 per action.</p>
   </section>
+  {% endif %}
 
   <section class="social-panel" id="account">
     <h2 class="h2">Account</h2>
     <div class="admin-actions">
+      {% if not mod_only %}
       {{ act('cooldowns', 'Reset cooldowns + refill energy', anchor='#account') }}
       {{ act('story_reset', 'Reset story', 'btn small ghost', confirm='Reset this player\'s story progress?', anchor='#account') }}
       {% if fight %}{{ act('clear_fight', 'Clear stuck ' ~ fight.kind ~ ' fight', 'btn small ghost', anchor='#account') }}{% endif %}
       {% call act('supporter', 'Add supporter days', anchor='#account') %}<input type="number" name="days" min="1" max="3650" value="30" aria-label="Days">{% endcall %}
       {% if t.donor_status > now %}{{ act('supporter', 'Remove supporter', 'btn small ghost', anchor='#account') }}{% endif %}
+      {% endif %}
       {% if banned %}{{ act('ban', 'Lift web ban', 'btn small', anchor='#account') }}
       {% else %}{% call act('ban', 'Ban from website', 'btn small danger', confirm='Ban this player from the website?', anchor='#account') %}<input type="text" name="reason" maxlength="200" placeholder="Reason (shown to them)" aria-label="Reason">{% endcall %}{% endif %}
     </div>
@@ -101,6 +105,7 @@
   </section>
 </div>
 
+{% if not mod_only %}
 <section class="social-panel" id="pve">
   {% set open_count = pve|selectattr('done')|list|length %}
   <h2 class="h2">PvE unlock checklist <small class="muted">{{ open_count }}/{{ pve|length }} open</small></h2>
@@ -173,6 +178,7 @@
   </div>
 </section>
 
+{% endif %}
 <section class="social-panel">
   <h2 class="h2">Admin history for this player</h2>
   {% with audit=history %}{% include "admin/_audit_rows.html" %}{% endwith %}

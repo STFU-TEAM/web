@@ -433,8 +433,12 @@ def profile(uid: str):
     shown_title = titles.shown(user, mastery_titles)
     if is_me:
         titles.remember(uid, shown_title)  # chats show it next to the name
+    from app.game import badges
+    held = badges.earned(user)
+    main_badge = badges.main(user, held)
     return render_template(
         "profile.html", season=seasons.standing(r(), uid, user.global_elo),
+        badges=[badges.view(k) for k in held], main_badge=main_badge,
         title=shown_title, my_titles=titles.available(user, mastery_titles) if is_me else [],
         title_goals=titles.progress(user) if is_me else [],
         mastery=mastery.ranking(r(), uid, limit=6), battles=battles, battle_record=history.summary(battles),
@@ -471,6 +475,9 @@ def profile_edit():
                 session["avatar"] = (user.data.get("web_profile") or {}).get("avatar") or None
             from app.db import r
             titles.choose(user, f.get("title", ""), mastery.titles(r(), uid))
+            if "badge" in f:  # the badge the chats show next to the name
+                from app.game import badges
+                badges.choose(user, f.get("badge", ""))
             user.update()
         flash("Profile saved.", "ok")
     except GameError as e:

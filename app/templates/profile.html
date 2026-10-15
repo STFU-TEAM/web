@@ -18,6 +18,11 @@
       <p class="file-label">Stand user · {{ u.global_elo|rank }}{% if u.is_donator() %} · <span class="supporter">★ Supporter</span>{% endif %}</p>
       <h1 class="display sm">{{ ident.name }}</h1>
       {% if title %}<p class="profile-title"><span aria-hidden="true">✦</span> {{ title }}</p>{% endif %}
+      {% if badges %}
+        <ul class="profile-badges" aria-label="Badges">
+          {% for b in badges %}<li class="badge-chip badge-{{ b.key }}{{ ' main' if b.key == main_badge }}" title="{{ b.desc }}"><span aria-hidden="true">{{ b.icon }}</span> {{ b.label }}</li>{% endfor %}
+        </ul>
+      {% endif %}
       {% if pv.quote %}<p class="file-quote">「{{ pv.quote }}」</p>{% endif %}
       <dl class="file-facts">
         {% if best %}<div><dt>{{ 'Signature stand' if pv.stand else 'Best stand' }}</dt><dd>{{ best.name }}{% if best.awaken %} ★{{ best.awaken }}{% endif %} · Lv {{ best.level }}</dd></div>{% endif %}
@@ -169,6 +174,14 @@
             {% endfor %}
           </div>
         </fieldset>
+
+        <label class="customize-field">Badge in chats
+          <select name="badge">
+            <option value="">No badge</option>
+            {% for b in badges %}<option value="{{ b.key }}" {% if b.key == main_badge %}selected{% endif %}>{{ b.icon }} {{ b.label }}</option>{% endfor %}
+          </select>
+          {% if not badges %}<small class="muted">Badges come from supporting the game, clearing Heaven's Gate or every Requiem stage, owning a shiny stand, a year of play, or being on the team.</small>{% endif %}
+        </label>
 
         <label class="customize-field">Title
           <select name="title">

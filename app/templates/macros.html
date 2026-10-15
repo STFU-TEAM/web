@@ -6,7 +6,7 @@
   <p class="scaling"><span class="scaling-stat stat-{{ stat }}">{{ icon }} Scales with {{ label }}</span>
   {%- if c -%}
     {%- set sp = special_power(c) -%}
-    <span class="scaling-power" title="How strong this copy's special is">×{{ '%.2f'|format(sp.power) }}</span>
+    <span class="scaling-power" tabindex="0" data-tip="Special power ×{{ '%.2f'|format(sp.power) }} = {{ power_parts(c, sp) }}.{{ '&#10;Damage specials grow with ATK (level, stars and items), not with power: power only comes from the type.' if stat == 'damage' }}">×{{ '%.2f'|format(sp.power) }}</span>
     <span class="muted">
       {%- set parts = [] -%}
       {%- if sp.invest|abs >= 0.005 %}{% set _ = parts.append(('+' if sp.invest > 0 else '') ~ (sp.invest * 100)|round|int ~ '% build') %}{% endif -%}

@@ -75,6 +75,31 @@ def is_admin(uid) -> bool:
     return is_owner(uid) or (bool(uid) and bool(r().hexists(ADMINS_KEY, uid)))
 
 
+MODS_KEY = "web:moderators"  # uid -> {"by", "at"}: moderators, added by any admin from the admin panel
+
+
+def is_mod(uid) -> bool:
+    """Staff who may moderate (admins included): reports, chat, bans, profiles. Never grants or edits."""
+    return is_admin(uid) or (bool(uid) and bool(r().hexists(MODS_KEY, uid)))
+
+
+def mod_only(uid) -> bool:
+    """A moderator without admin rights: the panel shows them the moderation tools only."""
+    return bool(uid) and not is_admin(uid) and bool(r().hexists(MODS_KEY, uid))
+
+
+def staff_required(view):
+    """The moderation tools: moderators and admins."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if "uid" not in session:
+            return redirect(url_for("auth.login", next=request.path))
+        if not is_mod(session["uid"]):
+            abort(403, "This account is not allowed to use the moderation tools.")
+        return view(*args, **kwargs)
+    return wrapper
+
+
 def admin_required(view):
     @wraps(view)
     def wrapper(*args, **kwargs):

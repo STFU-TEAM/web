@@ -2,11 +2,13 @@
     (partials/chat_form.html) lives outside it, so typing is never lost. -#}
 <div id="chat-{{ ch.token }}" class="chat chat-{{ ch.kind }}" data-chat>
   {% if msgs %}
+    {% set chat_badges = badges_of(msgs|map(attribute='uid')) %}
     <ol class="chat-list" data-chat-list aria-label="Messages">
       {% for m in msgs %}
         {% set mine = m.uid == me.id %}
         <li class="chat-msg{{ ' mine' if mine }}">
           <p class="chat-meta"><a href="{{ url_for('main.profile', uid=m.uid) }}">{{ names.get(m.uid, 'Someone') }}</a>
+            {% set bd = chat_badges.get(m.uid) %}{% if bd %}<span class="chat-badge badge-{{ bd.key }}" title="{{ bd.desc }}">{{ bd.icon }} {{ bd.label }}</span>{% endif %}
             {% if titles.get(m.uid) %}<span class="chat-title">✦ {{ titles[m.uid] }}</span>{% endif %}
             <time class="muted" data-ago="{{ m.at }}" datetime="{{ m.at }}"></time></p>
           <p class="chat-text">{{ m.text|chat_text }}</p>
