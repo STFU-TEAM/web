@@ -142,11 +142,18 @@ def seed_demo():
     storage = [stand(cid, rng.choice([24, 38, 52, 67, 80, 100]), rng.choice([0, 0, 1, 2, 3]), shiny=(k in (5, 23)))
                for k, cid in enumerate(owned)]
     storage.append(stand(59, 100, 3))  # Gold Experience: it fills a Looking-for request below
+    storage += [stand(1, 60), stand(1, 45)]  # two spare Star Platinum copies: the team's one gains ★4 on camera
     doc = create_user(ADMIN_UID)
     doc.update(fragments=284_000, super_fragments=12, xp=415_000, global_elo=1655, energy=99,
                items=[{"id": 2}] * 3 + [{"id": 3}] * 2 + [{"id": 1}, {"id": 4}, {"id": 5}, {"id": 6}, {"id": 47}],
                main_characters=team, storage_characters=storage,
                web_dex=sorted({c["id"] for c in team + storage}))
+    roster, seen = [], set()  # a ranked roster of 5 different stands: the team, Gold Experience and one more
+    for c in team + storage[::-1]:
+        if c["id"] not in seen and len(roster) < 5:
+            roster.append(c["uuid"])
+            seen.add(c["id"])
+    doc["web_ranked_roster"] = roster
     doc.setdefault("web_story", {})["cleared"] = 13  # in the middle of Part 5
     for key in progression.DEBUG_KEYS:  # every mode open, for filming every minigame
         progression.set_forced(ADMIN_UID, key, True)
