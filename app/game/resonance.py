@@ -29,7 +29,8 @@ VILLAINS = {"tarot", "nine_gods", "squadra", "kira", "president", "boom_boom", "
             "clash_talking", "bow_arrow", "kira_family", "darby", "oingo_boingo", "dio_mansion", "boss_guard",
             "cioccolata_secco", "zucchero_sale", "pucci_agents", "dio_sons", "rock_humans",
             "dio_pucci", "boingo_hol_horse", "pesci_prosciutto", "enyaba_geil", "polpo_test", "schott_keys"}
-# the themed groups (tide, swarm, disguise, fire, gunslingers, soul, plague, mirrors, morioh_2011) take no side
+# the themed groups (tide, swarm, disguise, fire, gunslingers, soul, plague, mirrors, morioh_2011, debt_collectors,
+# beasts, illusions, youth) take no side
 # neither side: the Saint's Corpse draws heroes and villains alike
 DUOS = {name for name, ids in SYNERGIES.items() if len(ids) == 2}
 

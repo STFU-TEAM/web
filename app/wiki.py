@@ -203,12 +203,25 @@ SYNERGY_EFFECTS = {
         151: "Explodes for 1.0× instead of 0.7× and slows every enemy 15%.",
         152: "Explodes for 1.0× instead of 0.7× and slows every enemy 15%.",
     },
+    "debt_collectors": {
+        93: "Collects with interest: takes 35% of the target's damage and speed instead of 25%.",
+        155: "The money keeps multiplying: poison worth 60% of the curse for 3 turns, instead of 40% for 2.",
+    },
+    "beasts": {
+        9: "Heals 14% of its max health instead of 8%.",
+    },
+    "illusions": {
+        165: "The fastest enemy gets lost in the maze: stunned.",
+    },
+    "youth": {
+        166: "The shadow spreads: every enemy loses 20% damage and armor, and the axe hits for 1.3× instead of 1.0×.",
+    },
 }
 
 EFFECT_INFO = {
     "STUN": ("Stun", "Skips its next turn. A stand that just sat out a stun shrugs off stuns on its following turn."),
-    "POISON": ("Poison", "Loses health at the end of each of its turns, plus a small share of its max health on every tick, so it bites tanks too. Stronger in Nature."),
-    "BURN": ("Burn", "Loses health at the end of each of its turns. Stronger in the Desert, put out by the Ocean."),
+    "POISON": ("Poison", "Loses health at the end of each of its turns, plus a small share of its max health on every tick, so it bites tanks too. The lower its health, the harder it ticks: up to 80% more near death. Stronger in Nature."),
+    "BURN": ("Burn", "Loses health at the end of each of its turns, and its armor is sundered by a quarter while it burns, so every hit lands harder. Stronger in the Desert, put out by the Ocean."),
     "BLEED": ("Bleed", "Loses health at the end of each of its turns."),
     "WEAKEN": ("Weaken", "Damage is lowered while it lasts."),
     "SLOW": ("Slow", "Speed is lowered while it lasts."),

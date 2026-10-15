@@ -342,7 +342,17 @@ WEEKLY_RAIDS = [
     {"name": "Diego Brando", "boss": 134, "minions": [117, 132], "flavor": "THE WORLD from another universe, with Scary Monsters and Civil War at its side."},
     {"name": "Chariot Requiem", "boss": 83, "minions": [68, 74], "flavor": "Every soul in Rome swaps. Man in the Mirror and White Album seal the exits."},
 ]
-RAID_LEVEL, RAID_AWAKEN, RAID_BOSS_HP = 80, 1, 12  # the boss is a damage sponge, not a kill
+RAID_LEVEL, RAID_AWAKEN, RAID_BOSS_HP = 90, 2, 1  # the crew; the boss's health comes from the singularity
+RAID_SINGULARITY = 33  # the boss carries the raid singularity (items.json): a health pool no team empties, a heavy hit
+# Small gangs hit harder: every attack's damage counts this many times for a gang of up to N members, so a handful of
+# committed players can reach the tiers a crowd reaches by numbers. (up to N members, multiplier); bigger: x1.
+SMALL_GANG = [(5, 2.0), (10, 1.6), (15, 1.3), (20, 1.15)]
+
+
+def raid_mult(gang: Optional[dict]) -> float:
+    """How much each raid attack counts for this gang: more for small gangs (SMALL_GANG)."""
+    n = len(members(gang)) if gang else 0
+    return next((m for size, m in SMALL_GANG if n <= size), 1.0)
 RAID_TIERS = [  # weekly, at the economy's pace (economy.py)
     {"damage": 10_000, "fragments": 1050, "items": [40, 40, 47]},
     {"damage": 50_000, "fragments": 2100, "items": [38, 38, 39, 47, 47]},
@@ -390,13 +400,18 @@ def can_attack(gang: dict, uid: str) -> bool:
     return raid_state(gang)["attacks"].get(str(uid)) != now().date().isoformat()
 
 
-def raid_team() -> list:
+def raid_team(singularity: bool = True) -> list:
+    """This week's villain and its two guards. The villain carries the raid singularity: a health pool no team empties
+    in one attack, and a heavier hit. Effects that take a share of max health (sudden death, poison) still count it as
+    a normal stand, so an attack's damage comes from the team's own blows. singularity=False: the crew as plain
+    stands (the Gang Cup's stand-ins)."""
     boss = weekly_boss()
     team = []
     for i, cid in enumerate([boss["boss"]] + boss["minions"]):
-        c = character_from_dict({"id": cid, "xp": RAID_LEVEL * 100, "awaken": RAID_AWAKEN, "types": ["BALANCE"],
-                                 "qualities": ["GREAT"], "items": [{"id": 1}] if i == 0 else []})
-        if i == 0:
+        spec = {"id": cid, "xp": RAID_LEVEL * 100, "awaken": RAID_AWAKEN, "types": ["BALANCE"], "qualities": ["GREAT"]}
+        c = character_from_dict({**spec, "items": [{"id": RAID_SINGULARITY}] if i == 0 and singularity else []})
+        if i == 0 and singularity:
+            c._share_cap = character_from_dict({**spec, "items": []}).start_hp
             c.start_hp *= RAID_BOSS_HP
             c.current_hp = c.start_hp
         team.append(c)

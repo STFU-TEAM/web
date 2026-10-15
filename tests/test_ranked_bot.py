@@ -79,7 +79,8 @@ def test_a_bot_duel_plays_to_the_end(client):
         fight = load_fight("111")
         if fight.finished:
             break
-        target = next(i for i, c in enumerate(fight.sides[1].chars) if c.current_hp > 0)
+        from app.game.fight import valid_targets
+        target = valid_targets(fight.sides[1].chars)[0]  # a taunting enemy must be hit first
         assert client.post("/battles/attack", data={"target": target}, headers=h).status_code == 200
     fight = load_fight("111")
     assert fight.finished and fight.meta.get("settled")

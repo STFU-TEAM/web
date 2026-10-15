@@ -1,6 +1,7 @@
 """Art helper: find artwork for a stand, then save it into the right folder in one click.
 
     python scripts/art_helper.py          then open http://127.0.0.1:5055
+    python scripts/art_helper.py --port 5191   another port (Windows can reserve 5055: WinError 10013)
     python scripts/art_helper.py --optimize   re-encode every artwork / shiny for cards (originals kept in art/_originals)
 
 Artwork and shiny files are saved for cards: stills as WebP at most 1000 px tall; animations (Tenor GIFs...)
@@ -30,7 +31,7 @@ import sys
 import urllib.parse
 import urllib.request
 
-from flask import Flask, abort, flash, redirect, render_template_string, request, url_for
+from flask import Flask, abort, flash, redirect, render_template_string, request, session, url_for
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -339,25 +340,75 @@ def search_all(name: str, query: str = ""):
 
 BASE = """<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>Art helper</title><style>
-:root{color-scheme:dark;--bg:#1C0F2E;--card:#2A1745;--line:#3D2263;--text:#EDE6F7;--muted:#B3A3CF;--gold:#F4C542;--pink:#D6246E;--teal:#2BB3A8}
-*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--text)}
-a{color:var(--gold)}main{max-width:1200px;margin:0 auto;padding:1.2rem}h1{margin:.2rem 0 1rem}
-input,select,button{font:inherit;color:var(--text);background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.45rem .7rem}
-button,.btn{cursor:pointer;background:var(--gold);color:#1C0F2E;border:0;font-weight:700;text-decoration:none;border-radius:8px;padding:.45rem .8rem;display:inline-block}
-.ghost{background:var(--card);color:var(--text);border:1px solid var(--line)}.muted{color:var(--muted)}
-.flash{padding:.6rem .9rem;border-radius:8px;background:var(--card);border-left:4px solid var(--teal);margin:.5rem 0}.flash.error{border-color:var(--pink)}
-table{width:100%;border-collapse:collapse}td,th{padding:.4rem .5rem;border-bottom:1px solid var(--line);text-align:left}
+:root{color-scheme:dark;--bg:#130B22;--panel:#1C1131;--card:#24163D;--card-2:#2C1C4A;--line:#382457;--text:#EFE8FA;--muted:#A897C7;
+  --gold:#F4C542;--pink:#D6246E;--teal:#2BB3A8;--violet:#8B5CF6;--r:14px;--shadow:0 10px 30px rgb(0 0 0/.35)}
+*{box-sizing:border-box}
+body{margin:0;font:14.5px/1.5 "Segoe UI",system-ui,-apple-system,sans-serif;color:var(--text);min-height:100vh;
+  background:radial-gradient(900px 520px at 0% -10%,#2B1652 0,transparent 70%),radial-gradient(700px 420px at 100% 0,#1E1442 0,transparent 70%),var(--bg)}
+a{color:var(--gold);text-decoration:none}a:hover{text-decoration:underline}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--card);padding:.1rem .35rem;border-radius:6px}
+.top{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:1rem;padding:.65rem max(1.2rem,calc(50% - 640px));
+  background:rgb(19 11 34/.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.top .brand{color:var(--text);font-weight:800;letter-spacing:.01em;display:flex;align-items:center;gap:.5rem}
+.top .brand i{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--gold),var(--pink));font-style:normal}
+.top nav{display:flex;gap:.4rem;margin-left:auto;flex-wrap:wrap}
+main{max-width:1280px;margin:0 auto;padding:1.4rem 1.2rem 4rem}
+h1{margin:.1rem 0 .4rem;font-size:1.7rem;letter-spacing:-.01em}h1 small{font-size:.95rem;font-weight:600}
+h3{margin:2rem 0 .7rem;font-size:1rem;letter-spacing:.02em;color:var(--gold)}
+input,select,button,textarea{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.5rem .75rem}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+button,.btn{cursor:pointer;background:var(--gold);color:#1C0F2E;border:0;font-weight:700;text-decoration:none;border-radius:10px;padding:.5rem .85rem;
+  display:inline-flex;align-items:center;gap:.35rem;transition:transform .12s,filter .12s}
+button:hover,.btn:hover{filter:brightness(1.08);text-decoration:none}button:active,.btn:active{transform:translateY(1px)}
+button:disabled{opacity:.5;cursor:default}
+.ghost{background:var(--card);color:var(--text);border:1px solid var(--line)}.ghost:hover{border-color:var(--violet)}
+.muted{color:var(--muted)}
+.flash{padding:.7rem 1rem;border-radius:var(--r);background:var(--card);border:1px solid var(--line);border-left:4px solid var(--teal);margin:.6rem 0;box-shadow:var(--shadow)}
+.flash.error{border-left-color:var(--pink)}
+table{width:100%;border-collapse:collapse}td,th{padding:.45rem .55rem;border-bottom:1px solid var(--line);text-align:left}
 .ok{color:var(--teal);font-weight:700}.no{color:var(--muted)}.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem 1.1rem}
+/* the stand list */
+.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem}
+.cov{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.7rem;margin-bottom:1rem}
+.cov div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.7rem .9rem;display:grid;gap:.35rem}
+.cov span{color:var(--muted);font-size:.85rem}.cov b{font-size:1.15rem}
+.cov i{display:block;height:6px;border-radius:99px;background:linear-gradient(90deg,var(--teal) var(--p),var(--card-2) var(--p))}
+.filters{position:sticky;top:57px;z-index:20;display:grid;grid-template-columns:minmax(200px,2fr) repeat(3,minmax(130px,1fr)) auto;gap:.5rem;
+  padding:.7rem;margin:0 -.7rem 1rem;border-radius:var(--r);background:rgb(28 17 49/.9);backdrop-filter:blur(10px);border:1px solid var(--line)}
+.filters input[type=search]{width:100%}
+.count{margin:.2rem 0 .8rem}
+.stand-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:.8rem}
+.tile{position:relative;display:grid;grid-template-rows:auto 1fr;border-radius:var(--r);overflow:hidden;background:var(--card);border:1px solid var(--line);
+  color:var(--text);text-decoration:none;transition:transform .15s,border-color .15s,box-shadow .15s}
+.tile:hover{transform:translateY(-3px);border-color:var(--rc,var(--violet));box-shadow:var(--shadow);text-decoration:none}
+.tile .thumb{position:relative;aspect-ratio:7/9;background:radial-gradient(circle at 50% 30%,#352155,#160D29);display:grid;place-items:center;overflow:hidden}
+.tile .thumb b{font-size:2.6rem;color:var(--line);font-weight:800}
+.tile .thumb img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 20%}
+.tile .meta{padding:.55rem .65rem .65rem;display:grid;gap:.3rem}
+.tile .name{font-weight:700;line-height:1.25}
+.tile .tags{display:flex;gap:.3rem;flex-wrap:wrap;font-size:.75rem}
+.tag{padding:.05rem .45rem;border-radius:99px;background:var(--card-2);color:var(--muted)}
+.tag.rar{background:var(--rc,var(--muted));color:#1C0F2E;font-weight:800}
+.dots{display:flex;gap:.25rem}
+.dot{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;font-size:.68rem;font-weight:800;background:var(--card-2);color:var(--muted)}
+.dot.on{background:var(--teal);color:#0B1F1D}
+.r-R{--rc:#B3A3CF}.r-SR{--rc:#9B6BE0}.r-SSR{--rc:#F4C542}.r-UR{--rc:#D6246E}.r-LR{--rc:#2BB3A8}
+.empty{padding:2rem;text-align:center}
+/* one stand */
+.standbar{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:.8rem}
-.cand{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5rem;display:grid;gap:.4rem}
-.cand img{width:100%;height:240px;object-fit:contain;background:#120821;border-radius:6px}
+.cand{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:.55rem;display:grid;gap:.45rem;transition:border-color .15s}
+.cand:hover{border-color:var(--violet)}
+.cand img{width:100%;height:240px;object-fit:contain;background:#0F0820;border-radius:10px}
 .cand small{color:var(--muted);word-break:break-all}.cand form{display:flex;gap:.3rem;flex-wrap:wrap}
-.cand button{padding:.3rem .5rem;font-size:.82rem}.current{display:flex;gap:.8rem;flex-wrap:wrap}
-.current figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5rem;width:200px}
-.current img{width:100%;height:220px;object-fit:contain;background:#120821;border-radius:6px}
-.drop{border:2px dashed var(--line);border-radius:10px;padding:1rem;text-align:center}.drop.over{border-color:var(--gold)}
-.preview{width:100%;min-height:460px;border:1px solid var(--line);border-radius:10px;background:#1C0F2E}
-.cropper{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem}
+.cand button{padding:.3rem .55rem;font-size:.8rem}.current{display:flex;gap:.8rem;flex-wrap:wrap}
+.current figure{margin:0;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:.55rem;width:200px}
+.current img{width:100%;height:220px;object-fit:contain;background:#0F0820;border-radius:10px}
+.current figcaption{margin-top:.35rem;font-size:.85rem}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:1.2rem;text-align:center;background:var(--panel)}.drop.over{border-color:var(--gold)}
+.preview{width:100%;min-height:460px;border:1px solid var(--line);border-radius:var(--r);background:#1C0F2E}
+.cropper{display:flex;gap:1.2rem;flex-wrap:wrap;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem}
 .cropper[hidden]{display:none}.crop-tools{flex:1;min-width:280px;display:grid;gap:.6rem;align-content:start}
 .crop-tools input[type=range]{width:220px;vertical-align:middle}
 .crop-stage{padding:10px;border-radius:14px;background:repeating-conic-gradient(#2a2238 0 25%,#1b1527 0 50%) 0 0/16px 16px}
@@ -374,30 +425,58 @@ table{width:100%;border-collapse:collapse}td,th{padding:.4rem .5rem;border-botto
   background:linear-gradient(to right,transparent calc(33.33% - .5px),#fff 0 calc(33.33% + .5px),transparent 0 calc(66.66% - .5px),#fff 0 calc(66.66% + .5px),transparent 0),
              linear-gradient(to bottom,transparent calc(33.33% - .5px),#fff 0 calc(33.33% + .5px),transparent 0 calc(66.66% - .5px),#fff 0 calc(66.66% + .5px),transparent 0)}
 .crop-frame.no-guides .crop-guide,.crop-frame.no-guides .crop-thirds{display:none}
-</style></head><body><main>
+@media (max-width:760px){.filters{grid-template-columns:1fr 1fr;top:52px}.filters input[type=search]{grid-column:1/-1}.top nav{display:none}}
+</style></head><body>
+<header class="top"><a class="brand" href="{{ url_for('index') }}"><i>🎨</i> Art helper</a>
+  <nav><a class="btn ghost" href="{{ url_for('index') }}">All stands</a>
+    <form method="post" action="{{ url_for('sync') }}"><button class="ghost" title="Write fullart.json, shiny.json, special.json and classic.json from the folders">⟳ Update the game's lists</button></form></nav></header>
+<main>
 {% with msgs = get_flashed_messages(with_categories=true) %}{% for cat, m in msgs %}<p class="flash {{ cat }}">{{ m }}</p>{% endfor %}{% endwith %}
 {{ body|safe }}</main></body></html>"""
 
-INDEX = """<h1>🎨 Art helper</h1>
-<p class="muted">Pick a stand to find art for it. Files land in <code>{{ art }}</code>: <b>artwork</b> (full art), <b>shiny</b>, <b>special</b>.</p>
-<div class="row">
-  <form method="get" class="row"><input name="q" value="{{ q }}" placeholder="Name, id or rarity" autofocus>
-    <select name="missing"><option value="">All stands</option>{% for k, (label, _e, _l) in kinds.items() %}<option value="{{ k }}" {{ 'selected' if missing == k }}>Missing {{ label|lower }}</option>{% endfor %}</select>
-    <button>Search</button></form>
-  <form method="post" action="{{ url_for('sync') }}"><button class="ghost" title="Write fullart.json and shiny.json from the folders">⟳ Update the game's lists</button></form>
+INDEX = """<div class="hero">
+  <div><h1>Stand art</h1>
+    <p class="muted">Pick a stand to find, crop and save its art. Files land in <code>{{ art }}</code>.</p></div>
 </div>
-<p class="muted">{% for k in kinds %}{{ k }}: <b>{{ cov[k]|length }}</b>/{{ total }}{{ ' · ' if not loop.last }}{% endfor %}</p>
-<table><thead><tr><th>#</th><th>Stand</th><th>Rarity</th>{% for k in kinds %}<th>{{ k }}</th>{% endfor %}<th></th></tr></thead><tbody>
-{% for s in rows %}<tr><td>{{ s.id }}</td><td>{{ s.name }}</td><td>{{ s.rarity }}</td>
-  {% for k in kinds %}<td>{% if s.id in cov[k] %}<span class="ok">✓</span>{% else %}<span class="no">–</span>{% endif %}</td>{% endfor %}
-  <td><a class="btn" href="{{ url_for('stand', stand_id=s.id) }}">Find art</a></td></tr>{% endfor %}
-</tbody></table>"""
+<div class="cov">{% for k, (label, _e, _l) in kinds.items() %}{% set n = cov[k]|length %}
+  <div><span>{{ label }}</span><b>{{ n }} <small class="muted">/ {{ total }}</small></b><i style="--p: {{ (100 * n / total)|round(1) }}%"></i></div>{% endfor %}
+</div>
+<form method="get" class="filters" id="filters" role="search">
+  <input type="search" name="q" value="{{ f.q }}" placeholder="Search a name or #id…" aria-label="Search stands" autofocus>
+  <select name="part" aria-label="Part"><option value="">Every part</option>{% for p in parts %}<option value="{{ p }}" {{ 'selected' if f.part == p|string }}>Part {{ p }}</option>{% endfor %}</select>
+  <select name="rarity" aria-label="Rarity"><option value="">Every rarity</option>{% for r in rarities %}<option {{ 'selected' if f.rarity == r }}>{{ r }}</option>{% endfor %}</select>
+  <select name="missing" aria-label="Art"><option value="">Any art</option>{% for k, (label, _e, _l) in kinds.items() %}<option value="{{ k }}" {{ 'selected' if f.missing == k }}>Missing {{ label|lower }}</option>{% endfor %}</select>
+  <a class="btn ghost" href="{{ url_for('index', clear=1) }}" title="Forget the search">✕ Clear</a>
+</form>
+<p class="count muted">{{ rows|length }} of {{ total }} stands{% if f.q or f.part or f.rarity or f.missing %} · the search is remembered when you come back{% endif %}</p>
+{% if rows %}
+<div class="stand-grid">{% for s in rows %}
+  <a class="tile r-{{ s.rarity }}" href="{{ url_for('stand', stand_id=s.id) }}">
+    <span class="thumb"><b aria-hidden="true">{{ s.name[:1] }}</b><img src="{{ thumbs[s.id] }}" alt="" loading="lazy" onerror="this.remove()"></span>
+    <span class="meta"><span class="name">{{ s.name }}</span>
+      <span class="tags"><span class="tag rar">{{ s.rarity }}</span><span class="tag">#{{ s.id }}</span>{% if part_of[s.id] %}<span class="tag">Part {{ part_of[s.id] }}</span>{% endif %}</span>
+      <span class="dots">{% for k, (label, _e, _l) in kinds.items() %}<span class="dot{{ ' on' if s.id in cov[k] }}" title="{{ label }}{{ ': saved' if s.id in cov[k] else ': missing' }}">{{ k[:1]|upper }}</span>{% endfor %}</span>
+    </span></a>{% endfor %}
+</div>
+{% else %}<div class="panel empty muted">No stand matches. <a href="{{ url_for('index', clear=1) }}">Clear the search</a>.</div>{% endif %}
+<script>
+// the filters apply as you pick them; typing waits a moment
+const form = document.getElementById("filters");
+form.querySelectorAll("select").forEach((el) => el.addEventListener("change", () => form.submit()));
+let t; form.q.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => form.submit(), 450); });
+form.q.setSelectionRange?.(form.q.value.length, form.q.value.length);
+</script>"""
 
-STAND = """<p><a href="{{ url_for('index') }}">← All stands</a></p>
-<h1>#{{ s.id }} {{ s.name }} <small class="muted">{{ s.rarity }}</small></h1>
+STAND = """<div class="standbar">
+  <a class="btn ghost" href="{{ url_for('index') }}">← {{ 'Back to the search' if searching else 'All stands' }}</a>
+  <span class="row">{% if pos %}<span class="muted">{{ pos }} of {{ count }}</span>{% endif %}
+    {% if prev %}<a class="btn ghost" href="{{ url_for('stand', stand_id=prev.id) }}" title="#{{ prev.id }} {{ prev.name }}">‹ {{ prev.name }}</a>{% endif %}
+    {% if nxt %}<a class="btn ghost" href="{{ url_for('stand', stand_id=nxt.id) }}" title="#{{ nxt.id }} {{ nxt.name }}">{{ nxt.name }} ›</a>{% endif %}</span>
+</div>
+<h1>#{{ s.id }} {{ s.name }} <small class="muted">{{ s.rarity }}{% if part %} · Part {{ part }}{% endif %}</small></h1>
 <h3>What you have</h3>
 <div class="current">
-  <figure><img src="{{ image_base }}/Image/{{ s.id }}.png" alt=""><figcaption class="muted">Current card image (server)
+  <figure><img src="{{ image_base }}/Image/{{ s.id }}.png" alt="" onerror="this.outerHTML='<div class=&quot;drop muted&quot; style=&quot;height:220px;display:grid;place-items:center&quot;>not on the server yet</div>'"><figcaption class="muted">Current card image (server)
     <button type="button" class="ghost" data-edit="{{ url_for('proxy', u=image_base ~ '/Image/' ~ s.id ~ '.png') }}" data-label="the server image">✂ Edit</button></figcaption></figure>
   {% for k, (label, _e, _l) in kinds.items() %}<figure>{% if have[k] %}<img src="{{ url_for('file', kind=k, name=have[k]) }}" alt="">{% else %}<div class="drop muted" style="height:220px;display:grid;place-items:center">{{ 'Using the original image' if k == 'classic' else 'no ' ~ k ~ ' yet' }}</div>{% endif %}
     <figcaption>{{ label }}{% if have[k] %} · <span class="ok">{{ have[k] }}</span>
@@ -444,7 +523,7 @@ STAND = """<p><a href="{{ url_for('index') }}">← All stands</a></p>
 <h3>Search</h3>
 <form method="get" class="row"><input name="query" value="{{ query }}" size="40" placeholder="Search Google Images, Tenor and the wiki">
   <button>Search</button>
-  <a class="btn ghost" href="{{ url_for('stand', stand_id=s.id) }}">Reset to “{{ s.name }} jojo”</a></form>
+  <a class="btn ghost" href="{{ url_for('stand', stand_id=s.id, query='') }}">Reset to “{{ s.name }} jojo”</a></form>
 <p class="row muted">Elsewhere (opens a tab):
   {% for label, url in links %}<a class="btn ghost" target="_blank" rel="noopener" href="{{ url }}">{{ label }}</a>{% endfor %}</p>
 
@@ -645,20 +724,73 @@ def page(template, **ctx):
     return render_template_string(BASE, body=render_template_string(template, kinds=KINDS, **ctx))
 
 
+FILTERS = ("q", "part", "rarity", "missing")
+RARITIES = ("R", "SR", "SSR", "UR", "LR")
+
+
+def part_of(stand_id: int):
+    """The stand's part, from the game's part synergies (None for the few outside them)."""
+    try:
+        from app.game.characterabilities import PARTS
+    except Exception:  # the helper still runs without the game's modules
+        return None
+    return next((p for p, ids in PARTS.items() if stand_id in ids), None)
+
+
+def remembered() -> dict:
+    """The list's search, kept in the session so it's still there after a stand's page (or a restart of the tab)."""
+    saved = session.get("filters") or {}
+    return {k: saved.get(k, "") for k in FILTERS}
+
+
+def filtered(f: dict, cov=None) -> list:
+    cov = cov if cov is not None else coverage()
+    q = f["q"].strip().lower().lstrip("#")
+    rows = [s for s in STANDS if not q or q in s["name"].lower() or q == str(s["id"])]
+    if f["part"]:
+        rows = [s for s in rows if str(part_of(s["id"]) or "") == f["part"]]
+    if f["rarity"] in RARITIES:
+        rows = [s for s in rows if s["rarity"] == f["rarity"]]
+    if f["missing"] in KINDS:
+        rows = [s for s in rows if s["id"] not in cov[f["missing"]]]
+    return rows
+
+
+def thumb(stand_id: int) -> str:
+    """The classic art saved here, else the server's picture."""
+    name = existing("classic", stand_id)
+    return url_for("file", kind="classic", name=name) if name else f"{IMAGE_BASE}/Image/{stand_id}.png"
+
+
 @app.get("/")
 def index():
-    q, missing = request.args.get("q", "").strip().lower(), request.args.get("missing", "")
+    if request.args.get("clear"):
+        session.pop("filters", None)
+        return redirect(url_for("index"))
+    if any(k in request.args for k in FILTERS):  # a new search: remember it (a month, across browser restarts)
+        session.permanent = True
+        session["filters"] = {k: request.args.get(k, "").strip() for k in FILTERS}
+    f = remembered()
     cov = coverage()
-    rows = [s for s in STANDS if not q or q in s["name"].lower() or q == str(s["id"]) or q == s["rarity"].lower()]
-    if missing in KINDS:
-        rows = [s for s in rows if s["id"] not in cov[missing]]
-    return page(INDEX, rows=rows, q=q, missing=missing, cov=cov, total=len(STANDS), art=ART)
+    rows = filtered(f, cov)
+    return page(INDEX, rows=rows, f=f, cov=cov, total=len(STANDS), art=ART, parts=sorted({p for p in map(part_of, BY_ID) if p}),
+                rarities=RARITIES, part_of={s["id"]: part_of(s["id"]) for s in rows}, thumbs={s["id"]: thumb(s["id"]) for s in rows})
 
 
 @app.get("/stand/<int:stand_id>")
 def stand(stand_id):
     s = BY_ID.get(stand_id) or abort(404)
-    query = request.args.get("query", "").strip()
+    queries = dict(session.get("queries") or {})  # each stand remembers its own search
+    if "query" in request.args:
+        query = request.args.get("query", "").strip()
+        if query:
+            queries[str(stand_id)] = query
+        else:
+            queries.pop(str(stand_id), None)
+        session.permanent = True
+        session["queries"] = queries
+    else:
+        query = queries.get(str(stand_id), "")
     groups = search_all(s["name"], query)
     q = urllib.parse.quote_plus
     web_query = query or f"{s['name']} jojo"
@@ -668,7 +800,14 @@ def stand(stand_id):
              ("Pixiv", f"https://www.pixiv.net/en/tags/{q(s['name'])}/artworks"),
              ("DeviantArt", f"https://www.deviantart.com/search?q={q(s['name'] + ' jojo')}")]
     have = {k: existing(k, stand_id) for k in KINDS}
-    return page(STAND, s=s, groups=groups, query=query or web_query, links=links, have=have, image_base=IMAGE_BASE)
+    f = remembered()
+    rows = filtered(f)
+    ids = [r["id"] for r in rows]
+    i = ids.index(stand_id) if stand_id in ids else None
+    nav = {"pos": i + 1 if i is not None else None, "count": len(ids),
+           "prev": rows[i - 1] if i else None, "nxt": rows[i + 1] if i is not None and i + 1 < len(rows) else None}
+    return page(STAND, s=s, groups=groups, query=query or web_query, links=links, have=have, image_base=IMAGE_BASE,
+                part=part_of(stand_id), searching=any(f.values()), **nav)
 
 
 @app.post("/stand/<int:stand_id>/url")
@@ -984,5 +1123,17 @@ if __name__ == "__main__":
         sys.exit()
     if Image is None:
         print("Pillow isn't installed: images are saved as downloaded (pip install pillow to convert to WebP).")
-    print("Art helper on http://127.0.0.1:5055  (files go to", ART + ")")
-    app.run(host="127.0.0.1", port=5055, debug=False)
+    port = 5055
+    if "--port" in sys.argv:
+        try:
+            port = int(sys.argv[sys.argv.index("--port") + 1])
+        except (IndexError, ValueError):
+            sys.exit("Usage: python scripts/art_helper.py --port 5191")
+    import socket
+    try:  # WinError 10013: Windows reserved the port (netsh interface ipv4 show excludedportrange protocol=tcp)
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", port))
+    except OSError as exc:
+        sys.exit(f"Can't listen on port {port} ({exc}). Try another one: python scripts/art_helper.py --port 5191")
+    print(f"Art helper on http://127.0.0.1:{port}  (files go to", ART + ")")
+    app.run(host="127.0.0.1", port=port, debug=False)

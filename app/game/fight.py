@@ -10,7 +10,7 @@ import random
 import uuid
 from typing import List, Optional
 
-from app.game.character import Character, character_from_dict
+from app.game.character import Character, character_from_dict, share_hp
 from app.game.effects import Terrain, apply_terrain_bonuses, get_active_terrain, remove_terrain_bonuses
 
 # Fights stay short: from this round every stand loses a growing share of its health
@@ -345,7 +345,7 @@ class Fight:
             pct = self.sudden_death_step * (self.round - self.sudden_death_round + 1)
             for c in side.chars:
                 if c.is_alive():
-                    c.take(c.start_hp * pct)
+                    c.take(share_hp(c) * pct)
             self._log(f"⏳ Sudden death: {side.name}'s stands lose {round(pct * 100)}% of their health.", "sudden", side=p)
 
     def _time_up(self) -> None:

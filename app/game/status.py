@@ -6,8 +6,8 @@ from app.game.effects import (DOT_EFFECTS, TERRAIN_DOT_MULT, TERRAIN_HEAL_MULT, 
                               EffectType)
 
 LABELS = {
-    EffectType.POISON: ("Poison", "loses {v} health at the end of each of its turns"),
-    EffectType.BURN: ("Burn", "loses {v} health at the end of each of its turns"),
+    EffectType.POISON: ("Poison", "loses {v} health at the end of each of its turns, more as its health runs out"),
+    EffectType.BURN: ("Burn", "loses {v} health at the end of each of its turns, and its armor is sundered while it burns"),
     EffectType.BLEED: ("Bleed", "loses {v} health at the end of each of its turns"),
     EffectType.REGENERATION: ("Regen", "heals {v} at the end of each of its turns"),
     EffectType.STUN: ("Stunned", "skips its next turn"),
@@ -46,9 +46,8 @@ def view(c) -> dict:
             continue
         value = e.value
         if e.type in DOT_EFFECTS:
-            from app.game.character import POISON_MAX_HP  # poison also takes a share of max health (Character.end_turn)
-            tick = e.value + (POISON_MAX_HP * c.start_hp if e.type == EffectType.POISON else 0)
-            value = int(tick * TERRAIN_DOT_MULT.get(terrain, {}).get(e.type, 1))
+            from app.game.character import dot_tick  # the same tick Character.end_turn takes
+            value = int(dot_tick(c, e))
             dot += value
         elif e.type == EffectType.REGENERATION:
             value = int(_heal_amount(c, e.value))

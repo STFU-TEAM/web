@@ -197,8 +197,7 @@ def bites_the_dust(
     stand: "Stand", allied_stand: List["Stand"], ennemy_stand: List["Stand"]
 ) -> tuple:
     # every poison and burn on the enemy team goes off at once: all their remaining ticks in one turn
-    from app.game.character import POISON_MAX_HP
-    from app.game.effects import TERRAIN_DOT_MULT
+    from app.game.character import dot_tick
     total, hit = 0, 0
     for target in [i for i in ennemy_stand if i.is_alive()]:
         dots = [e for e in target.effects if e.type in DETONATED and e.duration > 0]
@@ -206,8 +205,7 @@ def bites_the_dust(
             continue
         burst = 0
         for e in dots:
-            tick = e.value + (POISON_MAX_HP * target.start_hp if e.type == EffectType.POISON else 0)
-            burst += tick * TERRAIN_DOT_MULT.get(getattr(target, "terrain", None), {}).get(e.type, 1) * e.duration
+            burst += dot_tick(target, e) * e.duration
         target.effects = [e for e in target.effects if e not in dots]
         total += target.take(_p(burst))
         hit += 1

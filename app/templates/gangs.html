@@ -82,12 +82,13 @@
       <p class="kicker">Weekly raid · ends in {{ (week_ends - now)|delta }}</p>
       <h2 class="h2">🐉 {{ raid_villain.name }}</h2>
       <p class="muted">{{ raid_villain.flavor }}</p>
+      <p class="muted small-print">☢️ {{ raid_villain.name }} carries the raid singularity: no team brings it down, so every blow counts, and it hits back hard. Gangs of up to {{ R.SMALL_GANG[0][0] }} count every attack ×{{ R.SMALL_GANG[0][1] }}, up to {{ R.SMALL_GANG[-1][0] }} members still get a bonus.</p>
       {% set top = tiers[-1].damage %}
       <div class="raid-meter" role="meter" aria-label="Gang raid damage" aria-valuemin="0" aria-valuemax="{{ top }}" aria-valuenow="{{ raid.damage }}">
         <i style="width: {{ ([100 * raid.damage / top, 100]|min)|round(1) }}%"></i>
         {% for t in tiers %}<span class="raid-tick{% if raid.damage >= t.damage %} reached{% endif %}" style="left: {{ 100 * t.damage / top }}%" title="Tier {{ loop.index }}: {{ t.damage|num }}"></span>{% endfor %}
       </div>
-      <p><strong>{{ raid.damage|num }}</strong> damage this week</p>
+      <p><strong>{{ raid.damage|num }}</strong> damage this week{% if raid_mult > 1 %} · <span class="raid-bonus" title="Gangs of up to {% for n, m in R.SMALL_GANG %}{{ n }}: ×{{ m }}{{ ', ' if not loop.last }}{% endfor %}">⚡ small gang: every attack counts ×{{ raid_mult }}</span>{% endif %}</p>
       <ol class="raid-tiers">
         {% for t in tiers %}
           <li class="{{ 'reached' if raid.damage >= t.damage }}"><strong>Tier {{ loop.index }} · {{ t.damage|num }}</strong><span>{{ t.text }}</span></li>

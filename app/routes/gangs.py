@@ -102,7 +102,7 @@ def index():
     db = get_db()
     user = db.get_user(session["uid"])
     gang = _settle_war(db, db.get_gang(user.gang_id))
-    ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(),
+    ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(), "raid_mult": G.raid_mult(gang),
            "tiers": [{**t, "text": G.tier_text(t)} for t in G.RAID_TIERS], "week_ends": G.week_ends(),
            "raid_board": G.raid_board(r())}
     if gang:
@@ -459,7 +459,7 @@ def attack_start(mode):
                 raise GameError("There's no Gang Cup on right now.")
             rnd, opp_id = CUP.start_bout(the_cup, gang["_id"], user.id)
             opp = db.get_gang(opp_id)
-            enemies = [character_from_dict(c) for c in (opp or {}).get("characters", [])] or G.raid_team()
+            enemies = [character_from_dict(c) for c in (opp or {}).get("characters", [])] or G.raid_team(singularity=False)
             foe = f"{(opp or {}).get('name', 'Rival gang')} · Gang Cup"
             meta.update(cup=the_cup["id"], round=rnd)
         elif mode == "war":
@@ -547,7 +547,9 @@ def _settle(fight):
                 damage = G.war_damage(enemies)
                 CUP.record_damage(fight.meta["cup"], int(fight.meta["round"]), gang_id, damage)
             else:
-                damage = G.raid_damage(enemies)
+                dealt = G.raid_damage(enemies)
+                fight.meta["raid_mult"] = mult = G.raid_mult(gang)
+                damage = int(dealt * mult)  # small gangs' attacks count more (gangs.SMALL_GANG)
                 if gang:
                     G.record_raid_damage(gang, uid, damage, fight.meta.get("week", ""), r())
             if gang:

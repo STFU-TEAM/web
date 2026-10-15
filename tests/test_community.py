@@ -111,14 +111,15 @@ def test_fight_status_preview_matches_the_tick():
     c.add_effect(Effect(EffectType.REGENERATION, 2, 30))
     c.add_effect(Effect(EffectType.STUN, 1, 0))
     v = status.view(c)
-    from app.game.character import POISON_MAX_HP
-    extra = int(POISON_MAX_HP * c.start_hp)  # poison also takes a share of max health
-    assert v["dot"] == 40 + extra and v["regen"] == 30
+    from app.game.character import POISON_LOW_HP, POISON_MAX_HP
+    # poison also takes a share of max health, and ticks harder the more health the target is missing
+    tick = int((40 + POISON_MAX_HP * c.start_hp) * (1 + POISON_LOW_HP * 100 / c.start_hp))
+    assert v["dot"] == tick and v["regen"] == 30
     names = [ch["name"] for ch in v["chips"]]
     assert names[:2] == ["Poison", "Stunned"] and "Regen" in names  # bad first
     hp = c.current_hp
     c.end_turn()
-    assert c.current_hp == hp - (40 + extra) + 30
+    assert c.current_hp == hp - tick + 30
 
 
 def test_player_search_ranks_folds_accents_and_ignores_placeholders(client):

@@ -171,16 +171,27 @@ SYNERGIES.update({
     "heavy_weather": {94, 107},
     # Love Train: the Saint's corpse rides with the President, and Ticket to Ride's holy light rides the train
     "love_train": {119, 120},
+    # Debt collectors: Marilyn Manson and Milagro Man collect what's owed, the D'Arbys and Boy II Man win it on a bet
+    "debt_collectors": {28, 29, 52, 93, 155},
+    # Animal stand users: Iggy, the orangutan's Strength, Pet Shop's Horus, the rats' Ratt and Stray Cat
+    "beasts": {5, 9, 27, 46, 54},
+    # Illusions: Justice's fog, Death 13's dreams, Highway Star's room and Tenore Sax's maze of a mansion
+    "illusions": {16, 19, 53, 165},
+    # Age and youth: Sethan's shadow, the Grateful Dead's ageing, Cinderella's makeovers, Pearl Jam's cooking
+    "youth": {43, 48, 72, 166},
 })
 # Members who were missing from their crew: Abbacchio and Coco Jumbo, Ermes and Emporio, Pesci and Risotto
 SYNERGIES["passione"] |= {62, 70}
 SYNERGIES["stone_ocean"] |= {89, 91}
 SYNERGIES["squadra"] |= {71, 80}
+# Kenny G.'s Tenore Sax guarded DIO's mansion; Alessi's Sethan was one of the Nine Glory Gods
+SYNERGIES["dio_mansion"] |= {165}
+SYNERGIES["nine_gods"] |= {166}
 
 # ── Part synergies: a whole team from one part of the story ──
 # They need all three fighters (SYNERGY_MIN), and only teams built by players get them: computer-controlled
 # PvE enemies are each part's own villains, and the PvE curves were tuned without them.
-PARTS = {3: set(range(1, 32)) | {163}, 4: set(range(32, 59)), 5: set(range(59, 86)), 6: set(range(86, 110)),
+PARTS = {3: set(range(1, 32)) | {163, 165, 166}, 4: set(range(32, 59)), 5: set(range(59, 86)), 6: set(range(86, 110)),
          7: set(range(111, 137)), 8: set(range(137, 163))}
 PART_GROUPS = {f"part{p}": p for p in PARTS}
 for _key, _part in PART_GROUPS.items():
@@ -190,7 +201,8 @@ SYNERGY_MIN = {key: 3 for key in PART_GROUPS}  # members needed on the team (2 f
 # were tuned without them, so computer-controlled enemies get neither their bonus nor their special changes.
 CROSS_GROUPS = {"dio_pucci", "boingo_hol_horse", "pesci_prosciutto", "enyaba_geil", "nijimura", "trussardi",
                 "first_love", "polpo_test", "fate", "fugo_narancia", "cellmates", "tide", "swarm", "disguise", "fire",
-                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys", "heavy_weather", "love_train"}
+                "gunslingers", "soul", "plague", "mirrors", "morioh_2011", "schott_keys", "heavy_weather", "love_train",
+                "debt_collectors", "beasts", "illusions", "youth"}
 PLAYER_ONLY = set(PART_GROUPS) | CROSS_GROUPS
 
 
@@ -260,6 +272,10 @@ SYNERGY_INFO = {
     "mirrors": ("Through the looking glass", "🪞"),
     "morioh_2011": ("Morioh, 2011", "🏙️"),
     "schott_keys": ("Schott Keys", "🗝️"),
+    "debt_collectors": ("Debt collectors", "💸"),
+    "beasts": ("Beasts", "🐾"),
+    "illusions": ("Illusions", "🌫️"),
+    "youth": ("Age and youth", "⏳"),
     "part3": ("Part 3 · Stardust Crusaders", "③"),
     "part4": ("Part 4 · Diamond is Unbreakable", "④"),
     "part5": ("Part 5 · Golden Wind", "⑤"),
@@ -336,6 +352,10 @@ SYNERGY_BONUS = {
     "mirrors": [("crit_flat", 10), ("speed_pct", 0.08)],
     "morioh_2011": [("hp_pct", 0.08), ("damage_pct", 0.06)],
     "schott_keys": [("damage_pct", 0.12), ("speed_pct", 0.06)],
+    "debt_collectors": [("damage_pct", 0.10), ("crit_flat", 8)],
+    "beasts": [("speed_pct", 0.10), ("hp_pct", 0.06)],
+    "illusions": [("speed_pct", 0.08), ("crit_flat", 8)],
+    "youth": [("hp_pct", 0.08), ("damage_pct", 0.06)],
     # parts: easy to fill from ~25 stands each, so smaller than the crews'
     "part3": [("damage_pct", 0.06), ("speed_pct", 0.06)],
     "part4": [("hp_pct", 0.08), ("armor_pct", 0.06)],
@@ -520,7 +540,7 @@ def _aoe(character, enemies, multiplier) -> int:
 
 # Poison stands fell behind once teams got their health up (★5, refined items): poison ticks harder than the other
 # damage over time. Tuned with scratch meta.py (level 100 ★5 teams), see scripts/balance.py.
-POISON_MULT = 1.5  # every poison special hits this much harder (was 1.25: poison teams still trailed the meta)
+POISON_MULT = 1.35  # every poison special hits this much harder (1.5 until poison grew with the target's missing health)
 
 
 def _dot(target, kind: EffectType, turns: int, value: float, sender) -> None:
@@ -751,8 +771,11 @@ def tower_of_grey(character, allied_characters, enemy_characters) -> tuple:
 
 def strength(character, allied_characters, enemy_characters) -> tuple:
     payload = get_payload()
-    healed = _heal(character, character.start_hp * 0.08)
+    pack = _has_synergy(character.id, allied_characters, "beasts")  # the orangutan isn't alone on this ship
+    healed = _heal(character, character.start_hp * (0.14 if pack else 0.08))
     _buff(character, "armor", 0.20, 2, character)
+    if pack:
+        return payload, f"｢{character.name}｣ braces the ship with the pack: heals {healed} and gains +20% armor! 🐾 Beasts!"
     return payload, f"｢{character.name}｣ braces the ship: heals {healed} and gains +20% armor!"
 
 
@@ -2026,10 +2049,14 @@ def marilyn_manson(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ has no debt to collect!"
     _hit(character, target, 0.8)
-    dmg = _debuff(target, "damage", 0.25, 3, character)
-    spd = _debuff(target, "speed", 0.25, 3, character)
+    interest = _has_synergy(character.id, allied_characters, "debt_collectors")
+    share = 0.35 if interest else 0.25  # with another collector, the debt comes back with interest
+    dmg = _debuff(target, "damage", share, 3, character)
+    spd = _debuff(target, "speed", share, 3, character)
     character.add_effect(Effect(EffectType.DAMAGEUP, 3, dmg, character))
     character.add_effect(Effect(EffectType.SPEEDUP, 3, spd, character))
+    if interest:
+        return payload, f"｢{character.name}｣ collects the debt with interest! Takes {dmg} damage and {spd} speed from {target.name}! 💸 Debt collectors!"
     return payload, f"｢{character.name}｣ collects the debt! Takes {dmg} damage and {spd} speed from {target.name}!"
 
 
@@ -2623,6 +2650,9 @@ def milagro_man(character, allied_characters, enemy_characters) -> tuple:
     if not target:
         return payload, f"｢{character.name}｣ scatters cursed money..."
     curse = _take(target, target.current_damage * 0.6)
+    if _has_synergy(character.id, allied_characters, "debt_collectors"):  # the money keeps multiplying
+        _dot(target, EffectType.POISON, 3, curse * 0.6, character)
+        return payload, f"｢{character.name}｣ buries {target.name} in money that won't stop multiplying! {curse} damage and a heavy poison! 💸 Debt collectors!"
     _dot(target, EffectType.POISON, 2, curse * 0.4, character)
     return payload, f"｢{character.name}｣ curses {target.name} with endless money! {curse} damage and poison!"
 
@@ -2694,8 +2724,10 @@ def wonder_of_u(character, allied_characters, enemy_characters) -> tuple:
     lost = max(0, character.start_hp - character.current_hp)
     backlash = lost * calamity_share(lost / max(1, character.start_hp))  # every wound comes back to its pursuers
     for enemy in _alive(enemy_characters):
+        from app.game.character import share_hp
         share = WOU_SHARE[1] if _impaired(enemy) or enemy.current_hp < enemy.start_hp / 2 else WOU_SHARE[0]
-        total += _take(enemy, enemy.start_hp * share + min(backlash, enemy.start_hp * CALAMITY_CAP))
+        base = share_hp(enemy)  # a raid boss's health pool counts as a normal stand's
+        total += _take(enemy, base * share + min(backlash, base * CALAMITY_CAP))
     message = f"｢{character.name}｣ turns pursuit into calamity: {total} damage to every enemy, worst for the wounded!"
     return payload, message + (f" Its own wounds return to its pursuers (+{int(backlash)} each)!" if backlash >= 1 else "")
 
@@ -2709,6 +2741,48 @@ def space_trucking(character, allied_characters, enemy_characters) -> tuple:
         return payload, f"｢{character.name}｣ stretches its arms across town! {total} damage to all, team +20% speed! 🏙️ Morioh, 2011!"
     _buff(character, "speed", 0.20, 2, character)
     return payload, f"｢{character.name}｣ stretches its arms! {total} damage to all, +20% speed!"
+
+
+def tenore_sax(character, allied_characters, enemy_characters) -> tuple:
+    """Kenny G.'s illusions turn DIO's mansion into a maze: the enemy loses its way, Tenore Sax hides in it."""
+    payload = get_payload()
+    foes = _alive(enemy_characters)
+    if not foes:
+        return payload, f"｢{character.name}｣ plays to an empty room..."
+    total = _aoe(character, foes, 0.6)  # the walls close in
+    for enemy in _alive(foes):
+        _debuff(enemy, "speed", 0.25, 2, character)
+        enemy.add_effect(Effect(EffectType.CRITUP, 2, -round(15 * _power()), character))
+    _buff(character, "armor", 0.40, 2, character)
+    foes = _alive(foes)
+    if not foes:
+        return payload, f"｢{character.name}｣'s maze closes in for {total} damage!"
+    if _has_synergy(character.id, allied_characters, "illusions"):
+        lost = max(foes, key=lambda c: c.current_speed)
+        _stun(lost, character)
+        return payload, (f"｢{character.name}｣ turns the room into an endless maze! {total} damage to all, every enemy slowed "
+                         f"and off its aim, {lost.name} lost inside it (stunned)! 🌫️ Illusions!")
+    return payload, f"｢{character.name}｣ turns the room into an endless maze! {total} damage to all, every enemy slowed and off its aim, and it hides inside!"
+
+
+def sethan(character, allied_characters, enemy_characters) -> tuple:
+    """Alessi's shadow turns whoever it touches back into a child, power and all, before the axe comes down."""
+    payload = get_payload()
+    target = _target(character, enemy_characters)
+    if not target:
+        return payload, f"｢{character.name}｣'s shadow finds no one..."
+    youth = _has_synergy(character.id, allied_characters, "youth")
+    for enemy in (_alive(enemy_characters) if youth else [target]):
+        share = 0.30 if enemy is target else 0.20
+        _debuff(enemy, "damage", share, 2, character)
+        _debuff(enemy, "armor", share, 2, character)
+    target.special_meter = max(0, target.special_meter - 2)  # a child doesn't remember its stand yet
+    damage = _hit(character, target, 1.3 if youth else 1.0)
+    if youth:
+        return payload, (f"｢{character.name}｣'s shadow spreads: every enemy turns young, {target.name} most of all and "
+                         f"forgets its power! The axe hits for {damage}! ⏳ Age and youth!")
+    return payload, (f"｢{character.name}｣'s shadow turns {target.name} into a child: weaker, softer, its special set back! "
+                     f"The axe hits for {damage}!")
 
 
 def victorious_star_platinum(character, allied_characters, enemy_characters) -> tuple:
@@ -2728,7 +2802,7 @@ SCALING = {
     31: "speed", 37: "speed", 40: "speed", 44: "speed", 53: "speed", 61: "speed", 62: "speed", 67: "speed",
     75: "speed", 76: "speed", 82: "speed", 103: "speed", 107: "speed", 109: "speed", 116: "speed",
     117: "speed", 134: "speed", 139: "speed", 143: "speed", 146: "speed", 149: "speed", 154: "speed",
-    160: "speed", 162: "speed", 163: "speed",
+    160: "speed", 162: "speed", 163: "speed", 165: "speed",
     # 🛡️ armor: shields, walls and bindings
     5: "armor", 9: "armor", 12: "armor", 21: "armor", 55: "armor", 65: "armor", 70: "armor", 74: "armor",
     79: "armor", 86: "armor", 97: "armor", 101: "armor", 105: "armor", 127: "armor", 129: "armor",
@@ -2912,4 +2986,6 @@ specials = {
     "162": space_trucking,
     "163": victorious_star_platinum,
     "164": dummy,
+    "165": tenore_sax,
+    "166": sethan,
 }

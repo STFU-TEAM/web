@@ -67,6 +67,26 @@ character = TypeVar("character", bound="Character")
 # Poison stands lagged once teams stacked health (★5, refined items): each poison tick also takes this share of
 # the target's max health, so poison keeps up with tanky teams. Tuned against the Requiem benchmark team.
 POISON_MAX_HP = 0.035  # each poison tick also eats this share of max health (was 0.025)
+POISON_LOW_HP = 0.8    # poison ticks harder as the target's health runs out: x1.4 at half health, x1.8 near death
+BURN_SUNDER = 0.25     # a burning stand loses this share of its armor while it burns (one sunder at a time)
+
+
+def share_hp(c) -> float:
+    """The health that "a share of its max health" effects (poison's share, sudden death, Wonder of U) are taken
+    from: its max health, except for a damage sponge like the raid boss, which counts as a normal stand there."""
+    cap = c.__dict__.get("_share_cap")
+    return min(c.start_hp, cap) if cap else c.start_hp
+
+
+def dot_tick(target, effect) -> float:
+    """What one damage-over-time tick takes off target: poison grows with the health it's missing, and the terrain
+    scales both (the Ocean puts burns out). Shared by the turn, its preview and Bites the Dust's detonation."""
+    tick = effect.value
+    if effect.type == EffectType.POISON:
+        tick += POISON_MAX_HP * share_hp(target)
+        missing = 1 - max(0, target.current_hp) / max(1, target.start_hp)
+        tick *= 1 + POISON_LOW_HP * max(0.0, missing)
+    return tick * TERRAIN_DOT_MULT.get(getattr(target, "terrain", None), {}).get(effect.type, 1)
 # Health each star past ★3 adds (a ★5 stand: twice this). Tuned so fights between maxed, refined teams (the Requiem
 # benchmark against itself and other top teams) average about 5 rounds: scripts/balance.py length.
 LATE_STAR_HP = 0.2
@@ -296,6 +316,8 @@ class Character:
         if effect.type == EffectType.STUN and getattr(self, "_stun_immune", False):
             effect.duration = 0  # cleaned up at its end of turn without ever counting
             return effect
+        if effect.type == EffectType.BURN and effect.duration > 0:
+            self._sunder(effect)
         if effect.type in STAT_EFFECTS:
             attr, sign = STAT_EFFECTS[effect.type]
             if sign < 0:  # never take a stat below its floor, so the revert stays exact
@@ -305,6 +327,19 @@ class Character:
             effect.used = True
         self.effects.append(effect)
         return effect
+
+    def _sunder(self, burn: Effect) -> None:
+        """Burn sunders armor: while it burns, the stand loses BURN_SUNDER of its armor. One sunder at a time (a new
+        burn only stretches it); none where the terrain puts burns out."""
+        if TERRAIN_DOT_MULT.get(self.terrain, {}).get(EffectType.BURN, 1) == 0:
+            return
+        held = next((e for e in self.effects if getattr(e, "sunder", False) and e.duration > 0), None)
+        if held:
+            held.duration = max(held.duration, burn.duration)
+            return
+        cut = Effect(EffectType.ARMORBREAK, burn.duration, int(max(0, self.current_armor) * BURN_SUNDER), burn.sender)
+        cut.sunder = True
+        self.add_effect(cut)
 
     def grow(self, stat: str, pct: float) -> float:
         """Permanent self-buff of pct x the starting stat, capped at GROWTH_CAP in total per stat."""
@@ -330,10 +365,7 @@ class Character:
             if effect.duration <= 0:
                 continue
             if effect.type in DOT_EFFECTS:
-                tick = effect.value
-                if effect.type == EffectType.POISON:  # poison also eats a share of the target's max health
-                    tick += POISON_MAX_HP * self.start_hp
-                self.current_hp -= int(tick * TERRAIN_DOT_MULT.get(terrain, {}).get(effect.type, 1))
+                self.current_hp -= int(dot_tick(self, effect))
             elif effect.type == EffectType.REGENERATION:
                 self.heal(effect.value)
             elif effect.type in STAT_EFFECTS and not effect.used:

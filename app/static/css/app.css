@@ -5953,3 +5953,4 @@ html, body { overflow-x: clip; max-width: 100%; }
 @media (max-width: 760px) {
   .contact-layout, .contact-row { grid-template-columns: 1fr; }
 }
+.raid-bonus { color: var(--gold); font-weight: 700; }
