@@ -734,6 +734,12 @@ def test_admin_posts_news_with_a_cover(client):
     r = client.post("/admin/news", headers=h, content_type="multipart/form-data", data={
         "title": "Bad", "body": "x", "cover_file": (io.BytesIO(b"<script>"), "x.png")})
     assert r.status_code == 400
+    # a button to a page of the site; a dead one is refused
+    r = client.post("/admin/news", headers=h, data={"id": post_id, "title": "Den", "body": "[[Try the den]](/den)\n\n[x](/gauntlet?a=1)"})
+    assert r.status_code == 302 and 'href="/den" class="btn gold md-btn"' in client.get(f"/news/{post_id}").data.decode()
+    for dead in ("/no-such-page", "/gauntlet/start", "/den/"):  # a typo; a page you can only POST to; a stray slash
+        r = client.post("/admin/news", headers=h, data={"id": post_id, "title": "Den", "body": f"[[Go]]({dead})"})
+        assert r.status_code == 400 and f"No page on the site at {dead}" in r.data.decode()
     # html is escaped
     client.post("/admin/news", headers=h, data={"id": post_id, "title": "Edited", "body": "<script>alert(1)</script>"})
     assert "<script>alert" not in client.get(f"/news/{post_id}").data.decode()

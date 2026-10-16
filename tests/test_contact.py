@@ -66,3 +66,30 @@ def test_news_posts_render_markdown_safely():
         assert tag in html, tag
     assert "<script>" not in html and "&lt;script&gt;" in html and "snake_case" in html  # escaped; no stray italics
     assert summary("## Hi\n- **one** item\n---\n> two", 100) == "Hi one item two"
+
+
+def test_news_posts_render_tables():
+    from app.news import render_body, summary
+    text = "Intro\n| Pact | You pay |\n|---|:---:|\n| **Mask** | no healing <b> |\n| Arrow |\n\nafter\n\n| just | pipes |"
+    html = str(render_body(text))
+    assert '<p>Intro</p><div class="md-table"><table><thead><tr><th>Pact</th>' in html
+    assert '<th style="text-align: center">You pay</th>' in html
+    assert "<td><strong>Mask</strong></td>" in html and "&lt;b&gt;" in html and "<b>" not in html
+    assert '<tr><td>Arrow</td><td style="text-align: center"></td></tr>' in html  # short rows are padded
+    assert "<p>after</p><p>| just | pipes |</p>" in html  # no separator row: not a table
+    assert summary("| a | b |\n|---|---|\n| c | d |", 100) == "a · b c · d"
+
+
+def test_news_posts_link_to_site_pages_with_buttons():
+    from app.news import render_body, site_links, summary
+    text = ("Try [the den](/den) or [Rohan's](/stand/some_id?x=1&y=2#top).\n\n"
+            "[[Open the **Gauntlet**]](/gauntlet) [[Read more]](https://example.com/a_b)\n\n"
+            "[bad](//evil.com) [bad2](/\\evil.com) [bad3](javascript:alert(1))")
+    html = str(render_body(text))
+    assert '<a href="/den">the den</a>' in html  # a site page opens in the same tab
+    assert '<a href="/stand/some_id?x=1&amp;y=2#top">Rohan&#39;s</a>' in html  # the _ stays, no stray italics
+    assert ('<p class="md-buttons"><a href="/gauntlet" class="btn gold md-btn">Open the <strong>Gauntlet</strong></a> '
+            '<a href="https://example.com/a_b" class="btn gold md-btn" target="_blank" rel="noopener">Read more</a></p>') in html
+    assert html.count("<a ") == 4 and "<p>[bad](//evil.com) [bad2](/\\evil.com) [bad3](javascript:alert(1))</p>" in html
+    assert site_links(text) == ["/gauntlet", "/den", "/stand/some_id"]
+    assert summary("[[Play now]](/gauntlet) and [the den](/den)", 100) == "Play now and the den"

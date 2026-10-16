@@ -357,6 +357,15 @@ body.touring .nav-drop[open] > .nav-menu { display: none; }
 .news-text hr { margin: 1.8rem 0; border: 0; border-top: 2px dashed var(--night-3); }
 .news-text code { padding: .05rem .35rem; border-radius: 6px; background: var(--night-3); font-size: .92em; }
 .news-text em { color: var(--paper); }
+.news-text .md-buttons { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1.2rem 0; }
+.news-text .md-btn { text-decoration: none; }
+.news-text p > .md-btn { margin: 0 .2rem; vertical-align: middle; }
+.news-text .md-table { margin: 0 0 1rem; overflow-x: auto; border-radius: var(--radius-ui); border: 2px solid var(--night-3); }
+.news-text table { width: 100%; border-collapse: collapse; font-size: .98rem; line-height: 1.45; }
+.news-text :is(th, td) { padding: .55rem .8rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--night-3); }
+.news-text th { background: var(--night-2); color: var(--gold); font-weight: 900; white-space: nowrap; }
+.news-text tbody tr:last-child td { border-bottom: 0; }
+.news-text tbody tr:nth-child(even) td { background: rgb(255 255 255 / .03); }
 .news-more-title { margin-top: 2rem; }
 .news-more { padding-left: 1.1rem; }
 .home-news .shelf-head a { margin-left: auto; }

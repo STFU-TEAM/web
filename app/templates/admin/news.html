@@ -11,7 +11,7 @@
       <option value="{{ k }}" {{ 'selected' if form.get('kind', p.get('kind', 'news')) == k }}>{{ label }}</option>{% endfor %}</select></label>
     <label>Title <input type="text" name="title" maxlength="120" required value="{{ form.get('title', p.get('title', '')) }}"></label>
     <label>Post
-      <textarea name="body" rows="12" maxlength="10000" required placeholder="Markdown works: # Heading, - list (indent 2 spaces to nest), 1. numbered, > quote, --- divider, **bold**, *italic*, `code`, [link text](https://…). Blank lines start a new paragraph.">{{ form.get('body', p.get('body', '')) }}</textarea>
+      <textarea name="body" rows="12" maxlength="10000" required placeholder="Markdown works: # Heading, - list (indent 2 spaces to nest), 1. numbered, > quote, --- divider, **bold**, *italic*, `code`, [link text](https://…) or a page of the site [link text](/gauntlet), [[A button]](/gauntlet) on its own line, | tables |. Blank lines start a new paragraph.">{{ form.get('body', p.get('body', '')) }}</textarea>
     </label>
     <fieldset class="news-cover-pick">
       <legend>Cover image</legend>
