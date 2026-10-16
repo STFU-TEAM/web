@@ -145,7 +145,112 @@ def share_card(card_id):
     card = share.get(r(), card_id)
     if not card:
         abort(404)
-    return render_template("share.html", card=card)
+    return render_template("share.html", card=card, card_id=card_id)
+
+
+# --------------------------------------------------------------------------- #
+# Link previews (app/og.py): the picture Discord, X, Reddit... show under a link to a shared card, a profile, a
+# stand, a news post or the site. Drawn once, then cached.
+# --------------------------------------------------------------------------- #
+OG_VERSION = "v1"  # bump to redraw every cached preview after a design change
+OG_TAGLINE = "Pull JoJo stands, build a team of three and fight through every part of the story. Free in your browser and on Discord."
+
+
+def _og_response(data: bytes, max_age: int = 86400) -> Response:
+    resp = Response(data, mimetype="image/jpeg")
+    resp.headers["Cache-Control"] = f"public, max-age={max_age}"
+    return resp
+
+
+def _og_art(stand_id=None, shiny=False, fallback=None):
+    """The stand's best picture (its full art if there is one) as bytes, else fallback's."""
+    from app import og
+    from app.db import r
+    url = fallback
+    if stand_id:
+        url = current_app.jinja_env.globals["card_art"](int(stand_id), True, bool(shiny))[0]
+    return og.fetch_art(r(), url) or (og.fetch_art(r(), fallback) if fallback and fallback != url else None)
+
+
+def _hero() -> str:
+    return url_for("static", filename="img/hero-jolyne-1000.webp")
+
+
+@bp.get("/s/<card_id>/preview.jpg")
+def share_preview(card_id):
+    from app import og, share
+    from app.db import r
+    card = share.get(r(), card_id)
+    if not card:
+        abort(404)
+    rarity = card.get("badge") if card.get("badge") in og.RARITY else None
+    data = og.cached(r(), f"{OG_VERSION}:s:{card_id}", share.TTL, lambda: og.draw(
+        card["title"], card.get("text", ""), kicker=card.get("kicker") or share.KICKERS.get(card.get("kind"), "Stand user"),
+        badge=card.get("badge"), rarity=rarity, art=_og_art(card.get("stand"), card.get("shiny"), card.get("image"))))
+    return _og_response(data, 7 * 86400)
+
+
+@bp.get("/u/<uid>/preview.jpg")
+def profile_preview(uid: str):
+    from app import og
+    from app.db import r
+    doc = get_db().get_user_doc(uid)
+    if not doc:
+        abort(404)
+
+    def make():
+        from app.filters import RARITY_RANK
+        from app.game import profile as P
+        from app.game.logic import rank_name
+        user = User(doc)
+        stands = user.main_characters + user.storage_characters
+        best = P.view(user)["stand"] or max(stands, key=lambda c: (RARITY_RANK.get(c.rarity, 0), c.awaken, c.level), default=None)
+        name = identity(uid).get("name") or "A Stand user"
+        text = f"Level {user.level} · {len(stands)} stands · {rank_name(int(user.global_elo or 0))} in ranked. Think your team can take mine?"
+        return og.draw(f"{name}'s Stand user file", text, kicker="Stand user file", badge=f"LV {user.level}",
+                       rarity=best.rarity if best else None, art=_og_art(best.id, getattr(best, "shiny", False)) if best else None,
+                       cta="Challenge them, free →")
+    return _og_response(og.cached(r(), f"{OG_VERSION}:u:{uid}", 3600, make), 3600)
+
+
+@bp.get("/stands/<int:stand_id>/preview.jpg")
+def stand_preview(stand_id: int):
+    from app import og
+    from app.db import r
+    from app.game.parts import of_stand
+    if not (1 <= stand_id <= len(CHARACTER_FILE)) or CHARACTER_FILE[stand_id - 1]["universe"] == "Dummy":
+        abort(404)
+    s = CHARACTER_FILE[stand_id - 1]
+
+    def make():
+        part = of_stand(stand_id)
+        special = s.get("special_description", "").replace("`", "")
+        return og.draw(s["name"], special, kicker=f"{s['rarity']} stand" + (f" · Part {part}" if part else ""),
+                       badge=s["rarity"], rarity=s["rarity"], art=_og_art(stand_id), cta="Pull it free →")
+    return _og_response(og.cached(r(), f"{OG_VERSION}:stand:{stand_id}", 86400, make))
+
+
+@bp.get("/news/<post_id>/preview.jpg")
+def news_preview(post_id):
+    from app import og
+    from app.db import r
+    post = news.get_post(post_id)
+    if not post:
+        abort(404)
+    stamp = post.get("updated") or post.get("created") or ""
+    data = og.cached(r(), f"{OG_VERSION}:news:{post_id}:{stamp}", 7 * 86400, lambda: og.draw(
+        post["title"], news.summary(post.get("body") or "", 160), kicker=news.KINDS.get(post.get("kind") or "news", "News"),
+        art=_og_art(fallback=_hero()), cta="Play free in your browser →"))
+    return _og_response(data)
+
+
+@bp.get("/preview.jpg")
+def site_preview():
+    from app import og
+    from app.db import r
+    data = og.cached(r(), f"{OG_VERSION}:site", 86400, lambda: og.draw(
+        "STFU Requiem", OG_TAGLINE, kicker="JoJo stand gacha", art=_og_art(fallback=_hero())))
+    return _og_response(data)
 
 
 @bp.get("/changelog")

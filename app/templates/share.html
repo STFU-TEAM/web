@@ -3,7 +3,8 @@
 {% block title %}{{ card.title }} | STFU Requiem{% endblock %}
 {% block description %}{{ card.text }}{% endblock %}
 {% block og_title %}{{ card.title }}{% endblock %}
-{% block og_image %}{{ card.image or ('randomAsset/avatar.png'|asset) }}{% endblock %}
+{% block og_image %}{{ url_for('main.share_preview', card_id=card_id, _external=True) }}{% endblock %}
+{% block theme_color %}{{ {'R': '#B3A3CF', 'SR': '#9B6BE0', 'SSR': '#F4C542', 'UR': '#D6246E', 'LR': '#2BB3A8'}.get(card.badge, '#F4C542') }}{% endblock %}
 {% block og_image_alt %}{{ card.title }}{% endblock %}
 {% block main %}
 <section class="page narrow share-page">

@@ -8,7 +8,7 @@ from test_features import player
 
 def test_pages_carry_link_preview_tags(client):
     home = client.get("/").data.decode()
-    assert 'property="og:image"' in home and "randomAsset/avatar.png" in home and 'name="twitter:card"' in home
+    assert 'property="og:image" content="http://localhost/preview.jpg"' in home and 'content="summary_large_image"' in home
     stand = client.get("/stands/1").data.decode()
     assert 'property="og:title" content="Star platinum | STFU Requiem"' in stand and "/Image/1.png" in stand
 

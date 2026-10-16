@@ -3,7 +3,8 @@
 {% from "macros.html" import template_card, special_scaling, param_chart %}
 {% block title %}{{ s.name }} | STFU Requiem{% endblock %}
 {% block description %}{{ s.name }}, {{ 'a' if s.rarity == 'UR' else 'an' }} {{ s.rarity }} stand from {{ s.universe }}: stats, special, synergies and where to pull it in STFU Requiem, the free JoJo stand gacha.{% endblock %}
-{% block og_image %}{{ s.id|stand_img }}{% endblock %}
+{% block og_image %}{{ url_for('main.stand_preview', stand_id=s.id, _external=True) }}{% endblock %}
+{% block theme_color %}{{ {'R': '#B3A3CF', 'SR': '#9B6BE0', 'SSR': '#F4C542', 'UR': '#D6246E', 'LR': '#2BB3A8'}.get(s.rarity, '#2B1747') }}{% endblock %}
 {% block og_image_alt %}{{ s.name }}{% endblock %}
 {% block main %}
 <section class="page stand-detail">

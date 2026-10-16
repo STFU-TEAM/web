@@ -4,7 +4,8 @@
 {% from "community/_macros.html" import friend_button, challenge_button with context %}
 {% block title %}{{ ident.name }} | STFU Requiem{% endblock %}
 {% block description %}{{ ident.name }}'s Stand user profile on STFU Requiem: level {{ u.level }}, their team, collection and records. Pull your own stands for free.{% endblock %}
-{% block og_image %}{{ ident.avatar or ('randomAsset/avatar.png'|asset) }}{% endblock %}
+{% block og_image %}{{ url_for('main.profile_preview', uid=uid, _external=True) }}{% endblock %}
+{% block og_title %}{{ ident.name }}'s Stand user file{% endblock %}
 {% block main %}
 <section class="page profile">
   {% set th = pv.theme.colors %}

@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ post.title }} | STFU Requiem{% endblock %}
-{% block description %}{{ (post.body or '')|striptags|truncate(180) }}{% endblock %}
+{% block description %}{{ post.body|news_summary(180) }}{% endblock %}
+{% block og_title %}{{ post.title }}{% endblock %}
+{% block og_image %}{{ post.cover if post.cover and post.cover.startswith('https://') else (url_for('main.news_cover', post_id=post.id, _external=True) if post.cover else url_for('main.news_preview', post_id=post.id, _external=True)) }}{% endblock %}
+{% block og_image_meta %}{% if not post.cover %}{{ super() }}{% endif %}{% endblock %}
 {% block main %}
 <article class="page narrow news-article">
   <p class="kicker"><a href="{{ url_for('main.news_list') }}">{{ {'news': 'News', 'patch': 'Patch notes', 'event': 'Event'}.get(post.kind or 'news') }}</a> · <time datetime="{{ post.created }}">{{ post.created[:10] }}</time></p>

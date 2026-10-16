@@ -16,6 +16,7 @@ from app.game.logic import GameError
 
 TTL = 60 * 86400
 PER_DAY = 40
+KICKERS = {"stand": "New pull", "requiem": "Requiem cleared", "tower": "Tower record", "profile": "Stand user file"}
 
 
 def _key(card_id: str) -> str:
@@ -54,7 +55,8 @@ def build(user, name: str, kind: str, ref: str, img) -> dict:
         shiny = "✨ shiny " if getattr(c, "shiny", False) else ""
         return {"kind": kind, "name": name, "title": f"{name} pulled {shiny}{c.name}{stars}!",
                 "text": f"A {c.rarity} stand, level {c.level}{stars}. Pull your own on STFU Requiem, the free JoJo stand gacha.",
-                "image": img(c.id), "url": url_for("main.stand", stand_id=c.id), "badge": c.rarity}
+                "image": img(c.id), "url": url_for("main.stand", stand_id=c.id), "badge": c.rarity,
+                "stand": c.id, "shiny": bool(getattr(c, "shiny", False))}
     if kind == "requiem":
         from app.game import requiem
         t = requiem.BY_KEY.get(ref)
@@ -63,7 +65,7 @@ def build(user, name: str, kind: str, ref: str, img) -> dict:
         boss = t["stages"][-1]["enemies"][0]
         return {"kind": kind, "name": name, "title": f"{name} conquered {t['title']} in Requiem mode ☠",
                 "text": f"All {len(t['stages'])} stages at their hardest, built for maxed teams. Think you can? STFU Requiem is free to play.",
-                "image": img(boss), "url": profile, "badge": "REQUIEM"}
+                "image": img(boss), "url": profile, "badge": "REQUIEM", "stand": boss}
     if kind == "tower":
         from app.game import tower
         s = tower.state(user)
@@ -75,13 +77,14 @@ def build(user, name: str, kind: str, ref: str, img) -> dict:
         return {"kind": kind, "name": name, "title": f"{name} reached floor {best} of {where} this week",
                 "text": "Every floor harder than the last, one weekly ladder for everyone. Climb it yourself on STFU Requiem.",
                 "image": img(user.main_characters[0].id) if user.main_characters else None, "url": profile,
-                "badge": f"FLOOR {best}"}
+                "badge": f"FLOOR {best}", "stand": user.main_characters[0].id if user.main_characters else None}
     if kind == "profile":
         from app.filters import RARITY_RANK
         best = max(user.main_characters + user.storage_characters, key=lambda c: (RARITY_RANK.get(c.rarity, 0), c.level), default=None)
         return {"kind": kind, "name": name, "title": f"{name}'s Stand user profile",
                 "text": f"Level {user.level}, {len(user.main_characters) + len(user.storage_characters)} stands. Come fight me on STFU Requiem.",
-                "image": img(best.id) if best else None, "url": profile, "badge": f"LV {user.level}"}
+                "image": img(best.id) if best else None, "url": profile, "badge": f"LV {user.level}",
+                "stand": best.id if best else None, "shiny": bool(getattr(best, "shiny", False))}
     raise GameError("Nothing to share there.")
 
 
