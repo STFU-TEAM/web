@@ -46,6 +46,7 @@
   <script>(() => {
     const h = document.documentElement;
     try { if (localStorage.getItem("density") === "comfy") h.classList.add("comfy"); } catch (e) {}
+    try { const sc = localStorage.getItem("scenery"); if (sc === "still" || sc === "off") h.classList.add("scenery-" + sc); } catch (e) {}
     // the installed app (home-screen icon) behaves like an app: no pinch zoom. A browser tab keeps zoom (accessibility).
     if (matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
       document.querySelector('meta[name="viewport"]')?.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover");
@@ -72,6 +73,7 @@
 {#- Every destination once: (label, url, active, icon, why it matters). Desktop menus, mobile dock,
     the menu sheet and the new-player tour all read from here. -#}
 {%- set L = {
+  'home': ('Home', url_for('main.home'), ep == 'main.home', '⌂', "Your team on stage, today's goals and the story road."),
   'team': ('Team', url_for('play.team'), ep in ('play.team', 'play.collection'), '♟', 'Your 3 fighters and every stand you own. Fuse, lock and equip here.'),
   'items': ('Items', url_for('play.items'), ep == 'play.items', '◈', "Equipment, Devil's Palms, crafting and the shop."),
   'chips': ('Stand chips', url_for('play.chips_page'), ep.startswith('play.chips'), '◇', 'Random-stat chips for each synergy, socketed into your stands. Off in ranked.'),
@@ -114,6 +116,8 @@
   'news': ('News', url_for('main.news_list'), ep.startswith('main.news'), '📰', 'Updates, events and new content from the team.'),
   'wiki': ('Wiki', url_for('main.wiki'), ep == 'main.wiki', '📖', 'How fights work: terrains, synergies, status effects.'),
   'stands': ('Stands', url_for('main.stands'), ep in ('main.stands', 'main.stand'), '☆', 'Every stand, its stats and its special.'),
+  'gauntlet': ("Heaven's Door Gauntlet", url_for('gauntlet.index'), ep.startswith('gauntlet.'), '📖', 'Rohan draws your adventure: draft a cast chapter by chapter, with prototypes, boons and pacts. Weekly ladder.'),
+  'den': ("D'Arby's den", url_for('den.index'), ep.startswith('den.'), '🪙', "The coin glass for Meteor Dust, against D'Arby or a friend. Daily limits apply."),
   'contact': ('Contact & bugs', url_for('main.contact'), ep == 'main.contact', '✉', 'Report a bug or write to the team.'),
   'admin': ('Moderation' if me.mod_only else 'Admin', url_for('admin.index'), ep.startswith('admin.'), '⚙', 'Moderator tools.'),
 } -%}
@@ -125,14 +129,14 @@
 {%- set daily_keys = ['quests', 'whos'] + (['puzzle'] if nav_unlocked.puzzle else []) + (['dungeon'] if config.DUNGEON_ENABLED and nav_unlocked.dungeon else [])
                      + (['wormhole'] if nav_unlocked.wormhole else []) + ['journey'] -%}
 {%- set adventure_keys = ['story'] + (['altverse'] if nav_unlocked.altverse else []) + (['carryme'] if nav_unlocked.carryme else []) + (['overheaven'] if nav_unlocked.overheaven else []) + (['requiem'] if nav_unlocked.overheaven else []) + (['heaven'] if nav_unlocked.overheaven else []) -%}
-{%- set challenge_keys = (['events'] if live_event else []) + (['tower'] if nav_unlocked.tower else []) + ['rush', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
+{%- set challenge_keys = (['events'] if live_event else []) + (['tower'] if nav_unlocked.tower else []) + ['rush', 'gauntlet', 'coop'] + (['training'] if nav_unlocked.overheaven else []) -%}
 {%- set pvp_keys = (['ranked'] if nav_unlocked.ranked else []) + ['battles', 'ladder'] -%}
 {%- set battle_groups = [('Daily', 'daily', daily_keys), ('Adventure', 'adventure', adventure_keys), ('Challenges', 'challenges', challenge_keys), ('PvP', 'pvp', pvp_keys)] -%}
 {%- set battle_keys = daily_keys + adventure_keys + challenge_keys + pvp_keys -%}
 {%- set collection_keys = ['items', 'chips', 'reforge', 'planner', 'simulator'] -%}
 {%- set progress_keys = ['achievements', 'dex'] + ([] if live_event else ['events']) -%}
 {%- set community_keys = ['chat', 'friends', 'players', 'gangs', 'cup', 'gang_ladder', 'inbox'] -%}
-{%- set market_keys = ['trades', 'auction', 'shops'] -%}
+{%- set market_keys = ['trades', 'auction', 'shops', 'den'] -%}
 {%- set social_groups = [('People', 'community', community_keys), ('Market', 'market', market_keys)] -%}
 {%- set explore_keys = ['news', 'wiki', 'stands', 'contact'] + (['admin'] if is_admin else []) -%}
 {%- if me.id -%}
@@ -178,7 +182,7 @@
     the rest closed (less to scroll past); the group of the page you're on and any group with something new open
     anyway, and the player's own choices are remembered (app.js). Gangs and the inbox live elsewhere here (pinned,
     and the bell). -#}
-{%- set side_pinned = ['team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
+{%- set side_pinned = ['home', 'team', 'gangs', 'banners'] -%}{#- always visible, like the old top bar's first links -#}
 {%- set side_groups = [('Daily', 'daily', daily_keys, True), ('Adventure', 'adventure', adventure_keys, True),
                        ('Challenges', 'challenges', challenge_keys, True), ('PvP', 'pvp', pvp_keys, True),
                        ('Collection', 'collection', collection_keys, True), ('Progress', 'progress', progress_keys, False),
@@ -241,18 +245,21 @@
 
     <nav class="nav" aria-label="Main">
       {% if me.id %}
-        {{ nav_link('team') }}{{ nav_link('gangs', 'nav-gang') }}{{ nav_link('banners') }}
+        {{ nav_link('home') }}{{ nav_link('team') }}{{ nav_link('gangs', 'nav-gang') }}{{ nav_link('banners') }}
         {{ nav_menu('Collection', collection_keys, 'collection') }}
         {{ nav_menu('Battle', battle_keys, 'battle', groups=battle_groups) }}
         {{ nav_menu('Progress', progress_keys, 'progress') }}
         {{ nav_menu('Community', community_keys + market_keys, 'community', groups=social_groups) }}
         {{ nav_menu('Explore', explore_keys, 'explore') }}
       {% else %}
-        {{ nav_link('news') }}{{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}
+        {{ nav_link('home') }}{{ nav_link('news') }}{{ nav_link('stands') }}{{ nav_link('wiki') }}{{ nav_link('ladder') }}
       {% endif %}
     </nav>
 
     <div class="account">
+      {#- phones: the menus live in the bottom dock, so Home sits up here (the logo works too, but nobody guesses that) -#}
+      <a class="home-btn" href="{{ url_for('main.home') }}" aria-label="Home" title="Home" {% if ep == 'main.home' %}aria-current="page"{% endif %}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg></a>
       <details class="nav-drop sound-drop" data-sound-menu>
         <summary aria-label="Sound and display settings"><span class="sound-icon" aria-hidden="true">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path class="sound-wave" d="M15.5 8.5a5 5 0 0 1 0 7"/><path class="sound-wave" d="M18.5 5.5a9 9 0 0 1 0 13"/><path class="sound-x" d="M16 9l5 6M21 9l-5 6"/></svg>
@@ -270,6 +277,12 @@
             <legend>Text size on phones</legend>
             <label><input type="radio" name="density" value="compact" data-density> Compact (more on screen)</label>
             <label><input type="radio" name="density" value="comfy" data-density> Comfortable (bigger text)</label>
+          </fieldset>
+          <fieldset class="sound-cats">
+            <legend>Fight scenery</legend>
+            <label><input type="radio" name="scenery" value="moving" data-scenery> Moving</label>
+            <label><input type="radio" name="scenery" value="still" data-scenery> Still (lighter on slow phones)</label>
+            <label><input type="radio" name="scenery" value="off" data-scenery> Off</label>
           </fieldset>
           <small class="muted">Sound is off by default. Saved on this device.</small>
         </div>

@@ -1,0 +1,60 @@
+{#- The coin glass (app/game/den.py), from this player's seat. Polls itself while waiting on the other player. -#}
+{% set poll = t and t.mode == 'pvp' and (t.state == 'waiting' or (t.state == 'playing' and not t.my_turn)) %}
+<div id="den-table" class="den-table"{% if poll %} hx-get="{{ url_for('den.table', game=t.id) }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %} aria-live="polite">
+  {% if error %}<p class="flash error" role="alert">{{ error }}</p>{% endif %}
+  {% if t and t.state == 'waiting' %}
+    <div class="den-msg">
+      {% if t.me == 0 %}
+        <b>Waiting for {{ t.opp }}…</b>
+        <p>They have 10 minutes to accept your {{ t.stake|num }} dust challenge. Your stake is held until then.</p>
+        <form method="post" action="{{ url_for('den.decline', gid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn ghost">Withdraw</button></form>
+      {% else %}
+        <b>{{ t.names[0] }} challenges you</b>
+        <p>The coin glass for <strong>{{ t.stake|num }} dust</strong> each: the winner takes {{ (2 * t.stake)|num }}.</p>
+        <div class="den-btns">
+          <form method="post" action="{{ url_for('den.accept', gid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold">Accept</button></form>
+          <form method="post" action="{{ url_for('den.decline', gid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn ghost">Decline</button></form>
+        </div>
+      {% endif %}
+    </div>
+  {% elif t and t.state in ('declined', 'expired') %}
+    <div class="den-msg"><b>{{ 'Challenge declined' if t.state == 'declined' else 'Challenge expired' }}</b><p>{% if t.me == 0 %}Your {{ t.stake|num }} dust came back.{% endif %}</p>
+      <a class="btn ghost" href="{{ url_for('den.index') }}">Back to the table</a></div>
+  {% else %}
+    {% if t %}
+      <div class="den-versus">
+        <span class="den-who{{ ' turn' if t.my_turn }}"><i>{{ t.names[t.me][:1] }}</i>You</span>
+        <span class="den-vs">vs</span>
+        <span class="den-who{{ ' turn' if t.state == 'playing' and not t.my_turn }}"><i class="opp">{{ t.opp[:1] }}</i>{{ t.opp }}</span>
+      </div>
+    {% endif %}
+    <div class="glass{{ ' spilled' if t and t.state == 'over' }}" style="--dome: {{ [14, (t.coins if t else 0) * 0.9]|min }}px" role="img"
+         aria-label="A glass full to the brim{% if t %} with {{ t.coins }} coin{{ 's' if t.coins != 1 }} in it{% endif %}">
+      <span class="water"></span>
+      {% for i in range([t.coins if t else 0, 22]|min) %}<span class="coin{{ ' new' if t and loop.revindex <= (t.last|sum(attribute='n')) }}" style="bottom: {{ 6 + i * 9 }}px"></span>{% endfor %}
+      {% if t and t.state == 'over' %}<span class="spill" aria-hidden="true"></span>{% endif %}
+    </div>
+    <div class="den-risk"><span>The water's surface: {{ t.tension if t else 'calm' }}</span><span class="bar"><i style="width: {{ t.risk if t else 2 }}%"></i></span></div>
+    {% if t and t.last %}
+      <p class="den-last">{% for m in t.last %}{{ 'You' if m.who == t.me else t.opp }} dropped {{ m.n }} coin{{ 's' if m.n != 1 }}{{ ' and spilled it!' if m.spilled else '' }}{{ ' · ' if not loop.last }}{% endfor %}</p>
+    {% endif %}
+    {% if t and t.state == 'playing' %}
+      {% if t.my_turn %}
+        <div class="den-btns">
+          {% for n, label in [(1, 'Drop a coin'), (2, 'Drop two (bold)')] %}
+            <form hx-post="{{ url_for('den.drop') }}" hx-target="#den-table" hx-swap="outerHTML" method="post" action="{{ url_for('den.drop') }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="game" value="{{ t.id }}"><input type="hidden" name="n" value="{{ n }}">
+              <button class="btn {{ 'gold' if n == 1 else 'ghost' }}">{{ label }}</button></form>
+          {% endfor %}
+        </div>
+        {% if t.mode == 'pvp' %}<p class="muted small-print">{{ t.clock }} s to move, or a coin drops for you.</p>{% endif %}
+      {% else %}
+        <p class="den-wait">{{ t.opp }} is thinking… <small>({{ t.clock }} s)</small></p>
+      {% endif %}
+    {% elif t and t.state == 'over' %}
+      <p class="den-result {{ 'win' if t.won else 'lose' }}">{% if t.won %}{{ t.opp }} spilled it! +{{ t.stake|num }}{% else %}You spilled it. -{{ t.stake|num }}{% endif %}</p>
+      <a class="btn gold" href="{{ url_for('den.index') }}">Back to the table</a>
+    {% endif %}
+  {% endif %}
+  {% if t and t.mode == 'darby' and quote %}<p class="den-quote">“{{ quote }}”</p>{% endif %}
+</div>

@@ -83,12 +83,24 @@
       <h2 class="h2">🐉 {{ raid_villain.name }}</h2>
       <p class="muted">{{ raid_villain.flavor }}</p>
       <p class="muted small-print">☢️ {{ raid_villain.name }} carries the raid singularity: no team brings it down, so every blow counts, and it hits back hard. Gangs of up to {{ R.SMALL_GANG[0][0] }} count every attack ×{{ R.SMALL_GANG[0][1] }}, up to {{ R.SMALL_GANG[-1][0] }} members still get a bonus.</p>
+      {#- the gang's damage pushes the villain through four phases (gangs.PHASES), each fought under its own rules -#}
+      {% set ph = raid_phases %}
+      <div class="raid-phase phase-{{ ph.now + 1 }}">
+        <span class="phase-tag">☢️ Phase {{ ph.now + 1 }} of 4 · {{ ph.name }}</span>
+        <p>{{ ph.text }}</p>
+        <p class="raid-next">{% if ph.next_at %}Phase {{ ph.now + 2 }} in <strong>{{ ph.to_next|num }}</strong> damage{% else %}The final phase: every blow counts toward the top tier.{% endif %}</p>
+      </div>
       {% set top = tiers[-1].damage %}
       <div class="raid-meter" role="meter" aria-label="Gang raid damage" aria-valuemin="0" aria-valuemax="{{ top }}" aria-valuenow="{{ raid.damage }}">
         <i style="width: {{ ([100 * raid.damage / top, 100]|min)|round(1) }}%"></i>
         {% for t in tiers %}<span class="raid-tick{% if raid.damage >= t.damage %} reached{% endif %}" style="left: {{ 100 * t.damage / top }}%" title="Tier {{ loop.index }}: {{ t.damage|num }}"></span>{% endfor %}
+        {% for row in ph.rows[1:] %}<span class="phase-tick{{ ' reached' if row.state != 'locked' }}" style="left: {{ 100 * row.at / top }}%" title="Phase {{ row.n }} · {{ row.name }}: {{ row.at|num }}">{{ row.n }}</span>{% endfor %}
       </div>
       <p><strong>{{ raid.damage|num }}</strong> damage this week{% if raid_mult > 1 %} · <span class="raid-bonus" title="Gangs of up to {% for n, m in R.SMALL_GANG %}{{ n }}: ×{{ m }}{{ ', ' if not loop.last }}{% endfor %}">⚡ small gang: every attack counts ×{{ raid_mult }}</span>{% endif %}</p>
+      <details class="raid-phases">
+        <summary>The four phases of {{ raid_villain.name }}</summary>
+        <ol>{% for row in ph.rows %}<li class="{{ row.state }}"><small>Phase {{ row.n }} · {{ 'from the start' if row.n == 1 else 'at ' ~ row.at|num }}</small><strong>{{ row.name }}</strong><span>{{ row.text }}</span></li>{% endfor %}</ol>
+      </details>
       <ol class="raid-tiers">
         {% for t in tiers %}
           <li class="{{ 'reached' if raid.damage >= t.damage }}"><strong>Tier {{ loop.index }} · {{ t.damage|num }}</strong><span>{{ t.text }}</span></li>

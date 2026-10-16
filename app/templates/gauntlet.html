@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Heaven's Door Gauntlet | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page hd">
+  {#- Rohan's Heaven's Door draws the run as a manga: chapters are floors, your stands are open books, items and pacts
+      are commands written into them (app/game/gauntlet.py) -#}
+  <header class="hd-cover">
+    <div class="hd-cover-text">
+      <p class="hd-kicker">Weekly · the same chapters for everyone</p>
+      <h1 class="hd-title">Heaven's Door<span>Gauntlet</span></h1>
+      <p class="hd-bubble">“Your adventure is mine to draw. Pick your cast well: every stand stands at level {{ GT.GAUNTLET_LEVEL }}, with nothing from your save but your judgment.”<small>Rohan Kishibe</small></p>
+    </div>
+    <div class="hd-best"><small>Deepest chapter this week</small><strong>{{ best }}</strong></div>
+  </header>
+
+  {% if fight %}
+    {% include "partials/fight.html" %}
+  {% else %}
+  {% if run and not run.over %}
+    <ol class="hd-chapters" aria-label="Chapters">
+      {% set first = [1, run.floor - 4]|max %}
+      {% for n in range(first, first + 9) %}
+        <li class="{{ 'done' if n < run.floor else 'now' if n == run.floor else 'next' }}{{ ' boss' if n % 5 == 0 }}{{ ' item' if GT.is_item_floor(n) }}" {% if n == run.floor %}aria-current="step"{% endif %}>
+          <span>{{ n }}</span><small>{{ '済' if n < run.floor else 'Boss' if n % 5 == 0 else 'Item' if GT.is_item_floor(n) else '' }}</small></li>
+      {% endfor %}
+    </ol>
+  {% endif %}
+
+  <div class="hd-layout">
+    <section class="hd-main">
+      {% if not run or run.over %}
+        <div class="hd-splash">
+          {% if run and run.over %}
+            <p class="hd-big">To be continued…</p>
+            <p>Your story ended in chapter {{ run.floor }}: {{ run.floor - 1 }} chapter{{ 's' if run.floor != 2 }} cleared, <strong>{{ run.dust|num }} Meteor Dust</strong> banked.</p>
+          {% else %}
+            <p class="hd-big">Chapter 1</p>
+            <p>Rohan opens a blank sketchbook. Draft a stand, clear the chapter, draft another: three stands, then boons, pacts and prototypes as the pages turn.</p>
+          {% endif %}
+          <form method="post" action="{{ url_for('gauntlet.start') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <button class="btn gold big">{{ 'Open a new story (free today)' if free else 'Open a new story · ' ~ GT.EXTRA_RUN_ENERGY ~ ' energy' }}</button></form>
+        </div>
+      {% else %}
+        <div class="hd-run">
+          <div class="hd-cast">
+            <p class="hd-label">The cast · Chapter {{ run.floor }}</p>
+            {% for m in team %}
+              <article class="hd-book r-{{ m.rarity }}">
+                <span class="hd-book-art"><img src="{{ m.id|stand_img }}" alt="" loading="lazy"></span>
+                <div class="hd-book-page">
+                  <strong>{{ m.name }}</strong>
+                  <span class="hd-ink"><i style="width: {{ m.hp }}%"></i></span>
+                  <small>{{ m.hp }}% of its health</small>
+                  {% if m.item %}<em class="hd-written" title="{{ m.item.effect }}">{{ m.item.glyph }} “{{ m.item.name }}”</em>{% endif %}
+                </div>
+              </article>
+            {% endfor %}
+            {% for _ in range(3 - team|length) %}<div class="hd-book empty"><span>A blank page</span></div>{% endfor %}
+            {% if boons or pacts %}
+              <p class="hd-label">Written into the story</p>
+              <ul class="hd-commands">
+                {% for b in boons %}<li class="boon" title="{{ b.text }}">{{ b.glyph }} {{ b.name }}</li>{% endfor %}
+                {% for p in pacts %}<li class="pact" title="{{ p.text }}">{{ p.glyph }} {{ p.name }}</li>{% endfor %}
+              </ul>
+            {% endif %}
+            <p class="hd-dust">Dust banked <strong>{{ run.dust|num }}</strong></p>
+          </div>
+
+          <div class="hd-page">
+            {% if run.phase == 'pick' %}
+              <p class="hd-caption">{{ 'Chapter ' ~ run.floor ~ ': a new character enters (' ~ (team|length + 1) ~ ' of 3)' if team|length < 3 else 'Chapter ' ~ run.floor ~ ': the story could take a turn' }}</p>
+              <div class="hd-panels">
+                {% for o in offers %}
+                  <form class="hd-panel r-{{ o.rarity }}" method="post" action="{{ url_for('gauntlet.pick') }}">
+                    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="stand" value="{{ o.id }}">
+                    <span class="hd-panel-art"><img src="{{ o.id|stand_img }}" alt="" loading="lazy"><b>{{ o.rarity }}</b></span>
+                    <strong>{{ o.name }}</strong>
+                    <small>{{ o.special|truncate(110) }}</small>
+                    {% if team|length >= 3 %}
+                      <label class="hd-mini" for="rep-{{ o.id }}">Replaces</label>
+                      <select id="rep-{{ o.id }}" name="replace">{% for m in team %}<option value="{{ loop.index0 }}">{{ m.name }}</option>{% endfor %}</select>
+                    {% endif %}
+                    <button class="btn gold">{{ 'Draw it in' if team|length < 3 else 'Swap it in' }}</button>
+                  </form>
+                {% endfor %}
+              </div>
+              {% if team|length >= 3 and (boon or pact) %}
+                <p class="hd-caption">…or keep your cast, and let Rohan write a page</p>
+                <div class="hd-deals">
+                  {% if boon %}
+                    <form class="hd-deal boon" method="post" action="{{ url_for('gauntlet.page') }}">
+                      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="which" value="boon">
+                      <span class="hd-glyph">{{ boon.glyph }}</span>
+                      <p class="hd-mini">A boon</p><strong>{{ boon.name }}</strong><p>{{ boon.text }}</p>
+                      <button class="btn gold">Write it in</button>
+                    </form>
+                  {% endif %}
+                  {% if pact %}
+                    <form class="hd-deal pact" method="post" action="{{ url_for('gauntlet.page') }}" onsubmit="return confirm('Sign the {{ pact.name|e }}? It lasts the whole run.')">
+                      <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="which" value="pact">
+                      <span class="hd-glyph">{{ pact.glyph }}</span>
+                      <p class="hd-mini">A pact · once a run</p><strong>{{ pact.name }}</strong><p>{{ pact.text }}</p>
+                      <button class="btn danger">Sign the pact</button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% endif %}
+            {% elif run.phase == 'item' %}
+              <p class="hd-caption">Chapter {{ run.floor }}: a prototype from the Speedwagon Foundation's reject shelf</p>
+              <div class="hd-panels">
+                {% for it in items %}
+                  <form class="hd-panel hd-proto" method="post" action="{{ url_for('gauntlet.item') }}">
+                    <input type="hidden" name="csrf" value="{{ csrf_token }}"><input type="hidden" name="item" value="{{ it.key }}">
+                    <span class="hd-panel-art hd-hazard"><span class="hd-glyph">{{ it.glyph }}</span><b>PROTOTYPE</b></span>
+                    <strong>{{ it.name }}</strong>
+                    <span class="hd-stats">{% for st in it.stats %}<i class="{{ '' if st.good else 'bad' }}">{{ st.t }}</i>{% endfor %}</span>
+                    <small>{{ it.effect }}</small>
+                    <label class="hd-mini" for="slot-{{ it.key }}">Who holds it</label>
+                    <select id="slot-{{ it.key }}" name="slot">{% for m in team %}<option value="{{ loop.index0 }}">{{ m.name }}</option>{% endfor %}</select>
+                    <button class="btn gold">Take it</button>
+                  </form>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="hd-splash ready">
+                <p class="hd-mini">{{ 'Boss chapter' if run.floor % 5 == 0 else 'Chapter' }} {{ run.floor }}</p>
+                <p class="hd-big">{{ floor_name(run.floor)|replace('Boss · ', '') }}</p>
+                <p>Enemies grow with every chapter. Between chapters your cast heals {{ GT.HEAL_BETWEEN }}%; the fallen get back up at that much.</p>
+                <form method="post" action="{{ url_for('gauntlet.fight') }}"><input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn gold big">Turn the page →</button></form>
+              </div>
+            {% endif %}
+            <form method="post" action="{{ url_for('gauntlet.abandon') }}" class="hd-abandon" onsubmit="return confirm('Close the book on this run? You keep the dust banked so far.')">
+              <input type="hidden" name="csrf" value="{{ csrf_token }}"><button class="btn small ghost">Close the book</button></form>
+          </div>
+        </div>
+      {% endif %}
+    </section>
+
+    <aside class="hd-side">
+      <section class="hd-toc">
+        <h2 class="hd-label">This week's longest stories</h2>
+        {% if board %}
+          <ol>{% for row in board %}<li class="{{ 'me' if row.uid == me.id }}"><span>{{ row.rank }}</span>
+            <a href="{{ url_for('main.profile', uid=row.uid) }}">{{ row.name }}</a><b>Ch. {{ row.floor }}</b></li>{% endfor %}</ol>
+        {% else %}<p class="muted">No story written yet this week.</p>{% endif %}
+      </section>
+      <section class="hd-toc">
+        <h2 class="hd-label">How Rohan draws it</h2>
+        <ul class="hd-rules">
+          <li><b>Equal footing:</b> level {{ GT.GAUNTLET_LEVEL }}, ★0, nothing from your save.</li>
+          <li><b>One pick a chapter</b> out of three, rarer as you go (SSR from 3, UR from 6, LR from 9).</li>
+          <li><b>A full cast?</b> Swap a stand in, take a <b>boon</b>, or sign a <b>pact</b>: a great power at a terrible price.</li>
+          <li><b>Chapters 4, 7, 10…</b> bring a prototype item.</li>
+          <li><b>One free story a day</b>; another costs {{ GT.EXTRA_RUN_ENERGY }} energy.</li>
+          <li><b>Rewards:</b> dust every chapter, an Arrowhead at {{ GT.ARROW_FLOOR }} (once a week), the title “{{ GT.TITLE }}” at {{ GT.TITLE_FLOOR }}.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

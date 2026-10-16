@@ -642,6 +642,9 @@ def ranked_cancel():
 def _settle(fight):
     """Quest/achievement counters (and ranked elo) once a battle ends, like the bot's /fight."""
     players = fight.meta.get("players", [])
+    if fight.kind == "ranked":
+        from app import predictions
+        predictions.settle(r(), fight)  # the spectators' calls on this duel pay out
     from app.routes.fightturn import fun_achievements
     if fight.kind == "dummy":
         if players:
@@ -793,6 +796,8 @@ def _live_fight(fight_id, entry):
     fight = load_fight(entry["players"][0]) if entry and entry.get("players") else None
     if not fight or fight.id != fight_id:
         r().hdel(LIVE_FIGHTS, fight_id)
+        from app import predictions
+        predictions.refund(r(), fight_id)  # gone without an end: every stake goes back (a no-op once settled)
         return None
     return fight
 
@@ -852,6 +857,32 @@ def watch(fight_id):
         return redirect(url_for("battles.index", mode="watch"))
     return render_template("watch.html", fight=fight, fight_id=fight_id, entry=entry, mode="watch",
                            frame=Markup(_viewer_view(fight, "watch", fight_id, fresh_from=len(fight.log))))
+
+
+@bp.route("/watch/<fight_id>/predict", methods=["GET", "POST"])
+@player_required
+def predict(fight_id):
+    """The spectators' prediction panel (polled), and a call on the duel (app/predictions.py)."""
+    from app import predictions
+    uid = session["uid"]
+    entry = _live_entry(fight_id)
+    fight = _live_fight(fight_id, entry) if entry else history.load_replay(r(), fight_id)
+    if not fight or fight.kind != "ranked":
+        return Response(status=286)  # htmx: stop polling
+    error = None
+    if request.method == "POST":
+        try:
+            with user_lock(uid, ttl=5):
+                user = get_db().get_user(uid)
+                predictions.place(r(), user, fight, _int("side", -1), _int("stake", 0))
+                user.update()
+        except logic.GameError as e:
+            error = str(e)
+        except Busy:
+            error = "Busy, try again."
+    view = predictions.view(r(), fight, uid)
+    resp = render_template("partials/predict.html", p=view, fight_id=fight_id, error=error)
+    return Response(resp, status=286) if view["done"] else resp
 
 
 @bp.get("/watch/<fight_id>/frame")

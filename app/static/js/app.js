@@ -101,6 +101,21 @@ window.SFX = (() => {
     });
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireDensity); else wireDensity();
+  // fight scenery: moving (default), still or off (html.scenery-still / .scenery-off), saved on this device
+  const wireScenery = () => {
+    const h = document.documentElement;
+    const now = h.classList.contains("scenery-off") ? "off" : h.classList.contains("scenery-still") ? "still" : "moving";
+    document.querySelectorAll("[data-scenery]").forEach((r) => {
+      r.checked = r.value === now;
+      r.addEventListener("change", () => {
+        if (!r.checked) return;
+        h.classList.toggle("scenery-still", r.value === "still");
+        h.classList.toggle("scenery-off", r.value === "off");
+        try { localStorage.setItem("scenery", r.value); } catch (_) { /* not saved */ }
+      });
+    });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wireScenery); else wireScenery();
   document.addEventListener("click", (e) => { if (e.target.closest?.(".btn, .nav > a, .side-link, .dock a")) play("click"); }, true);
   document.addEventListener("htmx:afterRequest", (e) => {  // a claim that went through
     const path = e.detail?.pathInfo?.requestPath || "";
@@ -1641,7 +1656,36 @@ function playFight(root) {
       spotImg.onerror = null;
     }
     root.classList.remove("playing");
+    finale(root, skipped);
   })();
+}
+// The fight is over: the frame freezes in sepia under "To Be Continued", then a win cuts to its MVP striking a pose
+// (tap to go on), and only then the 勝利!/敗北… slam. Skipped replays and "reduce motion" go straight to the slam.
+function finale(root, skipped) {
+  const freeze = root.querySelector(".tbc-freeze");
+  if (!freeze) return;
+  const pose = root.querySelector("[data-pose]");
+  // the arrow and the pose go to the page's top level, above the sidebar and the spotlight
+  const arrow = freeze.querySelector(".tbc-arrow").cloneNode(true);
+  const done = () => { root.classList.remove("tbc", "posing"); arrow.remove(); pose?.remove(); };
+  if (skipped || root.dataset.fx === "0" || matchMedia("(prefers-reduced-motion: reduce)").matches) return done();
+  root.classList.add("tbc");
+  arrow.classList.add("live");
+  document.body.append(arrow);
+  window.SFX?.play("ko");
+  setTimeout(() => {
+    arrow.remove();
+    if (!root.isConnected) return;
+    root.classList.remove("tbc");
+    if (!pose) return done();
+    root.classList.add("posing");
+    pose.classList.add("live");
+    document.body.append(pose);
+    window.SFX?.play("fanfare");
+    const end = () => done();
+    pose.addEventListener("click", end, { once: true });
+    setTimeout(end, 4200);
+  }, 1900);
 }
 document.addEventListener("htmx:load", (e) => {
   const root = e.detail.elt.id === "fight" ? e.detail.elt : e.detail.elt.querySelector?.("#fight");

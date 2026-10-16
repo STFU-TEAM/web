@@ -20,6 +20,14 @@
     {% endif %}
   </header>
   {% if mode == 'replay' %}<p class="muted small-print replay-hint">Tap the arena to skip to the end. Specials, crits and every hit play back as they happened.</p>{% endif %}
-  {{ frame }}
+  {% if mode == 'watch' and fight.kind == 'ranked' %}
+    <div class="watch-layout">
+      <div class="watch-main">{{ frame }}</div>
+      {#- spectators back a side before round 3 (app/predictions.py); the panel polls on its own -#}
+      <aside class="predict-panel" hx-get="{{ url_for('battles.predict', fight_id=fight_id) }}" hx-trigger="load, every 4s" hx-swap="innerHTML" aria-live="polite"></aside>
+    </div>
+  {% else %}
+    {{ frame }}
+  {% endif %}
 </section>
 {% endblock %}

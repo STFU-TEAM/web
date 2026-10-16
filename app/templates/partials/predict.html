@@ -1,0 +1,45 @@
+{#- Ranked predictions for spectators (app/predictions.py, battles.predict): polled every few seconds. -#}
+{% set url = url_for('battles.predict', fight_id=fight_id) %}
+<section class="predict">
+  <header class="predict-head">
+    <h2 class="h3">Who wins?</h2>
+    <small>{% if p.done %}Settled{% elif p.closed %}Predictions closed{% else %}Closes at round {{ p.close_round }}{% endif %}</small>
+  </header>
+  {% if error %}<p class="flash error" role="alert">{{ error }}</p>{% endif %}
+
+  <div class="predict-pool" aria-hidden="true"><i style="width: {{ p.share[0] }}%"></i><i style="width: {{ p.share[1] }}%"></i></div>
+  <p class="predict-total">Pool <strong>{{ p.total|num }}</strong> dust · {{ p.backers }} spectator{{ 's' if p.backers != 1 }}</p>
+
+  {% if p.done %}
+    {% set w = p.done.winner %}
+    <p class="predict-result">{% if w is none %}No winner: every stake went back.{% else %}<strong>{{ p.names[w] }}</strong> won the duel.{% endif %}</p>
+    {% if p.mine %}
+      {% if p.paid > p.mine.stake %}<p class="predict-paid win">Called it! +{{ (p.paid - p.mine.stake)|num }} dust ({{ p.paid|num }} back)</p>
+      {% elif p.paid == p.mine.stake %}<p class="predict-paid">Your {{ p.mine.stake|num }} dust came back.</p>
+      {% else %}<p class="predict-paid lose">Your {{ p.mine.stake|num }} dust went to the winners.</p>{% endif %}
+      <p class="muted small-print">Right calls in a row: <strong>{{ p.streak }}</strong>. {{ p.oracle }} make you an <strong>Oracle</strong> (a title).</p>
+    {% endif %}
+  {% elif p.mine %}
+    <p class="predict-mine">You backed <strong>{{ p.names[p.mine.side] }}</strong> with {{ p.mine.stake|num }} dust: about <strong>×{{ p.mult[p.mine.side] }}</strong> back if they win.</p>
+  {% elif p.duelist %}
+    <p class="muted">You're in this duel: spectators make the calls.</p>
+  {% elif p.open %}
+    <form class="predict-form" hx-post="{{ url }}" hx-target="closest .predict-panel" hx-swap="innerHTML">
+      <fieldset class="predict-sides">
+        <legend class="sr">Side</legend>
+        {% for name in p.names %}
+          <label class="predict-side"><input type="radio" name="side" value="{{ loop.index0 }}" required>
+            <span><strong>{{ name }}</strong><small>{{ p.share[loop.index0] }}% of the pool · pays about ×{{ p.mult[loop.index0] }}</small></span></label>
+        {% endfor %}
+      </fieldset>
+      <fieldset class="predict-stakes">
+        <legend>Stake <small class="muted">({{ p.left|num }} left today)</small></legend>
+        {% for s in p.stakes %}<label class="predict-stake"><input type="radio" name="stake" value="{{ s }}" {{ 'checked' if loop.index0 == 1 }} {{ 'disabled' if s > p.left }}><span>{{ s }}</span></label>{% endfor %}
+      </fieldset>
+      <button class="btn gold">Make the call</button>
+    </form>
+  {% else %}
+    <p class="muted">Predictions closed at round {{ p.close_round }}.</p>
+  {% endif %}
+  <p class="muted small-print">Duelists can't predict their own duel. Up to {{ p.stakes[-1] }} dust a duel, 2,000 a day. A draw or an abandoned duel refunds everyone.</p>
+</section>

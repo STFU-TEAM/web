@@ -98,6 +98,8 @@
     <input type="hidden" name="log_len" value="{{ fight.log|length }}">{% endif %}
     <div class="arena terrain-{{ fight.terrain.name|lower }}{% if fight.terrain.name != 'DEFAULT' %} has-terrain{% endif %}" data-terrain="{{ fight.terrain.name }}">
       <i class="arena-bg" aria-hidden="true"></i>
+      {#- the terrain drawn behind the fight (CSS, by .terrain-*); only a real terrain shows it over the mode's own ground -#}
+      <i class="scenery" aria-hidden="true"><i class="sc-sky"></i><i class="sc-far"></i><i class="sc-near"></i><i class="sc-fx"></i><i class="sc-veil"></i></i>
       {% if looks %}
         {#- a duel: each half wears its player's colours, banner and signature stand -#}
         {% for s, cls in ((1 - my_side, 'them'), (my_side, 'me')) %}{% set lk = looks[s] %}
@@ -109,6 +111,16 @@
       {% if fight.kind == 'ranked' %}<i class="ranked-crown" aria-hidden="true">♛</i>{% endif %}
       {% if fight.finished and not viewer and fight.winner is not none and base < fight.log|length %}
         {#- the result slams in once the last turn's replay is over (hidden while #fight.playing) -#}
+        {#- first the frame freezes in sepia under the To Be Continued arrow; a win then cuts to its MVP's pose (app.js) -#}
+        <div class="tbc-freeze" aria-hidden="true"><span class="tbc-arrow">To Be Continued</span></div>
+        {% if fight.winner == my_side %}{% set mvp, mvp_dmg = fight.mvp(my_side) %}{% if mvp %}
+          <button type="button" class="victory-pose" data-pose aria-label="{{ mvp.name }}, MVP: {{ mvp_dmg|num }} damage. Tap to continue">
+            <i class="pose-rays" aria-hidden="true"></i>
+            <span class="pose-card {{ mvp.rarity|rarity }}"><img src="{{ card_art(mvp.id, True, mvp.shiny is defined and mvp.shiny)[0] }}" alt="" onerror="this.onerror=null;this.src='{{ mvp.id|stand_img }}'"><b>MVP</b></span>
+            <span class="pose-go g1" aria-hidden="true">ゴ</span><span class="pose-go g2" aria-hidden="true">ゴ</span><span class="pose-go g3" aria-hidden="true">ゴ</span>
+            <span class="pose-text"><strong>VICTORY</strong><span>｢{{ mvp.name }}｣ strikes its pose</span><small>MVP · {{ mvp_dmg|num }} damage</small></span>
+          </button>
+        {% endif %}{% endif %}
         <div class="fight-slam {{ 'win' if fight.winner == my_side else 'lose' }}" aria-hidden="true">
           <i class="slam-lines"></i><b>{{ '勝利!' if fight.winner == my_side else '敗北…' }}</b><small>{{ 'Victory' if fight.winner == my_side else 'Defeat' }}</small>
         </div>

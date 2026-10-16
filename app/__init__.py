@@ -42,6 +42,8 @@ def create_app() -> Flask:
     from app.routes.journey import bp as journey_bp
     from app.routes.coop import bp as coop_bp
     from app.routes.chat import bp as chat_bp
+    from app.routes.den import bp as den_bp
+    from app.routes.gauntlet import bp as gauntlet_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -57,6 +59,8 @@ def create_app() -> Flask:
     app.register_blueprint(journey_bp)
     app.register_blueprint(coop_bp)
     app.register_blueprint(chat_bp)
+    app.register_blueprint(den_bp)
+    app.register_blueprint(gauntlet_bp)
 
     @app.before_request
     def live_state():

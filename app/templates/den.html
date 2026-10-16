@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}D'Arby's gambling den | STFU Requiem{% endblock %}
+{% block main %}
+<section class="page den">
+  <header class="den-hero">
+    <div class="den-darby" aria-hidden="true"><span class="den-card-face"><b>D</b><i>♠</i></span></div>
+    <div class="den-hero-text">
+      <p class="den-kicker">Market · a side game</p>
+      <h1 class="den-title">D'Arby's gambling den</h1>
+      <p class="den-speech">“Good! The glass is full to the brim, and I never refuse a wager. Shall we?”<small>Daniel J. D'Arby</small></p>
+    </div>
+    <dl class="den-today">
+      <div><dt>Games today</dt><dd>{{ today.games }}<small>/{{ D.GAMES_PER_DAY }}</small></dd></div>
+      <div><dt>Lost today</dt><dd>{{ today.lost|num }}<small>/{{ D.LOSS_PER_DAY|num }}</small></dd></div>
+      <div><dt>Your dust</dt><dd>{{ u.fragments|num }}</dd></div>
+    </dl>
+  </header>
+
+  <ul class="den-deck" aria-label="Games">
+    <li class="den-play on"><span class="den-suit" aria-hidden="true">♦</span><b>The coin glass</b><small>Take turns dropping coins into a brimming glass. Whoever spills it loses.</small></li>
+    <li class="den-play"><span class="den-suit" aria-hidden="true">♣</span><b>Poker, one draw</b><small>Coming soon. D'Arby never seems to lose…</small></li>
+    <li class="den-play"><span class="den-suit" aria-hidden="true">♥</span><b>The cat's choice</b><small>Coming soon. Two cutlets, one cat.</small></li>
+  </ul>
+
+  <div class="den-room">
+    <div class="den-felt">{% include "partials/den_table.html" %}</div>
+
+    <aside class="den-side">
+      {% if not t or t.state not in ('playing', 'waiting') %}
+        {% if blocked %}
+          <div class="den-card den-blocked"><b>The table is closed to you</b><p>{{ blocked }}</p></div>
+        {% else %}
+          <form class="den-card" method="post" action="{{ url_for('den.start') }}">
+            <input type="hidden" name="csrf" value="{{ csrf_token }}">
+            <p class="den-label">Your stake</p>
+            <fieldset class="den-chips">
+              <legend class="sr">Stake</legend>
+              {% set left = D.LOSS_PER_DAY - today.lost %}
+              {% for v in [100, 250, 500, 1000, 2000] %}
+                <label class="den-chip c{{ loop.index }}"><input type="radio" name="stake" value="{{ v }}" {{ 'checked' if v == 500 }} {{ 'disabled' if v > u.fragments or v > left }}><span>{{ v if v < 1000 else (v // 1000) ~ 'K' }}</span></label>
+              {% endfor %}
+            </fieldset>
+            <button class="btn gold big">Play D'Arby</button>
+            <p class="muted small-print">Win: your stake back, doubled. Lose: D'Arby keeps it.</p>
+            <hr class="den-rule">
+            <p class="den-label">Or challenge a friend · same stake each, winner takes the pot</p>
+            {% if friends %}
+              <label for="den-friend" class="sr">Friend</label>
+              <select id="den-friend" name="friend">{% for f in friends %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}</select>
+              <button class="btn" formaction="{{ url_for('den.challenge_friend') }}">Send the challenge</button>
+              <p class="muted small-print">It lands in their inbox and waits 10 minutes. D'Arby referees and keeps nothing.</p>
+            {% else %}<p class="muted">Add friends to challenge them here. <a href="{{ url_for('community.players') }}">Find players</a></p>{% endif %}
+          </form>
+        {% endif %}
+      {% endif %}
+      <div class="den-card den-house">
+        <p class="den-label">House rules</p>
+        <div class="den-limit{{ ' hit' if today.games >= D.GAMES_PER_DAY }}"><span>Games: {{ today.games }} of {{ D.GAMES_PER_DAY }}</span><span class="bar"><i style="width: {{ [100, 100 * today.games / D.GAMES_PER_DAY]|min }}%"></i></span></div>
+        <div class="den-limit{{ ' hit' if today.lost >= D.LOSS_PER_DAY }}"><span>Lost: {{ today.lost|num }} of {{ D.LOSS_PER_DAY|num }} dust</span><span class="bar"><i style="width: {{ [100, 100 * today.lost / D.LOSS_PER_DAY]|min }}%"></i></span></div>
+        <ul class="den-rules">
+          <li>Stakes up to {{ D.MAX_STAKE|num }}; level {{ D.MIN_LEVEL }}+ only.</li>
+          <li>{{ D.COOL_AFTER }} losses in a row close the table for {{ D.COOL_OFF // 60 }} minutes.</li>
+          <li>Win {{ D.CHIP_STREAK }} in a row against D'Arby: his poker chip, a title.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}

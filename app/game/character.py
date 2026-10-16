@@ -262,6 +262,9 @@ class Character:
             dict: Default {"damage": 0, "critical": False, "crit": 0, "dodged": False}; crit counts the crits
         """
         atck = {"damage": 0, "critical": False, "crit": 0, "dodged": False}
+        if self.__dict__.pop("_g_blinded", False):  # the Gauntlet's Red Stone of Aja: blinded, this attack misses
+            atck["dodged"] = True
+            return atck
         terrain = self.terrain
         multi = multiplier * TERRAIN_DAMAGE_MULT.get(terrain, 1)
         tier = crit_tier(self.current_critical)
@@ -272,6 +275,13 @@ class Character:
             atck["crit"] = tier
             pierce = pierce or terrain in TERRAIN_CRIT_PIERCES
         multi *= slayer_mult(self, ennemy_character)
+        # the Gauntlet's prototype items (gauntlet.apply_item): a loaded coin on every hit, a silver first shot
+        if self.__dict__.get("_g_coin"):
+            multi *= random.choice((2.5, 0.5))
+        sure = self.__dict__.pop("_g_bullet", False)
+        if sure:
+            multi *= 3
+            pierce = True
         if getattr(ennemy_character, "_ward", 0) and not getattr(self, "_bonded", False):
             multi *= 1 - ennemy_character._ward  # Over Heaven ward: only stands in a synergy hit at full strength
         # Armor: 100 is neutral, 0 doubles damage, 400 (the cap) takes 40%. Resonant strikes ignore a share of it.
@@ -279,7 +289,7 @@ class Character:
             armor = min(max(ennemy_character.current_armor, 0), ARMOR_CAP) * (1 - getattr(self, "_armor_pierce", 0))
             multi *= 200 / (100 + armor)
         # A faster target may dodge: one percent per point of speed gap.
-        if ennemy_character.current_speed > self.current_speed and terrain not in TERRAIN_NO_DODGE:
+        if ennemy_character.current_speed > self.current_speed and terrain not in TERRAIN_NO_DODGE and not sure:
             dodge_chance = min(DODGE_CHANCE_CAP, (ennemy_character.current_speed - self.current_speed) // DODGENERF)
             if random.randint(0, 100) < dodge_chance:
                 atck["dodged"] = True

@@ -199,12 +199,87 @@ class Fight:
             for i, c in enumerate(side.chars):
                 if c.is_alive() or (s, i) in down:
                     continue
+                if c.__dict__.pop("_g_zip", False):  # the Gauntlet's Zipper: once a fight, the finishing blow misses
+                    c.current_hp = 1
+                    self._log(f"🤐 Sticky Fingers zips {c.name} out of the way: it hangs on at 1 health!", "terrain", c, s)
+                    continue
+                if c.__dict__.pop("_g_bomb", 0):  # the Gauntlet's Killer Queen switch: it detonates as it falls
+                    blast = c.start_hp * 0.6
+                    total = sum(e.take(blast) for e in self.sides[1 - s].chars if e.is_alive())
+                    self._log(f"💣 {c.name} falls, and the switch clicks: {total} damage to every enemy!", "special", c, s,
+                              src=[s, i])
+                if c.__dict__.pop("_g_revive", False):  # the Gauntlet's Saint's Spine: once a run, it gets back up
+                    c.effects = []
+                    c.current_hp = c.start_hp // 2
+                    self.meta["revived"] = True
+                    self._log(f"✝️ The Saint's Spine glows: {c.name} gets back up at half health, every debuff gone!",
+                              "terrain", c, s)
+                    continue
                 down.add((s, i))
                 if "golden_spirit" in getattr(self, "resonances", {}).get(s, ()) and side.alive():
                     rallied = resonance.second_wind(side.chars, c)
                     if rallied:
                         self._log(f"✨ {c.name} falls, and {', '.join(rallied)} rally with a Second Wind!", "terrain", side=s)
         self._down = down
+
+    # ── the Gauntlet's prototype items (app/game/gauntlet.py apply_item sets the _g_* flags) ──
+    def _gauntlet_hit(self, char, targeted, data, p, idx) -> None:
+        """After a basic attack: the hat's counter on a dodge, the steel ball's chain, the red stone's blinding, the
+        lipstick's heal, the ACT 3 seal's weight, the Hand's erasure."""
+        from app.game.effects import Effect, EffectType
+        watcher = self.sides[1 - p]
+        if data["dodged"] and getattr(targeted, "_g_counter", 0) and targeted.is_alive() and char.is_alive():
+            back = targeted.attack(char, multiplier=targeted._g_counter)
+            if back["damage"]:
+                self._log(f"🎩 {targeted.name} dodges and counters {char.name} for {back['damage']}!", "hit", targeted,
+                          1 - p, dmg=back["damage"], src=[1 - p, idx], dst=[p, self.si])
+        if data["damage"] and getattr(char, "_g_chain", 0):
+            amount = data["damage"]
+            for j, other in enumerate(watcher.chars):
+                if other is targeted or not other.is_alive():
+                    continue
+                amount *= char._g_chain
+                dealt = other.take(amount)
+                if dealt:
+                    self._log(f"🌀 The steel ball spins on into {other.name} for {dealt}.", "hit", char, p, dmg=dealt,
+                              src=[p, self.si], dst=[1 - p, j])
+        if data.get("critical") and getattr(char, "_g_blind", False) and targeted.is_alive():
+            targeted._g_blinded = True
+            self._log(f"🔴 The Red Stone flashes: {targeted.name} is blinded and will miss its next attack.", "info", char, p)
+        if data.get("critical") and getattr(char, "_g_lips", 0):
+            healed = sum(a.heal(a.start_hp * char._g_lips) for a in self.sides[p].chars if a.is_alive())
+            if healed:
+                self._log(f"💄 Cinderella's Lipstick: the critical hit heals the team for {healed}.", "info", char, p)
+        if data["damage"] and getattr(char, "_g_freeze", 0) and targeted.is_alive():
+            targeted.add_effect(Effect(EffectType.SLOW, 1, int(targeted.current_speed * char._g_freeze) + 1, char))
+        if data["damage"] and getattr(char, "_g_erase", 0) and targeted.is_alive():
+            erased = targeted.take(share_hp(targeted) * char._g_erase)
+            if erased:
+                self._log(f"✋ The Hand erases {erased} more from {targeted.name}.", "hit", char, p, dmg=erased,
+                          src=[p, self.si], dst=[1 - p, idx])
+
+    def _disc_copy(self, caster, p) -> None:
+        """Blank DISC: the first special an enemy uses each fight is copied and fired back, 50% stronger."""
+        from app.game import characterabilities as abilities
+        from app.game.character import specials
+        mine = self.sides[1 - p]
+        for j, holder in enumerate(mine.chars):
+            if not holder.is_alive() or not holder.__dict__.pop("_g_disc", False):
+                continue
+            func = specials.get(str(caster.id))
+            if not func:
+                return
+            holder.current_damage *= 1.5
+            abilities.begin_special(holder)
+            try:
+                payload, message = func(holder, mine.chars, self.sides[p].chars)
+            finally:
+                abilities.end_special()
+                holder.current_damage /= 1.5
+            if payload.get("is_a_special", True):
+                self._log(f"💿 {holder.name}'s Blank DISC copies {caster.name}'s special! {message}", "special", holder,
+                          1 - p, src=[1 - p, j])
+            return
 
     @property
     def acting_side(self) -> int:
@@ -250,6 +325,30 @@ class Fight:
                          "char_id": char.id if char else None, "side": side,
                          "src": src, "dst": dst, "dmg": dmg, "crit": crit,
                          "hp": [[max(c.current_hp, 0) for c in s.chars] for s in self.sides]})
+
+    def damage_dealt(self, side: int) -> dict:
+        """{fighter index: health it took off the other side} over the whole fight: every event's losses go to the
+        fighter that caused it (its src). Poison ticks and sudden death have no source and count for nobody."""
+        out, prev = {}, None
+        for e in self.log:
+            hp = e.get("hp")
+            if not hp:
+                continue
+            src = e.get("src")
+            if prev is not None and src and src[0] == side:
+                lost = sum(max(0, a - b) for a, b in zip(prev[1 - side], hp[1 - side]))
+                if lost:
+                    out[src[1]] = out.get(src[1], 0) + lost
+            prev = hp
+        return out
+
+    def mvp(self, side: int):
+        """(fighter, damage) of side's top damage dealer, or (None, 0)."""
+        dealt = self.damage_dealt(side)
+        if not dealt:
+            return None, 0
+        idx = max(dealt, key=dealt.get)
+        return self.sides[side].chars[idx], int(dealt[idx])
 
     @property
     def round(self) -> int:
@@ -336,6 +435,27 @@ class Fight:
         side = self.sides[p]
         for c in side.chars:
             c.end_turn()
+        for c in side.chars:  # the Gauntlet's Crazy Diamond fist and Sheer Heart Attack
+            if not c.is_alive():
+                continue
+            if getattr(c, "_g_restore", 0):
+                hurt = min((a for a in side.chars if a.is_alive()), key=lambda a: a.current_hp / max(1, a.start_hp))
+                fixed = hurt.heal(hurt.start_hp * c._g_restore)
+                if fixed:
+                    self._log(f"💎 Crazy Diamond restores {hurt.name} by {fixed}.", "info", c, p)
+            if getattr(c, "_g_sha", 0):
+                foes = [e for e in self.sides[1 - p].chars if e.is_alive()]
+                if foes:
+                    fastest = max(foes, key=lambda e: e.current_speed)
+                    dealt = fastest.take(c.current_damage * c._g_sha)
+                    if dealt:
+                        self._log(f"🎯 Sheer Heart Attack homes in on {fastest.name} for {dealt}! (KOCCHI WO MIRO!)", "hit", c, p,
+                                  dmg=dealt)
+        drained = [c for c in side.chars if c.is_alive() and getattr(c, "_g_drain", 0)]
+        for c in drained:  # the Gauntlet's Stone Mask feeds on its wearer
+            c.take(c.start_hp * c._g_drain)
+        if drained:
+            self._log(f"🎭 The Stone Mask feeds on {', '.join(c.name for c in drained)}.", "info", side=p)
         if self.__dict__.get("rules"):
             from app.game import overheaven
             text = overheaven.end_turn(self, p)
@@ -404,6 +524,8 @@ class Fight:
                                   dmg=data["damage"], **hit)
                     if (self.__dict__.get("rules") or {}).get("hidden_hp") and p == self.human_side:
                         targeted._read = getattr(targeted, "_read", 0) + 1  # Heaven's Door: hits read its book
+                    if self.kind == "gauntlet":
+                        self._gauntlet_hit(char, targeted, data, p, idx)
                     if data["damage"] and getattr(char, "_lifesteal", 0):
                         char.heal(data["damage"] * char._lifesteal)
                     if data["damage"] and self.__dict__.get("rules"):
@@ -416,6 +538,12 @@ class Fight:
                     if payload["is_a_special"]:
                         self._log(message, "special", char, p, src=[p, self.si])
                         self.king_crimson |= payload.get("king_crimson", False)
+                        if self.kind == "gauntlet" and p != self.human_side:
+                            self._disc_copy(char, p)
+                        if getattr(char, "_g_tax", 0) and char.is_alive():  # the Gauntlet's Pact of the Arrow
+                            paid = char.take(char.start_hp * char._g_tax)
+                            if paid:
+                                self._log(f"🏹 The Arrow collects its due: {char.name} loses {paid}.", "info", char, p)
                 if char.is_alive():
                     for item in char.items:
                         if item.as_special():

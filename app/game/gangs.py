@@ -349,6 +349,60 @@ RAID_SINGULARITY = 33  # the boss carries the raid singularity (items.json): a h
 SMALL_GANG = [(5, 2.0), (10, 1.6), (15, 1.3), (20, 1.15)]
 
 
+# Raid phases: the gang's weekly damage moves the villain through four phases, each fought under rules from the
+# Over Heaven engine (overheaven.RULE_TEXT). The last is enraged but open: your stands deal more to it.
+RAID_PHASES = [0, 50_000, 200_000, 400_000]
+_OPEN = {"enrage": 0.06, "my_damage": 0.2}
+PHASES = {  # villain: [(name, what changes)] for phases 2-4, with their rules (phase 1 has none)
+    "DIO": [("ZA WARUDO", "Every 3rd round DIO stops time and his side acts twice in a row.", {"time_stop": 3}),
+            ("Road Roller", "Time still stops, and the road roller crushes your team a little every turn.", {"time_stop": 3, "pressure": 0.03}),
+            ("Blood thirst", "Enraged: DIO grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Yoshikage Kira": [("Sheer Heart Attack", "Touching it explodes: 20% of every basic hit on the crew comes back.", {"reflect": 0.2}),
+                       ("Bites the Dust", "The morning rewinds: the crew heals 4% every turn, and still explodes.", {"reflect": 0.2, "regen": 0.04}),
+                       ("Cornered rat", "Enraged: Kira grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Diavolo": [("Epitaph", "He sees the future: his side always moves first.", {"enemy_first": True}),
+                ("King Crimson", "He moves first, and every 3rd round erases your next turn.", {"enemy_first": True, "erase": 3}),
+                ("The throne", "Enraged: Diavolo grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Enrico Pucci": [("Whitesnake's DISCs", "The crew shrugs off every debuff and poison at the end of its turns.", {"purge": True}),
+                     ("C-Moon", "Gravity turns inside out: the field is a Gravity Field, and debuffs still slide off.", {"purge": True, "terrain": "GRAVITY"}),
+                     ("Made in Heaven", "Enraged: time accelerates and Pucci grows stronger, but your blows land 20% harder.", _OPEN)],
+    "Funny Valentine": [("Another dimension", "D4C swaps in fresh selves: the crew heals 4% every turn.", {"regen": 0.04}),
+                        ("Love Train", "Misfortune is sent elsewhere: 30% of every basic hit comes back, and it still heals.", {"regen": 0.04, "reflect": 0.3}),
+                        ("Patriot", "Enraged: Valentine grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Toru": [("Calamity", "Pursuit invites disaster: your team loses 2% of its health every turn.", {"pressure": 0.02}),
+             ("The hospital", "Disaster closes in: 3% every turn, and your healing is halved.", {"pressure": 0.03, "heal_cut": 0.5}),
+             ("Wonder of U", "Enraged: Toru grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Diego Brando": [("THE WORLD", "Every 3rd round Diego stops time and his side acts twice in a row.", {"time_stop": 3}),
+                     ("Scary Monsters", "Time still stops, and the dinosaurs can't be stunned.", {"time_stop": 3, "stun_immune": True}),
+                     ("From another world", "Enraged: Diego grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+    "Chariot Requiem": [("Soul swap", "Souls trade places: stands outside an active synergy deal 30% less.", {"ward": 0.3}),
+                        ("The arrow's light", "Still warded, and the crew heals 4% every turn.", {"ward": 0.3, "regen": 0.04}),
+                        ("Requiem", "Enraged: it grows stronger every turn, but your blows land 20% harder.", _OPEN)],
+}
+
+
+def raid_phase(gang: Optional[dict]) -> int:
+    """0-3: the phase this week's damage has pushed the villain into."""
+    done = raid_state(gang)["damage"] if gang else 0
+    return max(i for i, at in enumerate(RAID_PHASES) if done >= at)
+
+
+def phases_view(gang: Optional[dict]) -> dict:
+    """The villain's phases for the raid card: the current one, the next threshold, what each one does."""
+    from app.game.overheaven import rule_lines
+    boss = weekly_boss()
+    steps = PHASES.get(boss["name"], [])
+    rows = [("The villain", "No tricks yet: the crew fights as it is.", {})] + list(steps)
+    now = raid_phase(gang)
+    done = raid_state(gang)["damage"] if gang else 0
+    return {"now": now, "name": rows[now][0], "text": rows[now][1], "rules": rows[now][2],
+            "next_at": RAID_PHASES[now + 1] if now + 1 < len(RAID_PHASES) else None,
+            "to_next": RAID_PHASES[now + 1] - done if now + 1 < len(RAID_PHASES) else 0,
+            "rows": [{"n": i + 1, "name": name, "text": text, "at": RAID_PHASES[i], "lines": rule_lines(rules),
+                      "state": "now" if i == now else "done" if i < now else "locked"}
+                     for i, (name, text, rules) in enumerate(rows)]}
+
+
 def raid_mult(gang: Optional[dict]) -> float:
     """How much each raid attack counts for this gang: more for small gangs (SMALL_GANG)."""
     n = len(members(gang)) if gang else 0

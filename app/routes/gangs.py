@@ -103,6 +103,7 @@ def index():
     user = db.get_user(session["uid"])
     gang = _settle_war(db, db.get_gang(user.gang_id))
     ctx = {"u": user, "gang": gang, "R": G, "fight": load_fight(user.id), "raid_villain": G.weekly_boss(), "raid_mult": G.raid_mult(gang),
+           "raid_phases": G.phases_view(gang),
            "tiers": [{**t, "text": G.tier_text(t)} for t in G.RAID_TIERS], "week_ends": G.week_ends(),
            "raid_board": G.raid_board(r())}
     if gang:
@@ -478,6 +479,10 @@ def attack_start(mode):
             logic.track_quest_progress(user, "raid_attack")
             enemies, foe = G.raid_team(), G.weekly_boss()["name"]
             meta["week"] = G.week_key()
+            ph = G.phases_view(gang)
+            if ph["rules"]:  # the phase the gang has pushed the villain into plays under its rules
+                meta.update(rules=ph["rules"], rules_label=f"☢️ Phase {ph['now'] + 1} · {ph['name']}")
+            meta["raid_phase"] = ph["now"] + 1
         fight = Fight(Side(session.get("name", "You"), fighting_copy(user.main_characters), True, session.get("avatar")),
                       Side(foe, enemies, False), kind=f"gang_{mode}", meta=meta)
         fight.advance()

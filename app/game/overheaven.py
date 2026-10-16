@@ -668,7 +668,8 @@ def apply_rules(fight) -> List[str]:
             c.special_meter = min(c.turn_for_ability - 1, c.special_meter + rules["my_charge"])
     for c in foe.chars:
         c._stun_immune = bool(rules.get("stun_immune"))
-    return ["☁️ Over Heaven: " + line for line in rule_lines(rules)]
+    label = (getattr(fight, "meta", None) or {}).get("rules_label") or "☁️ Over Heaven"  # raids name their phase
+    return [f"{label}: {line}" for line in rule_lines(rules)]
 
 
 def end_turn(fight, p: int) -> Optional[str]:
@@ -696,7 +697,8 @@ def end_turn(fight, p: int) -> Optional[str]:
             c.effects = [e for e in c.effects if e.duration > 0]
         notes.append("shrugs off every debuff")
     if rules.get("regen"):
-        healed = sum(c.heal(c.start_hp * rules["regen"]) for c in alive)
+        from app.game.character import share_hp  # a raid boss's huge pool heals like a normal stand's
+        healed = sum(c.heal(share_hp(c) * rules["regen"]) for c in alive)
         if healed:
             notes.append(f"regenerates {healed}")
     if rules.get("enrage"):
