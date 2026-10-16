@@ -419,6 +419,7 @@ def facts():
     return {
         "xp_per_level": character_mod.STXPTOLEVEL, "catch_up": logic.CATCH_UP_LEVEL, "max_level": character_mod.MAX_LEVEL,
         "dodge_cap": character_mod.DODGE_CHANCE_CAP, "dodge_per": character_mod.DODGENERF,
+        "mih_dodge_cap": character_mod.DODGE_CAP_BY_ID[109],
         "crit_multiplier": character_mod.CRITMULTIPLIER,
         "counter_armor": round(fight_mod.COUNTER_ARMOR * 100), "counter_damage": round(fight_mod.COUNTER_DAMAGE * 100),
         "counter_turns": fight_mod.COUNTER_TURNS, "counter_crit": fight_mod.COUNTER_CRIT_MAX,

@@ -1840,7 +1840,7 @@
             "id": 109,
             "name": "Made In Heaven",
             "rarity": "LR",
-            "special_description": "Accelerates time: `+20%` speed and `+15%` damage for good, plus `+10` crit for `2` turns. With a Pucci ally, Whitesnake and C-Moon also gain `+25%` speed and `+15%` damage for `2` turns.",
+            "special_description": "Accelerates time: `+20%` speed and `+15%` damage for good, plus `+10` crit for `2` turns. With a Pucci ally, Whitesnake and C-Moon also gain `+25%` speed and `+15%` damage for `2` turns. Time itself bends for it: its dodge chance can reach 50% (others stop at 20%), even on its own Gravity field.",
             "special_url": "",
             "base_hp": 510,
             "base_damage": 84,

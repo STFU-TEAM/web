@@ -103,7 +103,7 @@ TRACKS = [
              "rules": {"enrage": 0.06, "heal_cut": 0.5},
              "text": "Pucci's guard moves faster than thought, and Weather Report floods the field.",
              "hint": "Their speed holds an Ocean field and turns your attacks into misses. Take the field back: "
-                     "a Home Field team keeps its terrain whatever the speed (Gravity: nobody can dodge)."},
+                     "a Home Field team keeps its terrain whatever the speed (Gravity: only its natives can dodge)."},
             {"title": "The Road to Cairo", "power": 1.54,
              "enemies": [(10, ["ATTACK"], [U], [42], {}), (25, ["ATTACK", "LUCK"], [U, S], [42], {}),
                          (16, ["HEALTH"], [U], [46], {})],
@@ -197,8 +197,8 @@ TRACKS = [
              "enemies": [(161, ["HEALTH"], [U], [37], {}), (148, ["ATTACK"], [U], [45], {}),
                          (159, ["ATTACK"], [U], [42], {})],
              "rules": {"heaven_tax": 0.5, "terrain": "GRAVITY", "native_ward": 0.5},
-             "text": "On a field where nothing can dodge, borrowed power is the first thing calamity finds.",
-             "hint": "UR and LR fight at half strength, nobody dodges, and only Gravity natives hit at full "
+             "text": "On a field where only calamity's own can dodge, borrowed power is the first thing it finds.",
+             "hint": "UR and LR fight at half strength, and only Gravity natives dodge and hit at full "
                      "strength: C-Moon, Jumpin' Jack Flash, Ball Breaker, the Boom Boom family, I Am a Rock."},
             {"title": "Three Kings of Time", "power": 2.14,
              "enemies": [(10, ["ATTACK"], [U], [37], {}), (58, ["HEALTH"], [U], [43], {}),
@@ -249,8 +249,8 @@ TRACKS = [
              "enemies": [(95, ["DEFENSE"], [U], [44], {}), (115, ["ATTACK"], [U], [42], {}),
                          (148, ["ATTACK"], [U], [42], {})],
              "rules": {"terrain": "GRAVITY", "native_ward": 0.6, "heaven_tax": 0.35},
-             "text": "A floor where everything falls toward you, and nothing can step aside.",
-             "hint": "A locked Gravity field (nobody dodges) where only natives hit at full strength, and UR / LR "
+             "text": "A floor where everything falls toward you, and only gravity's own can step aside.",
+             "hint": "A locked Gravity field where only natives dodge and hit at full strength, and UR / LR "
                      "fight at 65%. Gravity natives of lower rarity: C-Moon, Jumpin' Jack Flash, Ball Breaker, the "
                      "Boom Boom family, I Am a Rock."},
             {"title": "Floor of Leaves", "power": 1.8,

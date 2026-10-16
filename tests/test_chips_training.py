@@ -130,3 +130,21 @@ def test_training_loss_still_pays_a_share(client):
     xp = doc(client, "111")["main_characters"][0]["xp"]
     from app.game.economy import stand_xp
     assert xp == 4000 + stand_xp(training.DRILLS["spar"]["xp"] * training.LOSS_SHARE)
+
+
+def test_gravity_lets_its_natives_dodge_and_made_in_heaven_reaches_50():
+    from app.game.effects import Terrain
+
+    def dodge_rate(target_id, terrain, gap=400, n=2000):
+        random.seed(7)
+        hitter, target = Character(char(1, xp=5000)), Character(char(target_id, xp=5000))
+        hitter.current_critical = 0
+        target.current_speed = hitter.current_speed + gap
+        hitter._active_terrain = terrain
+        return sum(hitter.attack(target)["dodged"] for _ in range(n)) / n
+
+    assert dodge_rate(17, Terrain.GRAVITY) == 0           # an outsider is pinned by the field
+    assert 0.17 < dodge_rate(95, Terrain.GRAVITY) < 0.23  # a Gravity native still steps aside (20% cap)
+    assert 0.17 < dodge_rate(17, Terrain.DEFAULT) < 0.23
+    assert 0.46 < dodge_rate(109, Terrain.GRAVITY) < 0.54  # Made in Heaven: its own field, a 50% cap
+    assert 0.46 < dodge_rate(109, Terrain.DEFAULT) < 0.54

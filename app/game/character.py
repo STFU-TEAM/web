@@ -7,7 +7,7 @@ import uuid
 from app.game.items import Item, item_from_dict
 from app.game.effects import (
     DOT_EFFECTS, STAT_EFFECTS, TERRAIN_CRIT_MULT, TERRAIN_CRIT_PIERCES, TERRAIN_DAMAGE_MULT, TERRAIN_DOT_MULT,
-    TERRAIN_HEAL_MULT, TERRAIN_NO_DODGE, TERRAIN_REGEN, Effect, EffectType, Terrain,
+    TERRAIN_HEAL_MULT, TERRAIN_NO_DODGE, TERRAIN_REGEN, Effect, EffectType, Terrain, is_native,
 )
 from app.game.characterabilities import (
     specials,
@@ -26,6 +26,7 @@ CRITMULTIPLIER = 1.4  # a crit's bonus (the bot's value was 1.5: crits were deci
 # (150 = always a crit, half the time a double). Each crit past the first adds the crit bonus again.
 DODGENERF = 2  # two points of speed gap per percent of dodge: speed decides who moves first, it shouldn't also be armor
 DODGE_CHANCE_CAP = 20
+DODGE_CAP_BY_ID = {109: 50}  # Made in Heaven: accelerated time, it can reach a 50% dodge
 # UR and LR are strong, not game-defining: their natural stats are trimmed toward the SSR line (speed most of all,
 # since it decides who moves first), their specials need 2+ turns, and their specials hit a little softer
 # (characterabilities.RARITY_SPECIAL_POWER). Raid bosses and the dummy keep their numbers.
@@ -289,8 +290,11 @@ class Character:
             armor = min(max(ennemy_character.current_armor, 0), ARMOR_CAP) * (1 - getattr(self, "_armor_pierce", 0))
             multi *= 200 / (100 + armor)
         # A faster target may dodge: one percent per point of speed gap.
-        if ennemy_character.current_speed > self.current_speed and terrain not in TERRAIN_NO_DODGE and not sure:
-            dodge_chance = min(DODGE_CHANCE_CAP, (ennemy_character.current_speed - self.current_speed) // DODGENERF)
+        # On a Gravity field only its natives can step aside.
+        pinned = terrain in TERRAIN_NO_DODGE and not is_native(ennemy_character, terrain)
+        if ennemy_character.current_speed > self.current_speed and not pinned and not sure:
+            cap = DODGE_CAP_BY_ID.get(ennemy_character.id, DODGE_CHANCE_CAP)
+            dodge_chance = min(cap, (ennemy_character.current_speed - self.current_speed) // DODGENERF)
             if random.randint(0, 100) < dodge_chance:
                 atck["dodged"] = True
                 return atck

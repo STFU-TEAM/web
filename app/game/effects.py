@@ -87,7 +87,7 @@ class Terrain(Enum):
     FROZEN   = ("FROZEN",   "Frozen Wastes",  "❄️", "Critical hits deal ×2. Non-native stands lose 20% speed.")
     MIRROR   = ("MIRROR",   "Mirror World",   "🪞", "+10 critical for everyone. Critical hits ignore armor.")
     NATURE   = ("NATURE",   "Nature",         "🌿", "Every stand regenerates 3% max health per turn. Poison deals 50% more.")
-    GRAVITY  = ("GRAVITY",  "Gravity Field",  "🌀", "Nobody can dodge. Every hit deals 10% more damage.")
+    GRAVITY  = ("GRAVITY",  "Gravity Field",  "🌀", "Only Gravity natives can dodge. Every hit deals 10% more damage.")
 
     def __new__(cls, key, display_name, emoji, rule):
         obj = object.__new__(cls)
@@ -118,7 +118,7 @@ TERRAIN_SPEED_PENALTY = {Terrain.OCEAN: 0.15, Terrain.FROZEN: 0.20}  # natives a
 TERRAIN_CRIT_MULT = {Terrain.FROZEN: 2.0}
 TERRAIN_CRIT_BONUS = {Terrain.MIRROR: 10}
 TERRAIN_CRIT_PIERCES = {Terrain.MIRROR}
-TERRAIN_NO_DODGE = {Terrain.GRAVITY}
+TERRAIN_NO_DODGE = {Terrain.GRAVITY}  # nobody dodges but the natives: gravity bends for them
 TERRAIN_DAMAGE_MULT = {Terrain.GRAVITY: 1.10}
 
 
