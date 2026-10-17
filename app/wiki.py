@@ -661,7 +661,7 @@ def item_rows() -> list:
         if kind == "Stand chip":
             use = f"Unlocks {it['name'].replace(' Stand Chip', '').strip()} as a stand."
         elif kind == "Corpse part":
-            use = "Any 3 different parts craft the Holy Corpse; any one, with 2 Rokakaka Fruit, the New Rokakaka."
+            use = "All nine parts together craft the Holy Corpse; any one, with 2 Rokakaka Fruit, the New Rokakaka."
         rows.append({"id": iid, "name": it["name"], "emoji": it.get("emoji") or "◈", "kind": kind, "bonus": bonus,
                      "ability": ITEM_ABILITY.get(iid), "use": use, "sources": sources.get(iid, []),
                      "used_in": used_in.get(iid, []), "sell": logic.sell_price(type("I", (), {"price": it.get("price")})())})

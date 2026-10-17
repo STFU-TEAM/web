@@ -163,17 +163,20 @@ def test_corpse_recipes_take_any_part(monkeypatch):
     fruit = next(r for r in logic.RECIPES if r["result"] == NEW_ROKAKAKA)
     bag = lambda *ids: SimpleNamespace(items=[item_from_dict({"id": i}) for i in ids], data={})  # noqa: E731
     assert len(CORPSE_PARTS) == 9
-    assert logic.craftable(bag(34, 34, 34), holy) == 0  # three of the same part isn't three parts
-    assert logic.craftable(bag(70, 72, 75), holy) == 1  # any three different ones are
-    assert logic.craftable(bag(70, 72, 75, 70, 72, 34), holy) == 2
+    assert logic.craftable(bag(*CORPSE_PARTS[:8], CORPSE_PARTS[0]), holy) == 0  # eight parts aren't the whole Corpse
+    assert logic.craftable(bag(*CORPSE_PARTS), holy) == 1  # it takes one of each
+    assert logic.craftable(bag(*CORPSE_PARTS, *CORPSE_PARTS[:8]), holy) == 1
+    three = {"name": "x", "result": 1, "ingredients": [{"any": list(CORPSE_PARTS), "n": 3, "distinct": True}]}
+    assert logic.craftable(bag(34, 34, 34), three) == 0 and logic.craftable(bag(70, 72, 75, 70, 72, 34), three) == 2
     user = bag(39, 39, 39, 39, 71, 71, 36)
     assert logic.craftable(user, fruit) == 2
     monkeypatch.setattr(logic, "track_quest_progress", lambda *a, **k: None)
     monkeypatch.setattr(logic, "check_achievements", lambda *a, **k: None)
     made = logic.craft(user, "New Rokakaka")
     assert made.id == NEW_ROKAKAKA and sorted(i.id for i in user.items) == [36, 39, 39, 71, NEW_ROKAKAKA]  # spent a spare Spine
-    slots = logic.ingredient_slots(holy)
+    slots = logic.ingredient_slots(three)
     assert slots[0]["distinct"] and slots[0]["n"] == 3 and logic.slot_have(bag(34, 34, 70), slots[0]) == 2
+    assert [s["label"] for s in logic.ingredient_slots(holy)][3] == "Corpse Part: Eyes"  # the page lists what's missing
 
 
 def test_new_rokakaka_trades_wounds_once():

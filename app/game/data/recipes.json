@@ -3,7 +3,15 @@
     {
       "name": "Holy Corpse",
       "ingredients": [
-        {"any": [34, 35, 36, 70, 71, 72, 73, 74, 75], "n": 3, "distinct": true, "label": "different Corpse Parts"}
+        [34, 1],
+        [35, 1],
+        [36, 1],
+        [70, 1],
+        [71, 1],
+        [72, 1],
+        [73, 1],
+        [74, 1],
+        [75, 1]
       ],
       "result": 37
     },

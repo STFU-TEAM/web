@@ -8,8 +8,8 @@ with open(os.path.join(_DATA, "items.json"), "r", encoding="utf-8") as item:
     item_file = json.load(item)["items"]
 
 TORN_DIARY_PAGE = 48
-# The Saint's Corpse: Left Arm, Torso, Heart, Eyes, Spine, Ears, Right Arm, Legs, Head. Any 3 different ones make the
-# Holy Corpse; any one, with two Rokakaka Fruit, the New Rokakaka.
+# The Saint's Corpse: Left Arm, Torso, Heart, Eyes, Spine, Ears, Right Arm, Legs, Head. All nine make the Holy Corpse;
+# any one, with two Rokakaka Fruit, the New Rokakaka.
 CORPSE_PARTS = (34, 35, 36, 70, 71, 72, 73, 74, 75)
 NEW_ROKAKAKA = 76
 # Refining (app/game/gear.py): each level adds REFINE_STEP of the item's listed stats, up to REFINE_MAX.

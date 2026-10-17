@@ -704,7 +704,7 @@ def test_legacy_bytes_key_user_items_shop(client):
         d.pop(k)
     d["main_characters"] = [char(6, xp=100 * 100, awaken=2)]  # Silver Chariot lvl 100 awaken 2 -> requiem
     d["character_storage_1"] = [char(1), char(1, types=("LUCK",))]
-    d["items"] = [{"id": 3}, {"id": 13}, {"id": 4}, {"id": 34}, {"id": 35}, {"id": 36}]
+    d["items"] = [{"id": 3}, {"id": 13}, {"id": 4}] + [{"id": i} for i in (34, 35, 36, 70, 71, 72, 73, 74, 75)]  # the whole Corpse
     d["fragments"] = 20000
     d["last_full_energy"] = datetime.datetime.min
     put(client, d)
