@@ -816,7 +816,8 @@ def wts_guess():
             if out.get("reward"):
                 user.update()
                 flash(f"Nice! It was {whos.facts(whos.answer())['name']}: +{out['reward']} Meteor Dust and "
-                      f"+{out['reward_xp']} player XP.", "ok")
+                      f"+{out['reward_xp']} player XP."
+                      + (f" A {whos.COMB_STREAK}-day streak: {out['reward_item']}!" if out.get("reward_item") else ""), "ok")
             elif out["over"]:
                 flash(f"Out of guesses. It was {whos.facts(whos.answer())['name']}. A new stand tomorrow!", "error")
     except GameError as e:

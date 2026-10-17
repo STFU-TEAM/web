@@ -17,13 +17,15 @@ STAT_LABEL = {"hp_pct": "HP", "damage_pct": "damage", "armor_pct": "armor", "spe
 SETS = {
     "hamon": ("Hamon Breathing", "☀️", (51, 56, 6), {2: [("speed_flat", 6), ("hp_pct", 0.06)],
                                                      3: [("speed_flat", 12), ("hp_pct", 0.12), ("damage_pct", 0.06)]}),
-    "rokakaka": ("Equivalent Exchange", "🌿", (43, 54, 49), {2: [("hp_pct", 0.10)],
+    "rokakaka": ("Equivalent Exchange", "🌿", (43, 54, 49, 76), {2: [("hp_pct", 0.10)],
                                                             3: [("hp_pct", 0.18), ("armor_pct", 0.10)]}),
     "gambler": ("High Roller", "🎲", (15, 55, 52), {2: [("crit_flat", 10)], 3: [("crit_flat", 22), ("speed_flat", 4)]}),
     "crusaders": ("Stardust Crusaders", "⭐", (46, 42, 44, 53), {2: [("armor_pct", 0.08), ("damage_pct", 0.05)],
                                                                 3: [("armor_pct", 0.15), ("damage_pct", 0.10)]}),
     "sbr": ("Steel Ball Run", "🐎", (41, 50, 37), {2: [("speed_flat", 8)], 3: [("speed_flat", 14), ("damage_pct", 0.10)]}),
     "pillar": ("Pillar Men", "🗿", (7, 6, 45), {2: [("damage_pct", 0.08)], 3: [("damage_pct", 0.14), ("hp_pct", 0.08)]}),
+    "passione": ("Passione", "🐞", (61, 64, 66), {2: [("hp_pct", 0.08)], 3: [("hp_pct", 0.15), ("damage_pct", 0.08)]}),
+    "bodyguards": ("Bodyguards", "🛡️", (58, 59, 60), {2: [("armor_pct", 0.10)], 3: [("armor_pct", 0.18), ("hp_pct", 0.08)]}),
 }
 SET_OF = {iid: key for key, (_, _, pieces, _) in SETS.items() for iid in pieces}
 

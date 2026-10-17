@@ -34,6 +34,7 @@ ACCEPT_SECONDS = 10 * 60   # PvP: how long a challenge waits
 GAME_TTL = 3600
 CHIP_TITLE = "D'Arby's poker chip"
 CHIP_STREAK = 3
+LANTERN, LANTERN_NAME = 68, "Enya's Fog Lantern"  # paid each time a streak against D'Arby reaches CHIP_STREAK
 
 
 def risk(coins: int) -> float:
@@ -233,7 +234,8 @@ def settle(redis, game: dict, users: dict) -> Optional[dict]:
         uid = game["players"][0]
         won = game["winner"] == 0
         paid[uid] = 2 * stake if won else 0
-        _result(redis, uid, won, stake, darby=True, user=users.get(uid))
+        if _result(redis, uid, won, stake, darby=True, user=users.get(uid)):
+            game["prize"] = LANTERN_NAME
     else:
         for i, uid in enumerate(game["players"]):
             won = game["winner"] == i
@@ -247,7 +249,8 @@ def settle(redis, game: dict, users: dict) -> Optional[dict]:
     return paid
 
 
-def _result(redis, uid: str, won: bool, stake: int, darby: bool, user=None):
+def _result(redis, uid: str, won: bool, stake: int, darby: bool, user=None) -> bool:
+    """Streaks and limits after a game. True when this win completed a streak and paid the Fog Lantern."""
     key = f"web:den:streak:{uid}"
     if won:
         redis.hset(key, "lose", 0)
@@ -256,13 +259,18 @@ def _result(redis, uid: str, won: bool, stake: int, darby: bool, user=None):
             if wins >= CHIP_STREAK and user is not None:
                 from app.game import titles
                 titles.grant(user, CHIP_TITLE)
-        return
+            if wins == CHIP_STREAK and user is not None:  # once per streak, however long it runs
+                from app.game.items import item_from_dict
+                user.items.append(item_from_dict({"id": LANTERN}))
+                return True
+        return False
     redis.hset(key, "win", 0)
     redis.hincrby(_day(uid), "lost", stake)
     redis.expire(_day(uid), 86400)
     if redis.hincrby(key, "lose", 1) >= COOL_AFTER:
         redis.hset(key, "lose", 0)
         redis.set(f"web:den:cool:{uid}", 1, ex=COOL_OFF)
+    return False
 
 
 def view(redis, game: Optional[dict], uid: str) -> Optional[dict]:

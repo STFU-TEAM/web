@@ -26,6 +26,7 @@ GAUNTLET_LEVEL = 100
 HEAL_BETWEEN = 50           # % of max health back between floors (the fallen get up at this much)
 EXTRA_RUN_ENERGY = 5
 ARROW_FLOOR, TITLE_FLOOR = 15, 20
+PLANE_FLOOR, PLANE_ITEM = 10, 66  # Narancia's Toy Plane, once a week
 TITLE = "Gauntlet Survivor"
 ITEM_EVERY = 3
 RARITY = ["R", "SR", "SSR", "UR", "LR"]
@@ -372,6 +373,11 @@ def finish(user, fight, redis=None, name: str = "?") -> dict:
             m["hp"] = int(min(100, left + HEAL_BETWEEN))
         week = run["week"]
         paid = s["paid"].setdefault(week, [])
+        if floor >= PLANE_FLOOR and PLANE_FLOOR not in paid:
+            from app.game.items import item_from_dict
+            user.items.append(item_from_dict({"id": PLANE_ITEM}))
+            paid.append(PLANE_FLOOR)
+            rewards["item"] = f"Narancia's Toy Plane (floor {PLANE_FLOOR})"
         if floor >= ARROW_FLOOR and ARROW_FLOOR not in paid:
             user.super_fragments += 1
             paid.append(ARROW_FLOOR)

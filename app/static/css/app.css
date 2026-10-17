@@ -6190,6 +6190,7 @@ html.scenery-still .scenery > i { animation: none !important; }
 .den-btns { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
 .den-wait { margin: 0; color: var(--den-gold); font-weight: 700; }
 .den-result { margin: 0; font: 400 2rem var(--display); -webkit-text-stroke: 6px #0C2A1C; paint-order: stroke fill; }
+.den-prize { margin: 0; padding: .35rem .8rem; border-radius: 99px; background: rgb(0 0 0 / .4); color: var(--den-gold); font-weight: 800; }
 .den-result.win { color: #7BF0B8; } .den-result.lose { color: #FF6E9C; }
 .den-quote { position: relative; margin: .3rem 0 0; max-width: 420px; padding: .6rem .9rem; border-radius: 14px; background: #FBF6EA; color: #2A1A10; font: 700 .95rem/1.35 var(--body); }
 .den-quote::before { content: ""; position: absolute; left: 50%; top: -12px; margin-left: -7px; border: 7px solid transparent; border-bottom-color: #FBF6EA; }

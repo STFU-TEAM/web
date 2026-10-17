@@ -8,6 +8,10 @@ with open(os.path.join(_DATA, "items.json"), "r", encoding="utf-8") as item:
     item_file = json.load(item)["items"]
 
 TORN_DIARY_PAGE = 48
+# The Saint's Corpse: Left Arm, Torso, Heart, Eyes, Spine, Ears, Right Arm, Legs, Head. Any 3 different ones make the
+# Holy Corpse; any one, with two Rokakaka Fruit, the New Rokakaka.
+CORPSE_PARTS = (34, 35, 36, 70, 71, 72, 73, 74, 75)
+NEW_ROKAKAKA = 76
 # Refining (app/game/gear.py): each level adds REFINE_STEP of the item's listed stats, up to REFINE_MAX.
 REFINE_STEP, REFINE_MAX = 0.10, 5
 # Bound to the account: can't be sold (price 0), traded, or listed in a player shop, and never drops.
@@ -26,11 +30,15 @@ class Item:
         self.name: str = item_file[self.id-1]["name"]
         self.refine: int = max(0, min(REFINE_MAX, int(data.get("refine", 0) or 0)))
         grow = 1 + REFINE_STEP * self.refine
-        self.bonus_hp: int = round(item_file[self.id-1]["bonus_hp"] * grow)
-        self.bonus_damage: int = round(item_file[self.id-1]["bonus_damage"] * grow)
-        self.bonus_speed: int = round(item_file[self.id-1]["bonus_speed"] * grow)
-        self.bonus_critical: int = round(item_file[self.id-1]["bonus_critical"] * grow)
-        self.bonus_armor:int = round(item_file[self.id-1]["bonus_armor"] * grow)
+
+        def stat(key):  # refining grows what an item gives, never its drawback (Fugo's Capsule: -30 HP)
+            v = item_file[self.id-1][key]
+            return round(v * grow) if v > 0 else v
+        self.bonus_hp: int = stat("bonus_hp")
+        self.bonus_damage: int = stat("bonus_damage")
+        self.bonus_speed: int = stat("bonus_speed")
+        self.bonus_critical: int = stat("bonus_critical")
+        self.bonus_armor: int = stat("bonus_armor")
         self.price: int = item_file[self.id-1]["price"]
         self.prurchasable: bool = item_file[self.id-1]["prurchasable"]
         self.emoji = item_file[self.id-1]["emoji"]

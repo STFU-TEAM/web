@@ -436,8 +436,8 @@ REWARDS = [  # by stage within a track, paid on the first clear (at the economy'
     {"fragments": 5600, "super": 0, "items": [38]},
     {"fragments": 7000, "super": 1, "items": [39, 40]},
     {"fragments": 7000, "super": 0, "items": [38, 40]},
-    {"fragments": 8400, "super": 1, "items": [38, 39]},
-    {"fragments": 9800, "super": 0, "items": [39, 40, 38]},
+    {"fragments": 8400, "super": 1, "items": [38, 39, 60]},  # Avdol's Ankh
+    {"fragments": 9800, "super": 0, "items": [39, 40, 38, 67]},  # Rohan's Pen
     {"fragments": 14000, "super": 2, "items": [3]},  # a Requiem Arrow for the track's last fight
 ]
 REPLAY_ENERGY = 2

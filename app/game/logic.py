@@ -30,7 +30,8 @@ PLAYER_XPGAINS = 100
 CHARACTER_XPGAINS = 15
 FRAGMENTSGAIN = economy.dust(300)  # at the economy's pace (economy.py)
 CHANCEITEM = 15
-MIRROR_ITEM_DROPS = {13: 0.15, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.16, 2: 0.08, 3: 0.01, 38: 0.06, 39: 0.04, 40: 0.06}  # a CHANCEITEM% roll (Arrows 4% -> 1%, Lottery tickets 8% -> 16%: they build most gear)
+MIRROR_ITEM_DROPS = {13: 0.15, 47: 0.20, 1: 0.12, 4: 0.12, 15: 0.16, 2: 0.08, 3: 0.01, 38: 0.06, 39: 0.04, 40: 0.06,
+                     42: 0.02, 53: 0.02, 52: 0.01}  # a CHANCEITEM% roll (Arrows 4% -> 1%, Lottery tickets 8% -> 16%: they build most gear; now and then a finished piece)
 DAILY_ITEM_CHANCE = 60
 DAILY_DUST = economy.dust(100)  # at the economy's pace
 DAILY_ITEM_DROPS = {13: 0.20, 47: 0.22, 1: 0.14, 4: 0.10, 2: 0.10, 15: 0.10, 40: 0.10, 38: 0.04}  # a DAILY_ITEM_CHANCE% roll
@@ -1172,12 +1173,58 @@ def use_item(user: User, item_id: int, uuid: Optional[str] = None, mode: Optiona
     return res
 
 
+def ingredient_slots(recipe: dict) -> List[dict]:
+    """A recipe's ingredients as [{ids, n, distinct, label}]. In recipes.json an ingredient is [item id, amount], or
+    {"any": [ids], "n": amount, "distinct": true?, "label": "..."} for any of several items (n different ones when
+    distinct: the Holy Corpse takes any 3 different Corpse Parts)."""
+    out = []
+    for ing in recipe["ingredients"]:
+        if isinstance(ing, dict):
+            out.append({"ids": list(ing["any"]), "n": ing["n"], "distinct": bool(ing.get("distinct")),
+                        "label": ing.get("label") or "any of " + ", ".join(item_file[i - 1]["name"] for i in ing["any"])})
+        else:
+            item_id, amount = ing
+            out.append({"ids": [item_id], "n": amount, "distinct": False, "label": item_file[item_id - 1]["name"]})
+    return out
+
+
+def _take(have: dict, slot: dict) -> Optional[List[int]]:
+    """The item ids one craft takes for a slot from the counts in have (the most plentiful first, so rarer pieces
+    are kept), or None when the bag can't cover it."""
+    if slot["distinct"]:
+        owned = sorted((i for i in slot["ids"] if have.get(i, 0) > 0), key=lambda i: -have[i])
+        return owned[:slot["n"]] if len(owned) >= slot["n"] else None
+    picked, left = [], dict(have)
+    for _ in range(slot["n"]):
+        i = max(slot["ids"], key=lambda i: left.get(i, 0))
+        if left.get(i, 0) < 1:
+            return None
+        left[i] -= 1
+        picked.append(i)
+    return picked
+
+
+def slot_have(user: User, slot: dict) -> int:
+    """How much of a slot the bag holds: copies, or different items for a distinct slot."""
+    ids = [i.id for i in user.items]
+    return sum(1 for i in slot["ids"] if i in ids) if slot["distinct"] else sum(ids.count(i) for i in slot["ids"])
+
+
 def craftable(user: User, recipe: dict) -> int:
     """How many times the bag can craft a recipe right now."""
     have = {}
     for i in user.items:
         have[i.id] = have.get(i.id, 0) + 1
-    return min(have.get(item_id, 0) // amount for item_id, amount in recipe["ingredients"])
+    slots, n = ingredient_slots(recipe), 0
+    while n < 999:
+        for slot in slots:
+            took = _take(have, slot)
+            if took is None:
+                return n
+            for i in took:
+                have[i] -= 1
+        n += 1
+    return n
 
 
 def craft_many(user: User, recipe_name: str, count: int) -> List[Item]:
@@ -1193,12 +1240,20 @@ def craft(user: User, recipe_name: str) -> Item:
     recipe = next((r for r in RECIPES if r["name"] == recipe_name), None)
     if not recipe:
         raise GameError("Unknown recipe.")
-    for item_id, amount in recipe["ingredients"]:
-        if sum(1 for i in user.items if i.id == item_id) < amount:
-            raise GameError(f"Missing {item_file[item_id - 1]['name']}.")
-    for item_id, amount in recipe["ingredients"]:
-        for _ in range(amount):
-            user.items.remove(spare(user.items, item_id)[0])
+    have = {}
+    for i in user.items:
+        have[i.id] = have.get(i.id, 0) + 1
+    spend = []
+    for slot in ingredient_slots(recipe):
+        took = _take(have, slot)
+        if took is None:
+            raise GameError(f"Missing {slot['n']} × {slot['label']}." if slot["n"] > 1 or slot["distinct"]
+                            else f"Missing {slot['label']}.")
+        for i in took:
+            have[i] -= 1
+        spend += took
+    for item_id in spend:
+        user.items.remove(spare(user.items, item_id)[0])
     crafted = Item({"id": recipe["result"]})
     user.items.append(crafted)
     track_quest_progress(user, "item_craft")

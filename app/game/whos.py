@@ -34,6 +34,7 @@ BLUR = [30, 22, 15, 9, 4]                 # blur radius on the 360px picture, by
 CLUE_SPECIAL, CLUE_LETTER = 3, 7          # misses before each clue shows
 RARITY_ORDER = ["R", "SR", "SSR", "UR", "LR"]
 REWARD_BASE, REWARD_PER_SPARE = 300, 60   # Meteor Dust: base, plus this per unused guess
+COMB_STREAK, COMB_ITEM = 7, 58             # every 7th day of a streak: Josuke's Comb
 XP_BASE, XP_PER_SPARE = 1000, 120        # player XP, the same way
 POOL = [c["id"] for c in CHARACTER_FILE if c["universe"] != "Dummy" and c["id"] != 110 and c["rarity"] in RARITY_ORDER]
 
@@ -140,14 +141,18 @@ def guess(user, name: str, day: Optional[str] = None) -> dict:
         midnight = datetime.datetime.combine(datetime.date.fromisoformat(day), datetime.time(), tzinfo=datetime.timezone.utc)
         r().zadd(f"web:wts:ladder:{day}", {uid: len(s["guesses"]) * 1_000_000 + max(0, int(time.time() - midnight.timestamp()))})
         r().expire(f"web:wts:ladder:{day}", KEEP)
-        _streak_up(uid, day)
+        n = _streak_up(uid, day)
         spare = MAX_GUESSES - len(s["guesses"])
         dust, xp = REWARD_BASE + REWARD_PER_SPARE * spare, XP_BASE + XP_PER_SPARE * spare
         user.fragments += dust
         user.xp += xp
         s["reward"], s["reward_xp"] = dust, xp
+        if n % COMB_STREAK == 0:
+            from app.game.items import item_from_dict
+            user.items.append(item_from_dict({"id": COMB_ITEM}))
+            s["reward_item"] = "Josuke's Comb"
     r().set(_key(uid, day), json.dumps({k: s[k] for k in ("guesses", "solved", "at")}), ex=KEEP)
-    return state(uid, day) | ({"reward": s["reward"], "reward_xp": s["reward_xp"]} if "reward" in s else {})
+    return state(uid, day) | ({k: s[k] for k in ("reward", "reward_xp", "reward_item") if k in s})
 
 
 def _streak_up(uid, day):
@@ -155,6 +160,7 @@ def _streak_up(uid, day):
     raw = {(k.decode() if isinstance(k, bytes) else k): (v.decode() if isinstance(v, bytes) else v) for k, v in r().hgetall(key).items()}
     n = int(raw.get("n", 0)) + 1 if raw.get("last") == yesterday(day) else 1
     r().hset(key, mapping={"last": day, "n": n, "best": max(n, int(raw.get("best", 0)))})
+    return n
 
 
 def streak(uid) -> dict:

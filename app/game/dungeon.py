@@ -56,6 +56,7 @@ WIPE_KEEP = 0.5         # share of the bag that comes home when the team falls o
 CHEST_ITEMS = ((47, 30), (38, 20), (39, 15), (40, 20), (15, 15), (7, 5), (2, 3), (None, 12))  # (item id or nothing, weight)
 BOSS_ITEMS = (38, 39, 40)
 BOSS_PALM = 0.30        # chance the boss also drops a Devil's Palm
+BOSS_GEAR, BOSS_GEAR_CHANCE = (62, 63), 0.25  # ...and a piece of the dungeon's own gear: Cioccolata's Spores, Ghiaccio's Goggles
 ICONS = {"fight": "!", "elite": "☠", "chest": "◇", "trap": "×", "camp": "♨", "stairs": "⇩", "boss": "♛"}
 NAMES = {"fight": "Monsters", "elite": "Elite", "chest": "Chest", "trap": "Trap", "camp": "Campfire",
          "stairs": "Stairs down", "boss": "Boss"}
@@ -355,6 +356,8 @@ def finish_fight(user, fight, redis) -> dict:
         found = [rng.choice(BOSS_ITEMS)]
         if depth >= DEEP_BOSS_PALM or rng.random() < BOSS_PALM:
             found.append(2)
+        if rng.random() < BOSS_GEAR_CHANCE:
+            found.append(rng.choice(BOSS_GEAR))
         if depth == DEPTHS and rng.random() < REQUIEM_ARROW_CHANCE:
             found.append(3)
     run["bag"]["items"].extend(found)

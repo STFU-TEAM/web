@@ -722,12 +722,9 @@ def _equip_options(user, groups) -> dict:
 
 
 def _recipes(user):
-    have = {}
-    for it in user.items:
-        have[it.id] = have.get(it.id, 0) + 1
     out = []
     for r in RECIPES:
-        parts = [(item_file[i - 1]["name"], n, have.get(i, 0)) for i, n in r["ingredients"]]
+        parts = [(s["label"], s["n"], logic.slot_have(user, s)) for s in logic.ingredient_slots(r)]
         result = item_from_dict({"id": r["result"]})
         out.append({"name": r["name"], "parts": parts, "ready": all(h >= n for _, n, h in parts), "result": result,
                     "max": logic.craftable(user, r)})

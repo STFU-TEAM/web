@@ -11,12 +11,13 @@ Save: data["web_rush"] = {"week", "day", "best": {"bosses", "rounds"}, "claimed"
                           "run": {"index", "hp": {uuid: hp}, "rounds"} or None}
 Redis: ZSET web:rush:<week> uid -> score (bosses * 1000 - rounds)
 """
+import random
 from typing import Optional
 
 from app.game import story
 from app.game.character import character_from_dict
 from app.game.gangs import week_ends, week_key
-from app.game.items import item_file, item_from_dict
+from app.game.items import CORPSE_PARTS, item_file, item_from_dict
 from app.game.logic import GameError, now
 
 BOSS_STAGES = [k for k, st in enumerate(story.STAGES) if st.get("boss")]
@@ -46,14 +47,14 @@ REWARDS = [  # weekly, at the economy's pace (economy.py)
     {"fragments": 1400, "items": [38]},
     {"fragments": 2100, "items": [39, 40]},
     {"fragments": 2800, "items": [38, 38]},
-    {"fragments": 4200, "super": 1, "items": [34]},
+    {"fragments": 4200, "super": 1, "items": ["corpse"]},  # one of the nine parts at random
     # the encore: only the strongest teams get here, so it pays in items more than in dust
     {"fragments": 1500, "items": [47, 40]},
     {"fragments": 1800, "items": [38]},
     {"fragments": 2100, "items": [38, 39]},
-    {"fragments": 2400, "items": [40, 40, 47]},
+    {"fragments": 2400, "items": [40, 40, 47, 69]},  # Fugo's Capsule: a risky prize for the strongest teams
     {"fragments": 2800, "items": [38, 38]},
-    {"fragments": 3500, "super": 1, "items": [35]},
+    {"fragments": 3500, "super": 1, "items": ["corpse"]},
 ]
 
 
@@ -74,7 +75,7 @@ def reward_text(i: int) -> str:
     parts = [f"{r['fragments']:,} Meteor Dust"]
     if r.get("super"):
         parts.append(f"{r['super']} Arrowhead{'s' if r['super'] > 1 else ''}")
-    parts += [item_file[x - 1]["name"] for x in r["items"]]
+    parts += ["a Saint's Corpse part" if x == "corpse" else item_file[x - 1]["name"] for x in r["items"]]
     return ", ".join(parts)
 
 
@@ -149,7 +150,7 @@ def finish_fight(user, fight, redis, name: str) -> dict:
             reward = REWARDS[index]
             user.fragments += reward["fragments"]
             user.super_fragments += reward.get("super", 0)
-            items = [item_from_dict({"id": i}) for i in reward["items"]]
+            items = [item_from_dict({"id": random.choice(CORPSE_PARTS) if i == "corpse" else i}) for i in reward["items"]]
             user.items.extend(items)
             s["claimed"].append(index)
             names = [i.name for i in items] + ([f"{reward['super']} Arrowhead"] if reward.get("super") else [])

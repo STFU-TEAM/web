@@ -53,6 +53,7 @@
       {% endif %}
     {% elif t and t.state == 'over' %}
       <p class="den-result {{ 'win' if t.won else 'lose' }}">{% if t.won %}{{ t.opp }} spilled it! +{{ t.stake|num }}{% else %}You spilled it. -{{ t.stake|num }}{% endif %}</p>
+      {% if t.won and t.prize %}<p class="den-prize">🏮 {{ D.CHIP_STREAK if D is defined else 3 }} in a row: D'Arby slides you {{ t.prize }}.</p>{% endif %}
       <a class="btn gold" href="{{ url_for('den.index') }}">Back to the table</a>
     {% endif %}
   {% endif %}

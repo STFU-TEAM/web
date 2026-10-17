@@ -506,7 +506,7 @@ ITEM_ABILITY = {
     6: "In fights, every 3 turns: heals 15% of max health, +25% damage and +20 crit for 2 turns.",
     7: "In fights, every 2 turns: heals 10% of max health and +10% damage for good.",
     16: "In fights: if a poisoner hit the holder, it weakens them (-15% damage for a turn).",
-    37: "In fights, every turn: the whole team heals 8% and gains +10% damage and armor for 2 turns.",
+    37: "In fights, every 3 turns: misfortune is sent elsewhere. The whole team sheds every debuff, heals 10% and gains +15% damage and armor for 2 turns.",
     41: "In fights, every 3 turns: a Golden Spin throw for 60% damage as true damage that slows the target.",
     43: "In fights, every 3 turns: heals 8% of max health.",
     45: "In fights, every 3 turns: heals 10% of max health and +20% damage for 2 turns.",
@@ -515,6 +515,19 @@ ITEM_ABILITY = {
     55: "In fights, every 3 turns: a bet of +10, +20, +30 or +40 crit for 2 turns.",
     56: "In fights, every 2 turns: a Clacker Volley for 30% of the holder's damage as true damage.",
     57: "In fights, every 4 turns: every poison and burn on the enemy team detonates at once, dealing all its remaining ticks in one go. Event shop only.",
+    58: "The holder taunts. Every basic hit it takes makes it angrier: +6% damage, up to 5 times a fight.",
+    59: "The holder taunts. 15% of every basic hit it takes sticks to the attacker and comes back as damage.",
+    60: "The holder taunts. Once a fight it survives the blow that would fell it at 1 health, and every enemy burns for 2 turns.",
+    61: "The holder taunts. Every 3 turns: the whole team gains +20% armor for 2 turns.",
+    62: "In fights, every 2 turns: poisons the enemy the holder just attacked for 3 turns.",
+    63: "Its basic hits slow the target 10% for a turn, 20% on a Frozen field.",
+    64: "In fights, every 3 turns: heals the most wounded ally 8% of its max health.",
+    65: "In fights, every 3 turns: removes every debuff from the ally that has the most.",
+    66: "In fights, every 2 turns: strafes the enemy with the least health left for 40% of the holder's damage, as true damage.",
+    67: "In fights, every 3 turns: the enemy closest to its special loses a turn of charge.",
+    68: "In fights, every 3 turns: every enemy deals 15% less for 2 turns.",
+    76: "Equivalent Exchange: once a fight, when the holder drops under 30% health (45% at +5), it trades health shares with the enemy that has the most left. The holder's side is a heal; the enemy loses 20% of its health at most.",
+    69: "Its basic hits poison the target 30% of the time, but 10% of the time the capsule breaks the wrong way and poisons the holder. Refining never makes its −30 HP worse.",
 }
 ITEM_USE = {
     2: "Spent on a banner: 5 stands at SR or better.",
@@ -537,6 +550,7 @@ def _item_sources() -> dict:
     from app.game.gangs import RAID_TIERS
     from app.game.items import item_file
     from app.game.quests import ALL_QUESTS
+    from app.game.items import CORPSE_PARTS
     out = {}
 
     def add(item_id, where, detail=""):
@@ -571,10 +585,12 @@ def _item_sources() -> dict:
                 add(i, "Alternate Universe", f"AU · {c['title']}, stage {j + 1}")
     for n, tier in enumerate(rush.REWARDS, start=1):
         for i in tier.get("items", []):
-            add(i, "Boss rush", f"weekly reward for beating {n} boss{'es' if n != 1 else ''}")
+            for real in (CORPSE_PARTS if i == "corpse" else [i]):
+                add(real, "Boss rush", f"weekly reward for beating {n} boss{'es' if n != 1 else ''}"
+                                       + (" (one part at random)" if i == "corpse" else ""))
     for tier in RAID_TIERS:
         for i in tier["items"]:
-            for real in ([34, 35, 36] if i == "corpse" else [i]):
+            for real in (CORPSE_PARTS if i == "corpse" else [i]):
                 add(real, "Gang raid", f"tier at {tier['damage']:,} damage" + (" (one part at random)" if i == "corpse" else ""))
     for i in journey.ITEM_POOL:
         add(i, "Crusaders' Journey", "chance on any trip; better with longer trips and stronger stands")
@@ -583,13 +599,22 @@ def _item_sources() -> dict:
             add(i, "Dungeon", "chests and elites in the daily dungeon")
     for i in dungeon.BOSS_ITEMS:
         add(i, "Dungeon", "the daily dungeon's boss")
+    for i in dungeon.BOSS_GEAR:
+        add(i, "Dungeon", f"the daily dungeon's boss ({round(dungeon.BOSS_GEAR_CHANCE * 100 / len(dungeon.BOSS_GEAR))}% chance)")
+    from app.game import den, gauntlet, overheaven, whos
+    for n, tier in enumerate(overheaven.REWARDS, start=1):
+        for i in set(tier.get("items", [])):
+            add(i, "Over Heaven", f"first clear of stage {n} of every track")
+    add(gauntlet.PLANE_ITEM, "Heaven's Door Gauntlet", f"reach chapter {gauntlet.PLANE_FLOOR} (once a week)")
+    add(den.LANTERN, "D'Arby's den", f"win {den.CHIP_STREAK} in a row against D'Arby")
+    add(whos.COMB_ITEM, "Who's that Stand?", f"every {whos.COMB_STREAK}th day of a solving streak")
     add(2, "Dungeon", f"the daily dungeon's boss ({round(dungeon.BOSS_PALM * 100)}% chance)")
     from app.game.events import SHOP as EVENT_SHOP
     for offer in EVENT_SHOP:
         for i in offer["give"].get("items", []):
             add(i, "Event shop", f"{offer['cost']} event tokens, {offer['limit']} per event")
     for r in logic.RECIPES:
-        parts = ", ".join(f"{n} × {item_file[i - 1]['name']}" for i, n in r["ingredients"])
+        parts = ", ".join(f"{s['n']} × {s['label']}" for s in logic.ingredient_slots(r))
         add(r["result"], "Crafting", parts)
     for q in ALL_QUESTS:
         for it in (q.get("rewards") or {}).get("items", []):
@@ -604,12 +629,13 @@ def _item_sources() -> dict:
 
 
 def item_rows() -> list:
-    from app.game.items import item_file
+    from app.game.items import CORPSE_PARTS, item_file
     sources = _item_sources()
     used_in = {}
     for r in logic.RECIPES:
-        for i, n in r["ingredients"]:
-            used_in.setdefault(i, []).append(r["name"])
+        for s in logic.ingredient_slots(r):
+            for i in s["ids"]:
+                used_in.setdefault(i, []).append(r["name"])
     rows = []
     for it in item_file:
         iid = it["id"]
@@ -621,21 +647,21 @@ def item_rows() -> list:
             kind = "Gear"
         elif iid in (38, 39, 40):
             kind = "Material"
-        elif 34 <= iid <= 36:
+        elif iid in CORPSE_PARTS:
             kind = "Corpse part"
         elif iid in ITEM_USE:
             kind = "Usable"
         else:
             kind = "Collectible"
-        bonus = [fmt for fmt in (
-            f"+{it['bonus_hp']} HP" if it.get("bonus_hp") else "", f"+{it['bonus_damage']} ATK" if it.get("bonus_damage") else "",
-            f"+{it['bonus_armor']} ARM" if it.get("bonus_armor") else "", f"+{it['bonus_speed']} SPD" if it.get("bonus_speed") else "",
-            f"+{it['bonus_critical']}% CRT" if it.get("bonus_critical") else "") if fmt]
+        bonus = [f"{v:+} {label}".replace("-", "−") for key, label in (
+            ("bonus_hp", "HP"), ("bonus_damage", "ATK"), ("bonus_armor", "ARM"), ("bonus_speed", "SPD"),
+            ("bonus_critical", "% CRT")) if (v := it.get(key))]
+        bonus = [b.replace(" % CRT", "% CRT") for b in bonus]
         use = ITEM_USE.get(iid)
         if kind == "Stand chip":
             use = f"Unlocks {it['name'].replace(' Stand Chip', '').strip()} as a stand."
         elif kind == "Corpse part":
-            use = "Collect all three to craft the Holy Corpse."
+            use = "Any 3 different parts craft the Holy Corpse; any one, with 2 Rokakaka Fruit, the New Rokakaka."
         rows.append({"id": iid, "name": it["name"], "emoji": it.get("emoji") or "◈", "kind": kind, "bonus": bonus,
                      "ability": ITEM_ABILITY.get(iid), "use": use, "sources": sources.get(iid, []),
                      "used_in": used_in.get(iid, []), "sell": logic.sell_price(type("I", (), {"price": it.get("price")})())})

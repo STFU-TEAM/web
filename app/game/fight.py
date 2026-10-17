@@ -196,6 +196,12 @@ class Fight:
         from app.game import resonance
         down = getattr(self, "_down", set())
         for s, side in enumerate(self.sides):
+            for c in side.chars:  # the New Rokakaka: low on health, trade it for an enemy's
+                if c.items and c.is_alive():
+                    from app.game.itemabilities import equivalent_exchange
+                    text = equivalent_exchange(c, self.sides[1 - s].chars)
+                    if text:
+                        self._log(text, "item", c, s)
             for i, c in enumerate(side.chars):
                 if c.is_alive() or (s, i) in down:
                     continue
@@ -215,6 +221,12 @@ class Fight:
                     self._log(f"✝️ The Saint's Spine glows: {c.name} gets back up at half health, every debuff gone!",
                               "terrain", c, s)
                     continue
+                if c.items:
+                    from app.game.itemabilities import cheat_death
+                    text = cheat_death(c, self.sides[1 - s].chars)
+                    if text:
+                        self._log(text, "item", c, s)
+                        continue
                 down.add((s, i))
                 if "golden_spirit" in getattr(self, "resonances", {}).get(s, ()) and side.alive():
                     rallied = resonance.second_wind(side.chars, c)
@@ -526,6 +538,10 @@ class Fight:
                         targeted._read = getattr(targeted, "_read", 0) + 1  # Heaven's Door: hits read its book
                     if self.kind == "gauntlet":
                         self._gauntlet_hit(char, targeted, data, p, idx)
+                    if data["damage"] and (char.items or targeted.items):  # gear passives: the comb, slime, goggles...
+                        from app.game.itemabilities import on_hit
+                        for line in on_hit(char, targeted, data):
+                            self._log(line, "item", char, p)
                     if data["damage"] and getattr(char, "_lifesteal", 0):
                         char.heal(data["damage"] * char._lifesteal)
                     if data["damage"] and self.__dict__.get("rules"):

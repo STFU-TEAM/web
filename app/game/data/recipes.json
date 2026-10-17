@@ -3,9 +3,7 @@
     {
       "name": "Holy Corpse",
       "ingredients": [
-        [34, 1],
-        [35, 1],
-        [36, 1]
+        {"any": [34, 35, 36, 70, 71, 72, 73, 74, 75], "n": 3, "distinct": true, "label": "different Corpse Parts"}
       ],
       "result": 37
     },
@@ -137,6 +135,30 @@
         [13, 1]
       ],
       "result": 56
+    },
+    {
+      "name": "Yellow Temperance Slime",
+      "ingredients": [
+        [39, 2],
+        [40, 2]
+      ],
+      "result": 59
+    },
+    {
+      "name": "Hot Pants' Spray",
+      "ingredients": [
+        [4, 1],
+        [47, 2]
+      ],
+      "result": 65
+    },
+    {
+      "name": "New Rokakaka",
+      "ingredients": [
+        [39, 2],
+        {"any": [34, 35, 36, 70, 71, 72, 73, 74, 75], "n": 1, "label": "Corpse Part (any)"}
+      ],
+      "result": 76
     }
   ]
 }

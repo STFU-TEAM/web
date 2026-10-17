@@ -17,7 +17,7 @@ from typing import Optional
 
 from app.game.character import character_from_dict
 from app.game.economy import stand_xp
-from app.game.items import item_file, item_from_dict
+from app.game.items import CORPSE_PARTS, item_file, item_from_dict
 from app.game.logic import CHARACTER_XPGAINS, FRAGMENTSGAIN, PLAYER_XPGAINS, GameError, now, train
 
 BOSS, CAPO, SOLDIER = 0, 1, 2
@@ -409,8 +409,8 @@ def raid_mult(gang: Optional[dict]) -> float:
     return next((m for size, m in SMALL_GANG if n <= size), 1.0)
 RAID_TIERS = [  # weekly, at the economy's pace (economy.py)
     {"damage": 10_000, "fragments": 1050, "items": [40, 40, 47]},
-    {"damage": 50_000, "fragments": 2100, "items": [38, 38, 39, 47, 47]},
-    {"damage": 200_000, "fragments": 3500, "items": [2, 38, 38]},
+    {"damage": 50_000, "fragments": 2100, "items": [38, 38, 39, 47, 47, 64]},  # Trish's Lipstick
+    {"damage": 200_000, "fragments": 3500, "items": [2, 38, 38, 61]},  # Abbacchio's Badge
     {"damage": 600_000, "fragments": 5600, "super": 1, "items": [39, 39, "corpse"]},
 ]
 
@@ -535,7 +535,7 @@ def claim_raid(gang: dict, user) -> list:
             user.fragments += tier["fragments"]
             user.super_fragments += tier.get("super", 0)
             for item_id in tier["items"]:
-                user.items.append(item_from_dict({"id": random.choice([34, 35, 36]) if item_id == "corpse" else item_id}))
+                user.items.append(item_from_dict({"id": random.choice(CORPSE_PARTS) if item_id == "corpse" else item_id}))
             paid.append(i)
         if tiers:
             state["claimed"].setdefault(str(user.id), []).extend(tiers)
